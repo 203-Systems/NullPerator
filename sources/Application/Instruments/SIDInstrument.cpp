@@ -1,5 +1,5 @@
 #include "SIDInstrument.h"
-#include "Adapters/picoTracker/utils/utils.h"
+#include "Adapters/esp32/utils/utils.h"
 #include "CommandList.h"
 #include "Externals/etl/include/etl/to_string.h"
 #include "I_Instrument.h"

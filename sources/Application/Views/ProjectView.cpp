@@ -11,8 +11,8 @@
 #include "Services/Midi/MidiService.h"
 #include "System/System/System.h"
 #ifdef PICOBUILD
-#include "hardware/watchdog.h"
-#include "pico/bootrom.h"
+// #include "hardware/watchdog.h"
+// #include "pico/bootrom.h"
 #endif
 
 static void LoadCallback(View &v, ModalView &dialog) {
@@ -29,14 +29,14 @@ static void CreateNewProjectCallback(View &v, ModalView &dialog) {
     PersistencyService::GetInstance()->SaveProjectState(UNNAMED_PROJECT_NAME);
 
     // now reboot!
-    watchdog_reboot(0, 0, 0);
+    // watchdog_reboot(0, 0, 0);
   }
 };
 
 #ifdef PICOBUILD
 static void BootselCallback(View &v, ModalView &dialog) {
   if (dialog.GetReturnCode() == MBL_YES) {
-    reset_usb_boot(0, 0);
+    // reset_usb_boot(0, 0);
   }
 };
 #endif

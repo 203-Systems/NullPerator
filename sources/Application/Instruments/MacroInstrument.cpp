@@ -1,5 +1,5 @@
 #include "MacroInstrument.h"
-#include "Adapters/picoTracker/utils/utils.h"
+#include "Adapters/esp32/utils/utils.h"
 #include "Application/Instruments/Filters.h"
 #include "Application/Model/Table.h"
 #include "Application/Player/PlayerMixer.h" // For MIX_BUFFER_SIZE.. kick out pls
@@ -9,7 +9,7 @@
 #include "Services/Audio/Audio.h"
 #include "System/Console/Trace.h"
 #include "System/io/Status.h"
-#include "pico/rand.h"
+// #include "pico/rand.h"
 #include <assert.h>
 
 MacroInstrument::MacroInstrument()
@@ -41,7 +41,8 @@ bool MacroInstrument::Init() {
   // we shouldn't need a quantizer
   //  quantizer_.Init();
   envelope_.Init();
-  ws_.Init(get_rand_32());
+  // ws_.Init(get_rand_32());
+  ws_.Init(0);
   jitter_source_.Init();
 
   return true;

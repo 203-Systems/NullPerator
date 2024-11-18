@@ -3,7 +3,7 @@
 #ifndef PICOBUILD
 #include "SDL/SDL.h"
 #else
-#include "pico/stdlib.h"
+#include <stdlib.h>
 #endif
 
 /*Date::Date() {

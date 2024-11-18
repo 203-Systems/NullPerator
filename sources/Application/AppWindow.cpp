@@ -15,6 +15,8 @@
 #include "Views/UIController.h"
 #include <string.h>
 
+#define MIN(x, y)  ((x) < (y) ? (x) : (y))
+
 AppWindow *instance = 0;
 
 unsigned char AppWindow::_charScreen[SCREEN_CHARS];

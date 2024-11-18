@@ -2,7 +2,6 @@
 #define _MACRO_INSTRUMENT_H_
 
 #include "I_Instrument.h"
-#include "pico/stdlib.h"
 
 #include "Application/Model/Song.h"
 #include "Externals/braids/envelope.h"

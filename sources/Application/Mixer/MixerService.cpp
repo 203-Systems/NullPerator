@@ -205,7 +205,7 @@ void MixerService::Lock() {
 #ifndef PICOBUILD
     SDL_LockMutex(sync_);
 #else
-    mutex_enter_blocking(sync_);
+    // mutex_enter_blocking(sync_);
 #endif
 }
 
@@ -214,6 +214,6 @@ void MixerService::Unlock() {
 #ifndef PICOBUILD
     SDL_UnlockMutex(sync_);
 #else
-    mutex_exit(sync_);
+    // mutex_exit(sync_);
 #endif
 }

@@ -11,7 +11,7 @@
 #ifndef PICOBUILD
 #include "SDL/SDL.h"
 #else
-#include "pico/mutex.h"
+// #include "pico/mutex.h"
 #endif
 
 enum MixerServiceMode {

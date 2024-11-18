@@ -4,7 +4,7 @@ add_library(application_instruments
   I_Instrument.h
   I_SRPUpdater.h
   InstrumentBank.h InstrumentBank.cpp
-  MacroInstrument.h MacroInstrument.cpp
+  # MacroInstrument.h MacroInstrument.cpp
   MidiInstrument.h MidiInstrument.cpp
   OpalInstrument.h OpalInstrument.cpp
   NoneInstrument.h NoneInstrument.cpp

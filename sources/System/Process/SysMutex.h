@@ -10,7 +10,7 @@
 #ifndef PICOBUILD
 #include <SDL/SDL.h>
 #else
-#include "pico/mutex.h"
+// #include "pico/mutex.h"
 #endif
 
 class SysMutex {
@@ -24,7 +24,7 @@ private:
 #ifndef PICOBUILD
   SDL_mutex *mutex_;
 #else
-  mutex_t *mutex_;
+  // mutex_t *mutex_;
 #endif
 };
 

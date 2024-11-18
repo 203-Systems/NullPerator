@@ -1,16 +1,13 @@
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.16)
 
-set(PICO_SDK_PATH ${CMAKE_CURRENT_SOURCE_DIR}/Externals/pico-sdk)
-# Pull in SDK (must be before project)
-include(pico_sdk_import.cmake)
+
+include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+
+# set(EXTRA_COMPONENT_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/Adapters/esp32")
 
 project(picoTracker)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
-
-if (PICO_SDK_VERSION_STRING VERSION_LESS "2.0.0")
-    message(FATAL_ERROR "Raspberry Pi Pico SDK version 1.3.0 (or later) required. Your version is ${PICO_SDK_VERSION_STRING}")
-endif()
 
 # Make this a picoTracker build within the project
 add_definitions(-DPICOBUILD)
@@ -34,8 +31,6 @@ add_definitions(-DUSB_REMOTE_UI)
 # enable basic control REPL over serial port. NOTE: uses extra ~112bytes of *stack*
 # add_definitions(-DSERIAL_REPL)
 
-# Initialize the SDK
-pico_sdk_init()
 
 add_compile_options(
   -Werror
@@ -46,6 +41,12 @@ add_compile_options(
   -Wstack-usage=2048 # allows high watermark at the time this option was added TODO: reduce this for safety and/or reduce stack size
   # TODO: SHOULD FIX
   -Wno-int-to-pointer-cast
+  -Wno-error=return-type
+
+  -Wno-overloaded-virtual
+  -Wno-return-type
+  -Wno-unused-function
+
 
   # braids
   -Wno-unused-variable
@@ -62,35 +63,14 @@ add_subdirectory(Foundation)
 
 set_property(TARGET picoTracker APPEND_STRING PROPERTY LINK_FLAGS "-Wl,--print-memory-usage")
 
-target_compile_definitions(picoTracker PUBLIC
-#	PICO_HEAP_SIZE=204800
-  PICO_DEBUG_MALLOC_LOW_WATER=1000
-  PICO_MALLOC_PANIC=0
-  PICO_STACK_SIZE=4096
-  PICO_CORE1_STACK_SIZE=4096 # Safe value. 2K seems to be enough. Is it for all use cases?
-  PICO_USE_STACK_GUARDS
-  PICO_FLASH_SIZE_BYTES=16*1024*1024
-  # workaround for slow init crystal on some boards see: https://github.com/raspberrypi/pico-sdk/pull/457
-  PICO_XOSC_STARTUP_DELAY_MULTIPLIER=64
-)
-
-if (PICO_RP2350)
-  target_compile_definitions(picoTracker PUBLIC
-    PICO_DEFAULT_UART=0
-    PICO_DEFAULT_UART_TX_PIN=30
-    PICO_DEFAULT_UART_RX_PIN=31
-  )
-else ()
-  target_compile_definitions(picoTracker PUBLIC
-    PICO_DEFAULT_UART=1
-    PICO_DEFAULT_UART_TX_PIN=24
-    PICO_DEFAULT_UART_RX_PIN=25
-  )
-endif()
-
-# Debug output with USB uses +6K memory
-pico_enable_stdio_usb(${PROJECT_NAME} 0)
-pico_enable_stdio_uart(${PROJECT_NAME} 0)
-
-# This is the default, but better to make it explicit
-pico_set_float_implementation(${PROJECT_NAME} pico)
+# target_compile_definitions(picoTracker PUBLIC
+# #	PICO_HEAP_SIZE=204800
+#   PICO_DEBUG_MALLOC_LOW_WATER=1000
+#   PICO_MALLOC_PANIC=0
+#   PICO_STACK_SIZE=4096
+#   PICO_CORE1_STACK_SIZE=4096 # Safe value. 2K seems to be enough. Is it for all use cases?
+#   PICO_USE_STACK_GUARDS
+#   PICO_FLASH_SIZE_BYTES=16*1024*1024
+#   # workaround for slow init crystal on some boards see: https://github.com/raspberrypi/pico-sdk/pull/457
+#   PICO_XOSC_STARTUP_DELAY_MULTIPLIER=64
+# )

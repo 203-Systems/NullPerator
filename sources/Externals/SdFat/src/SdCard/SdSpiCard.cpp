@@ -23,7 +23,7 @@
  * DEALINGS IN THE SOFTWARE.
  */
 #include "SdSpiCard.h"
-#include "Adapters/picoTracker/utils/utils.h"
+#include "Adapters/esp32/utils/utils.h"
 //==============================================================================
 class Timeout {
  public:

@@ -30,13 +30,13 @@ bool SysMutex::Lock() {
     return true;
   }
 #else
-  if (!mutex_) {
-    mutex_init(mutex_);
-  }
-  if (mutex_) {
-    mutex_enter_blocking(mutex_);
-    return true;
-  }
+  // if (!mutex_) {
+  //   mutex_init(mutex_);
+  // }
+  // if (mutex_) {
+  //   mutex_enter_blocking(mutex_);
+  //   return true;
+  // }
 #endif
   return false;
 }
@@ -46,7 +46,7 @@ void SysMutex::Unlock() {
 #ifndef PICOBUILD
     SDL_UnlockMutex(mutex_);
 #else
-    mutex_exit(mutex_);
+    // mutex_exit(mutex_);
 #endif
   }
 }

@@ -1,8 +1,8 @@
 #include "SelectProjectView.h"
 #include "Application/AppWindow.h"
 
-#include "hardware/watchdog.h"
-#include "pico/bootrom.h"
+// #include "hardware/watchdog.h"
+// #include "pico/bootrom.h"
 
 #define LIST_PAGE_SIZE 14
 #define LIST_WIDTH 26
@@ -95,7 +95,7 @@ void SelectProjectView::ProcessButtonMask(unsigned short mask, bool pressed) {
       PersistencyService::GetInstance()->SaveProjectState(selection_);
 
       // now reboot!
-      watchdog_reboot(0, 0, 0);
+      // watchdog_reboot(0, 0, 0);
       return;
     } else {
       // R Modifier

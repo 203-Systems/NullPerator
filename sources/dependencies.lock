@@ -1,0 +1,26 @@
+dependencies:
+  idf:
+    source:
+      type: idf
+    version: 5.3.1
+  leeebo/tinyusb_src:
+    component_hash: f8a386b696474c2b20482b662319200e4a2ce9cae8fa3ae7830d3929f03780c8
+    dependencies:
+    - name: idf
+      registry_url: https://components.espressif.com
+      require: private
+      version: '>=4.4'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    targets:
+    - esp32s2
+    - esp32s3
+    - esp32p4
+    version: 0.16.0~6
+direct_dependencies:
+- idf
+- leeebo/tinyusb_src
+manifest_hash: 07c4d025d7b5b6c7eeea88b8cdde42c228e944901a88cbeb2b30b216f54b94bc
+target: esp32s3
+version: 2.0.0

@@ -2,7 +2,7 @@
 
 #include "Application/Instruments/SampleInstrument.h"
 #include "Application/Instruments/SamplePool.h"
-#include "pico/multicore.h"
+// #include "pico/multicore.h"
 #include <memory>
 
 #define LIST_WIDTH 24
@@ -169,11 +169,11 @@ void ImportView::import(char *name) {
   // Pause core1 in order to be able to write to flash and ensure core1 is
   // not reading from it, it also disables IRQs on it
   // https://www.raspberrypi.com/documentation/pico-sdk/high_level.html#multicore_lockout
-  multicore_lockout_start_blocking();
+  // multicore_lockout_start_blocking();
   char projName[MAX_PROJECT_NAME_LENGTH];
   viewData_->project_->GetProjectName(projName);
   int sampleID = pool->ImportSample(name, projName);
-  multicore_lockout_end_blocking();
+  // multicore_lockout_end_blocking();
 
   if (sampleID >= 0) {
     I_Instrument *instr =

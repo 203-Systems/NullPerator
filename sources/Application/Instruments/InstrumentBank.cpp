@@ -1,6 +1,6 @@
 
 #include "InstrumentBank.h"
-#include "Application/Instruments/MacroInstrument.h"
+// #include "Application/Instruments/MacroInstrument.h"
 #include "Application/Instruments/MidiInstrument.h"
 #include "Application/Instruments/SIDInstrument.h"
 #include "Application/Instruments/SampleInstrument.h"
@@ -17,8 +17,9 @@
 // Contain all instrument definition
 InstrumentBank::InstrumentBank()
     : Persistent("INSTRUMENTBANK"), sampleInstrumentPool_(),
-      midiInstrumentPool_(), sidInstrumentPool_(), opalInstrumentPool_(),
-      macroInstrumentPool_() {
+      midiInstrumentPool_(), sidInstrumentPool_(), opalInstrumentPool_()
+      // macroInstrumentPool_() 
+      {
 
   for (size_t i = 0; i < instruments_.max_size(); i++) {
     instruments_[i] = &none_;
@@ -32,7 +33,7 @@ InstrumentBank::~InstrumentBank() {
   midiInstrumentPool_.release_all();
   sidInstrumentPool_.release_all();
   opalInstrumentPool_.release_all();
-  macroInstrumentPool_.release_all();
+  // macroInstrumentPool_.release_all();
 };
 
 I_Instrument *InstrumentBank::GetInstrument(int i) { return instruments_[i]; };
@@ -209,16 +210,16 @@ unsigned short InstrumentBank::GetNextAndAssignID(InstrumentType type,
     instruments_[id] = oi;
     return id;
   } break;
-  case IT_MACRO: {
-    MacroInstrument *mi = macroInstrumentPool_.create();
-    // TODO check for pool exhastion AND show user UI message about it!!!
-    if (mi == nullptr) {
-      printf("Macro INSTRUMENT EXHAUSTED!!!!!!");
-    }
-    mi->Init();
-    instruments_[id] = mi;
-    return id;
-  } break;
+  // case IT_MACRO: {
+  //   MacroInstrument *mi = macroInstrumentPool_.create();
+  //   // TODO check for pool exhastion AND show user UI message about it!!!
+  //   if (mi == nullptr) {
+  //     printf("Macro INSTRUMENT EXHAUSTED!!!!!!");
+  //   }
+  //   mi->Init();
+  //   instruments_[id] = mi;
+  //   return id;
+  // } break;
   case IT_NONE:
     instruments_[id] = &none_;
     return id;
@@ -245,9 +246,9 @@ void InstrumentBank::releaseInstrument(unsigned short id) {
   case IT_OPAL:
     opalInstrumentPool_.destroy(instrument);
     break;
-  case IT_MACRO:
-    macroInstrumentPool_.destroy(instrument);
-    break;
+  // case IT_MACRO:
+  //   macroInstrumentPool_.destroy(instrument);
+  //   break;
   case IT_NONE:
     // NA: None is a "singleton" so no need to release from pool
     // BUT it can be assigned to any number of slots

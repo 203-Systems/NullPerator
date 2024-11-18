@@ -11,7 +11,6 @@
 #define MAX_PROJECT_SAMPLE_PATH_LENGTH 146 // 17 + 128 + 1
 
 #ifdef LOAD_IN_FLASH
-#include "hardware/flash.h"
 // #define FLASH_TARGET_OFFSET (1024 * 1024)
 //  Use all flash available after binary for samples
 //  WARNING! should be conscious to always ensure 1MB of free space

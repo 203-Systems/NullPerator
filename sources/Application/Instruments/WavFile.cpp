@@ -7,8 +7,8 @@
 #include <stdlib.h>
 
 #ifdef LOAD_IN_FLASH
-#include "hardware/flash.h"
-#include "hardware/sync.h"
+// #include "hardware/flash.h"
+// #include "hardware/sync.h"
 #endif
 
 int WavFile::bufferChunkSize_ = -1;
@@ -224,7 +224,7 @@ long WavFile::readBlock(long start, long size) {
   // Read buffer is a fixed size, nothing should be requested bigger than this
   // TODO: remove size option and work with what we have
 #ifdef PICOBUILD
-  assert((unsigned long)size <= FLASH_PAGE_SIZE);
+  // assert((unsigned long)size <= FLASH_PAGE_SIZE);
 #endif
   if (size > readBufferSize_) {
     readBufferSize_ = size;
@@ -240,7 +240,7 @@ bool WavFile::GetBuffer(long start, long size) {
   // 64 bits is the maximum size we can read without overflowing
   // readBuffer_ in the worst case scenario
 #ifdef PICOBUILD
-  assert((unsigned long)size < FLASH_PAGE_SIZE / 2);
+  // assert((unsigned long)size < FLASH_PAGE_SIZE / 2);
 #endif
   samples_ = (short *)readBuffer_;
 

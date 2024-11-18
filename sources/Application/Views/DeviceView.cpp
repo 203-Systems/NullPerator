@@ -9,8 +9,8 @@
 #include "BaseClasses/UITempoField.h"
 #include "Services/Midi/MidiService.h"
 #include "System/System/System.h"
-#include "hardware/watchdog.h"
-#include "pico/bootrom.h"
+// #include "hardware/watchdog.h"
+// #include "pico/bootrom.h"
 
 #define MAX_COLOR_VALUE 0xFFFFFF
 
@@ -18,7 +18,7 @@
 
 static void BootselCallback(View &v, ModalView &dialog) {
   if (dialog.GetReturnCode() == MBL_YES) {
-    reset_usb_boot(0, 0);
+    // reset_usb_boot(0, 0);
   }
 };
 
