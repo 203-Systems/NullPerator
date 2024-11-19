@@ -8,10 +8,10 @@ typedef void (*timerCallback)();
 
 class I_Timer : public Observable { // Interface for a single timer
 public:
-  virtual ~I_Timer();
+  virtual ~I_Timer() {};
 
 protected:
-  I_Timer();
+  I_Timer() {};
 
 public:
   virtual void SetPeriod(float msec) = 0;
