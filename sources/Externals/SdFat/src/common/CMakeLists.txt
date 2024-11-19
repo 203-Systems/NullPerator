@@ -13,4 +13,6 @@ target_link_libraries(sdfat_common PUBLIC sdfat_sdcard)
 target_include_directories(sdfat_common PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+add_compile_options(-Wno-error=overloaded-virtual)
+
 include_directories(${PROJECT_SOURCE_DIR})

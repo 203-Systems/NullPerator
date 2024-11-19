@@ -19,7 +19,7 @@ add_library(application_views_baseclasses
   ViewEvent.h ViewEvent.cpp
 )
 
-target_link_libraries(application_views_baseclasses PUBLIC pico_stdlib
+target_link_libraries(application_views_baseclasses
                                           PUBLIC sdfat
                                           PUBLIC platform_sdcard
 )

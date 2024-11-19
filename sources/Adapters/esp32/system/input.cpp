@@ -29,5 +29,6 @@ uint16_t scanKeys() {
     return mask;
   }
 #endif
-  return (~gpio_get_all() & 0x0001FF00) >> 8;
+  // return (~gpio_get_all() & 0x0001FF00) >> 8;
+  return 0;
 }

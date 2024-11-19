@@ -3,14 +3,21 @@ cmake_minimum_required(VERSION 3.16)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 
-# set(EXTRA_COMPONENT_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/Adapters/esp32")
+set(EXTRA_COMPONENT_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/Adapters/esp32/main")
+message (STATUS "EXTRA_COMPONENT_DIRS: ${EXTRA_COMPONENT_DIRS}")
 
 project(picoTracker)
+
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 
+set(IDF_TARGET "esp32s3")
+
 # Make this a picoTracker build within the project
 add_definitions(-DPICOBUILD)
+
+# Make this an ESP32 platform build
+add_definitions(-DESP_PLATFORM)
 
 # For debugging purposes, print all mallocs
 # add_definitions(-DPICO_DEBUG_MALLOC)
@@ -31,26 +38,30 @@ add_definitions(-DUSB_REMOTE_UI)
 # enable basic control REPL over serial port. NOTE: uses extra ~112bytes of *stack*
 # add_definitions(-DSERIAL_REPL)
 
+add_compile_options(-std=c11 -std=c++17)
 
 add_compile_options(
-  -Werror
-  -Wall
-  -Wno-format          # int != int32_t as far as the compiler is concerned because gcc has int32_t as long int
-  -fstack-usage
-  -fcallgraph-info=su # include above info in callgraph
-  -Wstack-usage=2048 # allows high watermark at the time this option was added TODO: reduce this for safety and/or reduce stack size
-  # TODO: SHOULD FIX
-  -Wno-int-to-pointer-cast
-  -Wno-error=return-type
+  # -Werror
+  # -Wall
+  # -Wno-format          # int != int32_t as far as the compiler is concerned because gcc has int32_t as long int
+  # -fstack-usage
+  # -fcallgraph-info=su # include above info in callgraph
+  # -Wstack-usage=2048 # allows high watermark at the time this option was added TODO: reduce this for safety and/or reduce stack size
+  # # TODO: SHOULD FIX
+  # -Wno-int-to-pointer-cast
+  # -Wno-error=return-type
+  
 
-  -Wno-overloaded-virtual
-  -Wno-return-type
-  -Wno-unused-function
+  # -Wno-overloaded-virtual
+  # -Wno-return-type
+  # -Wno-unused-function
 
+  # # sign-compare
+  # -Wno-sign-compare
 
-  # braids
-  -Wno-unused-variable
-  -Wno-array-bounds
+  # # braids
+  # -Wno-unused-variable
+  # -Wno-array-bounds
 )
 
 add_subdirectory(Adapters)
@@ -60,8 +71,6 @@ add_subdirectory(Application)
 add_subdirectory(Externals)
 add_subdirectory(Services)
 add_subdirectory(Foundation)
-
-set_property(TARGET picoTracker APPEND_STRING PROPERTY LINK_FLAGS "-Wl,--print-memory-usage")
 
 # target_compile_definitions(picoTracker PUBLIC
 # #	PICO_HEAP_SIZE=204800

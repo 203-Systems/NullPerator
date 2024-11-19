@@ -17,11 +17,9 @@ add_library(application_views
 
 target_link_libraries(application_views PUBLIC application_views_baseclasses
                                         PUBLIC application_instruments
-                                        PUBLIC hardware_watchdog
                                         PUBLIC etl
                                         PUBLIC sdfat
                                         PUBLIC platform_sdcard
-                                        PUBLIC pico_multicore
                                         PUBLIC application_utils
 )
 

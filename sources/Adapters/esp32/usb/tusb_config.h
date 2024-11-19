@@ -32,8 +32,11 @@ extern "C" {
 //--------------------------------------------------------------------
 // defined by compiler flags for flexibility
 #ifndef CFG_TUSB_MCU
-#error CFG_TUSB_MCU must be defined
+#define CFG_TUSB_MCU OPT_MCU_ESP32S2
 #endif
+
+// Espressif IDF requires "freertos/" prefix in include path
+
 #if CFG_TUSB_MCU == OPT_MCU_LPC18XX || CFG_TUSB_MCU == OPT_MCU_LPC43XX ||      \
     CFG_TUSB_MCU == OPT_MCU_MIMXRT10XX || CFG_TUSB_MCU == OPT_MCU_NUC505 ||    \
     CFG_TUSB_MCU == OPT_MCU_CXD56
@@ -42,8 +45,13 @@ extern "C" {
 #define CFG_TUSB_RHPORT0_MODE OPT_MODE_DEVICE
 #endif
 #ifndef CFG_TUSB_OS
-#define CFG_TUSB_OS OPT_OS_PICO
+#define CFG_TUSB_OS OPT_OS_FREERTOS
 #endif
+
+#if TUP_MCU_ESPRESSIF
+#define CFG_TUSB_OS_INC_PATH  freertos/
+#endif
+
 // CFG_TUSB_DEBUG is defined by compiler in DEBUG build
 // #define CFG_TUSB_DEBUG           0
 /* USB DMA on some MCUs can only access a specific SRAM region with restriction

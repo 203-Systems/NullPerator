@@ -10,6 +10,8 @@
 
 #define MAX_PIG_SAMPLES MAX_SAMPLEINSTRUMENT_COUNT
 
+#define FLASH_SECTOR_SIZE (1u << 12) // 203NULL: REMOVE THIS LATER
+
 enum SamplePoolEventType { SPET_INSERT, SPET_DELETE };
 
 struct SamplePoolEvent : public I_ObservableData {

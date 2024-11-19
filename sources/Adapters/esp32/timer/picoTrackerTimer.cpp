@@ -3,67 +3,86 @@
 #include "System/Console/n_assert.h"
 #include "System/System/System.h"
 
-int64_t picoTrackerTimerCallback(int32_t interval, void *param) {
-  picoTrackerTimer *timer = (picoTrackerTimer *)param;
-  return timer->OnTimerTick();
-};
+// Callback function for periodic timer
+void picoTrackerTimerCallback(void *param) {
+  picoTrackerTimer *timer = static_cast<picoTrackerTimer *>(param);
+  timer->OnTimerTick();
+}
 
-int64_t picoTrackerTriggerCallback(int32_t interval, void *param) {
-  timerCallback tc = (timerCallback)param;
+// Callback function for one-shot triggers
+void picoTrackerTriggerCallback(void *param) {
+  timerCallback tc = reinterpret_cast<timerCallback>(param);
   (*tc)();
-  return 0;
-};
+}
 
 picoTrackerTimer::picoTrackerTimer() {
   period_ = -1;
-  timer_ = 0;
+  timer_ = nullptr;
   running_ = false;
-};
+}
 
-picoTrackerTimer::~picoTrackerTimer() {}
+picoTrackerTimer::~picoTrackerTimer() {
+  Stop();
+}
 
 void picoTrackerTimer::SetPeriod(float msec) {
-  period_ = int64_t(msec);
+  period_ = msec;
   offset_ = 0;
-};
+}
 
 bool picoTrackerTimer::Start() {
   if (period_ > 0) {
-    offset_ = period_;
-    int64_t newcb = int(offset_);
-    offset_ -= newcb;
-    timer_ = add_alarm_in_ms(newcb, picoTrackerTimerCallback, this, false);
+    Stop(); // Ensure previous timer is stopped
+
+    esp_timer_create_args_t timer_args = {
+        .callback = &picoTrackerTimerCallback,
+        .arg = this,
+        .name = "picoTrackerTimer"
+    };
+
+    esp_timer_create(&timer_args, &timer_);
+    esp_timer_start_periodic(timer_, static_cast<int64_t>(period_ * 1000)); // Convert ms to us
     lastTick_ = System::GetInstance()->GetClock();
     running_ = true;
   }
-  return (timer_ != 0);
-};
+  return (timer_ != nullptr);
+}
 
 void picoTrackerTimer::Stop() {
-  cancel_alarm(timer_);
-  timer_ = 0;
+  if (timer_) {
+    esp_timer_stop(timer_);
+    esp_timer_delete(timer_);
+    timer_ = nullptr;
+  }
   running_ = false;
-};
+}
 
-float picoTrackerTimer::GetPeriod() { return period_; };
+float picoTrackerTimer::GetPeriod() {
+  return period_;
+}
 
 int64_t picoTrackerTimer::OnTimerTick() {
-  int64_t newcb = 0;
   if (running_) {
     SetChanged();
     NotifyObservers();
     offset_ += period_;
-    newcb = int64_t(offset_);
-    offset_ -= newcb;
-    NAssert(newcb > 0);
+    return static_cast<int64_t>(offset_ * 1000); // Return next period in microseconds
   }
-  return newcb;
-};
+  return 0;
+}
 
 I_Timer *picoTrackerTimerService::CreateTimer() {
   return new picoTrackerTimer();
-};
+}
 
 void picoTrackerTimerService::TriggerCallback(int msec, timerCallback cb) {
-  add_alarm_in_ms(msec, picoTrackerTriggerCallback, (void *)cb, false);
+  esp_timer_create_args_t trigger_args = {
+      .callback = &picoTrackerTriggerCallback,
+      .arg = reinterpret_cast<void *>(cb),
+      .name = "picoTrackerTrigger"
+  };
+
+  esp_timer_handle_t trigger_timer;
+  esp_timer_create(&trigger_args, &trigger_timer);
+  esp_timer_start_once(trigger_timer, static_cast<int64_t>(msec * 1000)); // Convert ms to us
 }

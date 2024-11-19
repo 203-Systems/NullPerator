@@ -21,15 +21,10 @@ add_library(application_instruments
 )
 
 target_link_libraries(application_instruments PUBLIC foundation_services
-                                              PUBLIC system_io
-                                              PUBLIC pico_stdlib
-                                              PUBLIC hardware_flash
-                                              PUBLIC pico_stdlib                            
-                                              PUBLIC hardware_flash
+                                              PUBLIC system_io   
                                               PUBLIC crsid
                                               PUBLIC opal
-                                              PUBLIC braids
-                                              PUBLIC pico_rand
+                                              # PUBLIC braids
                                               PUBLIC sdfat
                                               PUBLIC platform_sdcard
                                               PUBLIC services_time

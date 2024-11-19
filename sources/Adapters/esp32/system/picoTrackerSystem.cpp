@@ -129,7 +129,8 @@ unsigned long picoTrackerSystem::GetClock() {
 int picoTrackerSystem::GetBatteryLevel() {
   int lastBattLevel_ = -1;
 
-  u_int16_t adc_reading = adc_read(); // raw voltage from ADC
+  // u_int16_t adc_reading = adc_read(); // raw voltage from ADC
+  u_int16_t adc_reading = 65535; // raw voltage from ADC
 
   int adc_voltage = adc_reading * 0.8; // 0.8mV per unit of ADC
   // *2 because picoTracker use voltage divider for voltage on ADC pin

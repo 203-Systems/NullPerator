@@ -3,15 +3,7 @@ add_library(platform_audio
   picoTrackerAudioDriver.h picoTrackerAudioDriver.cpp
 )
 
-target_link_libraries(platform_audio PUBLIC pico_stdlib
-                                     PUBLIC pico_multicore
-                                     PUBLIC platform_utils
-                                     PUBLIC hardware_gpio
-                                     PUBLIC hardware_dma
-                                     PUBLIC hardware_clocks
-                                     PUBLIC hardware_irq
-                                     PUBLIC hardware_pio
-)
+target_link_libraries(platform_audio PUBLIC platform_utils)
 
 target_include_directories(platform_audio PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${PROJECT_SOURCE_DIR})

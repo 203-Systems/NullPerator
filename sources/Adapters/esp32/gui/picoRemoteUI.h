@@ -3,6 +3,7 @@
 #define PICO_REMOTE_UI_H_
 
 #include "tusb.h"
+#include "esp_timer.h"
 
 // The Remote UI protocol consists of sending ASCII messages over the USB serial
 // connection to a client to render the UI shown by the picotracker and then
@@ -42,13 +43,13 @@ static void sendToUSBCDC(char buf[], int length) {
         tud_task();
         tud_cdc_write_flush();
         i += n2;
-        last_avail_time = time_us_64();
+        last_avail_time = esp_timer_get_time();
       } else {
         tud_task();
         tud_cdc_write_flush();
         if (!tud_cdc_connected() ||
             (!tud_cdc_write_available() &&
-             time_us_64() > last_avail_time + USB_TIMEOUT_US)) {
+             esp_timer_get_time() > last_avail_time + USB_TIMEOUT_US)) {
           break;
         }
       }

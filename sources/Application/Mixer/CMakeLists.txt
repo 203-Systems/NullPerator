@@ -3,8 +3,7 @@ add_library(application_mixer
   MixerService.h MixerService.cpp
 )
 
-target_link_libraries(application_mixer PUBLIC pico_stdlib
-                                        PUBLIC application_audio
+target_link_libraries(application_mixer PUBLIC application_audio
                                         PUBLIC sdfat
                                         PUBLIC platform_sdcard
 )

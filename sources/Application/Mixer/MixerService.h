@@ -10,8 +10,11 @@
 
 #ifndef PICOBUILD
 #include "SDL/SDL.h"
-#else
-// #include "pico/mutex.h"
+#elif defined(ESP_PLATFORM)
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#elif defined(PICO_PLATFORM)
+#include "pico/mutex.h"
 #endif
 
 enum MixerServiceMode {
@@ -67,8 +70,12 @@ private:
   MixerServiceMode mode_;
 #ifndef PICOBUILD
   SDL_mutex *sync_;
-#else
+#elif defined(ESP_PLATFORM)
+  SemaphoreHandle_t sync_;
+#elif defined(PICO_PLATFORM)
   mutex_t *sync_;
+#else
+  #error "Unknown platform!"
 #endif
 };
 #endif

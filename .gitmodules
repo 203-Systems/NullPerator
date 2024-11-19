@@ -5,3 +5,9 @@
 [submodule "sources/Externals/etl"]
 	path = sources/Externals/etl
 	url = https://github.com/ETLCPP/etl.git
+[submodule "sources/Externals/--force"]
+	path = sources/Externals/--force
+	url = https://github.com/hathach/tinyusb.git
+[submodule "sources/Externals/TinyUSB"]
+	path = sources/Externals/TinyUSB
+	url = https://github.com/hathach/tinyusb.git

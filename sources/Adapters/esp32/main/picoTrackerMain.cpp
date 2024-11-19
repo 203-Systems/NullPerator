@@ -3,9 +3,8 @@
 #include "Application/Application.h"
 #include "tusb.h"
 
-void app_main(void)
-{
-
+int main(int argc, char *argv[]) {
+  
   // Initialise microcontroller specific hardware
   // board_init();
 
@@ -27,4 +26,12 @@ void app_main(void)
   printf("Finish main loop?\n");
 
   picoTrackerSystem::Shutdown();
+}
+
+
+extern "C" {
+  int main(int argc, char *argv[]);
+  void app_main(void) {
+    (void)main(0, NULL);
+  }
 }

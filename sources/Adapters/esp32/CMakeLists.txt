@@ -1,4 +1,4 @@
-add_subdirectory(main)
+# add_subdirectory(main)
 add_subdirectory(system)
 add_subdirectory(gui)
 add_subdirectory(timer)

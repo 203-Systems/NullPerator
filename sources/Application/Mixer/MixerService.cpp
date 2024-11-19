@@ -67,7 +67,9 @@ bool MixerService::Init() {
 
 #ifndef PICOBUILD
   sync_ = SDL_CreateMutex();
-#else
+#elif defined(ESP_PLATFORM)
+  sync_ = xSemaphoreCreateMutex();
+#elif defined(PICO_PLATFORM)
   mutex_init(sync_);
 #endif
   NAssert(sync_);
@@ -111,6 +113,7 @@ void MixerService::Close() {
   SDL_DestroyMutex(sync_);
   sync_ = 0;
 #endif
+// Null: Shouldn't we also delete the mutex for PICOBuild
 };
 
 bool MixerService::Start() {
@@ -204,8 +207,10 @@ void MixerService::Lock() {
   if (sync_)
 #ifndef PICOBUILD
     SDL_LockMutex(sync_);
-#else
-    // mutex_enter_blocking(sync_);
+#elif defined(ESP_PLATFORM)
+    xSemaphoreTake(sync_, portMAX_DELAY);
+#elif defined(PICO_PLATFORM)
+    mutex_enter_blocking(sync_);
 #endif
 }
 
@@ -213,7 +218,9 @@ void MixerService::Unlock() {
   if (sync_)
 #ifndef PICOBUILD
     SDL_UnlockMutex(sync_);
-#else
-    // mutex_exit(sync_);
+#elif defined(ESP_PLATFORM)
+    xSemaphoreGive(sync_);
+#elif defined(PICO_PLATFORM)
+    mutex_exit(sync_);
 #endif
 }

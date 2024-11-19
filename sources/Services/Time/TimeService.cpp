@@ -1,10 +1,14 @@
 #include "TimeService.h"
 #include "System/System/System.h"
+
 #ifndef PICOBUILD
 #include "SDL/SDL.h"
-#else
-#include <stdlib.h>
+#elif defined(ESP_PLATFORM)
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #endif
+
+#include <stdlib.h>
 
 /*Date::Date() {
 } ;
@@ -44,7 +48,9 @@ Time TimeService::GetTime() {
 void TimeService::Sleep(int msecs) {
 #ifndef PICOBUILD
   SDL_Delay(msecs);
-#else
+#elif defined(ESP_PLATFORM)
+  vTaskDelay(msecs / portTICK_PERIOD_MS);
+#elif defined(PICO_PLATFORM)
   sleep_ms(msecs);
 #endif
 };

@@ -2,6 +2,7 @@
 #define _PICOTRACKERTIMER_H_
 
 #include "System/Timer/Timer.h"
+#include "esp_timer.h"
 
 class picoTrackerTimer : public I_Timer {
 public:
@@ -15,9 +16,9 @@ public:
 
 private:
   float period_;
-  float offset_;     // Float offset taking into account
-                     // period is an int
-  alarm_id_t timer_; // NULL if not running
+  float offset_;      // Float offset taking into account
+                      // period is an int
+  esp_timer_handle_t timer_; // Timer handle (ESP-IDF equivalent to alarm_id_t)
   long lastTick_;
   bool running_;
 };

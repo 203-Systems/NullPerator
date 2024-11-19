@@ -38,7 +38,7 @@ int SamplePool::flashLimit_ =
 uint storage_get_flash_capacity() {
   uint8_t txbuf[FLASH_RUID_TOTAL_BYTES] = {0x9f};
   uint8_t rxbuf[FLASH_RUID_TOTAL_BYTES] = {0};
-  flash_do_cmd(txbuf, rxbuf, FLASH_RUID_TOTAL_BYTES);
+  // flash_do_cmd(txbuf, rxbuf, FLASH_RUID_TOTAL_BYTES);
 
   return 1 << rxbuf[3];
 }

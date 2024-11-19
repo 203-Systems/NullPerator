@@ -139,6 +139,8 @@ class PrintBasic {
   }
   virtual size_t write(uint8_t b) = 0;
 
+  #pragma GCC diagnostic ignored "-Woverloaded-virtual"
+
   virtual size_t write(const uint8_t* buffer, size_t size) {
     size_t i;
     for (i = 0; i < size; i++) {

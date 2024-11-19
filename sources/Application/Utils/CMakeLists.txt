@@ -9,8 +9,6 @@ target_link_libraries(application_utils
                                               PUBLIC sdfat
                                               PUBLIC platform_sdcard
                                               PUBLIC etl
-                                              PUBLIC pico_stdlib
-                                              PUBLIC pico_rand
 )
 
 target_include_directories(application_utils PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

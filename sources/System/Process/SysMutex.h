@@ -8,9 +8,12 @@
  */
 
 #ifndef PICOBUILD
-#include <SDL/SDL.h>
-#else
-// #include "pico/mutex.h"
+#include "SDL/SDL.h"
+#elif defined(ESP_PLATFORM)
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#elif defined(PICO_PLATFORM)
+#include "pico/mutex.h"
 #endif
 
 class SysMutex {
@@ -23,8 +26,10 @@ public:
 private:
 #ifndef PICOBUILD
   SDL_mutex *mutex_;
-#else
-  // mutex_t *mutex_;
+#elif defined(ESP_PLATFORM)
+  SemaphoreHandle_t mutex_;
+#elif defined(PICO_PLATFORM)
+  mutex_t *mutex_;
 #endif
 };
 

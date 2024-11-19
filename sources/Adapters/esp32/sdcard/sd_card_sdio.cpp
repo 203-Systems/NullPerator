@@ -145,7 +145,7 @@ uint32_t SdioCard::errorData() const { return 0; }
 
 uint32_t SdioCard::errorLine() const { return g_sdio_error_line; }
 
-bool SdioCard::isBusy() { return (sio_hw->gpio_in & (1 << SDIO_D0)) == 0; }
+bool SdioCard::isBusy() { return false; }
 
 uint32_t SdioCard::kHzSdClk() { return 0; }
 

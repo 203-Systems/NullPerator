@@ -9,7 +9,7 @@
 
 #include "SysMutex.h"
 
-SysMutex::SysMutex() : mutex_(0) {}
+SysMutex::SysMutex(): mutex_(0) {}
 
 SysMutex::~SysMutex() {
 #ifndef PICOBUILD
@@ -29,14 +29,22 @@ bool SysMutex::Lock() {
     SDL_LockMutex(mutex_);
     return true;
   }
-#else
-  // if (!mutex_) {
-  //   mutex_init(mutex_);
-  // }
-  // if (mutex_) {
-  //   mutex_enter_blocking(mutex_);
-  //   return true;
-  // }
+#elif defined(ESP_PLATFORM)
+  if (!mutex_) {
+    mutex_ = xSemaphoreCreateMutex();
+  }
+  if (mutex_) {
+    xSemaphoreTake(mutex_, portMAX_DELAY);
+    return true;
+  }
+#elif defined(PICO_PLATFORM)
+  if (!mutex_) {
+    mutex_init(mutex_);
+  }
+  if (mutex_) {
+    mutex_enter_blocking(mutex_);
+    return true;
+  }
 #endif
   return false;
 }
@@ -45,8 +53,10 @@ void SysMutex::Unlock() {
   if (mutex_) {
 #ifndef PICOBUILD
     SDL_UnlockMutex(mutex_);
-#else
-    // mutex_exit(mutex_);
+#elif defined(ESP_PLATFORM)
+    xSemaphoreGive(mutex_);
+#elif defined(PICO_PLATFORM)
+    mutex_exit(mutex_);
 #endif
   }
 }
