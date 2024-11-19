@@ -3,6 +3,8 @@
 
 #include "gpio.h"
 
+void board_init();
+
 void platform_init();
 
 #endif

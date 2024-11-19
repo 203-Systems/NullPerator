@@ -4,7 +4,7 @@ add_library(platform_midi
   picoTrackerUSBMidiDevice.h picoTrackerUSBMidiDevice.cpp
 )
 
-target_link_libraries(platform_midi PRIVATE platform_usb
+target_link_libraries(platform_midi PRIVATE platform_usb PUBLIC idf::driver
 )
 
 target_include_directories(platform_midi PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

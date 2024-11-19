@@ -24,13 +24,19 @@
 #include <unistd.h>
 
 #include "Adapters/esp32/platform/platform.h"
-// #include "hardware/adc.h"
 #include <stdlib.h>
+
+#include "esp_adc/adc_oneshot.h"
+#include "esp_adc/adc_cali.h"
+#include "esp_adc/adc_cali_scheme.h"
 
 EventManager *picoTrackerSystem::eventManager_ = NULL;
 bool picoTrackerSystem::invert_ = false;
 int picoTrackerSystem::lastBattLevel_ = 100;
 unsigned int picoTrackerSystem::lastBeatCount_ = 0;
+
+adc_oneshot_unit_handle_t adc_handle;
+adc_cali_handle_t adc_cali_handle;
 
 int picoTrackerSystem::MainLoop() {
 
@@ -98,17 +104,26 @@ void picoTrackerSystem::Boot(int argc, char **argv) {
   eventManager_->MapAppButton("down", APP_BUTTON_DOWN);
   eventManager_->MapAppButton("up", APP_BUTTON_UP);
 
-#if PICO_RP2040
-  // init GPIO for use as ADC: hi-Z, no pullups, etc
-  adc_gpio_init(BATT_VOLTAGE_IN);
+  adc_oneshot_unit_init_cfg_t init_config = {
+      .unit_id = ADC_UNIT_1,
+    };
+  ESP_ERROR_CHECK(adc_oneshot_new_unit(&init_config, &adc_handle));
 
-  adc_init();
+  adc_oneshot_chan_cfg_t oneshot_config = {
+            .atten = ADC_ATTEN_DB_11,
+        .bitwidth = ADC_BITWIDTH_DEFAULT,
+    };
+  ESP_ERROR_CHECK(adc_oneshot_config_channel(adc_handle, BATT_VOLTAGE_ADC_CHANNEL, &oneshot_config));
 
-  // select analog MUX, GPIO 26=0, 27=1, 28=1, 29=3
-  adc_select_input(3);
+  adc_cali_curve_fitting_config_t cali_config = {
+            .unit_id = ADC_UNIT_1,
+            .chan = BATT_VOLTAGE_ADC_CHANNEL,
+            .atten = ADC_ATTEN_DB_11,
+            .bitwidth = ADC_BITWIDTH_DEFAULT,
+        };
+  ESP_ERROR_CHECK(adc_cali_create_scheme_curve_fitting(&cali_config, &adc_cali_handle));
 
   Trace::Log("PICOTRACKERSYSTEM", "ADC INIT DONE\n");
-#endif
 };
 
 void picoTrackerSystem::Shutdown() { delete Audio::GetInstance(); };
@@ -127,15 +142,21 @@ unsigned long picoTrackerSystem::GetClock() {
 }
 
 int picoTrackerSystem::GetBatteryLevel() {
-  int lastBattLevel_ = -1;
+  int adc_raw;
+  int voltage;
+  ESP_ERROR_CHECK(adc_oneshot_read(adc_handle, BATT_VOLTAGE_ADC_CHANNEL, &adc_raw));
+  ESP_ERROR_CHECK(adc_cali_raw_to_voltage(adc_cali_handle, adc_raw, &voltage));
 
-  // u_int16_t adc_reading = adc_read(); // raw voltage from ADC
-  u_int16_t adc_reading = 65535; // raw voltage from ADC
+  voltage *= 2; // voltage divider reverse
 
-  int adc_voltage = adc_reading * 0.8; // 0.8mV per unit of ADC
-  // *2 because picoTracker use voltage divider for voltage on ADC pin
-  lastBattLevel_ = adc_voltage * 2;
-  return lastBattLevel_;
+  if (voltage >= 4200) {
+        return 100;  // Cap at 100%
+    } else if (voltage <= 3300) {
+        return 0;    // Cap at 0%
+    } else {
+        // Linear interpolation
+        return ((voltage - 3300) * 100 / (4200 - 3300));
+    }
 }
 
 void picoTrackerSystem::Sleep(int millisec) {

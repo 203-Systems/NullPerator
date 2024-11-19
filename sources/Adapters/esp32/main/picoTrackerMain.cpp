@@ -6,7 +6,7 @@
 int main(int argc, char *argv[]) {
   
   // Initialise microcontroller specific hardware
-  // board_init();
+  board_init();
 
   // Initialise TinyUSB
   tusb_init();

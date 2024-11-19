@@ -4,7 +4,7 @@
 // SD card driver for SdFat
 
 class SdioConfig;
-extern SdioConfig g_sd_sdio_config;
-#define SD_CONFIG g_sd_sdio_config
+extern SdioConfig m_sdioConfig;
+#define SD_CONFIG m_sdioConfig
 
 #endif

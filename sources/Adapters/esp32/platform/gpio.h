@@ -2,129 +2,59 @@
 #define _PLATFORM_PICO_GPIO_H_
 
 // POWER
-#if PICO_RP2350
-#define POWER_BTN 0
-#define CHARGER_PSEL 1
-#define CHARGER_CE 2
-#define CHARGER_OTG 3
-#define CHARGER_INT 4
-#define FUEL_GPOUT 5
-#else
-#define BATT_VOLTAGE_IN 29
-#endif
+#define BATT_VOLTAGE_IN 1
+#define BATT_VOLTAGE_ADC_CHANNEL ADC_CHANNEL_0
+#define POWER_EN_PIN 9
 
 // I2C
-#if PICO_RP2350
-#define I2C_SDA 6
-#define I2C_SCL 7
-#endif
+#define I2C_SDA 37
+#define I2C_SCL 36
 
 // Display
-#define DISPLAY_SPI spi1
-#if PICO_RP2350
-#define DISPLAY_CS 13
-#define DISPLAY_DC 9
-#define DISPLAY_RESET 10
-#define DISPLAY_SCK 14
-#define DISPLAY_MOSI 11
-#define DISPLAY_MISO 12
-#define DISPLAY_PWM 8
-#else
-#define DISPLAY_CS 20
-#define DISPLAY_DC 21
-#define DISPLAY_RESET 22
-#define DISPLAY_SCK 26
-#define DISPLAY_MOSI 27
-#define DISPLAY_MISO 28
-#define DISPLAY_PWM 23
-#endif
+#define DISPLAY_SPI spi2 // Can't change this atm - linked to FSPICLK_IN_IDX, FSPID_IN_IDX, FSPID_OUT_IDX
+#define DISPLAY_DC_PIN 33
+#define DISPLAY_RESET_PIN 21
+#define DISPLAY_SCK_PIN 47
+#define DISPLAY_MOSI_PIN 48
+#define DISPLAY_BL_PIN 12 
 
 // MIDI
 #define MIDI_BAUD_RATE 31250
-#if PICO_RP2350
-#define MIDI_UART uart1
-#define MIDI_OUT_PIN 42
-#define MIDI_IN_PIN 43
-#else
-#define MIDI_UART uart0
-#define MIDI_OUT_PIN 0
-#define MIDI_IN_PIN 1
-#endif
+#define MIDI_UART 
+#define MIDI_OUT_PIN 35
+#define MIDI_IN_PIN 42
 
-// SD Card
-/* SPI (SPI1) */
-// #define SD_SPI spi0
-// #define SD_SPI_SCK 2
-// #define SD_SPI_MOSI 3
-// #define SD_SPI_MISO 4
-// #define SD_SPI_CS 7
-
-/* SDIO */
-#define SDIO_PIO pio1
-#define SDIO_CMD_SM 0
-#define SDIO_DATA_SM 1
-#define SDIO_DMA_CH 4
-#define SDIO_DMA_CHB 5
-#if PICO_RP2350
-#define SDIO_CLK 21
-#define SDIO_CMD 22
-#define SDIO_D0 23
-#define SDIO_D1 24
-#define SDIO_D2 25
-#define SDIO_D3 26
-#define SD_DET 27
-#else
-#define SDIO_CLK 2
-#define SDIO_CMD 3
-#define SDIO_D0 4
-#define SDIO_D1 5
-#define SDIO_D2 6
-#define SDIO_D3 7
-#endif
-
-// Input
-#if PICO_RP2350
-#define INPUT_LEFT 32
-#define INPUT_DOWN 33
-#define INPUT_RIGHT 34
-#define INPUT_UP 35
-#define INPUT_LT 36
-#define INPUT_B 37
-#define INPUT_A 38
-#define INPUT_RT 39
-#define INPUT_PLAY 40
-#define INPUT_THUMB 41
-#define INPUT_HORIZ 45
-#define INPUT_VERT 46
-#else
-#define INPUT_LEFT 8
-#define INPUT_DOWN 9
-#define INPUT_RIGHT 10
-#define INPUT_UP 11
-#define INPUT_LT 12
-#define INPUT_B 13
-#define INPUT_A 14
-#define INPUT_RT 15
-#define INPUT_PLAY 16
-#endif
+/* SD Card */
+#define SD_CLK_PIN 18
+#define SD_CMD_PIN 14
+#define SD_D0_PIN 16
+#define SD_D1_PIN 13
+#define SD_D2_PIN 17
+#define SD_D3_PIN 15
+#define SD_CD_PIN 11
 
 // Sound
-#define AUDIO_PIO pio0
-#define AUDIO_SM 0
-#define AUDIO_DMA 0
-#define AUDIO_DMA_IRQ 0
-#if PICO_RP2350
-// TODO: we'll need more stuff to support CODEC
-#define CODEC_RESET 15
-#define AUDIO_SDATA 16
-#define CODEC_DIN 17
-#define AUDIO_BCLK 18 // BCLK and LRCLK HAVE to be consecutive
-#define AUDIO_LRCLK 19
-#define CODEC_MCLK 20
-#else
-#define AUDIO_SDATA 17
-#define AUDIO_BCLK 18 // BCLK and LRCLK HAVE to be consecutive
-#define AUDIO_LRCLK 19
-#endif
+#define CODEC_MCLK     41
+#define CODEC_DSDIN    40
+#define CODEC_ASDOUT   39
+#define CODEC_SCLK     38
+
+// IO expander pins
+#define INPUT_SELECT          0
+#define INPUT_START           1
+#define INPUT_CHRG            2
+#define INPUT_STDBY           3
+#define INPUT_RB              4
+#define INPUT_DOWN            5
+#define INPUT_B               6
+#define INPUT_LEFT            7
+#define INPUT_LB              8
+#define OUTPUT_AUDIO_MUX_SEL  9
+#define OUTPUT_PA_CTRL        10
+#define INPUT_Y               11
+#define INPUT_UP              12
+#define INPUT_RIGHT           13
+#define INPUT_X               14
+#define INPUT_A               15
 
 #endif

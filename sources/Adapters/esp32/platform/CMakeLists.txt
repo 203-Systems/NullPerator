@@ -4,7 +4,7 @@ add_library(platform
   etl_profile.h
 )
 
-target_link_libraries(platform 
+target_link_libraries(platform PUBLIC idf::driver
 )
 
 target_include_directories(platform PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

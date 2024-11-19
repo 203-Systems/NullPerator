@@ -15,6 +15,7 @@ target_link_libraries(platform_system INTERFACE system_system
                                       PUBLIC dummy_midi
                                       PUBLIC etl
                                       PUBLIC platform_usb
+                                      PUBLIC idf::esp_adc
 )
 
 

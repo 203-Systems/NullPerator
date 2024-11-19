@@ -1,9 +1,14 @@
 #include "ili9341.h"
+#include "Adapters/esp32/platform/gpio.h"
 #include "Adapters/esp32/platform/platform.h"
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
+#include "driver/gpio.h"
+#include "driver/spi_master.h"
+#include "soc/gpio_sig_map.h"
+#include "freertos/FreeRTOS.h"
 
 /*
 
@@ -19,6 +24,12 @@
 
  */
 
+spi_device_handle_t display_handle;
+
+static inline void sleep_ms(int ms) { 
+  vTaskDelay(ms / portTICK_PERIOD_MS); 
+}
+
 static inline void cs_select() {
   // asm volatile("nop \n nop \n nop");
   // gpio_put(DISPLAY_CS, 0); // Active low
@@ -32,101 +43,153 @@ static inline void cs_deselect() {
 }
 
 void ili9341_set_command(uint8_t cmd) {
-  // cs_select();
-  // gpio_put(DISPLAY_DC, 0);
-  // spi_write_blocking(DISPLAY_SPI, &cmd, 1);
-  // gpio_put(DISPLAY_DC, 1);
-  // cs_deselect();
+    spi_transaction_t trans = {
+        .length = 8,               // Command is 8 bits
+        .tx_buffer = &cmd,         // Pointer to command
+        .flags = SPI_TRANS_USE_TXDATA, // Optimize small transfers
+    };
+
+    gpio_set_level((gpio_num_t)DISPLAY_DC_PIN, 0); // DC low for command
+    ESP_ERROR_CHECK(spi_device_polling_transmit(display_handle, &trans));
+    gpio_set_level((gpio_num_t)DISPLAY_DC_PIN, 1); // DC high after command
 }
 
 void ili9341_command_param16(uint16_t data) {
-  // ili9341_command_param(data >> 8);
-  // ili9341_command_param(data & 0xFF);
+    ili9341_command_param(data >> 8);    // Send high byte
+    ili9341_command_param(data & 0xFF); // Send low byte
 }
 
 void ili9341_command_param(uint8_t data) {
-  // cs_select();
-  // spi_write_blocking(DISPLAY_SPI, &data, 1);
-  // cs_deselect();
+    spi_transaction_t trans = {
+        .length = 8,               // Parameter is 8 bits
+        .tx_buffer = &data,        // Pointer to parameter
+        .flags = SPI_TRANS_USE_TXDATA, // Optimize small transfers
+    };
+
+    ESP_ERROR_CHECK(spi_device_polling_transmit(display_handle, &trans));
 }
 
-inline void ili9341_start_writing() { cs_select(); }
+inline void ili9341_start_writing() {
+    // No action needed for start, as CS is handled by ESP-IDF
+    // unless you're manually controlling CS elsewhere
+}
 
 void ili9341_write_data(void *buffer, int bytes) {
-  // cs_select();
-  // spi_write_blocking(DISPLAY_SPI, buffer, bytes);
-  // cs_deselect();
+    spi_transaction_t trans = {
+        .length = bytes * 8,        // Length in bits
+        .tx_buffer = buffer,        // Pointer to data buffer
+    };
+
+    ESP_ERROR_CHECK(spi_device_polling_transmit(display_handle, &trans));
 }
 
 void ili9341_write_data_continuous(void *buffer, int bytes) {
-  // spi_write_blocking(DISPLAY_SPI, buffer, bytes);
+    spi_transaction_t trans = {
+        .length = bytes * 8,        // Length in bits
+        .tx_buffer = buffer,        // Pointer to data buffer
+    };
+
+    ESP_ERROR_CHECK(spi_device_polling_transmit(display_handle, &trans));
 }
 
 inline void ili9341_stop_writing() { cs_deselect(); }
 
 void ili9341_init() {
+  gpio_reset_pin((gpio_num_t)DISPLAY_DC_PIN);
+  gpio_set_direction((gpio_num_t)DISPLAY_DC_PIN, GPIO_MODE_OUTPUT);
 
-  // sleep_ms(10);
-  // gpio_put(DISPLAY_RESET, 0);
-  // sleep_ms(10);
-  // gpio_put(DISPLAY_RESET, 1);
+  gpio_reset_pin((gpio_num_t)DISPLAY_BL_PIN);
+  gpio_set_direction((gpio_num_t)DISPLAY_BL_PIN, GPIO_MODE_OUTPUT);
+  gpio_set_level((gpio_num_t)DISPLAY_BL_PIN, 0);
 
-  // ili9341_set_command(0x01); // soft reset
-  // sleep_ms(100);
+  gpio_reset_pin((gpio_num_t)DISPLAY_RESET_PIN);
+  gpio_set_direction((gpio_num_t)DISPLAY_RESET_PIN, GPIO_MODE_OUTPUT);
 
-  // ili9341_set_command(ILI9341_GAMMASET);
-  // ili9341_command_param(0x01);
+  gpio_iomux_out(DISPLAY_SCK_PIN, FSPICLK_IN_IDX, false);
 
-  // // positive gamma correction
-  // ili9341_set_command(ILI9341_GMCTRP1);
-  // ili9341_write_data((uint8_t[15]){0x0f, 0x31, 0x2b, 0x0c, 0x0e, 0x08, 0x4e,
-  //                                  0xf1, 0x37, 0x07, 0x10, 0x03, 0x0e, 0x09,
-  //                                  0x00},
-  //                    15);
+  gpio_iomux_in(DISPLAY_MOSI_PIN, FSPID_IN_IDX);
+  gpio_iomux_out(DISPLAY_MOSI_PIN, FSPID_OUT_IDX, false);
 
-  // // negative gamma correction
-  // ili9341_set_command(ILI9341_GMCTRN1);
-  // ili9341_write_data((uint8_t[15]){0x00, 0x0e, 0x14, 0x03, 0x11, 0x07, 0x31,
-  //                                  0xc1, 0x48, 0x08, 0x0f, 0x0c, 0x31, 0x36,
-  //                                  0x0f},
-  //                    15);
+  spi_bus_config_t buscfg = {
+        .sclk_io_num = DISPLAY_SCK_PIN,
+        .mosi_io_num = DISPLAY_MOSI_PIN,
+        .miso_io_num = -1,
+        .quadwp_io_num = -1, // Quad SPI LCD driver is not yet supported
+        .quadhd_io_num = -1, // Quad SPI LCD driver is not yet supported
+        .max_transfer_sz = 320 * 80 * sizeof(uint16_t), // transfer 80 lines of pixels (assume pixel is RGB565) at most in one SPI transaction
+    };
+  ESP_ERROR_CHECK(spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO)); // Enable the DMA feature
 
-  // // memory access control
-  // ili9341_set_command(ILI9341_MADCTL);
-  // ili9341_command_param(0x88);
+  spi_device_interface_config_t devcfg = {
+        .clock_speed_hz = 10 * 1000 * 1000,     //Clock out at 10 MHz
+        .mode = 0,                              //SPI mode 0
+        .spics_io_num = -1,             //CS pin
+        .queue_size = 7,                        //We want to be able to queue 7 transactions at a time
+    };
 
-  // // pixel format
-  // ili9341_set_command(ILI9341_PIXFMT);
-  // ili9341_command_param(0x55); // 16-bit
+  ESP_ERROR_CHECK(spi_bus_add_device(SPI2_HOST, &devcfg, &display_handle));
 
-  // // frame rate; default, 70 Hz
-  // ili9341_set_command(ILI9341_FRMCTR1);
-  // ili9341_command_param(0x00);
-  // ili9341_command_param(0x1B);
+  sleep_ms(10);
+  gpio_set_level((gpio_num_t)DISPLAY_RESET_PIN, 0);
+  sleep_ms(10);
+  gpio_set_level((gpio_num_t)DISPLAY_RESET_PIN, 1);
 
-  // // exit sleep
-  // ili9341_set_command(ILI9341_SLPOUT);
+  ili9341_set_command(0x01); // soft reset
+  sleep_ms(100);
 
-  // // display on
-  // ili9341_set_command(ILI9341_DISPON);
+  ili9341_set_command(ILI9341_GAMMASET);
+  ili9341_command_param(0x01);
 
-  // //
+  // positive gamma correction
+  ili9341_set_command(ILI9341_GMCTRP1);
+  ili9341_write_data((uint8_t[15]){0x0f, 0x31, 0x2b, 0x0c, 0x0e, 0x08, 0x4e,
+                                   0xf1, 0x37, 0x07, 0x10, 0x03, 0x0e, 0x09,
+                                   0x00},
+                     15);
 
-  // // column address set
-  // ili9341_set_command(ILI9341_CASET);
-  // ili9341_command_param(0x00);
-  // ili9341_command_param(0x00); // start column
-  // ili9341_command_param(0x00);
-  // ili9341_command_param(0xef); // end column -> 239
+  // negative gamma correction
+  ili9341_set_command(ILI9341_GMCTRN1);
+  ili9341_write_data((uint8_t[15]){0x00, 0x0e, 0x14, 0x03, 0x11, 0x07, 0x31,
+                                   0xc1, 0x48, 0x08, 0x0f, 0x0c, 0x31, 0x36,
+                                   0x0f},
+                     15);
 
-  // // page address set
-  // ili9341_set_command(ILI9341_PASET);
-  // ili9341_command_param(0x00);
-  // ili9341_command_param(0x00); // start page
-  // ili9341_command_param(0x01);
-  // ili9341_command_param(0x3f); // end page -> 319
+  // memory access control
+  ili9341_set_command(ILI9341_MADCTL);
+  ili9341_command_param(0x88);
 
-  // ili9341_set_command(ILI9341_RAMWR);
+  // pixel format
+  ili9341_set_command(ILI9341_PIXFMT);
+  ili9341_command_param(0x55); // 16-bit
+
+  // frame rate; default, 70 Hz
+  ili9341_set_command(ILI9341_FRMCTR1);
+  ili9341_command_param(0x00);
+  ili9341_command_param(0x1B);
+
+  // exit sleep
+  ili9341_set_command(ILI9341_SLPOUT);
+
+  // display on
+  ili9341_set_command(ILI9341_DISPON);
+
+  //
+
+  // column address set
+  ili9341_set_command(ILI9341_CASET);
+  ili9341_command_param(0x00);
+  ili9341_command_param(0x00); // start column
+  ili9341_command_param(0x00);
+  ili9341_command_param(0xef); // end column -> 239
+
+  // page address set
+  ili9341_set_command(ILI9341_PASET);
+  ili9341_command_param(0x00);
+  ili9341_command_param(0x00); // start page
+  ili9341_command_param(0x01);
+  ili9341_command_param(0x3f); // end page -> 319
+
+  ili9341_set_command(ILI9341_RAMWR);
 }
 
 uint16_t swap_bytes(uint16_t color) { return (color >> 8) | (color << 8); }
