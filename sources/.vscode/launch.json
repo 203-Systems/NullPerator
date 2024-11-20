@@ -1,0 +1,19 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "ESP32S3 OpenOCD",
+            "type": "cppdbg",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/build",
+            "program": "${workspaceFolder}/build/picoTracker.elf",
+            "miDebuggerPath": "C:/espressif/tools/xtensa-esp-elf-gdb/14.2_20240403/xtensa-esp-elf-gdb/bin/xtensa-esp32s3-elf-gdb.exe",
+            "setupCommands": [
+                { "text": "target remote 127.0.0.1:3333" },
+                { "text": "set remote hardware-watchpoint-limit 2" },
+                { "text": "monitor reset halt" }
+                { "text": "flushregs" }
+            ]
+        }
+    ]
+}

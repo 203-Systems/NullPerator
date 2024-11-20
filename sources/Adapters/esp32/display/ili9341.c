@@ -9,6 +9,7 @@
 #include "driver/spi_master.h"
 #include "soc/gpio_sig_map.h"
 #include "freertos/FreeRTOS.h"
+#include "esp_log.h"
 
 /*
 
@@ -43,58 +44,67 @@ static inline void cs_deselect() {
 }
 
 void ili9341_set_command(uint8_t cmd) {
-    spi_transaction_t trans = {
-        .length = 8,               // Command is 8 bits
-        .tx_buffer = &cmd,         // Pointer to command
-        .flags = SPI_TRANS_USE_TXDATA, // Optimize small transfers
-    };
+    // ESP_LOGI("ILI9341", "Set command 0x%02x", cmd);
+    spi_transaction_t trans = {0};
+    trans.length = 8;
+    trans.flags = SPI_TRANS_USE_TXDATA;
+    trans.tx_data[0] = cmd;
 
-    gpio_set_level((gpio_num_t)DISPLAY_DC_PIN, 0); // DC low for command
+    gpio_set_level(DISPLAY_DC_PIN, 0); // DC low for command
+    // If manually controlling CS:
+    // gpio_set_level(DISPLAY_CS_PIN, 0); // Assert CS
     ESP_ERROR_CHECK(spi_device_polling_transmit(display_handle, &trans));
-    gpio_set_level((gpio_num_t)DISPLAY_DC_PIN, 1); // DC high after command
-}
-
-void ili9341_command_param16(uint16_t data) {
-    ili9341_command_param(data >> 8);    // Send high byte
-    ili9341_command_param(data & 0xFF); // Send low byte
+    // gpio_set_level(DISPLAY_CS_PIN, 1); // Deassert CS
+    gpio_set_level(DISPLAY_DC_PIN, 1); // DC high after command
 }
 
 void ili9341_command_param(uint8_t data) {
-    spi_transaction_t trans = {
-        .length = 8,               // Parameter is 8 bits
-        .tx_buffer = &data,        // Pointer to parameter
-        .flags = SPI_TRANS_USE_TXDATA, // Optimize small transfers
-    };
+    // ESP_LOGI("ILI9341", "Sending command parameter 0x%02x", data);
+    spi_transaction_t trans = {0};
+    trans.length = 8;
+    trans.flags = SPI_TRANS_USE_TXDATA;
+    trans.tx_data[0] = data;
 
+    gpio_set_level(DISPLAY_DC_PIN, 1); // DC high for data
+    // If manually controlling CS, ensure CS is asserted
     ESP_ERROR_CHECK(spi_device_polling_transmit(display_handle, &trans));
+    // If manually controlling CS, CS remains asserted until the end of all parameters
 }
 
-inline void ili9341_start_writing() {
-    // No action needed for start, as CS is handled by ESP-IDF
-    // unless you're manually controlling CS elsewhere
+void ili9341_command_param16(uint16_t data) {
+    ili9341_command_param(data >> 8);   // Send high byte
+    ili9341_command_param(data & 0xFF); // Send low byte
 }
 
 void ili9341_write_data(void *buffer, int bytes) {
-    spi_transaction_t trans = {
-        .length = bytes * 8,        // Length in bits
-        .tx_buffer = buffer,        // Pointer to data buffer
-    };
+    spi_transaction_t trans = {0};
+    trans.length = bytes * 8;       // Length in bits
+    trans.tx_buffer = buffer;
 
+    gpio_set_level(DISPLAY_DC_PIN, 1); // DC high for data
+    // If manually controlling CS, ensure CS is asserted
     ESP_ERROR_CHECK(spi_device_polling_transmit(display_handle, &trans));
+    // If manually controlling CS, CS remains asserted until data transfer is complete
 }
 
 void ili9341_write_data_continuous(void *buffer, int bytes) {
-    spi_transaction_t trans = {
-        .length = bytes * 8,        // Length in bits
-        .tx_buffer = buffer,        // Pointer to data buffer
-    };
-
-    ESP_ERROR_CHECK(spi_device_polling_transmit(display_handle, &trans));
+    // This function can be the same as ili9341_write_data unless specific behavior is needed
+    ili9341_write_data(buffer, bytes);
 }
 
-inline void ili9341_stop_writing() { cs_deselect(); }
+void ili9341_start_writing() {
+    // ESP_LOGI("ILI9341", "Starting write");
+    cs_select();
+}
+
+void ili9341_stop_writing() {
+    // ESP_LOGI("ILI9341", "Stopping write");
+    cs_deselect();
+}
+
 
 void ili9341_init() {
+  // ESP_LOGI("ILI9341", "Initializing display");
   gpio_reset_pin((gpio_num_t)DISPLAY_DC_PIN);
   gpio_set_direction((gpio_num_t)DISPLAY_DC_PIN, GPIO_MODE_OUTPUT);
 
@@ -105,10 +115,10 @@ void ili9341_init() {
   gpio_reset_pin((gpio_num_t)DISPLAY_RESET_PIN);
   gpio_set_direction((gpio_num_t)DISPLAY_RESET_PIN, GPIO_MODE_OUTPUT);
 
-  gpio_iomux_out(DISPLAY_SCK_PIN, FSPICLK_IN_IDX, false);
+  // gpio_iomux_out(DISPLAY_SCK_PIN, SPICLK_OUT_IDX, false);
 
-  gpio_iomux_in(DISPLAY_MOSI_PIN, FSPID_IN_IDX);
-  gpio_iomux_out(DISPLAY_MOSI_PIN, FSPID_OUT_IDX, false);
+  // gpio_iomux_in(DISPLAY_MOSI_PIN, SPID_IN_IDX);
+  // gpio_iomux_out(DISPLAY_MOSI_PIN, SPID_OUT_IDX, false);
 
   spi_bus_config_t buscfg = {
         .sclk_io_num = DISPLAY_SCK_PIN,

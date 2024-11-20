@@ -12,10 +12,12 @@ target_link_libraries(platform_system INTERFACE system_system
                                       PUBLIC platform_midi
                                       PUBLIC platform_gui
                                       PUBLIC platform_display
+                                      PUBLIC platform
                                       PUBLIC dummy_midi
                                       PUBLIC etl
                                       PUBLIC platform_usb
                                       PUBLIC idf::esp_adc
+                                      PUBLIC idf::driver
 )
 
 

@@ -14,7 +14,7 @@
 // #define FLASH_TARGET_OFFSET (1024 * 1024)
 //  Use all flash available after binary for samples
 //  WARNING! should be conscious to always ensure 1MB of free space
-extern char __flash_binary_end;
+char __flash_binary_end = 0;
 #define FLASH_TARGET_OFFSET                                                    \
   ((((uintptr_t) & __flash_binary_end - 0x10000000u) / FLASH_SECTOR_SIZE) +    \
    1) *                                                                        \

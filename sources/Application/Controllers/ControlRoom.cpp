@@ -45,6 +45,9 @@ bool ControlRoom::Attach(const char *nodeUrl, const char *controllerUrl) {
     Trace::Error("Trying to map unknown node %s", nodeUrl);
     return false;
   }
+  else if (existing->GetType() == CNT_ASSIGNABLE) {
+    Trace::Log("MAPPING", "Found %s", nodeUrl);
+  }
 
   AssignableControlNode *acn = (AssignableControlNode *)existing;
 

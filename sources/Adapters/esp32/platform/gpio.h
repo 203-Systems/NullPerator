@@ -7,16 +7,23 @@
 #define POWER_EN_PIN 9
 
 // I2C
-#define I2C_SDA 37
-#define I2C_SCL 36
+#define I2C_SDA_PIN 37
+#define I2C_SCL_PIN 36
 
 // Display
 #define DISPLAY_SPI spi2 // Can't change this atm - linked to FSPICLK_IN_IDX, FSPID_IN_IDX, FSPID_OUT_IDX
-#define DISPLAY_DC_PIN 33
-#define DISPLAY_RESET_PIN 21
-#define DISPLAY_SCK_PIN 47
-#define DISPLAY_MOSI_PIN 48
-#define DISPLAY_BL_PIN 12 
+// #define DISPLAY_DC_PIN 33
+// #define DISPLAY_RESET_PIN 21
+// #define DISPLAY_SCK_PIN 47
+// #define DISPLAY_MOSI_PIN 48
+// #define DISPLAY_BL_PIN 12 
+
+#define DISPLAY_DC_PIN 6
+#define DISPLAY_RESET_PIN 5
+#define DISPLAY_SCK_PIN 4
+#define DISPLAY_MOSI_PIN 3
+#define DISPLAY_BL_PIN 7
+
 
 // MIDI
 #define MIDI_BAUD_RATE 31250
@@ -57,4 +64,6 @@
 #define INPUT_X               14
 #define INPUT_A               15
 
+// Non IO expander buttons
+#define INPUT_MENU_PIN        10
 #endif

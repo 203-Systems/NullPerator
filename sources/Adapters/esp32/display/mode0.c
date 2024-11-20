@@ -6,13 +6,15 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "esp_log.h"
+
 /* Character graphics mode */
 
 #define TEXT_WIDTH 32
 #define TEXT_HEIGHT 24
 #define CHAR_HEIGHT 10
-#define CHAR_WIDTH 10
-#define BUFFER_CHARS 12
+#define CHAR_WIDTH 7
+#define BUFFER_CHARS 10
 
 #define SWAP_BYTES(color) ((uint16_t)(color >> 8) | (uint16_t)(color << 8))
 
@@ -79,6 +81,7 @@ void mode0_putc(char c, bool invert) {
 }
 
 void mode0_print(const char *str, bool invert) {
+
   char c;
   while ((c = *str++)) {
     mode0_putc(c, invert);
@@ -86,6 +89,7 @@ void mode0_print(const char *str, bool invert) {
 }
 
 void mode0_write(const char *str, int len, bool invert) {
+  // ESP_LOGI("LCD", "mode0_write %s", str);
   for (int i = 0; i < len; i++) {
     mode0_putc(*str++, invert);
   }
@@ -93,6 +97,7 @@ void mode0_write(const char *str, int len, bool invert) {
 
 void mode0_draw_region(uint8_t x, uint8_t y, uint8_t width, uint8_t height) {
 
+  // ESP_LOGI("LCD", "mode0_draw_region x:%d y:%d w:%d h:%d", x, y, width, height);
   int remainder = height;
   while (remainder) {
     int sub_height = (remainder > BUFFER_CHARS) ? BUFFER_CHARS : remainder;
@@ -104,6 +109,9 @@ void mode0_draw_region(uint8_t x, uint8_t y, uint8_t width, uint8_t height) {
 
 inline void mode0_draw_sub_region(uint8_t x, uint8_t y, uint8_t width,
                                   uint8_t height) {
+
+  // ESP_LOGI("LCD", "mode0_draw_sub_region x:%d y:%d w:%d h:%d", x, y, width, height);
+
   assert(height <= BUFFER_CHARS);
 
   uint16_t screen_x = x * CHAR_WIDTH;

@@ -1,5 +1,17 @@
 {
     "files.associations": {
-        "istream": "cpp"
+        "istream": "cpp",
+        "xiosbase": "cpp",
+        "gpio.h": "c",
+        "stdlib.h": "c",
+        "platform.h": "c",
+        "array": "cpp",
+        "ranges": "cpp",
+        "span": "cpp",
+        "vector": "cpp",
+        "xstring": "cpp",
+        "xutility": "cpp",
+        "format": "cpp",
+        "xlocale": "cpp"
     }
 }

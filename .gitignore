@@ -38,3 +38,9 @@ Temporary Items
 usermanual/output
 usermanual/bin
 sources/build
+*.su
+*.obj
+sources/Foundation/Variables/cmake_install.cmake
+*.a
+cmake_install.cmake
+*.ci

@@ -9,7 +9,9 @@ message (STATUS "EXTRA_COMPONENT_DIRS: ${EXTRA_COMPONENT_DIRS}")
 project(picoTracker)
 
 set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(IDF_TARGET "esp32s3")
 
@@ -38,7 +40,7 @@ add_definitions(-DUSB_REMOTE_UI)
 # enable basic control REPL over serial port. NOTE: uses extra ~112bytes of *stack*
 # add_definitions(-DSERIAL_REPL)
 
-add_compile_options(-std=c11 -std=c++17)
+# add_compile_options(-std=c11 -std=c++17)
 
 add_compile_options(
   # -Werror
@@ -62,6 +64,8 @@ add_compile_options(
   # # braids
   # -Wno-unused-variable
   # -Wno-array-bounds
+
+  -g
 )
 
 add_subdirectory(Adapters)

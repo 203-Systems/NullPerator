@@ -6,8 +6,11 @@
 #include "Services/Controllers/KeyboardControllerSource.h"
 #include "UIFramework/SimpleBaseClasses/EventManager.h"
 #include <string>
-
 #include <stdlib.h>
+
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/timers.h"
 
 class picoTrackerEventManager : public T_Singleton<picoTrackerEventManager>,
                                 public EventManager {
@@ -23,7 +26,7 @@ protected:
   static void ProcessInputEvent();
 
 private:
-  // static repeating_timer_t timer_;
+  static TimerHandle_t timer_;
 
   static bool finished_;
   static bool redrawing_;

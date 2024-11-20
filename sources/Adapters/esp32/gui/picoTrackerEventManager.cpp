@@ -14,7 +14,7 @@ unsigned long picoTrackerEventManager::time_ = 0;
 unsigned int picoTrackerEventManager::keyRepeat_ = 25;
 unsigned int picoTrackerEventManager::keyDelay_ = 500;
 unsigned int picoTrackerEventManager::keyKill_ = 5;
-// repeating_timer_t picoTrackerEventManager::timer_ = repeating_timer_t();
+TimerHandle_t  picoTrackerEventManager::timer_ = NULL;
 SerialDebugUI picoTrackerEventManager::serialDebugUI_ = SerialDebugUI();
 
 uint16_t gTime_ = 0;
@@ -26,14 +26,16 @@ picoTrackerEventQueue *queue;
 char inBuffer[INPUT_BUFFER_SIZE];
 #endif
 
-// bool timerHandler(repeating_timer_t *rt) {
-//   queue = picoTrackerEventQueue::GetInstance();
-//   gTime_++;
-//   if (gTime_ % 1000 == 0) {
-//     queue->push(picoTrackerEvent(PICO_CLOCK));
-//   }
-//   return true;
-// }
+static void timerHandler(TimerHandle_t xTimer) {
+      // Increment the global time variable
+      gTime_++;
+
+      // Push an event to the queue every 1000ms
+      if (gTime_ % 1000 == 0) {
+          queue = picoTrackerEventQueue::GetInstance();
+          queue->push(picoTrackerEvent(PICO_CLOCK));
+      }
+  }
 
 picoTrackerEventManager::picoTrackerEventManager() {}
 
@@ -44,10 +46,25 @@ bool picoTrackerEventManager::Init() {
 
   keyboardCS_ = new KeyboardControllerSource("keyboard");
 
-  // TODO: fix this, there is a timer service that should be used. Also all of
-  // this keyRepeat logic is already implemented in the eventdispatcher
-  // Application/Commands/EventDispatcher.cpp
-  // add_repeating_timer_ms(1, timerHandler, NULL, &timer_);
+  // Create the FreeRTOS timer (periodic, 1ms interval)
+  timer_ = xTimerCreate(
+      "picoTrackerTimer",           // Timer name
+      pdMS_TO_TICKS(1),             // Timer period in ticks (1ms)
+      pdTRUE,                       // Auto-reload (periodic)
+      NULL,                         // Timer ID (can be NULL)
+      timerHandler                  // Timer callback
+  );
+
+  if (timer_ == NULL) {
+      // Handle timer creation error
+      return false;
+  }
+
+  if (xTimerStart(timer_, 0) != pdPASS) {
+      // Handle timer start error
+      return false;
+  }
+
   return true;
 }
 
@@ -61,10 +78,8 @@ int picoTrackerEventManager::MainLoop() {
 #endif
   while (!finished_) {
     loops++;
-
     // process usb interrupts, should this be done somewhere else??
-    handleUSBInterrupts();
-
+    // handleUSBInterrupts();
     ProcessInputEvent();
     if (!queue->empty()) {
       picoTrackerEvent event(picoTrackerEventType::LAST);

@@ -6,4 +6,4 @@ void sendUSBMidiMessage(uint8_t const *midicmd, uint8_t len) {
 
 // need to call this *very* regularly to allow tinyusb to
 // service usb interupts
-void handleUSBInterrupts() { tud_task(); };
+void handleUSBInterrupts() {  };

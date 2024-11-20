@@ -12,6 +12,7 @@
 #include "picoRemoteUI.h"
 #endif
 #include <string>
+#include "esp_log.h"
 
 #define to_rgb565(color)                                                       \
   ((color._r & 0b11111000) << 8) | ((color._g & 0b11111100) << 3) |            \
@@ -59,8 +60,7 @@ picoTrackerGUIWindowImp::~picoTrackerGUIWindowImp() {}
 
 void picoTrackerGUIWindowImp::DrawChar(const char c, GUIPoint &pos,
                                        GUITextProperties &p) {
-  //  Trace::Debug("Draw char \"%c\" at pos x:%ld (%ld), y:%ld (%ld) - invert:
-  //  %d", c, pos._x, pos._x / 8, pos._y, pos._y / 8, p.invert_);
+  //  Trace::Debug("Draw char \"%c\" at pos x:%ld (%ld), y:%ld (%ld) - invert: %d", c, pos._x, pos._x / 8, pos._y, pos._y / 8, p.invert_);
 
   uint8_t x = pos._x / 8;
   uint8_t y = pos._y / 8;

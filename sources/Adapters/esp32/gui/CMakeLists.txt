@@ -13,6 +13,7 @@ target_link_libraries(platform_gui PUBLIC uiframework_simplebaseclasses
                                    PUBLIC platform_system
                                    PUBLIC platform_usb
                                    PUBLIC idf::esp_timer
+                                   PUBLIC idf::freertos
 )
 
 target_include_directories(platform_gui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

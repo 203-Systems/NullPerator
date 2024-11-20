@@ -2,6 +2,7 @@ add_library(platform
   gpio.h
   platform.h platform.cpp
   etl_profile.h
+  PCA95x5.h
 )
 
 target_link_libraries(platform PUBLIC idf::driver
