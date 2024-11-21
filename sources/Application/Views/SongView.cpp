@@ -800,7 +800,7 @@ void SongView::DrawView() {
 
   Player *player = Player::GetInstance();
 
-  props.invert_ = true;
+  props.invert_ = false;
   const char *buffer =
       ((player->GetSequencerMode() == SM_SONG) ? "Song" : "Live");
   DrawString(pos._x, pos._y, buffer, props);
@@ -818,19 +818,46 @@ void SongView::DrawView() {
   // draw battery gauge
   GUIPoint battpos = GetAnchor();
   battpos._y = 0;
-  battpos._x = 26;
+  battpos._x = 24;
   System *sys = System::GetInstance();
   float batt = sys->GetBatteryLevel() / 1000.0;
   drawBattery(batt, battpos, props);
 
+  char row[3];
+  // Display channel number
+  pos = anchor;
+
+  for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {
+    char p = i + 1;
+    hex2char(p, row);
+    if(i == viewData_->songX_)
+    {
+      SetColor(CD_HILITE2);
+    }
+    else
+    {
+      SetColor(CD_HILITE1);
+    }
+    DrawString(pos._x, pos._y, &row[1], props);
+    pos._x += 3;
+  }
+
   // Display row numbers
   SetColor(CD_HILITE1);
-  char row[3];
   pos = anchor;
   pos._x -= 3;
+  pos._y += 1;
   for (int j = 0; j < View::songRowCount_; j++) {
     char p = j + viewData_->songOffset_;
     hex2char(p, row);
+    if(j == viewData_->songY_)
+    {
+      SetColor(CD_HILITE2);
+    }
+    else
+    {
+      SetColor(CD_HILITE1);
+    }
     DrawString(pos._x, pos._y, row, props);
     pos._y += 1;
   }
@@ -838,6 +865,7 @@ void SongView::DrawView() {
   SetColor(CD_NORMAL);
 
   pos = anchor;
+  pos._y += 1;
   unsigned char *data =
       viewData_->song_->data_ + (SONG_CHANNEL_COUNT * viewData_->songOffset_);
   short dx = 3;
@@ -874,8 +902,16 @@ void SongView::DrawView() {
 
       unsigned char d = *data++;
       if (d == 0xFF) {
+        if(!invert)
+        {
+          SetColor(CD_EMPTY);
+        }
         DrawString(pos._x, pos._y, "--", props);
       } else {
+        if(!invert)
+        {
+          SetColor(CD_NORMAL);
+        }
         hex2char(d, row);
         DrawString(pos._x, pos._y, row, props);
       }

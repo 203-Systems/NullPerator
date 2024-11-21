@@ -107,6 +107,7 @@ private:
   static GUIColor infoColor_;
   static GUIColor warnColor_;
   static GUIColor errorColor_;
+  static GUIColor emptyColor_;
 
   ColorDefinition colorIndex_;
 

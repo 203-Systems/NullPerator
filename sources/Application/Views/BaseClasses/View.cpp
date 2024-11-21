@@ -30,15 +30,11 @@ GUIPoint View::GetAnchor() {
   // changing the song count didn't work anyway given that there are many places
   // where it was statically defined as 8. Other screens also don't fit with a
   // dynamic anchor point
-  return GUIPoint(5, 3);
+  return GUIPoint(4, 3);
 }
 
 GUIPoint View::GetTitlePosition() {
-#ifndef PLATFORM_CAANOO
-  return GUIPoint(0, 0);
-#else
-  return GUIPoint(0, 1);
-#endif
+  return GUIPoint(1, 1);
 };
 
 bool View::Lock() {
@@ -57,72 +53,103 @@ void View::Unlock() { locked_ = false; }
 
 void View::drawMap() {
   GUIPoint anchor = GetAnchor();
-  GUIPoint pos(View::margin_, anchor._y + View::songRowCount_ + 1);
+  GUIPoint pos(View::margin_ + 25, anchor._y + View::songRowCount_ + 3);
   GUITextProperties props;
 
   // draw entire map
   SetColor(CD_NORMAL);
   char buffer[5];
   props.invert_ = false;
-  // row1
-  sprintf(buffer, "D   ");
-  DrawString(pos._x, pos._y, buffer, props);
-  pos._y++;
-  // row2
-  sprintf(buffer, "P G ");
-  DrawString(pos._x, pos._y, buffer, props);
-  pos._y++;
+  // // row1
+  // sprintf(buffer, "D   ");
+  // DrawString(pos._x, pos._y, buffer, props);
+  // pos._y++;
+  // // row2
+  // sprintf(buffer, "P G ");
+  // DrawString(pos._x, pos._y, buffer, props);
+  // pos._y+=2
   // row3
   sprintf(buffer, "SCPI");
   DrawString(pos._x, pos._y, buffer, props);
-  pos._y++;
-  // row4
-  sprintf(buffer, "  TT");
-  DrawString(pos._x, pos._y, buffer, props);
+  // pos._y++;
+  // // row4
+  // sprintf(buffer, "  TT");
+  // DrawString(pos._x, pos._y, buffer, props);
 
   // draw current screen on map
-  SetColor(CD_HILITE2);
   pos._y = anchor._y + View::songRowCount_ + 1;
   switch (viewType_) {
   case VT_CHAIN:
     pos._x += 1;
     pos._y += 2;
+    SetColor(CD_HILITE2);
     DrawString(pos._x, pos._y, "C", props);
     break;
   case VT_PHRASE:
     pos._x += 2;
+    pos._y += 1;
+    DrawString(pos._x, pos._y, "G", props);
     pos._y += 2;
+    DrawString(pos._x, pos._y, "T", props);
+    pos._y -= 1;
+    SetColor(CD_HILITE2);
     DrawString(pos._x, pos._y, "P", props);
     break;
   case VT_DEVICE:
+    pos._y += 1;
+    DrawString(pos._x, pos._y, "P", props);
+    pos._y -= 1;
+    SetColor(CD_HILITE2);
     DrawString(pos._x, pos._y, "D", props);
     break;
   case VT_PROJECT:
+    DrawString(pos._x, pos._y, "D", props);
     pos._y += 1;
+    SetColor(CD_HILITE2);
     DrawString(pos._x, pos._y, "P", props);
     break;
   case VT_INSTRUMENT:
     pos._x += 3;
-    pos._y += 2;
+    pos._y += 3;
+    DrawString(pos._x, pos._y, "T", props);
+    pos._y -= 1;
+    SetColor(CD_HILITE2);
     DrawString(pos._x, pos._y, "I", props);
+
     break;
   case VT_TABLE: // under phrase
     pos._x += 2;
-    pos._y += 3;
+    pos._y += 1;
+    DrawString(pos._x, pos._y, "G", props);
+    pos._y += 2;
+    pos._x += 1;
+    DrawString(pos._x, pos._y, "T", props);
+    pos._x -= 1;
+    SetColor(CD_HILITE2);
     DrawString(pos._x, pos._y, "T", props);
     break;
   case VT_TABLE2: // under instrument
-    pos._x += 3;
+    pos._x += 2;
     pos._y += 3;
+    DrawString(pos._x, pos._y, "T", props);
+    pos._x += 1;
+    SetColor(CD_HILITE2);
     DrawString(pos._x, pos._y, "T", props);
     break;
   case VT_GROOVE:
     pos._x += 2;
-    pos._y += 1;
+    pos._y += 3;
+    DrawString(pos._x, pos._y, "T", props);
+    pos._y -= 2;
+    SetColor(CD_HILITE2);
     DrawString(pos._x, pos._y, "G", props);
     break;
+  case VT_SONG:
   default: // VT_SONG
-    pos._y += 2;
+    pos._y ++;
+    DrawString(pos._x, pos._y, "P", props);
+    pos._y ++;
+    SetColor(CD_HILITE2);
     DrawString(pos._x, pos._y, "S", props);
   }
 }
@@ -130,7 +157,7 @@ void View::drawMap() {
 void View::drawNotes() {
 
   GUIPoint anchor = GetAnchor();
-  int initialX = View::margin_ + 5;
+  int initialX = 1;
   int initialY = anchor._y + View::songRowCount_ + 2;
   GUIPoint pos(initialX, initialY);
   GUITextProperties props;
@@ -223,6 +250,7 @@ void View::DrawString(int x, int y, const char *txt, GUITextProperties &props) {
 };
 
 void View::drawBattery(float voltage, GUIPoint &pos, GUITextProperties &props) {
+  return;
   if (voltage >= 0) {
     SetColor(CD_INFO);
 

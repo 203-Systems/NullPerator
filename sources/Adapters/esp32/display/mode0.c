@@ -10,7 +10,7 @@
 
 /* Character graphics mode */
 
-#define TEXT_WIDTH 32
+#define TEXT_WIDTH 30
 #define TEXT_HEIGHT 24
 #define CHAR_HEIGHT 10
 #define CHAR_WIDTH 8
@@ -147,7 +147,7 @@ inline void mode0_draw_sub_region(uint8_t x, uint8_t y, uint8_t width,
         uint16_t bg_color = palette[colors[idx] & 0xf];
 
         uint16_t const *pixel_data = (ui_font_index == 0)
-                                         ? FONT_HOURGLASS_BITMAP[character]
+                                         ? FONT_STEALTH57_BITMAP[character]
                                          : FONT_YOU_SQUARED_BITMAP[character];
 
         // draw the character into the buffer

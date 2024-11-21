@@ -151,6 +151,8 @@ struct FourCC {
 
     VarInstrumentType = 113,
 
+    VarEmptyColor = 150,
+
     ActionTempoChanged = 61,
     ActionPurge = 49,
     ActionPurgeInstrument = 47,
@@ -277,6 +279,7 @@ struct FourCC {
   ETL_ENUM_TYPE(VarInfoColor, "INFOCOLOR")
   ETL_ENUM_TYPE(VarWarnColor, "WARNCOLOR")
   ETL_ENUM_TYPE(VarErrorColor, "ERRORCOLOR")
+  ETL_ENUM_TYPE(VarEmptyColor, "EMPTYCOLOR")
   ETL_ENUM_TYPE(VarTempo, "tempo")
   ETL_ENUM_TYPE(VarMasterVolume, "master")
   ETL_ENUM_TYPE(VarWrap, "wrap")

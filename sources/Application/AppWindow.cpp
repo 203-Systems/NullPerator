@@ -24,15 +24,16 @@ unsigned char AppWindow::_charScreenProp[SCREEN_CHARS];
 unsigned char AppWindow::_preScreen[SCREEN_CHARS];
 unsigned char AppWindow::_preScreenProp[SCREEN_CHARS];
 
-GUIColor AppWindow::backgroundColor_(0x0F, 0x0F, 0x0F, 0);
-GUIColor AppWindow::normalColor_(0xAD, 0xAD, 0xAD, 1);
-GUIColor AppWindow::highlightColor_(0x84, 0x6F, 0x94, 2);
-GUIColor AppWindow::highlight2Color_(0x6B, 0x31, 0x6B, 3);
-GUIColor AppWindow::cursorColor_(0x77, 0x6B, 0x56, 4);
+GUIColor AppWindow::backgroundColor_(0x00, 0x00, 0x00, 0);
+GUIColor AppWindow::normalColor_(0xFA, 0xFA, 0xFA, 1); 
+GUIColor AppWindow::highlightColor_(0xBC, 0xBC, 0xBA, 2); 
+GUIColor AppWindow::highlight2Color_(0x32, 0xEC, 0xFF, 3);
+GUIColor AppWindow::cursorColor_(0x32, 0xEC, 0xFF, 4);
 GUIColor AppWindow::consoleColor_(0xFF, 0x00, 0xFF, 5);
-GUIColor AppWindow::infoColor_(0x29, 0xEE, 0x3D, 6);
-GUIColor AppWindow::warnColor_(0xEF, 0xFA, 0x52, 7);
-GUIColor AppWindow::errorColor_(0xE8, 0x4D, 0x15, 8);
+GUIColor AppWindow::infoColor_(0x00, 0xFF, 0x50, 6);
+GUIColor AppWindow::warnColor_(0xFF, 0xE0, 0x00, 7);
+GUIColor AppWindow::errorColor_(0xFF, 0x30, 0x70, 8);
+GUIColor AppWindow::emptyColor_(0x1E, 0x1E, 0x1E, 9);
 
 int AppWindow::charWidth_ = 8;
 int AppWindow::charHeight_ = 8;
@@ -231,6 +232,9 @@ void AppWindow::Flush() {
           case CD_ERROR:
             gcolor = errorColor_;
             break;
+          case CD_EMPTY:
+            gcolor = emptyColor_;
+            break;
 
           default:
             NAssert(0);
@@ -406,15 +410,16 @@ void AppWindow::SetDirty() { _isDirty = true; };
 
 void AppWindow::UpdateColorsFromConfig() {
   // now assign custom colors if they have been set device config
-  defineColor(FourCC::VarBGColor, backgroundColor_, 0);
-  defineColor(FourCC::VarFGColor, normalColor_, 1);
-  cursorColor_ = normalColor_;
-  defineColor(FourCC::VarHI1Color, highlightColor_, 2);
-  defineColor(FourCC::VarHI2Color, highlight2Color_, 3);
-  defineColor(FourCC::VarCursorColor, cursorColor_, 4);
-  defineColor(FourCC::VarInfoColor, infoColor_, 5);
-  defineColor(FourCC::VarWarnColor, warnColor_, 6);
-  defineColor(FourCC::VarErrorColor, errorColor_, 7);
+  // defineColor(FourCC::VarBGColor, backgroundColor_, 0);
+  // defineColor(FourCC::VarFGColor, normalColor_, 1);
+  // cursorColor_ = normalColor_;
+  // defineColor(FourCC::VarHI1Color, highlightColor_, 2);
+  // defineColor(FourCC::VarHI2Color, highlight2Color_, 3);
+  // defineColor(FourCC::VarCursorColor, cursorColor_, 4);
+  // defineColor(FourCC::VarInfoColor, infoColor_, 5);
+  // defineColor(FourCC::VarWarnColor, warnColor_, 6);
+  // defineColor(FourCC::VarErrorColor, errorColor_, 7);
+  // defineColor(FourCC::VarEmptyColor, emptyColor_, 8);
 };
 
 bool AppWindow::onEvent(GUIEvent &event) {

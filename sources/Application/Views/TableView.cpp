@@ -709,7 +709,7 @@ void TableView::DrawView() {
   pos._x -= 3;
   for (int j = 0; j < 16; j++) {
     hex2char(j, buffer);
-    DrawString(pos._x, pos._y, buffer, props);
+    DrawString(pos._x, pos._y, &buffer[1], props);
     pos._y++;
   }
 
@@ -718,6 +718,7 @@ void TableView::DrawView() {
   // Draw command 1
 
   pos = anchor;
+  pos._x -= 1;
 
   FourCC *f = table.cmd1_;
 
@@ -735,7 +736,7 @@ void TableView::DrawView() {
   // Draw commands params 1
 
   pos = anchor;
-  pos._x += 4;
+  pos._x += 3;
 
   ushort *param = table.param1_;
   buffer[5] = 0;
@@ -752,7 +753,7 @@ void TableView::DrawView() {
   // Draw commands 2
 
   pos = anchor;
-  pos._x += 9;
+  pos._x += 8;
 
   f = table.cmd2_;
 
@@ -770,7 +771,7 @@ void TableView::DrawView() {
   // Draw commands params
 
   pos = anchor;
-  pos._x += 13;
+  pos._x += 12;
 
   param = table.param2_;
   buffer[5] = 0;
@@ -787,7 +788,7 @@ void TableView::DrawView() {
   // Draw command 3
 
   pos = anchor;
-  pos._x += 18;
+  pos._x += 17;
 
   f = table.cmd3_;
 
@@ -805,7 +806,7 @@ void TableView::DrawView() {
   // Draw commands params 3
 
   pos = anchor;
-  pos._x += 22;
+  pos._x += 21;
 
   param = table.param3_;
   buffer[5] = 0;
