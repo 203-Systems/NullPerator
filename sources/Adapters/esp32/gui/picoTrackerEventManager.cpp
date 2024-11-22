@@ -4,6 +4,7 @@
 #include "Application/Application.h"
 #include "picoTrackerGUIWindowImp.h"
 #include "usb_utils.h"
+#include "esp_log.h"
 
 bool picoTrackerEventManager::finished_ = false;
 bool picoTrackerEventManager::redrawing_ = false;
@@ -17,7 +18,7 @@ unsigned int picoTrackerEventManager::keyKill_ = 5;
 TimerHandle_t  picoTrackerEventManager::timer_ = NULL;
 SerialDebugUI picoTrackerEventManager::serialDebugUI_ = SerialDebugUI();
 
-uint16_t gTime_ = 0;
+uint32_t gTime_ = 0;
 
 picoTrackerEventQueue *queue;
 
@@ -27,15 +28,9 @@ char inBuffer[INPUT_BUFFER_SIZE];
 #endif
 
 static void timerHandler(TimerHandle_t xTimer) {
-      // Increment the global time variable
-      gTime_++;
-
-      // Push an event to the queue every 1000ms
-      if (gTime_ % 1000 == 0) {
-          queue = picoTrackerEventQueue::GetInstance();
-          queue->push(picoTrackerEvent(PICO_CLOCK));
-      }
-  }
+    queue = picoTrackerEventQueue::GetInstance();
+    queue->push(picoTrackerEvent(PICO_CLOCK));
+}
 
 picoTrackerEventManager::picoTrackerEventManager() {}
 
@@ -49,7 +44,7 @@ bool picoTrackerEventManager::Init() {
   // Create the FreeRTOS timer (periodic, 1ms interval)
   timer_ = xTimerCreate(
       "picoTrackerTimer",           // Timer name
-      pdMS_TO_TICKS(1),             // Timer period in ticks (1ms)
+      pdMS_TO_TICKS(1000),             // Timer period in ticks (1ms)
       pdTRUE,                       // Auto-reload (periodic)
       NULL,                         // Timer ID (can be NULL)
       timerHandler                  // Timer callback
@@ -123,7 +118,7 @@ void picoTrackerEventManager::ProcessInputEvent() {
   // compute mask to send
   sendMask = (newMask ^ buttonMask_) |
              (newMask & (KEY_LEFT | KEY_RIGHT | KEY_UP | KEY_DOWN));
-  unsigned long now = gTime_;
+  unsigned long now = millis();
   // see if we're repeating
   if (newMask == buttonMask_) {
     if ((isRepeating_) && ((now - time_) > keyRepeat_)) {
@@ -142,7 +137,7 @@ void picoTrackerEventManager::ProcessInputEvent() {
     }
   }
   if (gotEvent) {
-    time_ = gTime_; // Get time here so delay is independant of processing speed
+    time_ = now; // Get time here so delay is independant of processing speed
 
     //                Trace::Debug("Pe") ;
     picoTrackerGUIWindowImp::ProcessButtonChange(sendMask, newMask);
