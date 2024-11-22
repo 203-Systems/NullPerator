@@ -39,9 +39,9 @@ class ES8388 {
  private:
   outsel_t _outSel = OUTALL;
   insel_t _inSel = IN1;
-  i2c_master_dev_handle_t dev_handle;
-  esp_err_t write_reg(uint8_t reg_add, uint8_t data);
-  esp_err_t read_reg(uint8_t reg_add, uint8_t& data);
+  i2c_master_dev_handle_t dev_handle = NULL;
+  bool write_reg(uint8_t reg_add, uint8_t data);
+  bool read_reg(uint8_t reg_add, uint8_t& data);
 
  public:
   ES8388();

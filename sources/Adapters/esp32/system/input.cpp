@@ -15,6 +15,7 @@
     (byte & 0x02 ? '1' : '0'), \
     (byte & 0x01 ? '1' : '0')
 
+uint16_t key_cache = 0xFFFF;
 uint16_t scanKeys() {
 #ifdef USB_REMOTE_UI_INPUT
   // This reads a byte from USB serial input in non-blocking way, by using
@@ -62,20 +63,36 @@ uint16_t scanKeys() {
   // remapped |= (((key_input & (1 << INPUT_B)) ? 1 : 0) && menu) << 4;
   // remapped |= ((key_input & (1 << INPUT_B)) ? 1 : 0) << 4;
 
-    remapped |= ((key_input & (1 << INPUT_B)) ? 1 : 0) << 5;
+    if(((key_input & (1 << INPUT_B)) && (key_input & (1 << INPUT_A))))
+    {
+      remapped |= 1 << 7;
+    }
+    else
+    {
+      remapped |= ((key_input & (1 << INPUT_B)) ? 1 : 0) << 5;
+      remapped |= ((key_input & (1 << INPUT_A)) ? 1 : 0) << 6;
+    }
 
-  remapped |= ((key_input & (1 << INPUT_A)) ? 1 : 0) << 6;
+    remapped |= ((key_input & (1 << INPUT_START)) ? 1 : 0) << 7;
+    // remapped |= ((key_input & (1 << INPUT_RB)) ? 1 : 0) << 7;
+    // remapped |= (((key_input & (1 << INPUT_A)) ? 1 : 0) && menu) << 7;
+    // remapped |= ((key_input & (1 << INPUT_A)) ? 1 : 0) << 7;
+    // remapped |= menu << 7;
 
-  remapped |= ((key_input & (1 << INPUT_START)) ? 1 : 0) << 7;
-  // remapped |= ((key_input & (1 << INPUT_RB)) ? 1 : 0) << 7;
-  // remapped |= (((key_input & (1 << INPUT_A)) ? 1 : 0) && menu) << 7;
-  // remapped |= ((key_input & (1 << INPUT_A)) ? 1 : 0) << 7;
-  // remapped |= menu << 7;
+    remapped |= menu << 8;
 
-  remapped |= menu << 8;
+    // if(remapped != key_cache) {
+    // ESP_LOGI("INPUT", "key_input: 0b%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c - Changes -%d", key_input,
+    //       BYTE_TO_BINARY(remapped >> 8), BYTE_TO_BINARY(remapped & 0xFF), (uint8_t)__builtin_popcount(remapped ^ key_cache));
+    // }
 
-  // ESP_LOGI("INPUT", "raw: %d - key_input: 0b%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c%c", key_input,
-  //       BYTE_TO_BINARY(remapped >> 8), BYTE_TO_BINARY(remapped & 0xFF));
+    // Sometime the input is noisy, so we need to check if the input is stable
+
+    if (__builtin_popcount(remapped ^ key_cache) > 3 && key_cache != 0xFFFF) {
+      return key_cache;
+    } else {
+      key_cache = remapped;
+    }
   
   return remapped;
 }

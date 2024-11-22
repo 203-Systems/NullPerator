@@ -83,24 +83,10 @@ bool picoTrackerAudioDriver::InitDriver() { // New
   auto audioLevel = config->GetValue("LINEOUT");
   volume_ = config->GetValue("VOLUME");
 
-  codec.init(i2c_handle, 400000);
-
-  // gpio_iomux_out(SD_CLK_PIN, SDHOST_CCLK_OUT_1_IDX, false);
-
-  // gpio_iomux_in(SD_CMD_PIN, SDHOST_CCMD_IN_1_IDX);
-  // gpio_iomux_out(SD_CMD_PIN, SDHOST_CCMD_OUT_1_IDX, false);
-
-  // gpio_iomux_in(SD_D0_PIN, SDHOST_CDATA_IN_10_IDX);
-  // gpio_iomux_out(SD_D0_PIN, SDHOST_CDATA_OUT_10_IDX, false);
-
-  // gpio_iomux_in(SD_D1_PIN, SDHOST_CDATA_IN_11_IDX);
-  // gpio_iomux_out(SD_D1_PIN, SDHOST_CDATA_OUT_11_IDX, false);
-
-  // gpio_iomux_in(SD_D2_PIN, SDHOST_CDATA_IN_12_IDX);
-  // gpio_iomux_out(SD_D2_PIN, SDHOST_CDATA_OUT_12_IDX, false);
-
-  // gpio_iomux_in(CODEC_WS, I2S0O_WS_IN_IDX);
-  // gpio_iomux_out(CODEC_WS, I2S0O_WS_OUT_IDX, false);
+  codec.init(i2c_handle, 100000);
+  codec.outputSelect(outsel_t::OUT1);
+  codec.setOutputVolume(33);
+  ESP_LOGI("Codec", "Output Volume: %d", codec.getOutputVolume());
 
   i2s_chan_config_t chan_cfg = {
       .id = I2S_NUM_0,
@@ -130,7 +116,7 @@ bool picoTrackerAudioDriver::InitDriver() { // New
               .slot_mask = I2S_STD_SLOT_BOTH,
               .ws_width = I2S_DATA_BIT_WIDTH_16BIT,
               .ws_pol = false,
-              .bit_shift = true,
+              .bit_shift = false,
               .left_align = true,
               .big_endian = false,
               .bit_order_lsb = false
@@ -245,6 +231,15 @@ void picoTrackerAudioDriver::OnChunkDone() {
     } else {
       // Move to next buffer
       poolPlayPosition_ = next;
+
+      uint64_t sum = 0;
+
+      for (int i = 0; i < SOUND_BUFFER_COUNT * 2; i++) {
+        sum += pool_[poolPlayPosition_].buffer_[i];
+      }
+
+      ESP_LOGI("picoTrackerAudioDriver", "Buffer %d played, sum: %llu",
+               poolPlayPosition_, sum);
 
       // Write audio data
       ESP_ERROR_CHECK(
