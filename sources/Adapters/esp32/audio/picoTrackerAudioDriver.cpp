@@ -4,23 +4,32 @@
 #include "Application/Model/Config.h"
 #include "Services/Midi/MidiService.h"
 #include "System/System/System.h"
-// #include "hardware/clocks.h"
-// #include "hardware/dma.h"
-// #include "hardware/gpio.h"
-// #include "hardware/irq.h"
-// #include "hardware/pio.h"
-// #include "pico/multicore.h"
-// #include "pico/sync.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "driver/gpio.h"
+#include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#include "freertos/task.h"
+#include "soc/gpio_sig_map.h"
+
+#include "ES8388.h"
 
 // mini blank buffer for underrun, initialized to 0
 const char picoTrackerAudioDriver::miniBlank_[MINI_BLANK_SIZE * 2 *
                                               sizeof(short)] = {0};
 
 picoTrackerAudioDriver *picoTrackerAudioDriver::instance_ = NULL;
+TaskHandle_t audioThreadHandle_ = NULL;
+SemaphoreHandle_t core1_audio = NULL;
+
+i2s_chan_handle_t tx_handle = NULL;
+i2s_chan_handle_t rx_handle = NULL;
+
+ES8388 codec = ES8388();
 
 static volatile unsigned long picoTracker_sound_pausei, picoTracker_exit;
 
@@ -29,16 +38,20 @@ void picoTracker_sound_pause(int yes) { picoTracker_sound_pausei = yes; }
 // This calls comes after the call to the same function name in the pico audio
 // driver
 
-void picoTrackerAudioDriver::IRQHandler() { instance_->OnChunkDone(); }
+bool IRAM_ATTR picoTrackerAudioDriver::i2s_tx_done_callback(
+  i2s_chan_handle_t handle, i2s_event_data_t *event, void *user_ctx) {
+  xSemaphoreGiveFromISR(core1_audio, NULL);
+  return true;
+}
 
-void AudioThread() {
-  // Allow core0 to pause this core when writing to flash
-  // https://www.raspberrypi.com/documentation/pico-sdk/high_level.html#multicore_lockout
-  // multicore_lockout_victim_init();
-  // while (true) {
-  //   sem_acquire_blocking(&core1_audio);
-  //   picoTrackerAudioDriver::BufferNeeded();
-  // }
+void picoTrackerAudioDriver::AudioThread(void *arg) {
+  while (1) {
+    xSemaphoreTake(core1_audio, portMAX_DELAY);
+    picoTrackerAudioDriver::instance_->OnChunkDone();
+    if(picoTrackerAudioDriver::instance_->isPlaying_) {
+      picoTrackerAudioDriver::BufferNeeded();
+    }
+  }
 }
 
 void picoTrackerAudioDriver::BufferNeeded() {
@@ -62,100 +75,108 @@ picoTrackerAudioDriver::picoTrackerAudioDriver(AudioSettings &settings)
 
 picoTrackerAudioDriver::~picoTrackerAudioDriver() { picoTracker_exit = 1; }
 
-
-bool picoTrackerAudioDriver::InitDriver() {
+bool picoTrackerAudioDriver::InitDriver() { // New
   instance_ = this;
 
+  // Get configuration values
   Config *config = Config::GetInstance();
   auto audioLevel = config->GetValue("LINEOUT");
-  Trace::Log("pTAUDIODRIVER", "LINE LEVEL config:%d\n", audioLevel);
-  volume_ = 65;
   volume_ = config->GetValue("VOLUME");
 
+  codec.init(i2c_handle, 400000);
 
-  // pico audio init
-  // Setup GPIOs
-  // gpio_set_function(AUDIO_SDATA, GPIO_FUNC_PIO0);
-  // gpio_set_function(AUDIO_BCLK, GPIO_FUNC_PIO0);
-  // gpio_set_function(AUDIO_LRCLK, GPIO_FUNC_PIO0);
+  // gpio_iomux_out(SD_CLK_PIN, SDHOST_CCLK_OUT_1_IDX, false);
 
-  // Claim and configure PIO0
-  // pio_sm_claim(AUDIO_PIO, AUDIO_SM);
+  // gpio_iomux_in(SD_CMD_PIN, SDHOST_CCMD_IN_1_IDX);
+  // gpio_iomux_out(SD_CMD_PIN, SDHOST_CCMD_OUT_1_IDX, false);
 
-  // Audio Level support in PIO code:
-  // need to modify the PIO instructions 9 and 21 to use the number of "offset"
-  // aka the OFFSET_COUNT const in the PIO asm code, its value is 3 for default
-  // "headphones level" bits required and then need to modify the PIO
-  // instructions 3 and 15 to use aka the BACKFILL_COUNT in the PIO asm code,
-  // its value is 10 for default "headphones level" the matching number of
-  // "backfill" number of bits required
-  // memcpy(modified_audio_i2s_instructions, audio_i2s_program_instructions,
-  //        24 * 2);
+  // gpio_iomux_in(SD_D0_PIN, SDHOST_CDATA_IN_10_IDX);
+  // gpio_iomux_out(SD_D0_PIN, SDHOST_CDATA_OUT_10_IDX, false);
 
-  // // ---- HP High volume
-  // if (audioLevel == 1) {
-  //   modified_audio_i2s_instructions[9] = 0xe843;
-  //   modified_audio_i2s_instructions[21] = 0xf843;
+  // gpio_iomux_in(SD_D1_PIN, SDHOST_CDATA_IN_11_IDX);
+  // gpio_iomux_out(SD_D1_PIN, SDHOST_CDATA_OUT_11_IDX, false);
 
-  //   modified_audio_i2s_instructions[3] = 0xf84a;
-  //   modified_audio_i2s_instructions[15] = 0xe84a;
-  // }
+  // gpio_iomux_in(SD_D2_PIN, SDHOST_CDATA_IN_12_IDX);
+  // gpio_iomux_out(SD_D2_PIN, SDHOST_CDATA_OUT_12_IDX, false);
 
-  // // ---- Line Level volume
-  // if (audioLevel == 2) {
-  //   modified_audio_i2s_instructions[9] = 0xe841;
-  //   modified_audio_i2s_instructions[21] = 0xf841;
+  // gpio_iomux_in(CODEC_WS, I2S0O_WS_IN_IDX);
+  // gpio_iomux_out(CODEC_WS, I2S0O_WS_OUT_IDX, false);
 
-  //   modified_audio_i2s_instructions[3] = 0xf84c;
-  //   modified_audio_i2s_instructions[15] = 0xe84c;
-  // }
+  i2s_chan_config_t chan_cfg = {
+      .id = I2S_NUM_0,
+      .role = I2S_ROLE_MASTER,
+      .dma_desc_num = SOUND_BUFFER_COUNT,
+      .dma_frame_num = MAX_SAMPLE_COUNT,
+      .auto_clear_after_cb = false,
+      .auto_clear_before_cb = false,
+      .intr_priority = 0 
+    };
 
-  // modified_audio_i2s_program.instructions = modified_audio_i2s_instructions;
+  chan_cfg.auto_clear = true; // Auto clear the legacy data in the DMA buffer
+  ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, &tx_handle, &rx_handle));
+  i2s_std_config_t std_cfg = {
+      .clk_cfg = 
+          {
+              .sample_rate_hz = 44100,
+              .clk_src = I2S_CLK_SRC_DEFAULT,
+              .mclk_multiple = I2S_MCLK_MULTIPLE_256,
+          },
 
-  // uint offset = pio_add_program(AUDIO_PIO, &modified_audio_i2s_program);
+      .slot_cfg = 
+          {
+              .data_bit_width = I2S_DATA_BIT_WIDTH_16BIT,
+              .slot_bit_width = I2S_SLOT_BIT_WIDTH_AUTO,
+              .slot_mode = I2S_SLOT_MODE_STEREO,
+              .slot_mask = I2S_STD_SLOT_BOTH,
+              .ws_width = I2S_DATA_BIT_WIDTH_16BIT,
+              .ws_pol = false,
+              .bit_shift = true,
+              .left_align = true,
+              .big_endian = false,
+              .bit_order_lsb = false
+          },
+      .gpio_cfg =
+          {
+              .mclk = (gpio_num_t)CODEC_MCLK,
+              .bclk = (gpio_num_t)CODEC_BCLK,
+              .ws = (gpio_num_t)CODEC_WS,
+              .dout = (gpio_num_t)CODEC_DOUT,
+              .din = (gpio_num_t)CODEC_DIN,
+          },
+  };
 
-  // audio_i2s_program_init(AUDIO_PIO, AUDIO_SM, offset, AUDIO_SDATA, AUDIO_BCLK);
+  ESP_ERROR_CHECK(i2s_channel_init_std_mode(tx_handle, &std_cfg));
+  ESP_ERROR_CHECK(i2s_channel_init_std_mode(rx_handle, &std_cfg));
 
-  // // Claim and configure DMA
-  // dma_channel_claim(AUDIO_DMA);
-  // dma_channel_config dma_config = dma_channel_get_default_config(AUDIO_DMA);
+  i2s_event_callbacks_t cbs = {
+      .on_recv = NULL,
+      .on_recv_q_ovf = NULL,
+      .on_sent = picoTrackerAudioDriver::i2s_tx_done_callback,
+      .on_send_q_ovf = NULL,
+  };
 
-  // channel_config_set_dreq(&dma_config, DREQ_PIO0_TX0 + AUDIO_SM);
-  // channel_config_set_transfer_data_size(&dma_config, DMA_SIZE_32);
-  // channel_config_set_read_increment(&dma_config, true);
-  // dma_channel_configure(AUDIO_DMA, &dma_config,
-  //                       &AUDIO_PIO->txf[AUDIO_SM], // dest
-  //                       NULL,                      // src
-  //                       0,                         // count
-  //                       false                      // trigger
-  // );
+  ESP_ERROR_CHECK(i2s_channel_register_event_callback(tx_handle, &cbs, NULL));
 
-  // // Add our own callback func to run after the i2s irq func (priority 0x80)
-  // irq_set_exclusive_handler(DMA_IRQ_0 + AUDIO_DMA_IRQ,
-  //                           audio_i2s_dma_irq_handler);
-  // dma_irqn_set_channel_enabled(AUDIO_DMA_IRQ, AUDIO_DMA, true);
+  ESP_ERROR_CHECK(i2s_channel_enable(tx_handle));
+  ESP_ERROR_CHECK(i2s_channel_enable(rx_handle));
 
-  // // Set PIO frequency
-  // uint32_t system_clock_frequency = clock_get_hz(clk_sys);
-  // int sample_freq = 44100;
-  // // This number is exactly 10000 for our 220.5MHz core freq
-  // uint32_t divider =
-  //     system_clock_frequency * 2 / sample_freq; // avoid arithmetic overflow
-  // pio_sm_set_clkdiv_int_frac(AUDIO_PIO, AUDIO_SM, divider >> 8u,
-  //                            divider & 0xffu);
+  core1_audio = xSemaphoreCreateCounting(SOUND_BUFFER_COUNT - 1, 0);
 
-  // Enable audio
-  // irq_set_enabled(DMA_IRQ_0 + AUDIO_DMA_IRQ, true);
-  // dma_channel_transfer_from_buffer_now(AUDIO_DMA, miniBlank_, MINI_BLANK_SIZE);
-  // pio_sm_set_enabled(AUDIO_PIO, AUDIO_SM, true);
+  if (core1_audio == NULL) {
+    ESP_LOGE("picoTrackerAudioDriver", "Failed to create semaphore");
+    return false;
+  }
 
-  // Set Audio render thread on core1
-  // multicore_reset_core1();
-  // multicore_launch_core1(AudioThread);
-  // sem_init(&core1_audio, 0, SOUND_BUFFER_COUNT - 1);
+  xTaskCreatePinnedToCore(picoTrackerAudioDriver::AudioThread, "AudioThread",
+                          4096, NULL, 5, &audioThreadHandle_, 1);
+
+  if (audioThreadHandle_ == NULL) {
+    ESP_LOGE("picoTrackerAudioDriver", "Failed to create AudioThread");
+    return false;
+  }
 
   return true;
-};
+}
 
 void picoTrackerAudioDriver::SetVolume(int v) {
   volume_ = (v <= 100) ? v : 100;
@@ -165,23 +186,38 @@ void picoTrackerAudioDriver::SetVolume(int v) {
 int picoTrackerAudioDriver::GetVolume() { return volume_; };
 
 void picoTrackerAudioDriver::CloseDriver() {
+  // Stop the task if it's running
+  if (audioThreadHandle_ != NULL) {
+    // Signal the task to stop if necessary
+    isPlaying_ = false;
 
-  // pio_sm_set_enabled(AUDIO_PIO, AUDIO_SM, false);
-  // irq_set_enabled(DMA_IRQ_0 + AUDIO_DMA_IRQ, false);
-  // dma_irqn_set_channel_enabled(AUDIO_DMA_IRQ, AUDIO_DMA, false);
-  // irq_remove_handler(DMA_IRQ_0 + AUDIO_DMA_IRQ, audio_i2s_dma_irq_handler);
-  // dma_channel_unclaim(AUDIO_DMA);
-  // pio_sm_unclaim(AUDIO_PIO, AUDIO_SM);
-  // pio_clear_instruction_memory(AUDIO_PIO);
-};
+    // Wait for the task to acknowledge (optional, see below)
+
+    // Delete the task
+    vTaskDelete(audioThreadHandle_);
+    audioThreadHandle_ = NULL;
+  }
+
+  // Uninstall the I2S driver
+  i2s_channel_disable(tx_handle);
+  i2s_channel_disable(rx_handle);
+
+  // Not sure if I can delete the channel after disabling it
+  // https://docs.espressif.com/projects/esp-idf/en/v5.3.1/esp32/_images/i2s_state_machine.png
+  i2s_del_channel(tx_handle);
+  i2s_del_channel(rx_handle);
+}
 
 bool picoTrackerAudioDriver::StartDriver() {
   isPlaying_ = true;
 
   // Start filling up as many buffers as we have
-  for (int i = 0; i < SOUND_BUFFER_COUNT - 1; i++) {
-    // sem_release(&core1_audio);
+  while(xSemaphoreTake(core1_audio, 0) == pdTRUE)
+  {
+    ESP_ERROR_CHECK(i2s_channel_write(tx_handle, miniBlank_, MINI_BLANK_SIZE, NULL, portMAX_DELAY));
+    ESP_LOGI("picoTrackerAudioDriver", "Buffer %d filled", uxSemaphoreGetCount(core1_audio));
   }
+
 
   picoTracker_sound_pause(0);
   startTime_ = millis();
@@ -192,34 +228,30 @@ bool picoTrackerAudioDriver::StartDriver() {
 void picoTrackerAudioDriver::StopDriver() {
   picoTracker_sound_pause(1);
   isPlaying_ = false;
-};
+  // i2s_zero_dma_buffer(I2S_NUM_0);
+}
 
 void picoTrackerAudioDriver::OnChunkDone() {
   if (isPlaying_) {
-
-    // Process MIDI
-    MidiService::GetInstance()->Flush();
-
-    // We got an IRQ so we know we finished playing from poolPlayPosition_
-    // We mark it as empty and inspect the next buffer, if the buffer is not
-    // empty, it means thread 2 finished processing that buffer and there are no
-    // underruns Otherwise, we send a small blank buffer and wait for the other
-    // thread to finish
+    // Mark current buffer as empty
     pool_[poolPlayPosition_].empty_ = true;
 
     int next = (poolPlayPosition_ + 1) % SOUND_BUFFER_COUNT;
-    if (pool_[next].empty_) {
-      // dma_channel_transfer_from_buffer_now(AUDIO_DMA, miniBlank_,
-      //                                      MINI_BLANK_SIZE);
-    } else {
-      poolPlayPosition_ = next;
-      // dma_channel_transfer_from_buffer_now(AUDIO_DMA,
-      //                                      pool_[poolPlayPosition_].buffer_,
-      //                                      pool_[poolPlayPosition_].size_ / 4);
-    }
 
-    // Finally we allow core1 to calculate an additional buffer
-    // sem_release(&core1_audio);
+    if (pool_[next].empty_) {
+      // If buffer underrun, write silence
+      ESP_ERROR_CHECK(i2s_channel_write(tx_handle, miniBlank_, MINI_BLANK_SIZE,
+                                        NULL, 10));
+    } else {
+      // Move to next buffer
+      poolPlayPosition_ = next;
+
+      // Write audio data
+      ESP_ERROR_CHECK(
+          i2s_channel_write(tx_handle, pool_[poolPlayPosition_].buffer_,
+                            pool_[poolPlayPosition_].size_ / 2 / sizeof(short),
+                            NULL, 10));
+    }
   }
 }
 

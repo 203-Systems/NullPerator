@@ -3,6 +3,10 @@
 
 #include "Foundation/T_Singleton.h"
 #include "Services/Audio/AudioDriver.h"
+#include "freeRTOS/FreeRTOS.h"
+#include "freeRTOS/task.h"
+#include "driver/i2s_std.h"
+
 
 #define MINI_BLANK_SIZE 128 // Samples
 
@@ -29,8 +33,9 @@ public:
   static void BufferNeeded();
 
 private:
+  static bool i2s_tx_done_callback(i2s_chan_handle_t handle, i2s_event_data_t *event, void *user_ctx);
+  static void AudioThread(void* arg);
   static picoTrackerAudioDriver *instance_;
-
   AudioSettings settings_;
   static const char miniBlank_[MINI_BLANK_SIZE * 2 * sizeof(short)];
   int volume_;

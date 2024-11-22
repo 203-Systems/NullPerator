@@ -42,9 +42,10 @@
 
 // Sound
 #define CODEC_MCLK     41
-#define CODEC_DSDIN    40
-#define CODEC_ASDOUT   39
-#define CODEC_SCLK     38
+#define CODEC_DOUT     40
+#define CODEC_DIN      39
+#define CODEC_BCLK     38
+#define CODEC_WS       34
 
 // IO expander pins
 #define INPUT_SELECT          0
