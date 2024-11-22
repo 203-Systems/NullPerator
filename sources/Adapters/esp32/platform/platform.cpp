@@ -54,6 +54,9 @@ void board_init() {
     if (!io_expander.polarity(0b1111100111111111)) {
         ESP_LOGE("KEYPAD", "Set polarity returned error");
     }
+
+    switch_audio_mode(headphone_out);
+    switch_speaker_mode(true);
 }
 
 void platform_init() {
@@ -62,4 +65,16 @@ void platform_init() {
 
 uint16_t get_io_expander_input() {
     return io_expander.read();
+}
+
+void switch_audio_mode(audio_mode mode) {
+    if(mode == headphone_out) {
+        io_expander.write((PCA95x5::Port::Port)OUTPUT_AUDIO_MUX_SEL, PCA95x5::Level::L);
+    } else if(mode == line_in) {
+        io_expander.write((PCA95x5::Port::Port)OUTPUT_AUDIO_MUX_SEL, PCA95x5::Level::H);
+    }
+}
+
+void switch_speaker_mode(bool on) {
+    io_expander.write((PCA95x5::Port::Port)OUTPUT_PA_CTRL, on ? PCA95x5::Level::H : PCA95x5::Level::L);
 }
