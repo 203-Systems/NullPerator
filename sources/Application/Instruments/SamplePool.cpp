@@ -34,7 +34,7 @@ int SamplePool::flashLimit_ =
 
 #endif
 
-#ifdef PICOBUILD
+#ifdef LOAD_IN_FLASH
 uint storage_get_flash_capacity() {
   uint8_t txbuf[FLASH_RUID_TOTAL_BYTES] = {0x9f};
   uint8_t rxbuf[FLASH_RUID_TOTAL_BYTES] = {0};
@@ -50,7 +50,7 @@ SamplePool::SamplePool() : Observable(&observers_) {
     wav_[i] = NULL;
   };
   count_ = 0;
-#ifdef PICOBUILD
+#ifdef LOAD_IN_FLASH
   flashLimit_ = storage_get_flash_capacity();
   Trace::Debug("Flash size is %i bytes", flashLimit_);
 #endif
