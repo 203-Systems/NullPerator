@@ -13,24 +13,24 @@ uint32_t micros(void) {
     return esp_timer_get_time();  // Directly return microseconds
 }
 
-uint32_t measure_free_mem(void) {
-  void *buff[256];
+uint32_t measure_free_mem(void) { // Not Implemented
+  // void *buff[256];
   uint32_t max = 0;
 
-  int i = 0;
-  for (; i < 256; i++) {
-    buff[i] = malloc(1000);
-    if (buff[i]) {
-      max = i;
-    } else {
-      break;
-    }
-  }
-  for (int j = i; j >= 0; j--) {
-    free(buff[j]);
-  }
+  // int i = 0;
+  // for (; i < 256; i++) {
+  //   buff[i] = malloc(1000);
+  //   if (buff[i]) {
+  //     max = i;
+  //   } else {
+  //     break;
+  //   }
+  // }
+  // for (int j = i; j >= 0; j--) {
+  //   free(buff[j]);
+  // }
 
-  printf("MAX memory free in heap: %i\n", max * 1000);
+  // printf("MAX memory free in heap: %i\n", max * 1000);
   /*
     buff = malloc(80000);
   if (buff) {
