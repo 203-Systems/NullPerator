@@ -30,7 +30,8 @@
 #define STMLIB_UTILS_RANDOM_H_
 
 // #include "stmlib/stmlib.h"
-#include "pico/stdlib.h"
+#include <stdlib.h>
+#include <cstdint>
 
 namespace braids {
 

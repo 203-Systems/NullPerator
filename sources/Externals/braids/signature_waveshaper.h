@@ -32,7 +32,7 @@
 
 // #include "stmlib/stmlib.h"
 #include "dsp.h"
-#include "pico/stdlib.h"
+#include <stdlib.h>
 
 #include "Externals/braids/resources.h"
 

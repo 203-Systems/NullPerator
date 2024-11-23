@@ -4,7 +4,7 @@ add_library(application_instruments
   I_Instrument.h
   I_SRPUpdater.h
   InstrumentBank.h InstrumentBank.cpp
-  # MacroInstrument.h MacroInstrument.cpp
+  MacroInstrument.h MacroInstrument.cpp
   MidiInstrument.h MidiInstrument.cpp
   OpalInstrument.h OpalInstrument.cpp
   NoneInstrument.h NoneInstrument.cpp
@@ -24,7 +24,7 @@ target_link_libraries(application_instruments PUBLIC foundation_services
                                               PUBLIC system_io   
                                               PUBLIC crsid
                                               PUBLIC opal
-                                              # PUBLIC braids
+                                              PUBLIC braids
                                               PUBLIC sdfat
                                               PUBLIC platform_sdcard
                                               PUBLIC services_time
