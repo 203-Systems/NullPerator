@@ -12,7 +12,7 @@
 #endif
 
 int WavFile::bufferChunkSize_ = -1;
-unsigned char WavFile::readBuffer_[512];
+unsigned char WavFile::readBuffer_[10240];
 
 short Swap16(short from) {
 #ifdef __ppc__
@@ -57,8 +57,6 @@ WavFile::~WavFile() {
 };
 
 WavFile *WavFile::Open(const char *name) {
-  Trace::Log("WAVFILE", "wave open from %s", name);
-
   // open file
   PicoFileSystem *fs = PicoFileSystem::GetInstance();
   PI_File *file = fs->Open(name, "r");
@@ -76,11 +74,12 @@ WavFile *WavFile::Open(const char *name) {
 
   // Trace::Dump("Loading sample from %s",path) ;
 
+  unsigned int chunk;
+  unsigned int size;
+
   long position = 0;
 
   // Read 'RIFF'
-  unsigned int chunk;
-
   position += wav->readBlock(position, 4);
   memcpy(&chunk, wav->readBuffer_, 4);
   chunk = Swap32(chunk);
@@ -92,7 +91,6 @@ WavFile *WavFile::Open(const char *name) {
   }
 
   // Read size
-  unsigned int size;
   position += wav->readBlock(position, 4);
   memcpy(&size, wav->readBuffer_, 4);
   size = Swap32(size);
@@ -235,169 +233,165 @@ long WavFile::readBlock(long start, long size) {
 };
 
 bool WavFile::GetBuffer(long start, long size) {
-  // TODO: Many of the calculations in this function don't make any
-  // sense anymore, refactor
-  // 64 bits is the maximum size we can read without overflowing
-  // readBuffer_ in the worst case scenario
-#ifdef PICOBUILD
-  // assert((unsigned long)size < FLASH_PAGE_SIZE / 2);
-#endif
-  samples_ = (short *)readBuffer_;
+  // Use size_t to prevent overflow
+  size_t bufferSize = static_cast<size_t>(size) * channelCount_ * bytePerSample_;
+  size_t bufferStart = static_cast<size_t>(dataPosition_) +
+                       static_cast<size_t>(start) * channelCount_ * bytePerSample_;
 
-  // compute the file buffer size we need to read
+  samples_ = (short *)readBuffer_;  // Ensure readBuffer_ is properly aligned
 
-  int bufferSize = size * channelCount_ * bytePerSample_;
-  int bufferStart = dataPosition_ + start * channelCount_ * bytePerSample_;
-
-  // Read the buffer but in small chunk to let the system breathe
-  // if the files are big
-
-  int count = bufferSize;
-  int offset = 0;
+  size_t count = bufferSize;
+  size_t offset = 0;
   char *ptr = (char *)samples_;
-  int readSize = (bufferChunkSize_ > 0) ? bufferChunkSize_
-                 : count > 4096         ? 4096
-                                        : count;
+  size_t readSize;
+  if (bufferChunkSize_ > 0) {
+      readSize = bufferChunkSize_;
+  } else if (count > 4096) {
+      readSize = 4096;
+  } else {
+      readSize = count;
+  }
+
 
   while (count > 0) {
-    readSize = (count > readSize) ? readSize : count;
-    readBlock(bufferStart, readSize);
-    memcpy(ptr + offset, readBuffer_, readSize);
-    bufferStart += readSize;
-    count -= readSize;
-    offset += readSize;
-    if (bufferChunkSize_ > 0)
+    size_t chunk = (count > readSize) ? readSize : count;
+    if (!readBlock(bufferStart, chunk)) {
+      return false;  // Handle read failure
+    }
+    memcpy(ptr + offset, readBuffer_, chunk);
+    bufferStart += chunk;
+    count -= chunk;
+    offset += chunk;
+    if (bufferChunkSize_ > 0) {
       TimeService::GetInstance()->Sleep(1);
-  }
-
-  // expand 8 bit data if needed
-
-  unsigned char *src = (unsigned char *)samples_;
-  short *dst = samples_;
-  for (int i = size - 1; i >= 0; i--) {
-    if (bytePerSample_ == 1) {
-      dst[i] = (src[i] - 128) * 256;
-    } else {
-      *dst = Swap16(*dst);
-      dst++;
-      if (channelCount_ > 1) {
-        *dst = Swap16(*dst);
-        dst++;
-      }
     }
   }
+
+  // Expand 8-bit data safely
+  unsigned char *src = (unsigned char *)samples_;
+  short *dst = samples_;
+
+  for (size_t i = size; i > 0; --i) {
+    if (bytePerSample_ == 1) {
+      dst[i - 1] = (src[i - 1] - 128) << 8;
+    } else {
+      dst[i - 1] = Swap16(src[i - 1]);  // Swap endianness if needed
+    }
+  }
+
   return true;
-};
+}
+
 
 #ifdef LOAD_IN_FLASH
 bool WavFile::LoadInFlash(int &flashEraseOffset,
                                                int &flashWriteOffset,
                                                int &flashLimit) {
 
-//   // Size needed in flash before accounting for page size
-//   int FlashBaseBufferSize = 2 * channelCount_ * size_;
-//   // Store the size of samples
-//   sampleBufferSize_ = FlashBaseBufferSize;
-//   // Size actually occupied in flash
-//   int FlashPageBufferSize = ((FlashBaseBufferSize / FLASH_PAGE_SIZE) +
-//                              ((FlashBaseBufferSize % FLASH_PAGE_SIZE) != 0)) *
-//                             FLASH_PAGE_SIZE;
+  // Size needed in flash before accounting for page size
+  int FlashBaseBufferSize = 2 * channelCount_ * size_;
+  // Store the size of samples
+  sampleBufferSize_ = FlashBaseBufferSize;
+  // Size actually occupied in flash
+  int FlashPageBufferSize = ((FlashBaseBufferSize / FLASH_PAGE_SIZE) +
+                             ((FlashBaseBufferSize % FLASH_PAGE_SIZE) != 0)) *
+                            FLASH_PAGE_SIZE;
 
-//   if (flashWriteOffset + FlashPageBufferSize > flashLimit) {
-//     Trace::Error("Sample doesn't fit in available Flash (need: %i - avail: %i)",
-//                  FlashPageBufferSize, flashLimit - flashWriteOffset);
-//     return false;
-//   }
+  if (flashWriteOffset + FlashPageBufferSize > flashLimit) {
+    Trace::Error("Sample doesn't fit in available Flash (need: %i - avail: %i)",
+                 FlashPageBufferSize, flashLimit - flashWriteOffset);
+    return false;
+  }
 
-//   // Pointer to location in flash
-//   samples_ = (short *)(XIP_BASE + flashWriteOffset);
+  // Pointer to location in flash
+  samples_ = (short *)(XIP_BASE + flashWriteOffset);
 
-//   // Any operation on the flash need to ensure that nothing else reads or writes
-//   // on it We disable IRQs and ensure that we don't have multiprocessing on at
-//   // this time
-//   int irqs = save_and_disable_interrupts();
+  // Any operation on the flash need to ensure that nothing else reads or writes
+  // on it We disable IRQs and ensure that we don't have multiprocessing on at
+  // this time
+  int irqs = save_and_disable_interrupts();
 
-// // this is required due to strange issue with above interrupts disable causing a
-// // crash without this delay but only in deoptimised debug builds
-// #ifdef PICO_DEOPTIMIZED_DEBUG
-//   for (int i = 0; i < 100000; i++) {
-//   }
-// #endif
+// this is required due to strange issue with above interrupts disable causing a
+// crash without this delay but only in deoptimised debug builds
+#ifdef PICO_DEOPTIMIZED_DEBUG
+  for (int i = 0; i < 100000; i++) {
+  }
+#endif
 
-//   // If data doesn't fit in previously erased page, we'll have to erase
-//   // additional ones
-//   if (FlashPageBufferSize > (flashEraseOffset - flashWriteOffset)) {
-//     int additionalData =
-//         FlashPageBufferSize - flashEraseOffset + flashWriteOffset;
-//     int sectorsToErase = ((additionalData / FLASH_SECTOR_SIZE) +
-//                           ((additionalData % FLASH_SECTOR_SIZE) != 0)) *
-//                          FLASH_SECTOR_SIZE;
-//     Trace::Debug("About to erase %i sectors in flash region 0x%X - 0x%X",
-//                  sectorsToErase, flashEraseOffset,
-//                  flashEraseOffset + sectorsToErase);
-//     // Erase required number of sectors
-//     flash_range_erase(flashEraseOffset, sectorsToErase);
-//     // Move erase pointer to new position
-//     flashEraseOffset += sectorsToErase;
-//   }
+  // If data doesn't fit in previously erased page, we'll have to erase
+  // additional ones
+  if (FlashPageBufferSize > (flashEraseOffset - flashWriteOffset)) {
+    int additionalData =
+        FlashPageBufferSize - flashEraseOffset + flashWriteOffset;
+    int sectorsToErase = ((additionalData / FLASH_SECTOR_SIZE) +
+                          ((additionalData % FLASH_SECTOR_SIZE) != 0)) *
+                         FLASH_SECTOR_SIZE;
+    Trace::Debug("About to erase %i sectors in flash region 0x%X - 0x%X",
+                 sectorsToErase, flashEraseOffset,
+                 flashEraseOffset + sectorsToErase);
+    // Erase required number of sectors
+    flash_range_erase(flashEraseOffset, sectorsToErase);
+    // Move erase pointer to new position
+    flashEraseOffset += sectorsToErase;
+  }
 
-//   // Actual buffer needed to read whole file (may be lower than
-//   // FlashBaseBufferSize if it's an 8bit sample)
-//   int bufferSize = size_ * channelCount_ * bytePerSample_;
-//   // Where the data starts in the WAV (after header)
-//   int bufferStart = dataPosition_;
+  // Actual buffer needed to read whole file (may be lower than
+  // FlashBaseBufferSize if it's an 8bit sample)
+  int bufferSize = size_ * channelCount_ * bytePerSample_;
+  // Where the data starts in the WAV (after header)
+  int bufferStart = dataPosition_;
 
-//   // Read the buffer but in small chunk to let the system breathe
-//   // if the files are big
-//   uint count = bufferSize;
-//   uint offset = 0;
-//   uint readSize = count > FLASH_PAGE_SIZE ? FLASH_PAGE_SIZE : count;
+  // Read the buffer but in small chunk to let the system breathe
+  // if the files are big
+  uint count = bufferSize;
+  uint offset = 0;
+  uint readSize = count > FLASH_PAGE_SIZE ? FLASH_PAGE_SIZE : count;
 
-//   while (count > 0) {
-//     readSize = (count > readSize) ? readSize : count;
+  while (count > 0) {
+    readSize = (count > readSize) ? readSize : count;
 
-//     file_->Seek(bufferStart, SEEK_SET);
-//     file_->Read(readBuffer_, readSize);
+    file_->Seek(bufferStart, SEEK_SET);
+    file_->Read(readBuffer_, readSize);
 
-//     // Have to expand 8 bit data (if needed) before writing to flash
-//     unsigned char *src = (unsigned char *)readBuffer_;
-//     short *dst = (short *)readBuffer_;
-//     for (int i = readSize - 1; i >= 0; i--) {
-//       if (bytePerSample_ == 1) {
-//         dst[i] = (src[i] - 128) * 256;
-//       } else {
-//         *dst = Swap16(*dst);
-//         dst++;
-//         if (channelCount_ > 1) {
-//           *dst = Swap16(*dst);
-//           dst++;
-//         }
-//       }
-//     }
+    // Have to expand 8 bit data (if needed) before writing to flash
+    unsigned char *src = (unsigned char *)readBuffer_;
+    short *dst = (short *)readBuffer_;
+    for (int i = readSize - 1; i >= 0; i--) {
+      if (bytePerSample_ == 1) {
+        dst[i] = (src[i] - 128) * 256;
+      } else {
+        *dst = Swap16(*dst);
+        dst++;
+        if (channelCount_ > 1) {
+          *dst = Swap16(*dst);
+          dst++;
+        }
+      }
+    }
 
-//     // We need to write double the bytes if we needed to expand to 16 bit
-//     // Write size will be either 256 (which is the flash page size) or 512
-//     int writeSize = (bytePerSample_ == 1) ? readSize * 2 : readSize;
-//     // Adjust to page size
-//     writeSize =
-//         ((writeSize / FLASH_PAGE_SIZE) + ((writeSize % FLASH_PAGE_SIZE) != 0)) *
-//         FLASH_PAGE_SIZE;
+    // We need to write double the bytes if we needed to expand to 16 bit
+    // Write size will be either 256 (which is the flash page size) or 512
+    int writeSize = (bytePerSample_ == 1) ? readSize * 2 : readSize;
+    // Adjust to page size
+    writeSize =
+        ((writeSize / FLASH_PAGE_SIZE) + ((writeSize % FLASH_PAGE_SIZE) != 0)) *
+        FLASH_PAGE_SIZE;
 
-//     // There will be trash at the end, but sampleBufferSize_ gives me the
-//     // bounds
-//     // Trace::Debug("About to write %i sectors in flash region 0x%X - 0x%X",
-//     //  writeSize, flashWriteOffset + offset,
-//     //  flashWriteOffset + offset + writeSize);
+    // There will be trash at the end, but sampleBufferSize_ gives me the
+    // bounds
+    // Trace::Debug("About to write %i sectors in flash region 0x%X - 0x%X",
+    //  writeSize, flashWriteOffset + offset,
+    //  flashWriteOffset + offset + writeSize);
 
-//     flash_range_program(flashWriteOffset + offset, (uint8_t *)readBuffer_,
-//                         writeSize);
-//     bufferStart += readSize;
-//     count -= readSize;
-//     flashWriteOffset += writeSize;
-//   }
+    flash_range_program(flashWriteOffset + offset, (uint8_t *)readBuffer_,
+                        writeSize);
+    bufferStart += readSize;
+    count -= readSize;
+    flashWriteOffset += writeSize;
+  }
 
-//   // Lastly we restore the IRQs
-//   restore_interrupts(irqs);
+  // Lastly we restore the IRQs
+  restore_interrupts(irqs);
   return true;
 };
 #endif

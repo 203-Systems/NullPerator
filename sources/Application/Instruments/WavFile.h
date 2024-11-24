@@ -43,6 +43,6 @@ private:
 
   static int bufferChunkSize_;
   static bool initChunkSize_;
-  static unsigned char readBuffer_[512];
+  static unsigned char readBuffer_[10240];
 };
 #endif
