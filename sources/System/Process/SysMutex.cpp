@@ -31,10 +31,10 @@ bool SysMutex::Lock() {
   }
 #elif defined(ESP_PLATFORM)
   if (!mutex_) {
-    mutex_ = xSemaphoreCreateMutex();
+    mutex_ = xSemaphoreCreateRecursiveMutex();
   }
   if (mutex_) {
-    xSemaphoreTake(mutex_, portMAX_DELAY);
+    xSemaphoreTakeRecursive(mutex_, portMAX_DELAY);
     return true;
   }
 #elif defined(PICO_PLATFORM)
@@ -54,7 +54,7 @@ void SysMutex::Unlock() {
 #ifndef PICOBUILD
     SDL_UnlockMutex(mutex_);
 #elif defined(ESP_PLATFORM)
-    xSemaphoreGive(mutex_);
+    xSemaphoreGiveRecursive(mutex_);
 #elif defined(PICO_PLATFORM)
     mutex_exit(mutex_);
 #endif

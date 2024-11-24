@@ -68,7 +68,7 @@ bool MixerService::Init() {
 #ifndef PICOBUILD
   sync_ = SDL_CreateMutex();
 #elif defined(ESP_PLATFORM)
-  sync_ = xSemaphoreCreateMutex();
+  sync_ = xSemaphoreCreateRecursiveMutex();
 #elif defined(PICO_PLATFORM)
   mutex_init(sync_);
 #endif
@@ -208,7 +208,7 @@ void MixerService::Lock() {
 #ifndef PICOBUILD
     SDL_LockMutex(sync_);
 #elif defined(ESP_PLATFORM)
-    xSemaphoreTake(sync_, portMAX_DELAY);
+    xSemaphoreTakeRecursive(sync_, portMAX_DELAY);
 #elif defined(PICO_PLATFORM)
     mutex_enter_blocking(sync_);
 #endif
@@ -219,7 +219,7 @@ void MixerService::Unlock() {
 #ifndef PICOBUILD
     SDL_UnlockMutex(sync_);
 #elif defined(ESP_PLATFORM)
-    xSemaphoreGive(sync_);
+    xSemaphoreGiveRecursive(sync_);
 #elif defined(PICO_PLATFORM)
     mutex_exit(sync_);
 #endif
