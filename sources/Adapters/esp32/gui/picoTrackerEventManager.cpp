@@ -67,6 +67,7 @@ int picoTrackerEventManager::MainLoop() {
   queue = picoTrackerEventQueue::GetInstance();
   int loops = 0;
   int events = 0;
+  unsigned long lastInputScan = 0;
 #ifdef SDIO_BENCH
   // Perform a benchmark of SD card on startup
   sd_bench();
@@ -75,7 +76,10 @@ int picoTrackerEventManager::MainLoop() {
     loops++;
     // process usb interrupts, should this be done somewhere else??
     // handleUSBInterrupts();
-    ProcessInputEvent();
+    if(millis() - lastInputScan > 10) {
+      lastInputScan = millis();
+      ProcessInputEvent();
+    }
     if (!queue->empty()) {
       picoTrackerEvent event(picoTrackerEventType::LAST);
       queue->pop_into(event);
