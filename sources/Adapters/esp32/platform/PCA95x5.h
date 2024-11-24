@@ -56,7 +56,6 @@ namespace Direction {
 }  // namespace Direction
 
 static constexpr uint8_t BASE_I2C_ADDR = 0x20;
-
 class PCA95x5 {
     i2c_master_dev_handle_t device_handle;
     uint16_t input {0x0000};
@@ -64,6 +63,7 @@ class PCA95x5 {
     uint16_t pol {0x0000};
     uint16_t dir {0xFFFF};
     esp_err_t status {ESP_OK};
+    uint16_t read_cache = 0;
 
 public:
     void attach(i2c_master_dev_handle_t device_handle) {
@@ -72,7 +72,25 @@ public:
 
     uint16_t read() {
         read_bytes(Reg::INPUT_PORT_0, (uint8_t*)&this->input, 2);
-        return this->input;
+        uint16_t read = this->input;
+        read_bytes(Reg::INPUT_PORT_0, (uint8_t*)&this->input, 2);
+        uint16_t read2 = this->input;
+
+        if (read == read2) {
+            
+        } else {
+            read_bytes(Reg::INPUT_PORT_0, (uint8_t*)&this->input, 2);
+            uint16_t read3 = this->input;
+            if (read == read3) {
+                
+            } else if (read2 == read3) {
+                read = read2;
+            } else {
+                read = read_cache;
+            }
+        }
+        read_cache = read;
+        return read;
     }
     Level::Level read(const Port::Port port) {
         uint16_t v = read();
