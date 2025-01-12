@@ -44,3 +44,4 @@ sources/Foundation/Variables/cmake_install.cmake
 *.a
 cmake_install.cmake
 *.ci
+sources/Adapters/esp32/build

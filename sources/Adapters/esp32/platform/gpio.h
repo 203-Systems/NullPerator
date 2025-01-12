@@ -11,18 +11,19 @@
 #define I2C_SCL_PIN 36
 
 // Display
+#define LCD_ST7789 
 #define DISPLAY_SPI spi2 // Can't change this atm - linked to FSPICLK_IN_IDX, FSPID_IN_IDX, FSPID_OUT_IDX
-// #define DISPLAY_DC_PIN 33
-// #define DISPLAY_RESET_PIN 21
-// #define DISPLAY_SCK_PIN 47
-// #define DISPLAY_MOSI_PIN 48
-// #define DISPLAY_BL_PIN 12 
+#define DISPLAY_DC_PIN 33
+#define DISPLAY_RESET_PIN 21
+#define DISPLAY_SCK_PIN 47
+#define DISPLAY_MOSI_PIN 48
+#define DISPLAY_BL_PIN 12 
 
-#define DISPLAY_DC_PIN 6
-#define DISPLAY_RESET_PIN 5
-#define DISPLAY_SCK_PIN 4
-#define DISPLAY_MOSI_PIN 3
-#define DISPLAY_BL_PIN 7
+// #define DISPLAY_DC_PIN 6
+// #define DISPLAY_RESET_PIN 5
+// #define DISPLAY_SCK_PIN 4
+// #define DISPLAY_MOSI_PIN 3
+// #define DISPLAY_BL_PIN 7
 
 
 // MIDI

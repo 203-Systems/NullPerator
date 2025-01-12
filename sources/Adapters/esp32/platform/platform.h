@@ -23,4 +23,6 @@ void switch_audio_mode(audio_mode mode);
 
 void switch_speaker_mode(bool on);
 
+void enter_sleep();
+
 #endif

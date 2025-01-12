@@ -16,6 +16,8 @@
     (byte & 0x01 ? '1' : '0')
 
 uint16_t key_cache = 0xFFFF;
+uint32_t menu_active_since = 0;
+#define SLEEP_HOLD_TIME 1000
 uint16_t scanKeys() {
 #ifdef USB_REMOTE_UI_INPUT
   // This reads a byte from USB serial input in non-blocking way, by using
@@ -48,6 +50,19 @@ uint16_t scanKeys() {
   uint16_t remapped = 0;
 
   bool menu = !gpio_get_level((gpio_num_t)INPUT_MENU_PIN) << 8;
+
+  // Sleep logic
+
+  if(menu && !menu_active_since) {
+    menu_active_since = esp_log_timestamp();
+  }
+  else if(!menu) {
+    menu_active_since = 0;
+  }
+  else if(menu_active_since && esp_log_timestamp() - menu_active_since > SLEEP_HOLD_TIME)
+  {
+    enter_sleep();
+  }
 
   // See eventMappingPico in picoTrackerGUIWindowImp.cpp for the mapping
   remapped |= ((key_input & (1 << INPUT_LEFT)) ? 1 : 0) << 0;

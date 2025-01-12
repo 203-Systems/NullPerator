@@ -2,6 +2,9 @@
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
 #include "PCA95x5.h"
+#include "esp_sleep.h"
+#include "driver/gpio.h"
+#include "driver/rtc_io.h"
 
 i2c_master_bus_handle_t i2c_handle = NULL;
 i2c_master_dev_handle_t io_expander_handle = NULL;
@@ -77,4 +80,17 @@ void switch_audio_mode(audio_mode mode) {
 
 void switch_speaker_mode(bool on) {
     io_expander.write((PCA95x5::Port::Port)OUTPUT_PA_CTRL, on ? PCA95x5::Level::H : PCA95x5::Level::L);
+}
+
+void enter_sleep() {
+    gpio_set_level((gpio_num_t)POWER_EN_PIN, 0);
+
+    ESP_ERROR_CHECK(esp_sleep_enable_ext0_wakeup((gpio_num_t)INPUT_MENU_PIN, 0));
+
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    
+    ESP_ERROR_CHECK(rtc_gpio_pulldown_dis((gpio_num_t)INPUT_MENU_PIN));
+    ESP_ERROR_CHECK(rtc_gpio_pullup_en((gpio_num_t)INPUT_MENU_PIN));
+
+    esp_deep_sleep_start();
 }

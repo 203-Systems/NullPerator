@@ -13,7 +13,7 @@
 #define TEXT_WIDTH 32
 #define TEXT_HEIGHT 24
 #define CHAR_HEIGHT 10
-#define CHAR_WIDTH 10
+#define CHAR_WIDTH 8
 #define BUFFER_CHARS 10
 
 #define SWAP_BYTES(color) ((uint16_t)(color >> 8) | (uint16_t)(color << 8))
@@ -121,13 +121,13 @@ inline void mode0_draw_sub_region(uint8_t x, uint8_t y, uint8_t width,
 
   // column address set
   ili9341_set_command(ILI9341_CASET);
-  ili9341_command_param16(screen_y);
-  ili9341_command_param16(screen_y + screen_height - 1);
+  ili9341_command_param16(screen_y + 80);
+  ili9341_command_param16(screen_y + 80 + screen_height - 1);
 
   // page address set
   ili9341_set_command(ILI9341_PASET);
   ili9341_command_param16(screen_x);
-  ili9341_command_param16(screen_x + screen_width - 1);
+  ili9341_command_param16(screen_x + 80 + screen_width - 1);
 
   // start writing
   ili9341_set_command(ILI9341_RAMWR);
