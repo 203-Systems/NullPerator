@@ -3,6 +3,7 @@
 #include "System/Console/Trace.h"
 #include "System/Console/n_assert.h"
 #include "System/System/System.h"
+#include "esp_log.h"
 
 AudioBufferData AudioDriver::pool_[SOUND_BUFFER_COUNT];
 
@@ -54,12 +55,14 @@ void AudioDriver::AddBuffer(short *buffer, int samplecount) {
 
   if (!pool_[poolQueuePosition_].empty_) {
     NInvalid;
-    Trace::Error("Audio overrun, please report");
+    // Trace::Error("Audio overrun, please report");
+    ESP_LOGE("AudioDriver", "Audio overrun on buffer %d", poolQueuePosition_);
     pool_[poolQueuePosition_].empty_ = true;
     return;
   }
 
   SYS_MEMCPY(pool_[poolQueuePosition_].buffer_, (char *)buffer, len);
+  // Trace::Log("AudioDriver", "Buffer %d filled %d length", poolQueuePosition_, len);
   pool_[poolQueuePosition_].size_ = len;
   pool_[poolQueuePosition_].empty_ = false;
   poolQueuePosition_ = (poolQueuePosition_ + 1) % SOUND_BUFFER_COUNT;

@@ -37,6 +37,7 @@ void AudioOutDriver::Trigger() {
   prepareMixBuffers();
   hasSound_ = AudioMixer::Render(primarySoundBuffer_, sampleCount_);
   clipToMix();
+  // Trace::Log("AudioMixer", "Writing %d samples from Audio Out Driver", sampleCount_);
   driver_->AddBuffer(mixBuffer_, sampleCount_);
 }
 

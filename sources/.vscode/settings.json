@@ -1,3 +1,17 @@
 {
-    "idf.adapterTargetName": "esp32s3"
+    "idf.adapterTargetName": "esp32s3",
+    "files.associations": {
+        "chrono": "cpp",
+        "xlocale": "cpp",
+        "algorithm": "cpp",
+        "xiosbase": "cpp",
+        "xutility": "cpp",
+        "array": "cpp",
+        "ranges": "cpp",
+        "span": "cpp",
+        "vector": "cpp",
+        "xstring": "cpp",
+        "complex": "cpp",
+        "format": "cpp"
+    }
 }

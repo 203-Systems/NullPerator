@@ -66,6 +66,7 @@ bool AudioMixer::Render(fixed *buffer, int samplecount) {
     if (!gotData) {
       memset(buffer, 0, samplecount * 2 * sizeof(fixed));
     };
+    // Trace::Log("AudioMixer", "Writing %d samples from Audio Mixer", samplecount);
     writer_->AddBuffer(buffer, samplecount);
   }
   return gotData;
