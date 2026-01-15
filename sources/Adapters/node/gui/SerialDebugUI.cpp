@@ -63,6 +63,10 @@ void SerialDebugUI::catFile(const char *path) {
   char contents[READ_BUFFER_SIZE + 1]; //+1 one to leave space for \0
   if (fs->exists(path)) {
     auto current = fs->Open(path, "r");
+    if (!current) {
+      Trace::Log("SERIALDEBUG", "failed to open file:%s", path);
+      return;
+    }
     int len = 0;
     do {
       len = current->Read(contents, READ_BUFFER_SIZE);
@@ -70,7 +74,6 @@ void SerialDebugUI::catFile(const char *path) {
       printf("%s", contents);
     } while (len == READ_BUFFER_SIZE);
     printf("\n");
-    current->Close();
   } else {
     Trace::Log("SERIALDEBUG", "failed to cat file:%s", path);
   }

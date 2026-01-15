@@ -5,6 +5,9 @@ idf_component_register(
     "${CMAKE_SOURCE_DIR}"
     "${PICOTRACKER_ROOT}"
     "${PICOTRACKER_ROOT}/Adapters/node"
+  LDFRAGMENTS
+    opal_time_critical.lf
+    dtcmram.lf
 )
 
 # Mirror the pico top-level link order so static libs resolve correctly.
@@ -24,7 +27,6 @@ target_link_libraries(${COMPONENT_LIB} PUBLIC
 
   # Application layer
   application
-  application_controllers
   application_views
   application_views_baseclasses
   application_views_modaldialogs
@@ -39,12 +41,10 @@ target_link_libraries(${COMPONENT_LIB} PUBLIC
   # Services
   services_audio
   services_midi
-  services_controllers
 
   # System interfaces
   system_timer
   system_console
-  system_errors
   system_process
   system_io
   system_system
