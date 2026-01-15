@@ -84,15 +84,22 @@ bool NodeAudioDriver::InitDriver() { // New
 
   // Get configuration values
   Config *config = Config::GetInstance();
-  volume_ = config->GetValue("OUTPUTVOLUME");
+  uint8_t volume = 40;
+  if (config) {
+    if (Variable *outputVolume =
+            config->FindVariable(FourCC::VarOutputVolume)) {
+      volume = outputVolume->GetInt();
+    }
+  }
 
-  ESP_LOGI("NodeAudioDriver", "Loaded Audio Volume %d", volume_);
+
+  ESP_LOGI("NodeAudioDriver", "Loaded Audio Volume %d", volume);
 
   // Initialize audio codec through platform API
   ESP_ERROR_CHECK(audio_codec_init());
 
   // Set initial volume
-  audio_codec_set_volume(volume_);
+  audio_codec_set_volume(volume);
 
   core1_audio = xSemaphoreCreateCounting(SOUND_BUFFER_COUNT - 1, SOUND_BUFFER_COUNT - 1);
 

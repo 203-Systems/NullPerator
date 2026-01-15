@@ -135,7 +135,7 @@ ProjectView::ProjectView(GUIWindow &w, ViewData *data) : FieldView(w, data) {
   fieldList_.insert(fieldList_.end(), &(*tempoField_.rbegin()));
   (*tempoField_.rbegin()).AddObserver(*this);
 
-#ifndef ADV
+#if !defined(ADV) && !defined(NODE)
   v = project_->FindVariable(FourCC::VarMasterVolume);
   position._y += 1;
   intVarField_.emplace_back(position, *v, "master vol: %d%%", 0, 100, 1, 5);
