@@ -63,9 +63,9 @@ void ili9341_command_param(uint8_t data) {
     trans.tx_data[0] = data;
 
     gpio_set_level(DISPLAY_DC_PIN, 1); // DC high for data
-    // If manually controlling CS, ensure CS is asserted
+    // gpio_set_level(DISPLAY_CS_PIN, 0); // Assert CS
     ESP_ERROR_CHECK(spi_device_polling_transmit(display_handle, &trans));
-    // If manually controlling CS, CS remains asserted until the end of all parameters
+    // gpio_set_level(DISPLAY_CS_PIN, 1); // Deassert CS
 }
 
 void ili9341_command_param16(uint16_t data) {
@@ -79,9 +79,9 @@ void ili9341_write_data(void *buffer, int bytes) {
     trans.tx_buffer = buffer;
 
     gpio_set_level(DISPLAY_DC_PIN, 1); // DC high for data
-    // If manually controlling CS, ensure CS is asserted
+    // gpio_set_level(DISPLAY_CS_PIN, 0); // Assert CS
     ESP_ERROR_CHECK(spi_device_polling_transmit(display_handle, &trans));
-    // If manually controlling CS, CS remains asserted until data transfer is complete
+    // gpio_set_level(DISPLAY_CS_PIN, 1); // Deassert CS
 }
 
 void ili9341_write_data_continuous(void *buffer, int bytes) {
