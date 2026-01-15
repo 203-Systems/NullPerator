@@ -48,9 +48,9 @@ static uint8_t detect_es8390_address(void)
 extern "C" {
 void board_init() {
     // Enable system power domain
-    gpio_reset_pin((gpio_num_t)POWER_EN_PIN);
-    gpio_set_direction((gpio_num_t)POWER_EN_PIN, GPIO_MODE_OUTPUT);
-    gpio_set_level((gpio_num_t)POWER_EN_PIN, 1);
+    // gpio_reset_pin((gpio_num_t)POWER_EN_PIN);
+    // gpio_set_direction((gpio_num_t)POWER_EN_PIN, GPIO_MODE_OUTPUT);
+    // gpio_set_level((gpio_num_t)POWER_EN_PIN, 1);
 
     gpio_reset_pin((gpio_num_t)INPUT_MENU_PIN);
     gpio_set_direction((gpio_num_t)INPUT_MENU_PIN, GPIO_MODE_INPUT);
@@ -130,10 +130,8 @@ void board_init() {
         ESP_LOGI("KEYPAD", "IO expander input: 0x%04X", io_expander.read());
 
         switch_audio_mode(headphone_out);
-        switch_speaker_mode(true);
+        switch_speaker_mode(false);
     }
-
-    // scan_i2c_bus();
 }
 
 void platform_init() {
@@ -168,7 +166,8 @@ void switch_speaker_mode(bool on) {
 }
 
 void enter_sleep() {
-    gpio_set_level((gpio_num_t)POWER_EN_PIN, 0);
+    gpio_set_level((gpio_num_t)DISPLAY_BL_PIN, 0);
+    // gpio_set_level((gpio_num_t)POWER_EN_PIN, 0);
 
     ESP_ERROR_CHECK(esp_sleep_enable_ext0_wakeup((gpio_num_t)INPUT_MENU_PIN, 0));
 

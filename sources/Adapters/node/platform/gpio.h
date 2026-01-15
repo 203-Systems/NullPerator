@@ -4,7 +4,7 @@
 // POWER
 #define BATT_VOLTAGE_IN 1
 #define BATT_VOLTAGE_ADC_CHANNEL ADC_CHANNEL_0
-#define POWER_EN_PIN 9
+#define POWER_EN_PIN -1
 
 // I2C
 #define I2C_SDA_PIN 47
@@ -14,7 +14,7 @@
 #define LCD_ST7789 
 #define DISPLAY_SPI spi2 // Can't change this atm - linked to FSPICLK_IN_IDX, FSPID_IN_IDX, FSPID_OUT_IDX
 #define DISPLAY_DC_PIN 17
-#define DISPLAY_RESET_PIN -1
+#define DISPLAY_RESET_PIN 9
 #define DISPLAY_SCK_PIN 18
 #define DISPLAY_MOSI_PIN 21
 #define DISPLAY_BL_PIN 10
