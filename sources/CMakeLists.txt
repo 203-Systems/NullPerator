@@ -5,6 +5,17 @@ set(CMAKE_CXX_STANDARD 23)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE BOOL "Export compile_commands.json")
 
+if(NOT DEFINED Node)
+  set(Node false)
+endif()
+
+# ESP-IDF node build (vanilla style). Invoke with -DNode=true from sources/.
+if(Node)
+  include("${CMAKE_CURRENT_SOURCE_DIR}/Adapters/node/esp-idf.cmake")
+  adapter_node_setup()
+  return()
+endif()
+
 add_compile_options(
   -Werror
   -Wall

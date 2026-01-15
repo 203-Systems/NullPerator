@@ -40,3 +40,6 @@ usermanual/bin
 usermanual/web
 
 optbuild/**
+AGENTS.md
+sources/build
+sources/sdkconfig.old
