@@ -3,7 +3,6 @@ add_library(platform_filesystem
 )
 
 target_link_libraries(platform_filesystem PUBLIC
-  system_errors
   idf::fatfs
   idf::sdmmc
   idf::vfs

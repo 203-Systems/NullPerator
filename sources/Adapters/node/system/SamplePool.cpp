@@ -6,8 +6,11 @@
 
 #include "SamplePool.h"
 
+#include <cstdint>
 #include <cstring>
 #include <cstdlib>
+#include <utility>
+
 static bool has_psram() {
   return heap_caps_get_total_size(MALLOC_CAP_SPIRAM) > 0;
 }
@@ -43,9 +46,9 @@ std::optional<void *> NodeSamplePool::allocSampleBuffer(size_t bytes) {
 void NodeSamplePool::Reset() {
   count_ = 0;
   for (int i = 0; i < MAX_SAMPLES; i++) {
-    freeSampleBuffer(static_cast<WavFile *>(wav_[i]));
-    SAFE_DELETE(wav_[i]);
-    SAFE_FREE(names_[i]);
+    freeSampleBuffer(&wav_[i]);
+    wav_[i].Close();
+    nameStore_[i][0] = '\0';
   }
 }
 
@@ -71,63 +74,82 @@ bool NodeSamplePool::loadSample(const char *name) {
     return false;
   }
 
-  auto wave = WavFile::Open(name);
-  if (!wave) {
-    Trace::Error("Failed to load sample:%s", name);
+  auto res = wav_[count_].Open(name);
+  if (!res) {
+    Trace::Error("SAMPLEPOOL", "Failed to open sample: %s", name);
     return false;
   }
 
-  uint32_t fileSize = wave.value()->GetDiskSize(-1);
-  if (!CheckSampleFits(static_cast<int>(fileSize))) {
-    Trace::Error("Not enough heap for sample (%u bytes)", fileSize);
-    delete wave.value();
+  const uint32_t sampleBytes = wav_[count_].GetDiskSize(-1);
+  if (!CheckSampleFits(static_cast<int>(sampleBytes))) {
+    Trace::Error("SAMPLEPOOL", "Not enough heap for sample (%u bytes)",
+                 sampleBytes);
+    wav_[count_].Close();
     return false;
   }
 
-  // Allocate buffer and copy sample data
-  auto buffer = allocSampleBuffer(fileSize);
+  auto buffer = allocSampleBuffer(sampleBytes);
   if (!buffer.has_value()) {
-    Trace::Error("Heap alloc failed for sample (%u bytes)", fileSize);
-    delete wave.value();
+    Trace::Error("SAMPLEPOOL", "Heap alloc failed for sample (%u bytes)",
+                 sampleBytes);
+    wav_[count_].Close();
     return false;
   }
 
-  wave.value()->SetSampleBuffer(static_cast<short *>(buffer.value()));
+  wav_[count_].SetSampleBuffer(static_cast<int16_t *>(buffer.value()));
 
-  uint32_t br = 0;
   uint32_t offset = 0;
-  wave.value()->Rewind();
-  do {
-    wave.value()->Read(static_cast<uint8_t *>(buffer.value()) + offset, BUFFER_SIZE,
-                       &br);
-    offset += br;
-  } while (br > 0);
+  uint32_t bytesRead = 0;
+  wav_[count_].Rewind();
+  while (offset < sampleBytes) {
+    uint32_t toRead = sampleBytes - offset;
+    if (toRead > BUFFER_SIZE) {
+      toRead = BUFFER_SIZE;
+    }
+    if (!wav_[count_].Read(static_cast<uint8_t *>(buffer.value()) + offset,
+                           toRead, &bytesRead)) {
+      Trace::Error("SAMPLEPOOL", "Failed reading sample data: %s", name);
+      freeSampleBuffer(&wav_[count_]);
+      wav_[count_].Close();
+      return false;
+    }
+    if (bytesRead == 0) {
+      break;
+    }
+    offset += bytesRead;
+  }
 
-  wav_[count_] = wave.value();
-  names_[count_] = static_cast<char *>(malloc(strlen(name) + 1));
-  strcpy(names_[count_], name);
+  strncpy(nameStore_[count_], name, MAX_INSTRUMENT_FILENAME_LENGTH);
+  nameStore_[count_][MAX_INSTRUMENT_FILENAME_LENGTH] = '\0';
   count_++;
 
-  wave.value()->Close();
+  wav_[count_ - 1].Close();
   return true;
 }
 
-bool NodeSamplePool::unloadSample(int index) {
-  if (index < 0 || index >= count_) {
+bool NodeSamplePool::unloadSample(uint32_t index) {
+  if (index >= count_) {
     return false;
   }
 
-  freeSampleBuffer(static_cast<WavFile *>(wav_[index]));
-  std::free(names_[index]);
+  freeSampleBuffer(&wav_[index]);
 
   // shift remaining entries down
-  for (int j = index; j < count_ - 1; ++j) {
-    wav_[j] = wav_[j + 1];
-    names_[j] = names_[j + 1];
+  for (uint32_t j = index; j < count_ - 1; ++j) {
+    wav_[j] = std::move(wav_[j + 1]);
+    wav_[j + 1].SetSampleBuffer(nullptr);
+    memcpy(nameStore_[j], nameStore_[j + 1], MAX_INSTRUMENT_FILENAME_LENGTH + 1);
   }
 
-  wav_[count_ - 1] = nullptr;
-  names_[count_ - 1] = nullptr;
+  wav_[count_ - 1].Close();
+  wav_[count_ - 1].SetSampleBuffer(nullptr);
+  nameStore_[count_ - 1][0] = '\0';
   --count_;
+
+  SetChanged();
+  SamplePoolEvent ev;
+  ev.index_ = static_cast<int>(index);
+  ev.type_ = SPET_DELETE;
+  NotifyObservers(&ev);
   return true;
 }
