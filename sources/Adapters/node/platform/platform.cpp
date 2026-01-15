@@ -191,9 +191,24 @@ esp_err_t audio_codec_init(void) {
         return ESP_OK; // Already initialized
     }
 
+    // These pins overlap the ESP32-S3 JTAG pads on many modules (GPIO39-42). Make sure they're
+    // in GPIO mode before routing them through the GPIO matrix for I2S.
+    gpio_reset_pin((gpio_num_t)I2S_MCLK_PIN);
+    gpio_reset_pin((gpio_num_t)I2S_BCLK_PIN);
+    gpio_reset_pin((gpio_num_t)I2S_LRCK_PIN);
+    gpio_reset_pin((gpio_num_t)I2S_DOUT_PIN);
+    gpio_reset_pin((gpio_num_t)I2S_DIN_PIN);
+    gpio_set_pull_mode((gpio_num_t)I2S_BCLK_PIN, GPIO_FLOATING);
+    gpio_set_pull_mode((gpio_num_t)I2S_LRCK_PIN, GPIO_FLOATING);
+    gpio_set_pull_mode((gpio_num_t)I2S_DOUT_PIN, GPIO_FLOATING);
+    gpio_set_pull_mode((gpio_num_t)I2S_DIN_PIN, GPIO_FLOATING);
+    gpio_set_pull_mode((gpio_num_t)I2S_MCLK_PIN, GPIO_FLOATING);
+
     // Initialize I2S channels
     i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
-    ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, &i2s_tx_chan, &i2s_rx_chan));
+    // Recording isn't implemented on node yet, so keep RX disabled to avoid reconfiguring the shared I2S peripheral.
+    ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, &i2s_tx_chan, NULL));
+    i2s_rx_chan = NULL;
 
     // Configure I2S in standard mode for TX (playback)
     i2s_std_config_t std_cfg = {
@@ -216,30 +231,6 @@ esp_err_t audio_codec_init(void) {
     if (i2s_tx_chan) {
         ESP_ERROR_CHECK(i2s_channel_init_std_mode(i2s_tx_chan, &std_cfg));
         ESP_ERROR_CHECK(i2s_channel_enable(i2s_tx_chan));
-    }
-
-    // Configure I2S TDM mode for RX (recording)
-    i2s_tdm_config_t tdm_cfg = {
-        .clk_cfg = I2S_TDM_CLK_DEFAULT_CONFIG(44100),
-        .slot_cfg = I2S_TDM_PHILIPS_SLOT_DEFAULT_CONFIG(
-            I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO, static_cast<i2s_tdm_slot_mask_t>(I2S_TDM_SLOT0 | I2S_TDM_SLOT1)),
-        .gpio_cfg = {
-            .mclk = (gpio_num_t)I2S_MCLK_PIN,
-            .bclk = (gpio_num_t)I2S_BCLK_PIN,
-            .ws = (gpio_num_t)I2S_LRCK_PIN,
-            .dout = (gpio_num_t)I2S_DOUT_PIN,
-            .din = (gpio_num_t)I2S_DIN_PIN,
-            .invert_flags = {
-                .mclk_inv = false,
-                .bclk_inv = false,
-                .ws_inv = false,
-            },
-        },
-    };
-
-    if (i2s_rx_chan) {
-        ESP_ERROR_CHECK(i2s_channel_init_tdm_mode(i2s_rx_chan, &tdm_cfg));
-        ESP_ERROR_CHECK(i2s_channel_enable(i2s_rx_chan));
     }
 
     audio_i2s_ready = true;
