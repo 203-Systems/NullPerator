@@ -39,7 +39,7 @@ macro(adapter_node_setup)
 
   set(IDF_TARGET "esp32s3")
 
-  add_definitions(-DPICOBUILD)
+  add_definitions(-DNODE)
   add_definitions(-DESP_PLATFORM)
   add_definitions(-DUSB_REMOTE_UI)
 
