@@ -52,7 +52,7 @@ DeviceView::DeviceView(GUIWindow &w, ViewData *data) : FieldView(w, data) {
   fieldList_.insert(fieldList_.end(), &(*intVarField_.rbegin()));
   (*intVarField_.rbegin()).AddObserver(*this);
 
-#ifndef ADV
+#if !defined(ADV) && !defined(NODE)
   position._y += 1;
   v = config->FindVariable(FourCC::VarLineOut);
   intVarField_.emplace_back(position, *v, "Line Out Mode: %s", 0, 2, 1, 1);

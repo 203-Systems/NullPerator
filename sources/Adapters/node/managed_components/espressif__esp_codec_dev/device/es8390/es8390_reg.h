@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2026 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -83,6 +83,7 @@ extern "C" {
 /*
  * VMID CONTROL
  */
+
 #define ES8390_VMID_CONTROL_REG0x60         0x60
 
 /*
@@ -160,11 +161,11 @@ extern "C" {
 #define ES8390_MASK_DATALEN                 (7 << 5)
 #define ES8390_MASK_DAIFMT                  (7 << 2)
 
-#define ES8390_DriveSel_Normal              0
-#define ES8390_DriveSel_LowPower            1
-#define ES8390_DriveSel_HeadPhone           2
+#define ES8390_DriveSel_Normal		        0
+#define ES8390_DriveSel_LowPower	        1
+#define ES8390_DriveSel_HeadPhone	        2
 
-#define ES8390_Analog_DriveSel              ES8390_DriveSel_Normal
+#define ES8390_Analog_DriveSel              ES8390_DriveSel_Normal  /* Normal;LowPower;HeadPhone */
 
 typedef enum {
     ES8390_MIC_GAIN_MIN = -1,

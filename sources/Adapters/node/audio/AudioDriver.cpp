@@ -84,8 +84,9 @@ bool NodeAudioDriver::InitDriver() { // New
 
   // Get configuration values
   Config *config = Config::GetInstance();
-  auto audioLevel = config->GetValue("LINEOUT");
-  volume_ = config->GetValue("VOLUME");
+  volume_ = config->GetValue("OUTPUTVOLUME");
+
+  ESP_LOGI("NodeAudioDriver", "Loaded Audio Volume %d", volume_);
 
   // Initialize audio codec through platform API
   ESP_ERROR_CHECK(audio_codec_init());
