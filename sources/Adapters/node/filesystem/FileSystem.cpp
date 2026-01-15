@@ -7,7 +7,6 @@
 #include "Adapters/node/platform/gpio.h"
 #include "System/Console/Trace.h"
 #include "System/FileSystem/I_File.h"
-#include "System/Errors/Result.h"
 #include "esp_vfs_fat.h"
 #include "sdmmc_cmd.h"
 #include "driver/sdmmc_host.h"
@@ -122,17 +121,17 @@ NodeFileSystem::NodeFileSystem() {
   MountCard();
 }
 
-I_File *NodeFileSystem::Open(const char *name, const char *mode) {
+FileHandle NodeFileSystem::Open(const char *name, const char *mode) {
   std::lock_guard<std::mutex> lock(mutex_);
   if (!MountCard()) {
-    return nullptr;
+    return FileHandle();
   }
   std::string full = ResolvePath(cwd_, name);
   // If writing/creating, ensure parent directories exist.
   if (mode && (strchr(mode, 'w') || strchr(mode, 'a') || strchr(mode, '+'))) {
     if (!EnsureParentDirs(full)) {
       Trace::Error("FILESYSTEM", "EnsureParentDirs failed: %s errno:%d (%s)", full.c_str(), errno, strerror(errno));
-      return nullptr;
+      return FileHandle();
     }
   }
   FILE *f = fopen(full.c_str(), mode);
@@ -151,13 +150,13 @@ I_File *NodeFileSystem::Open(const char *name, const char *mode) {
         f = fopen(alt.c_str(), mode);
         if (f != nullptr) {
           Trace::Log("FILESYSTEM", "Open succeeded without mount prefix: %s", alt.c_str());
-          return new VfsFile(f);
+          return MakeFileHandle(new VfsFile(f));
         }
       }
     }
-    return nullptr;
+    return FileHandle();
   }
-  return new VfsFile(f);
+  return MakeFileHandle(new VfsFile(f));
 }
 
 bool NodeFileSystem::chdir(const char *path) {
@@ -369,3 +368,8 @@ bool VfsFile::Close() {
 }
 int VfsFile::Error() { return f_ ? ferror(f_) : -1; }
 bool VfsFile::Sync() { return f_ ? (fflush(f_) == 0) : false; }
+
+void VfsFile::Dispose() {
+  Close();
+  delete this;
+}

@@ -8,7 +8,6 @@
 #include "Adapters/node/midi/MidiService.h"
 #endif
 #include "Application/Commands/NodeList.h"
-#include "Application/Controllers/ControlRoom.h"
 #include "Application/Instruments/SamplePool.h"
 #include "Application/Player/SyncMaster.h"
 #include "System/Console/Trace.h"

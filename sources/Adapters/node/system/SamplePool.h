@@ -21,7 +21,7 @@ public:
   void Reset() override;
   bool CheckSampleFits(int sampleSize) override;
   uint32_t GetAvailableSampleStorageSpace() override;
-  bool unloadSample(int index) override;
+  bool unloadSample(uint32_t index) override;
 
 protected:
   bool loadSample(const char *name) override;

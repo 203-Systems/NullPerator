@@ -1,0 +1,16 @@
+# Place Opal LUTs into DRAM for ESP-IDF builds.
+# This also prevents them from being linked between .flash.appdesc and .flash.rodata,
+# which would violate ESP-IDF's "no gap" requirement for producing the final bin.
+
+[sections:opal_time_critical]
+entries:
+    .time_critical.opalLUTdata+
+
+[scheme:opal_time_critical]
+entries:
+    opal_time_critical -> dram0_data
+
+[mapping:opal_time_critical]
+archive: libopal.a
+entries:
+    * (opal_time_critical)

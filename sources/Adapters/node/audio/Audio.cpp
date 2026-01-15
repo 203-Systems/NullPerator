@@ -22,28 +22,31 @@ void NodeAudio::Init() {
       new (audioDriver) NodeAudioDriver(settings);
   static char audioOutDriver[sizeof(AudioOutDriver)];
   AudioOutDriver *out = new (audioOutDriver) AudioOutDriver(*drv);
-  Insert(out);
+  AddOutput(*out);
 };
 
 void NodeAudio::Close() {
-  for (Begin(); !IsDone(); Next()) {
-    AudioOut &current = CurrentItem();
-    current.Close();
+  auto &outputs = Outputs();
+  for (auto it = outputs.begin(); it != outputs.end(); ++it) {
+    AudioOut *out = *it;
+    if (out != nullptr) {
+      out->Close();
+    }
   }
 };
 
 void NodeAudio::SetMixerVolume(int v) {
-  AudioOutDriver *out = (AudioOutDriver *)GetFirst();
+  AudioOutDriver *out = static_cast<AudioOutDriver *>(GetFirstOutput());
   if (out) {
-    NodeAudioDriver *drv = (NodeAudioDriver *)out->GetDriver();
+    NodeAudioDriver *drv = static_cast<NodeAudioDriver *>(out->GetDriver());
     drv->SetVolume(v);
   }
 }
 
 int NodeAudio::GetMixerVolume() {
-  AudioOutDriver *out = (AudioOutDriver *)GetFirst();
+  AudioOutDriver *out = static_cast<AudioOutDriver *>(GetFirstOutput());
   if (out) {
-    NodeAudioDriver *drv = (NodeAudioDriver *)out->GetDriver();
+    NodeAudioDriver *drv = static_cast<NodeAudioDriver *>(out->GetDriver());
     return drv->GetVolume();
   }
   return 0;

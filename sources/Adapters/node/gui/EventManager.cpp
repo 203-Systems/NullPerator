@@ -43,9 +43,6 @@ void NodeEventManager::PostEvent(NodeEventType type) {
 
 bool NodeEventManager::Init() {
   EventManager::Init();
-
-  keyboardCS_ = new KeyboardControllerSource("keyboard");
-
   return true;
 }
 

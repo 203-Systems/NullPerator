@@ -10,6 +10,7 @@
 #include "System/Console/Trace.h"
 #include "System/FileSystem/FileSystem.h"
 #include "System/FileSystem/I_File.h"
+#include <stdio.h>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -19,7 +20,7 @@ public:
   NodeFileSystem();
   ~NodeFileSystem() override = default;
 
-  I_File *Open(const char *name, const char *mode) override;
+  FileHandle Open(const char *name, const char *mode) override;
   bool chdir(const char *path) override;
   void list(etl::ivector<int> *fileIndexes, const char *filter,
             bool subDirOnly) override;
@@ -57,9 +58,12 @@ public:
   int Write(const void *ptr, int size, int nmemb) override;
   void Seek(long offset, int whence) override;
   long Tell() override;
-  bool Close() override;
   int Error() override;
   bool Sync() override;
+  void Dispose() override;
+
+protected:
+  bool Close() override;
 
 private:
   FILE *f_;
