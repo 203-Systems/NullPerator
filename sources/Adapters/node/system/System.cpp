@@ -180,14 +180,17 @@ void NodeSystem::Sleep(int millisec) {
   vTaskDelay(pdMS_TO_TICKS(millisec));
 }
 
-// NOTE: Legacy heap helpers were removed from the `System` interface.
-// Keep these here for reference in case we reintroduce a platform allocator API.
-#if 0
 void *NodeSystem::Malloc(unsigned size) { return malloc(size); }
+
 void NodeSystem::Free(void *ptr) { free(ptr); }
-void NodeSystem::Memset(void *addr, char val, int size) { memset(addr, val, size); }
-void *NodeSystem::Memcpy(void *s1, const void *s2, int n) { return memcpy(s1, s2, n); }
-#endif
+
+void NodeSystem::Memset(void *addr, char value, int size) {
+  memset(addr, value, size);
+}
+
+void *NodeSystem::Memcpy(void *s1, const void *s2, int n) {
+  return memcpy(s1, s2, n);
+}
 
 void NodeSystem::PostQuitMessage() { eventManager_->PostQuitMessage(); }
 

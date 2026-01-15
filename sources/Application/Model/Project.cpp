@@ -26,7 +26,7 @@
 #define DEFAULT_CHANNEL_VOLUME 100
 #define DEFAULT_PREVIEW_VOLUME 60
 
-#ifdef ADV
+#if defined(ADV) || defined(NODE)
 #define DEFAULT_MASTER_VOLUME 100
 #else
 #define DEFAULT_MASTER_VOLUME 60

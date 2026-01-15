@@ -3,6 +3,7 @@
 #include "Services/Audio/AudioOutDriver.h"
 #include "System/Console/Trace.h"
 #include "AudioDriver.h"
+#include <cstdint>
 
 NodeAudio::NodeAudio(AudioSettings &hints) : Audio(hints) {
   hints_ = hints;
@@ -17,26 +18,23 @@ void NodeAudio::Init() {
   settings.bufferSize_ = GetAudioBufferSize();
   settings.preBufferCount_ = GetAudioPreBufferCount();
 
-  static char audioDriver[sizeof(NodeAudioDriver)];
-  NodeAudioDriver *drv =
-      new (audioDriver) NodeAudioDriver(settings);
-  static char audioOutDriver[sizeof(AudioOutDriver)];
+  alignas(NodeAudioDriver) static uint8_t audioDriver[sizeof(NodeAudioDriver)];
+  NodeAudioDriver *drv = new (audioDriver) NodeAudioDriver(settings);
+
+  alignas(AudioOutDriver) static uint8_t audioOutDriver[sizeof(AudioOutDriver)];
   AudioOutDriver *out = new (audioOutDriver) AudioOutDriver(*drv);
-  AddOutput(*out);
-};
+  Insert(out);
+}
 
 void NodeAudio::Close() {
-  auto &outputs = Outputs();
-  for (auto it = outputs.begin(); it != outputs.end(); ++it) {
-    AudioOut *out = *it;
-    if (out != nullptr) {
-      out->Close();
-    }
+  for (Begin(); !IsDone(); Next()) {
+    AudioOut &current = CurrentItem();
+    current.Close();
   }
-};
+}
 
 void NodeAudio::SetMixerVolume(int v) {
-  AudioOutDriver *out = static_cast<AudioOutDriver *>(GetFirstOutput());
+  AudioOutDriver *out = static_cast<AudioOutDriver *>(GetFirst());
   if (out) {
     NodeAudioDriver *drv = static_cast<NodeAudioDriver *>(out->GetDriver());
     drv->SetVolume(v);
@@ -44,7 +42,7 @@ void NodeAudio::SetMixerVolume(int v) {
 }
 
 int NodeAudio::GetMixerVolume() {
-  AudioOutDriver *out = static_cast<AudioOutDriver *>(GetFirstOutput());
+  AudioOutDriver *out = static_cast<AudioOutDriver *>(GetFirst());
   if (out) {
     NodeAudioDriver *drv = static_cast<NodeAudioDriver *>(out->GetDriver());
     return drv->GetVolume();

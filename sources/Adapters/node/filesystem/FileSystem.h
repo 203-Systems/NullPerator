@@ -20,7 +20,7 @@ public:
   NodeFileSystem();
   ~NodeFileSystem() override = default;
 
-  FileHandle Open(const char *name, const char *mode) override;
+  I_File *Open(const char *name, const char *mode) override;
   bool chdir(const char *path) override;
   void list(etl::ivector<int> *fileIndexes, const char *filter,
             bool subDirOnly) override;
@@ -60,9 +60,6 @@ public:
   long Tell() override;
   int Error() override;
   bool Sync() override;
-  void Dispose() override;
-
-protected:
   bool Close() override;
 
 private:

@@ -74,7 +74,7 @@ DeviceView::DeviceView(GUIWindow &w, ViewData *data) : FieldView(w, data) {
   fieldList_.insert(fieldList_.end(), &(*intVarField_.rbegin()));
   (*intVarField_.rbegin()).AddObserver(*this);
 
-#ifdef ADV
+#if defined(ADV) || defined(NODE)
   position._y += 1;
   v = config->FindVariable(FourCC::VarOutputVolume);
   intVarField_.emplace_back(position, *v, "Output volume: %3d", 0, 100, 1, 5);
