@@ -45,10 +45,12 @@ std::optional<void *> NodeSamplePool::allocSampleBuffer(size_t bytes) {
 
 void NodeSamplePool::Reset() {
   count_ = 0;
-  for (int i = 0; i < MAX_SAMPLES; i++) {
-    freeSampleBuffer(&wav_[i]);
-    wav_[i].Close();
-    nameStore_[i][0] = '\0';
+  for (uint32_t i = 0; i < MAX_SAMPLES; ++i) {
+    if (wav_[i] != nullptr) {
+      freeSampleBuffer(static_cast<WavFile *>(wav_[i]));
+    }
+    SAFE_DELETE(wav_[i]);
+    SAFE_FREE(names_[i]);
   }
 }
 
@@ -74,17 +76,20 @@ bool NodeSamplePool::loadSample(const char *name) {
     return false;
   }
 
-  auto res = wav_[count_].Open(name);
-  if (!res) {
+  auto wave = WavFile::Open(name);
+  if (!wave) {
     Trace::Error("SAMPLEPOOL", "Failed to open sample: %s", name);
     return false;
   }
 
-  const uint32_t sampleBytes = wav_[count_].GetDiskSize(-1);
+  WavFile *wav = wave.value();
+
+  const uint32_t sampleBytes = wav->GetDiskSize(-1);
   if (!CheckSampleFits(static_cast<int>(sampleBytes))) {
     Trace::Error("SAMPLEPOOL", "Not enough heap for sample (%u bytes)",
                  sampleBytes);
-    wav_[count_].Close();
+    wav->Close();
+    delete wav;
     return false;
   }
 
@@ -92,25 +97,27 @@ bool NodeSamplePool::loadSample(const char *name) {
   if (!buffer.has_value()) {
     Trace::Error("SAMPLEPOOL", "Heap alloc failed for sample (%u bytes)",
                  sampleBytes);
-    wav_[count_].Close();
+    wav->Close();
+    delete wav;
     return false;
   }
 
-  wav_[count_].SetSampleBuffer(static_cast<int16_t *>(buffer.value()));
+  wav->SetSampleBuffer(static_cast<int16_t *>(buffer.value()));
 
   uint32_t offset = 0;
   uint32_t bytesRead = 0;
-  wav_[count_].Rewind();
+  wav->Rewind();
   while (offset < sampleBytes) {
     uint32_t toRead = sampleBytes - offset;
     if (toRead > BUFFER_SIZE) {
       toRead = BUFFER_SIZE;
     }
-    if (!wav_[count_].Read(static_cast<uint8_t *>(buffer.value()) + offset,
-                           toRead, &bytesRead)) {
+    if (!wav->Read(static_cast<uint8_t *>(buffer.value()) + offset, toRead,
+                   &bytesRead)) {
       Trace::Error("SAMPLEPOOL", "Failed reading sample data: %s", name);
-      freeSampleBuffer(&wav_[count_]);
-      wav_[count_].Close();
+      freeSampleBuffer(wav);
+      wav->Close();
+      delete wav;
       return false;
     }
     if (bytesRead == 0) {
@@ -119,11 +126,19 @@ bool NodeSamplePool::loadSample(const char *name) {
     offset += bytesRead;
   }
 
-  strncpy(nameStore_[count_], name, MAX_INSTRUMENT_FILENAME_LENGTH);
-  nameStore_[count_][MAX_INSTRUMENT_FILENAME_LENGTH] = '\0';
+  wav_[count_] = wav;
+
+  names_[count_] = static_cast<char *>(SYS_MALLOC(strlen(name) + 1));
+  if (names_[count_] == nullptr) {
+    freeSampleBuffer(wav);
+    SAFE_DELETE(wav_[count_]);
+    return false;
+  }
+  strcpy(names_[count_], name);
+
   count_++;
 
-  wav_[count_ - 1].Close();
+  wav->Close();
   return true;
 }
 
@@ -132,19 +147,21 @@ bool NodeSamplePool::unloadSample(uint32_t index) {
     return false;
   }
 
-  freeSampleBuffer(&wav_[index]);
+  if (wav_[index] != nullptr) {
+    freeSampleBuffer(static_cast<WavFile *>(wav_[index]));
+  }
+  SAFE_DELETE(wav_[index]);
+  SAFE_FREE(names_[index]);
 
   // shift remaining entries down
   for (uint32_t j = index; j < count_ - 1; ++j) {
-    wav_[j] = std::move(wav_[j + 1]);
-    wav_[j + 1].SetSampleBuffer(nullptr);
-    memcpy(nameStore_[j], nameStore_[j + 1], MAX_INSTRUMENT_FILENAME_LENGTH + 1);
+    wav_[j] = wav_[j + 1];
+    names_[j] = names_[j + 1];
   }
 
-  wav_[count_ - 1].Close();
-  wav_[count_ - 1].SetSampleBuffer(nullptr);
-  nameStore_[count_ - 1][0] = '\0';
   --count_;
+  wav_[count_] = nullptr;
+  names_[count_] = nullptr;
 
   SetChanged();
   SamplePoolEvent ev;

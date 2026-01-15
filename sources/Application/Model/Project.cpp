@@ -26,7 +26,11 @@
 #define DEFAULT_CHANNEL_VOLUME 99
 #define DEFAULT_PREVIEW_VOLUME 60
 
+#if defined(ADV) || defined(NODE)
+#define DEFAULT_MASTER_VOLUME 100
+#else
 #define DEFAULT_MASTER_VOLUME 60
+#endif
 
 #define DATA_UNUSED_VALUE 0xFF
 
