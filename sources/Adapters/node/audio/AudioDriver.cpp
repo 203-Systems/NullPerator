@@ -4,6 +4,7 @@
 #include "Application/Model/Config.h"
 #include "Services/Midi/MidiService.h"
 #include "System/System/System.h"
+#include <cstdint>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,11 +16,11 @@
 #include "freertos/task.h"
 
 // mini blank buffer for underrun, initialized to 0
-const char NodeAudioDriver::miniBlank_[MINI_BLANK_SIZE * 2 *
-                                              sizeof(short)] = {0};
+uint8_t NodeAudioDriver::miniBlank_[MINI_BLANK_SIZE * 2U * sizeof(int16_t)] = {0};
 
 NodeAudioDriver *NodeAudioDriver::instance_ = NULL;
 TaskHandle_t audioThreadHandle_ = NULL;
+TaskHandle_t i2sThreadHandle_ = NULL;
 SemaphoreHandle_t core1_audio = NULL;
 
 static volatile unsigned long esp32_sound_pausei, esp32_exit;
@@ -44,7 +45,7 @@ void NodeAudioDriver::I2SThread(void *arg) {
         if (pool_[next].empty_) {
           // If buffer underrun, write silence
           size_t written = 0;
-          audio_codec_write((void *)miniBlank_, MINI_BLANK_SIZE, &written, portMAX_DELAY);
+          audio_codec_write(miniBlank_, sizeof(miniBlank_), &written, portMAX_DELAY);
           // ESP_LOGI("NodeAudioDriver", "Sending Blank as Buffer %d", instance_->poolPlayPosition_);
         } else {
           // Move to next buffer
@@ -100,6 +101,9 @@ bool NodeAudioDriver::InitDriver() { // New
 
   // Set initial volume
   audio_codec_set_volume(volume);
+  audio_codec_set_mute(false);
+  switch_audio_mode(headphone_out);
+  switch_speaker_mode(false);
 
   core1_audio = xSemaphoreCreateCounting(SOUND_BUFFER_COUNT - 1, SOUND_BUFFER_COUNT - 1);
 
@@ -112,10 +116,10 @@ bool NodeAudioDriver::InitDriver() { // New
                           4096, NULL, 5, &audioThreadHandle_, 1);
 
   xTaskCreatePinnedToCore(NodeAudioDriver::I2SThread, "I2SThread",
-                          4096, NULL, 1, &audioThreadHandle_, 0);
+                          4096, NULL, 1, &i2sThreadHandle_, 0);
 
-  if (audioThreadHandle_ == NULL) {
-    ESP_LOGE("NodeAudioDriver", "Failed to create AudioThread");
+  if (audioThreadHandle_ == NULL || i2sThreadHandle_ == NULL) {
+    ESP_LOGE("NodeAudioDriver", "Failed to create audio tasks");
     return false;
   }
 
@@ -134,20 +138,21 @@ int NodeAudioDriver::GetVolume() {
 
 void NodeAudioDriver::CloseDriver() {
   // Stop the task if it's running
+  isPlaying_ = false;
+  switch_speaker_mode(false);
   if (audioThreadHandle_ != NULL) {
-    // Signal the task to stop if necessary
-    isPlaying_ = false;
-
-    // Wait for the task to acknowledge (optional, see below)
-
-    // Delete the task
     vTaskDelete(audioThreadHandle_);
     audioThreadHandle_ = NULL;
   }
-
+  if (i2sThreadHandle_ != NULL) {
+    vTaskDelete(i2sThreadHandle_);
+    i2sThreadHandle_ = NULL;
+  }
 }
 
 bool NodeAudioDriver::StartDriver() {
+  switch_audio_mode(headphone_out);
+  switch_speaker_mode(false);
   isPlaying_ = true;
   esp32_sound_pause(0);
   startTime_ = millis();
@@ -157,6 +162,7 @@ bool NodeAudioDriver::StartDriver() {
 void NodeAudioDriver::StopDriver() {
   esp32_sound_pause(1);
   isPlaying_ = false;
+  switch_speaker_mode(false);
 }
 
 int NodeAudioDriver::GetPlayedBufferPercentage() {
