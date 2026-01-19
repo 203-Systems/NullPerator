@@ -6,6 +6,7 @@
 #include "freeRTOS/FreeRTOS.h"
 #include "freeRTOS/task.h"
 #include "driver/i2s_std.h"
+#include <cstdint>
 
 
 #define MINI_BLANK_SIZE 128 // Samples
@@ -38,7 +39,9 @@ private:
   static void I2SThread(void* arg);
   static NodeAudioDriver *instance_;
   AudioSettings settings_;
-  static const char miniBlank_[MINI_BLANK_SIZE * 2 * sizeof(short)];
+  static uint8_t miniBlank_[MINI_BLANK_SIZE * 2U * sizeof(int16_t)];
+  TaskHandle_t audioBufferTaskHandle_ = NULL;
+  TaskHandle_t i2sTaskHandle_ = NULL;
   int volume_;
   uint32_t startTime_;
 };
