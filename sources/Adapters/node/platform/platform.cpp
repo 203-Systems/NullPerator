@@ -12,9 +12,10 @@
 #include "esp_timer.h"
 #include "esp_codec_dev.h"
 #include "esp_codec_dev_defaults.h"
-#include "es8390_codec.h"
+#include "es8389_codec.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include <cstdint>
 
 i2c_master_bus_handle_t i2c_handle = NULL;
 usb_phy_handle_t usb_phy_hdl = NULL;
@@ -30,20 +31,7 @@ static int32_t codec_volume = 50;
 static bool codec_muted = false;
 static bool audio_i2s_ready = false;
 
-static uint8_t detect_es8390_address(void)
-{
-    if (!i2c_handle) {
-        return 0;
-    }
-    static constexpr uint8_t kCandidateAddrs[] = {0x10, 0x11, 0x12, 0x13};
-    for (size_t i = 0; i < sizeof(kCandidateAddrs) / sizeof(kCandidateAddrs[0]); ++i) {
-        const uint8_t addr = kCandidateAddrs[i];
-        if (i2c_master_probe(i2c_handle, addr, 50) == ESP_OK) {
-            return addr;
-        }
-    }
-    return 0;
-}
+static constexpr uint8_t kCodecAddr7bit = 0x10; // Fixed strap
 
 extern "C" {
 void board_init() {
@@ -71,7 +59,6 @@ void board_init() {
     gpio_reset_pin((gpio_num_t)I2C_SCL_PIN);
     gpio_set_direction((gpio_num_t)I2C_SDA_PIN, GPIO_MODE_INPUT_OUTPUT_OD);
     gpio_set_direction((gpio_num_t)I2C_SCL_PIN, GPIO_MODE_INPUT_OUTPUT_OD);
-    // External pull-ups are present on the board; keep ESP32 internal pulls off.
     gpio_set_pull_mode((gpio_num_t)I2C_SDA_PIN, GPIO_FLOATING);
     gpio_set_pull_mode((gpio_num_t)I2C_SCL_PIN, GPIO_FLOATING);
     const i2c_master_bus_config_t bus_config = {
@@ -80,6 +67,10 @@ void board_init() {
         .scl_io_num = (gpio_num_t)I2C_SCL_PIN,
         .clk_source = I2C_CLK_SRC_DEFAULT,
         .glitch_ignore_cnt = 7,
+        // Match ESP BSP style: enable internal pull-ups (often improves I2C reliability).
+        .flags = {
+            .enable_internal_pullup = true,
+        },
     };
 
     ESP_ERROR_CHECK(i2c_new_master_bus(&bus_config, &i2c_handle));
@@ -162,6 +153,7 @@ void switch_speaker_mode(bool on) {
         (void)on;
         return;
     }
+    ESP_LOGI("AUDIO_ROUTE", "Speaker %s", on ? "ON" : "OFF");
     io_expander.write((PCA95x5::Port::Port)OUTPUT_PA_CTRL, on ? PCA95x5::Level::H : PCA95x5::Level::L);
 }
 
@@ -206,6 +198,8 @@ esp_err_t audio_codec_init(void) {
 
     // Initialize I2S channels
     i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
+    // Match ESP BSP pattern: clear legacy DMA samples automatically.
+    chan_cfg.auto_clear = true;
     // Recording isn't implemented on node yet, so keep RX disabled to avoid reconfiguring the shared I2S peripheral.
     ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, &i2s_tx_chan, NULL));
     i2s_rx_chan = NULL;
@@ -244,25 +238,18 @@ esp_err_t audio_codec_init(void) {
     };
     const audio_codec_data_if_t* i2s_data_if = audio_codec_new_i2s_data(&i2s_cfg);
 
-    // Initialize ES8390 codec
+    // Initialize ES8389-family codec
     const audio_codec_gpio_if_t* gpio_if = audio_codec_new_gpio();
-
-    const uint8_t codec_addr_7bit = detect_es8390_address();
-    if (codec_addr_7bit == 0) {
-        ESP_LOGW("ES8390", "Not detected on I2C (0x10-0x13); continuing without codec control");
-        return ESP_OK;
-    }
-    ESP_LOGI("ES8390", "Detected at 0x%02X", codec_addr_7bit);
 
     audio_codec_i2c_cfg_t i2c_cfg = {
         .port = I2C_NUM_0,
         // esp_codec_dev's I2C control expects an 8-bit I2C address byte (7-bit << 1).
-        .addr = static_cast<uint8_t>(codec_addr_7bit << 1),
+        .addr = static_cast<uint8_t>(kCodecAddr7bit << 1),
         .bus_handle = i2c_handle,
     };
     const audio_codec_ctrl_if_t* i2c_ctrl_if = audio_codec_new_i2c_ctrl(&i2c_cfg);
 
-    es8390_codec_cfg_t es8390_cfg = {
+    es8389_codec_cfg_t es8389_cfg = {
         .ctrl_if = i2c_ctrl_if,
         .gpio_if = gpio_if,
         .codec_mode = ESP_CODEC_DEV_WORK_MODE_DAC,
@@ -277,16 +264,16 @@ esp_err_t audio_codec_init(void) {
         .no_dac_ref = false,
         .mclk_div = 256,
     };
-    const audio_codec_if_t* es8390_dev = es8390_codec_new(&es8390_cfg);
+    const audio_codec_if_t* es8389_dev = es8389_codec_new(&es8389_cfg);
 
     esp_codec_dev_cfg_t codec_dev_cfg = {
         .dev_type = ESP_CODEC_DEV_TYPE_OUT,
-        .codec_if = es8390_dev,
+        .codec_if = es8389_dev,
         .data_if = i2s_data_if,
     };
     codec_handle = esp_codec_dev_new(&codec_dev_cfg);
     if (!codec_handle) {
-        ESP_LOGE("ES8390", "Failed to create codec handle");
+        ESP_LOGE("ES8389", "Failed to create codec handle");
         return ESP_OK;
     }
 
@@ -300,33 +287,49 @@ esp_err_t audio_codec_init(void) {
     };
     const int open_ret = esp_codec_dev_open(codec_handle, &fs);
     if (open_ret != ESP_CODEC_DEV_OK) {
-        ESP_LOGE("ES8390", "Failed to open codec: %d", open_ret);
+        ESP_LOGE("ES8389", "Failed to open codec: %d", open_ret);
         return ESP_OK;
     }
+    (void)esp_codec_dev_set_out_mute(codec_handle, false);
     (void)esp_codec_dev_set_out_vol(codec_handle, static_cast<int>(codec_volume));
+    int id1 = 0;
+    int id2 = 0;
+    if (esp_codec_dev_read_reg(codec_handle, 0xFD, &id1) == ESP_CODEC_DEV_OK &&
+        esp_codec_dev_read_reg(codec_handle, 0xFE, &id2) == ESP_CODEC_DEV_OK) {
+        ESP_LOGI("ES8389", "CHIP_ID: %02X %02X", id1 & 0xFF, id2 & 0xFF);
+    }
+    int dac_l = 0;
+    int dac_r = 0;
+    if (esp_codec_dev_read_reg(codec_handle, 0x46, &dac_l) == ESP_CODEC_DEV_OK &&
+        esp_codec_dev_read_reg(codec_handle, 0x47, &dac_r) == ESP_CODEC_DEV_OK) {
+        ESP_LOGI("ES8389", "DAC_VOL_REG: L=%02X R=%02X", dac_l & 0xFF, dac_r & 0xFF);
+    }
 
     return ESP_OK;
 }
 
 esp_err_t audio_codec_write(void* buffer, size_t len, size_t* bytes_written, uint32_t timeout_ms) {
-#if 0
-    if (codec_handle) {
-        esp_err_t ret = esp_codec_dev_write(codec_handle, buffer, len);
-        if (bytes_written) {
-            *bytes_written = len;
-        }
-        return ret;
-    }
-#endif
-
     if (!audio_i2s_ready || !i2s_tx_chan) {
         return ESP_ERR_INVALID_STATE;
     }
+    if (bytes_written) {
+        *bytes_written = len;
+    }
     if (codec_muted || codec_volume <= 0) {
-        if (bytes_written) {
-            *bytes_written = len;
-        }
         return ESP_OK;
+    }
+    if (codec_handle) {
+        (void)timeout_ms;
+        const int ret = esp_codec_dev_write(codec_handle, buffer, static_cast<int>(len));
+        if (ret == ESP_CODEC_DEV_OK) {
+            return ESP_OK;
+        }
+        if (ret == ESP_CODEC_DEV_WRONG_STATE) {
+            ESP_LOGW("ES8389", "esp_codec_dev_write wrong state");
+            return ESP_ERR_INVALID_STATE;
+        }
+        ESP_LOGW("ES8389", "esp_codec_dev_write failed (%d)", ret);
+        return ESP_FAIL;
     }
     return i2s_channel_write(i2s_tx_chan, buffer, len, bytes_written, timeout_ms);
 }
