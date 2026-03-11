@@ -1,6 +1,7 @@
 add_library(platform_midi
     MidiService.h MidiService.cpp
     MidiDevice.h MidiDevice.cpp
+    MidiInDevice.h MidiInDevice.cpp
     USBMidiDevice.h USBMidiDevice.cpp
 )
 

@@ -27,7 +27,7 @@ protected:
   bool loadSample(const char *name) override;
 
 private:
-  void freeSampleBuffer(WavFile *wave);
+  void freeSampleBuffer(WavFile &wave);
   std::optional<void *> allocSampleBuffer(size_t bytes);
 };
 

@@ -57,8 +57,8 @@ NodeGUIWindowImp::NodeGUIWindowImp(GUICreateWindowParams &p) {
 
 NodeGUIWindowImp::~NodeGUIWindowImp() {}
 
-void NodeGUIWindowImp::DrawChar(const char c, GUIPoint &pos,
-                                       GUITextProperties &p) {
+void NodeGUIWindowImp::DrawChar(const char c, const GUIPoint &pos,
+                                const GUITextProperties &p) {
   //  Trace::Debug("Draw char \"%c\" at pos x:%ld (%ld), y:%ld (%ld) - invert: %d", c, pos._x, pos._x / 8, pos._y, pos._y / 8, p.invert_);
 
   uint8_t x = pos._x / 8;
@@ -79,8 +79,8 @@ void NodeGUIWindowImp::DrawChar(const char c, GUIPoint &pos,
 #endif
 }
 
-void NodeGUIWindowImp::DrawString(const char *string, GUIPoint &pos,
-                                         GUITextProperties &p, bool overlay) {
+void NodeGUIWindowImp::DrawString(const char *string, const GUIPoint &pos,
+                                  const GUITextProperties &p, bool overlay) {
   Trace::Debug("draw string");
   display_set_cursor(pos._x, pos._y);
   display_print(string, p.invert_);

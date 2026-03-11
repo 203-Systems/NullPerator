@@ -14,20 +14,22 @@ public:
   virtual ~NodeGUIWindowImp();
 
 public: // I_GUIWindowImp implementation
-  virtual void SetColor(GUIColor &);
-  virtual void DrawRect(GUIRect &);
-  virtual void DrawChar(const char c, GUIPoint &pos, GUITextProperties &);
-  virtual void DrawString(const char *string, GUIPoint &pos,
-                          GUITextProperties &, bool overlay = false);
+  virtual void SetColor(GUIColor &) override;
+  virtual void DrawRect(GUIRect &) override;
+  virtual void DrawChar(const char c, const GUIPoint &pos,
+                        const GUITextProperties &props) override;
+  virtual void DrawString(const char *string, const GUIPoint &pos,
+                          const GUITextProperties &props,
+                          bool overlay = false) override;
   virtual void ClearTextRect(GUIRect &r) override;
-  virtual GUIRect GetRect();
-  virtual void Invalidate();
-  virtual void Flush();
-  virtual void Lock();
-  virtual void Unlock();
-  virtual void Clear(GUIColor &, bool overlay = false);
+  virtual GUIRect GetRect() override;
+  virtual void Invalidate() override;
+  virtual void Flush() override;
+  virtual void Lock() override;
+  virtual void Unlock() override;
+  virtual void Clear(GUIColor &, bool overlay = false) override;
   virtual void ClearRect(GUIRect &);
-  virtual void PushEvent(GUIEvent &event);
+  virtual void PushEvent(GUIEvent &event) override;
 
   static void ProcessEvent(NodeEvent &event);
   static void ProcessButtonChange(uint16_t changeMask, uint16_t buttonMask);
@@ -35,7 +37,7 @@ public: // I_GUIWindowImp implementation
 protected:
   static color_t GetColor(GUIColor &c);
 
-  virtual void Update(Observable &o, I_ObservableData *d);
+  virtual void Update(Observable &o, I_ObservableData *d) override;
 
 private:
   bool remoteUIEnabled_ = 0;

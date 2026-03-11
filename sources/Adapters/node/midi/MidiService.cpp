@@ -1,16 +1,14 @@
 
 #include "MidiService.h"
-#include "MidiDevice.h"
-#include "USBMidiDevice.h"
 
-NodeMidiService::NodeMidiService(){};
+NodeMidiService::NodeMidiService()
+    : midiOutDevice_("MIDI OUT"), usbMidiOutDevice_("USB"),
+      midiInDevice_("MIDI IN") {
+  outList_.insert(outList_.end(), &midiOutDevice_);
+  outList_.insert(outList_.end(), &usbMidiOutDevice_);
+  inList_.insert(inList_.end(), &midiInDevice_);
+}
 
 NodeMidiService::~NodeMidiService(){};
 
-void NodeMidiService::buildDriverList() {
-  // create a midi device for each of Midi Output device
-  MidiOutDevice *dev = new NodeMidiOutDevice("MIDI OUT 1");
-  outList_.insert(outList_.end(), dev);
-  dev = new NodeUSBMidiOutDevice("USB");
-  outList_.insert(outList_.end(), dev);
-};
+void NodeMidiService::poll() { midiInDevice_.poll(); }

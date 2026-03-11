@@ -53,15 +53,15 @@ int NodeSystem::MainLoop() {
 void NodeSystem::Boot(int argc, char **argv) {
 
   // Install System
-  static char systemMemBuf[sizeof(NodeSystem)];
+  alignas(NodeSystem) static char systemMemBuf[sizeof(NodeSystem)];
   System::Install(new (systemMemBuf) NodeSystem());
 
   // Install GUI Factory
-  static char guiMemBuf[sizeof(GUIFactory)];
+  alignas(GUIFactory) static char guiMemBuf[sizeof(GUIFactory)];
   I_GUIWindowFactory::Install(new (guiMemBuf) GUIFactory());
 
   // Install Timers
-  static char timerMemBuf[sizeof(NodeTimerService)];
+  alignas(NodeTimerService) static char timerMemBuf[sizeof(NodeTimerService)];
   TimerService::GetInstance()->Install(new (timerMemBuf)
                                            NodeTimerService());
 
@@ -79,10 +79,10 @@ void NodeSystem::Boot(int argc, char **argv) {
   // reading config file and config file needs to have MidiService already
   // installed in order to apply midi settings read from the config file
 #ifdef DUMMY_MIDI
-  static char midiMemBuf[sizeof(DummyMidi)];
+  alignas(DummyMidi) static char midiMemBuf[sizeof(DummyMidi)];
   MidiService::Install(new (midiMemBuf) DummyMidi());
 #else
-  static char midiMemBuf[sizeof(NodeMidiService)];
+  alignas(NodeMidiService) static char midiMemBuf[sizeof(NodeMidiService)];
   MidiService::Install(new (midiMemBuf) NodeMidiService());
 #endif
 
@@ -90,7 +90,7 @@ void NodeSystem::Boot(int argc, char **argv) {
   AudioSettings hint;
   hint.bufferSize_ = 1024;
   hint.preBufferCount_ = 8;
-  static char audioMemBuf[sizeof(NodeAudio)];
+  alignas(NodeAudio) static char audioMemBuf[sizeof(NodeAudio)];
   Audio::Install(new (audioMemBuf) NodeAudio(hint));
 
   // Install SamplePool
@@ -178,18 +178,6 @@ void NodeSystem::Sleep(int millisec) {
     return;
   }
   vTaskDelay(pdMS_TO_TICKS(millisec));
-}
-
-void *NodeSystem::Malloc(unsigned size) { return malloc(size); }
-
-void NodeSystem::Free(void *ptr) { free(ptr); }
-
-void NodeSystem::Memset(void *addr, char value, int size) {
-  memset(addr, value, size);
-}
-
-void *NodeSystem::Memcpy(void *s1, const void *s2, int n) {
-  return memcpy(s1, s2, n);
 }
 
 void NodeSystem::PostQuitMessage() { eventManager_->PostQuitMessage(); }

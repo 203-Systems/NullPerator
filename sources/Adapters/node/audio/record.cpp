@@ -20,6 +20,12 @@ bool StartRecording(const char * /*filename*/, uint8_t /*threshold*/,
 
 void StopRecording() {}
 
+void RequestStopRecording() {}
+
+bool WaitForRecordingStop(uint32_t /*timeoutMs*/) { return true; }
+
+void FinishStopRecording() {}
+
 void StartMonitoring() {}
 
 void StopMonitoring() {}
@@ -31,3 +37,9 @@ void SetLineInGain(uint8_t /*gainDb*/) {}
 void SetMicGain(uint8_t /*gainDb*/) {}
 
 bool IsRecordingActive() { return false; }
+
+bool IsSavingRecording() { return false; }
+
+uint8_t GetSavingProgressPercent() { return 0; }
+
+bool DidLastRecordingCaptureAudio() { return false; }

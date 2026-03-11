@@ -19,10 +19,6 @@ public: // System implementation
   virtual unsigned long GetClock() override;
   virtual void GetBatteryState(BatteryState &state) override;
   virtual void SetDisplayBrightness(unsigned char value) override;
-  virtual void *Malloc(unsigned size) override;
-  virtual void Free(void *) override;
-  virtual void Memset(void *addr, char value, int size) override;
-  virtual void *Memcpy(void *s1, const void *s2, int n) override;
   virtual void PostQuitMessage() override;
   virtual unsigned int GetMemoryUsage() override;
   virtual void PowerDown() override;

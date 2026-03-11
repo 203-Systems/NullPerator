@@ -2,14 +2,21 @@
 #define _NODEMIDISERVICE_H_
 
 #include "Services/Midi/MidiService.h"
+#include "MidiDevice.h"
+#include "MidiInDevice.h"
+#include "USBMidiDevice.h"
 
 class NodeMidiService : public MidiService {
 public:
   NodeMidiService();
   ~NodeMidiService();
 
-protected:
-  virtual void buildDriverList();
+  void poll();
+
+private:
+  NodeMidiOutDevice midiOutDevice_;
+  NodeUSBMidiOutDevice usbMidiOutDevice_;
+  NodeMidiInDevice midiInDevice_;
 };
 
 #endif
