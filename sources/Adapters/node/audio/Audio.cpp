@@ -23,18 +23,19 @@ void NodeAudio::Init() {
 
   alignas(AudioOutDriver) static uint8_t audioOutDriver[sizeof(AudioOutDriver)];
   AudioOutDriver *out = new (audioOutDriver) AudioOutDriver(*drv);
-  Insert(out);
+  AddOutput(*out);
 }
 
 void NodeAudio::Close() {
-  for (Begin(); !IsDone(); Next()) {
-    AudioOut &current = CurrentItem();
-    current.Close();
+  for (auto *out : Outputs()) {
+    if (out) {
+      out->Close();
+    }
   }
 }
 
 void NodeAudio::SetMixerVolume(int v) {
-  AudioOutDriver *out = static_cast<AudioOutDriver *>(GetFirst());
+  AudioOutDriver *out = static_cast<AudioOutDriver *>(GetFirstOutput());
   if (out) {
     NodeAudioDriver *drv = static_cast<NodeAudioDriver *>(out->GetDriver());
     drv->SetVolume(v);
@@ -42,7 +43,7 @@ void NodeAudio::SetMixerVolume(int v) {
 }
 
 int NodeAudio::GetMixerVolume() {
-  AudioOutDriver *out = static_cast<AudioOutDriver *>(GetFirst());
+  AudioOutDriver *out = static_cast<AudioOutDriver *>(GetFirstOutput());
   if (out) {
     NodeAudioDriver *drv = static_cast<NodeAudioDriver *>(out->GetDriver());
     return drv->GetVolume();

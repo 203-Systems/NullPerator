@@ -122,17 +122,17 @@ NodeFileSystem::NodeFileSystem() {
   MountCard();
 }
 
-I_File *NodeFileSystem::Open(const char *name, const char *mode) {
+FileHandle NodeFileSystem::Open(const char *name, const char *mode) {
   std::lock_guard<std::mutex> lock(mutex_);
   if (!MountCard()) {
-    return nullptr;
+    return FileHandle();
   }
   std::string full = ResolvePath(cwd_, name);
   // If writing/creating, ensure parent directories exist.
   if (mode && (strchr(mode, 'w') || strchr(mode, 'a') || strchr(mode, '+'))) {
     if (!EnsureParentDirs(full)) {
       Trace::Error("FILESYSTEM", "EnsureParentDirs failed: %s errno:%d (%s)", full.c_str(), errno, strerror(errno));
-      return nullptr;
+      return FileHandle();
     }
   }
   FILE *f = fopen(full.c_str(), mode);
@@ -151,13 +151,13 @@ I_File *NodeFileSystem::Open(const char *name, const char *mode) {
         f = fopen(alt.c_str(), mode);
         if (f != nullptr) {
           Trace::Log("FILESYSTEM", "Open succeeded without mount prefix: %s", alt.c_str());
-          return new VfsFile(f);
+          return MakeFileHandle(new VfsFile(f));
         }
       }
     }
-    return nullptr;
+    return FileHandle();
   }
-  return new VfsFile(f);
+  return MakeFileHandle(new VfsFile(f));
 }
 
 bool NodeFileSystem::chdir(const char *path) {
@@ -184,7 +184,8 @@ bool NodeFileSystem::chdir(const char *path) {
   return false;
 }
 
-void NodeFileSystem::RefreshDir(const char *filter, bool subDirOnly) {
+void NodeFileSystem::RefreshDir(const char *filter, bool subDirOnly,
+                                bool includeHidden) {
   entries_.clear();
   DIR *dir = opendir(cwd_.c_str());
   if (!dir) {
@@ -201,6 +202,10 @@ void NodeFileSystem::RefreshDir(const char *filter, bool subDirOnly) {
     std::string name(ent->d_name);
     bool isDir = (ent->d_type == DT_DIR);
     if (subDirOnly && !isDir) {
+      continue;
+    }
+    const bool isHidden = !name.empty() && name.front() == '.';
+    if (!includeHidden && isHidden) {
       continue;
     }
     if (filter && *filter) {
@@ -225,15 +230,18 @@ void NodeFileSystem::RefreshDir(const char *filter, bool subDirOnly) {
   closedir(dir);
 }
 
-void NodeFileSystem::list(etl::ivector<int> *fileIndexes,
-                           const char *filter, bool subDirOnly) {
+void NodeFileSystem::list(etl::ivector<int> *fileIndexes, const char *filter,
+                          bool subDirOnly, bool includeHidden) {
   std::lock_guard<std::mutex> lock(mutex_);
   if (fileIndexes != nullptr) {
     fileIndexes->clear();
   }
-  RefreshDir(filter, subDirOnly);
+  RefreshDir(filter, subDirOnly, includeHidden);
   if (fileIndexes != nullptr) {
     for (size_t i = 0; i < entries_.size(); ++i) {
+      if (fileIndexes->full()) {
+        break;
+      }
       fileIndexes->push_back(static_cast<int>(i));
     }
   }
@@ -348,6 +356,18 @@ bool NodeFileSystem::CopyFile(const char *src, const char *dest) {
   return true;
 }
 
+bool NodeFileSystem::MoveFile(const char *src, const char *dest) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  std::string source = ResolvePath(cwd_, src);
+  std::string target = ResolvePath(cwd_, dest);
+  if (!EnsureParentDirs(target)) {
+    return false;
+  }
+  return rename(source.c_str(), target.c_str()) == 0;
+}
+
+bool NodeFileSystem::isExFat() { return false; }
+
 // -------- VfsFile -----------
 
 VfsFile::VfsFile(FILE *f) : f_(f) {}
@@ -369,3 +389,4 @@ bool VfsFile::Close() {
 }
 int VfsFile::Error() { return f_ ? ferror(f_) : -1; }
 bool VfsFile::Sync() { return f_ ? (fflush(f_) == 0) : false; }
+void VfsFile::Dispose() { delete this; }

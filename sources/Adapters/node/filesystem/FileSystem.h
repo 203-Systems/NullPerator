@@ -20,10 +20,10 @@ public:
   NodeFileSystem();
   ~NodeFileSystem() override = default;
 
-  I_File *Open(const char *name, const char *mode) override;
+  FileHandle Open(const char *name, const char *mode) override;
   bool chdir(const char *path) override;
   void list(etl::ivector<int> *fileIndexes, const char *filter,
-            bool subDirOnly) override;
+            bool subDirOnly, bool includeHidden = false) override;
   void getFileName(int index, char *name, int length) override;
   PicoFileType getFileType(int index) override;
   bool isParentRoot() override;
@@ -34,9 +34,11 @@ public:
   bool makeDir(const char *path, bool pFlag = false) override;
   uint64_t getFileSize(int index) override;
   bool CopyFile(const char *src, const char *dest) override;
+  bool MoveFile(const char *src, const char *dest) override;
+  bool isExFat() override;
 
 private:
-  void RefreshDir(const char *filter, bool subDirOnly);
+  void RefreshDir(const char *filter, bool subDirOnly, bool includeHidden);
 
   std::mutex mutex_;
   std::string cwd_;
@@ -61,6 +63,7 @@ public:
   int Error() override;
   bool Sync() override;
   bool Close() override;
+  void Dispose() override;
 
 private:
   FILE *f_;

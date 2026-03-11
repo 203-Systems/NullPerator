@@ -5,7 +5,7 @@
 GUIFactory::GUIFactory(){};
 
 I_GUIWindowImp &GUIFactory::CreateWindowImp(GUICreateWindowParams &p) {
-  static char guiImpMemBuf[sizeof(NodeGUIWindowImp)];
+  alignas(NodeGUIWindowImp) static char guiImpMemBuf[sizeof(NodeGUIWindowImp)];
   return *(new (guiImpMemBuf) NodeGUIWindowImp(p));
 }
 
