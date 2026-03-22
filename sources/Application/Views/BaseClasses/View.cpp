@@ -202,14 +202,13 @@ void View::drawMap() {
 
 void View::drawNotes() {
   GUIPoint anchor = GetAnchor();
-  int initialX = View::margin_ + 5;
+  int initialX = 1;
   int initialY = anchor._y + View::songRowCount_ + 2;
   GUIPoint pos(initialX, initialY);
   GUITextProperties props;
 
   Player *player = Player::GetInstance();
 
-  props.invert_ = true;
   for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {
     if (i == viewData_->songX_) {
       SetColor(CD_HILITE2);
@@ -226,18 +225,12 @@ void View::drawNotes() {
         sliceBuffer[1] = static_cast<char>('0' + (sliceIndex % 10));
         sliceBuffer[2] = '\0';
         DrawString(pos._x, pos._y, sliceBuffer, props);
-        pos._y++;
-        DrawString(pos._x, pos._y, player->GetPlayedInstrument(i),
-                   props); // draw instrument number
       } else {
         DrawString(pos._x, pos._y, player->GetPlayedNote(i),
                    props); // row for the note values
         pos._y++;
         DrawString(pos._x, pos._y, player->GetPlayedOctive(i),
                    props); // row for the octive values
-        pos._y++;
-        DrawString(pos._x, pos._y, player->GetPlayedInstrument(i),
-                   props); // draw instrument number
       }
     } else {
       DrawString(pos._x, pos._y, "  ", props); // row for the note
@@ -245,9 +238,10 @@ void View::drawNotes() {
       pos._y++;
       DrawString(pos._x, pos._y, "  ",
                  props); // row for the octive values
-      pos._y++;
-      DrawString(pos._x, pos._y, "  ", props); // draw instrument number
     }
+    pos._y++;
+    char trackStr[3] = {'0', static_cast<char>('1' + i), '\0'};
+    DrawString(pos._x, pos._y, trackStr, props);
     pos._y = initialY;
     pos._x += 3;
   }
