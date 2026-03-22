@@ -9,7 +9,7 @@
 
 /* Character graphics mode */
 
-#define TEXT_WIDTH 32
+#define TEXT_WIDTH 30
 #define TEXT_HEIGHT 24
 #define CHAR_HEIGHT 10
 #define CHAR_WIDTH 8
