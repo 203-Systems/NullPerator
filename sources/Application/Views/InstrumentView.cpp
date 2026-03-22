@@ -974,6 +974,7 @@ void InstrumentView::DrawView() {
 
   GUITextProperties props;
   GUIPoint pos = GetTitlePosition();
+  pos._y -= 1;
 
   // Draw title
 

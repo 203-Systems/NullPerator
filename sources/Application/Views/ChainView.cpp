@@ -695,13 +695,25 @@ void ChainView::DrawView() {
 
   GUIPoint anchor = GetAnchor();
 
+  const char *labels[] = {"PH", "TR"};
+  pos = anchor;
+  SetColor(viewData_->chainCol_ == 0 ? CD_HILITE2 : CD_HILITE1);
+  DrawString(pos._x, pos._y, labels[0], props);
+  pos._x += 3;
+  SetColor(viewData_->chainCol_ == 1 ? CD_HILITE2 : CD_HILITE1);
+  DrawString(pos._x, pos._y, labels[1], props);
+
   // Display row numbers
-  SetColor(CD_HILITE1);
   char row[3];
   pos = anchor;
   pos._x -= 3;
+  pos._y += 1;
   for (int j = 0; j < 16; j++) {
-    ((j / ALT_ROW_NUMBER) % 2) ? SetColor(CD_ACCENT) : SetColor(CD_ACCENTALT);
+    if (j == viewData_->chainRow_) {
+      SetColor(CD_HILITE2);
+    } else {
+      ((j % ALT_ROW_NUMBER) == 0) ? SetColor(CD_ACCENT) : SetColor(CD_ACCENTALT);
+    }
     hex2char(j, row);
     DrawString(pos._x, pos._y, row, props);
     pos._y += 1;
@@ -714,6 +726,7 @@ void ChainView::DrawView() {
   // Display phrases
 
   pos = anchor;
+  pos._y += 1;
 
   unsigned char *data =
       viewData_->song_->chain_.data_ + (16 * viewData_->currentChain_);
@@ -722,8 +735,10 @@ void ChainView::DrawView() {
     unsigned char d = *data++;
     setTextProps(props, 0, j, false);
     if (d == 0xFF) {
+      SetColor(CD_RESERVED2);
       DrawString(pos._x, pos._y, "--", props);
     } else {
+      SetColor(CD_NORMAL);
       hex2char(d, row);
       DrawString(pos._x, pos._y, row, props);
     }
@@ -735,6 +750,7 @@ void ChainView::DrawView() {
 
   pos = anchor;
   pos._x += 3;
+  pos._y += 1;
 
   data = viewData_->song_->chain_.transpose_ + (16 * viewData_->currentChain_);
 
@@ -798,10 +814,10 @@ void ChainView::AnimationUpdate() {
     SetColor(CD_NORMAL);
 
     // Clear last played & queued
-    pos._y = anchor._y + lastPlayingPos_;
+    pos._y = anchor._y + lastPlayingPos_ + 1;
     DrawString(pos._x, pos._y, " ", props);
 
-    pos._y = anchor._y + lastQueuedPos_;
+    pos._y = anchor._y + lastQueuedPos_ + 1;
     DrawString(pos._x, pos._y, " ", props);
 
     // Only update play position if player is running
@@ -811,7 +827,7 @@ void ChainView::AnimationUpdate() {
         if (player->IsChannelPlaying(i)) {
           if (viewData_->currentPlayChain_[i] == viewData_->currentChain_ &&
               viewData_->playMode_ != PM_AUDITION) {
-            pos._y = anchor._y + viewData_->chainPlayPos_[i];
+            pos._y = anchor._y + viewData_->chainPlayPos_[i] + 1;
             if (!player->IsChannelMuted(i)) {
               SetColor(CD_ACCENT);
               DrawString(pos._x, pos._y, ">", props);
@@ -837,7 +853,7 @@ void ChainView::AnimationUpdate() {
               viewData_->song_->data_ + i + SONG_CHANNEL_COUNT * songPos;
           if (*chain == viewData_->currentChain_) {
             unsigned char chainPos = player->GetQueueChainPosition(i);
-            pos._y = anchor._y + chainPos;
+            pos._y = anchor._y + chainPos + 1;
             const char *indicator = player->GetLiveIndicator(i);
             DrawString(pos._x, pos._y, indicator, props);
             lastQueuedPos_ = chainPos;
