@@ -5,7 +5,14 @@
 
 uint16_t key_cache = 0xFFFF;
 uint32_t menu_active_since = 0;
+uint32_t start_pressed_since = 0;
+bool start_short_tap_candidate = false;
+bool start_nav_active = false;
+bool start_play_pulse_pending = false;
+bool start_started_with_alt = false;
+bool prev_start_pressed = false;
 #define SLEEP_HOLD_TIME 1000
+#define START_TAP_TIME_MS 200
 
 uint16_t scanKeys() {
 #ifdef USB_REMOTE_UI_INPUT
@@ -63,11 +70,61 @@ uint16_t scanKeys() {
   remapped |= ((key_input & (1u << INPUT_B)) ? KEY_EDIT : 0u);
   remapped |= ((key_input & (1u << INPUT_A)) ? KEY_ENTER : 0u);
 
-  remapped |= ((key_input & (1u << INPUT_SELECT)) ? KEY_ALT : 0u);
-  remapped |= ((key_input & (1u << INPUT_START)) ? KEY_NAV : 0u);
+  const bool alt_pressed = (key_input & (1u << INPUT_SELECT)) != 0;
+  remapped |= (alt_pressed ? KEY_ALT : 0u);
 
-  // Preserve existing behavior: MENU also maps to KEY_PLAY.
-  remapped |= static_cast<uint16_t>(menu) << 8;
+  // Treat a quick standalone START tap as a one-shot KEY_PLAY pulse.
+  // Longer holds, or START combined with any other key, keep the original
+  // KEY_NAV behavior. If ALT was already held when START went down, route the
+  // held START behavior to KEY_PLAY instead of KEY_NAV.
+  const bool start_pressed = (key_input & (1u << INPUT_START)) != 0;
+  const uint16_t other_keys = remapped;
+  const uint32_t now = esp_log_timestamp();
+
+  if (start_pressed) {
+    if (!prev_start_pressed) {
+      start_started_with_alt = alt_pressed;
+    }
+
+    if (!start_short_tap_candidate && !start_nav_active) {
+      if (other_keys == 0u) {
+        start_short_tap_candidate = true;
+        start_pressed_since = now;
+      } else {
+        start_nav_active = true;
+      }
+    }
+
+    if (start_short_tap_candidate) {
+      const bool chord_started = other_keys != 0u;
+      const bool hold_expired = (now - start_pressed_since) >= START_TAP_TIME_MS;
+      if (chord_started || hold_expired) {
+        start_short_tap_candidate = false;
+        start_nav_active = true;
+      }
+    }
+  } else {
+    if (start_short_tap_candidate) {
+      if ((other_keys == 0u) && ((now - start_pressed_since) < START_TAP_TIME_MS)) {
+        start_play_pulse_pending = true;
+      }
+      start_short_tap_candidate = false;
+    }
+    start_nav_active = false;
+    start_started_with_alt = false;
+  }
+
+  if (start_nav_active) {
+    remapped |= (start_started_with_alt ? KEY_PLAY : KEY_NAV);
+  }
+
+  // // Preserve existing behavior: MENU also maps to KEY_PLAY.
+  // remapped |= static_cast<uint16_t>(menu) << 8;
+
+  if (start_play_pulse_pending) {
+    remapped |= KEY_PLAY;
+    start_play_pulse_pending = false;
+  }
 
   if (__builtin_popcount(remapped ^ key_cache) > 3 && (key_cache != 0xFFFF)) {
     return key_cache;
@@ -78,6 +135,8 @@ uint16_t scanKeys() {
              remapped);
     key_cache = remapped;
   }
+
+  prev_start_pressed = start_pressed;
 
   return remapped;
 }
