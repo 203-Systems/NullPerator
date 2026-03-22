@@ -11,7 +11,7 @@ bool start_nav_active = false;
 bool start_play_pulse_pending = false;
 bool start_started_with_alt = false;
 bool prev_start_pressed = false;
-#define SLEEP_HOLD_TIME 1000
+#define SLEEP_HOLD_TIME 2000
 #define START_TAP_TIME_MS 200
 
 uint16_t scanKeys() {
