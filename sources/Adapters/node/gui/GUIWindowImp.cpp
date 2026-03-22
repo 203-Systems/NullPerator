@@ -11,6 +11,7 @@
 #ifdef USB_REMOTE_UI
 #include "RemoteUI.h"
 #endif
+#include "freertos/semphr.h"
 #include <string>
 #include "esp_log.h"
 
@@ -34,10 +35,15 @@ static GUIEventPadButtonType eventMappingPico[10] = {
 static GUIEventPadButtonType *eventMapping = eventMappingPico;
 
 NodeGUIWindowImp *instance_;
+static SemaphoreHandle_t s_displayMutex = nullptr;
 
 NodeGUIWindowImp::NodeGUIWindowImp(GUICreateWindowParams &p) {
   display_init();
   instance_ = this;
+  if (s_displayMutex == nullptr) {
+    s_displayMutex = xSemaphoreCreateRecursiveMutex();
+    configASSERT(s_displayMutex != nullptr);
+  }
 
   Config *config = Config::GetInstance();
 
@@ -93,6 +99,7 @@ void NodeGUIWindowImp::DrawRect(GUIRect &r) {
 void NodeGUIWindowImp::ClearTextRect(GUIRect &r) { ClearRect(r); }
 
 void NodeGUIWindowImp::Clear(GUIColor &c, bool overlay) {
+  Lock();
   color_t backgroundColor = GetColor(c);
   display_set_background(backgroundColor);
   display_clear(backgroundColor);
@@ -105,6 +112,7 @@ void NodeGUIWindowImp::Clear(GUIColor &c, bool overlay) {
     sendToUSBCDC(remoteUIBuffer, 3);
   }
 #endif
+  Unlock();
 };
 
 void NodeGUIWindowImp::ClearRect(GUIRect &r) {
@@ -131,11 +139,23 @@ void NodeGUIWindowImp::SetColor(GUIColor &c) {
 #endif
 };
 
-void NodeGUIWindowImp::Lock(){};
+void NodeGUIWindowImp::Lock() {
+  if (s_displayMutex != nullptr) {
+    xSemaphoreTakeRecursive(s_displayMutex, portMAX_DELAY);
+  }
+};
 
-void NodeGUIWindowImp::Unlock(){};
+void NodeGUIWindowImp::Unlock() {
+  if (s_displayMutex != nullptr) {
+    xSemaphoreGiveRecursive(s_displayMutex);
+  }
+};
 
-void NodeGUIWindowImp::Flush() { display_draw_changed(); };
+void NodeGUIWindowImp::Flush() {
+  Lock();
+  display_draw_changed();
+  Unlock();
+};
 
 void NodeGUIWindowImp::Invalidate() {
   NodeEventManager::PostEvent(PICO_REDRAW);
