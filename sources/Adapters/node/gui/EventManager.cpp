@@ -51,6 +51,10 @@ int NodeEventManager::MainLoop() {
   // and USB. ESP-IDF has already started the scheduler, so we only create tasks
   // and then block forever.
   static constexpr uint32_t kEventQueueLength = 32;
+  static constexpr uint32_t kInputTaskStackBytes = 4096;
+  static constexpr uint32_t kEventTaskStackBytes = 8192;
+  static constexpr uint32_t kSerialTaskStackBytes = 2048;
+  static constexpr uint32_t kUsbTaskStackBytes = 2048;
   eventQueue_ = xQueueCreate(kEventQueueLength, sizeof(NodeEvent));
   if (!eventQueue_) {
     ESP_LOGE("NODE", "Failed to create event queue");
@@ -67,15 +71,15 @@ int NodeEventManager::MainLoop() {
   (void)xTimerStart(timer_, pdMS_TO_TICKS(100));
 
   // Tasks: keep names and roles aligned with ADV.
-  (void)xTaskCreate(NodeEventManager::ProcessInputEvent, "InEvent", 4096, NULL,
-                    tskIDLE_PRIORITY + 2, NULL);
+  (void)xTaskCreate(NodeEventManager::ProcessInputEvent, "InEvent",
+                    kInputTaskStackBytes, NULL, tskIDLE_PRIORITY + 2, NULL);
 #ifdef SERIAL_REPL
   (void)xTaskCreate(NodeEventManager::ProcessSerialInputEvent, "SerialInEvent",
-                    2048, NULL, tskIDLE_PRIORITY + 2, NULL);
+                    kSerialTaskStackBytes, NULL, tskIDLE_PRIORITY + 2, NULL);
 #endif
-  (void)xTaskCreate(NodeEventManager::ProcessEvent, "ProcEvent", 4096, NULL,
-                    tskIDLE_PRIORITY + 1, NULL);
-  (void)xTaskCreate(NodeEventManager::USBDevice, "USB Device", 2048, NULL,
+  (void)xTaskCreate(NodeEventManager::ProcessEvent, "ProcEvent",
+                    kEventTaskStackBytes, NULL, tskIDLE_PRIORITY + 1, NULL);
+  (void)xTaskCreate(NodeEventManager::USBDevice, "USB Device", kUsbTaskStackBytes, NULL,
                     tskIDLE_PRIORITY + 2, NULL);
 
   for (;;) {
