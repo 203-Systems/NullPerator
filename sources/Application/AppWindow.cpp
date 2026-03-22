@@ -950,7 +950,7 @@ void AppWindow::PrintMultiLine(char *line) {
   GUITextProperties props;
   SetColor(CD_NORMAL);
 
-  int current_y = 11; // Start near the middle of the screen
+  int current_y = 20; // Start near the bottom of the screen
 
   // Handle single line case for Print function
   bool isSingleLine = (line != nullptr && strchr(line, '\n') == nullptr);
@@ -960,18 +960,18 @@ void AppWindow::PrintMultiLine(char *line) {
   int lineCount = 0;
 
   while (token != NULL) {
-    // Stop if we are about to overwrite the build string line
-    if (current_y >= 22) {
-      break;
-    }
+    // // Stop if we are about to overwrite the build string line
+    // if (current_y >= 22) {
+    //   break;
+    // }
 
-    // For single line, center it at position 12 instead of starting at 11
-    if (isSingleLine && lineCount == 0) {
-      current_y = 12;
-    }
+    // // For single line, center it at position 12 instead of starting at 11
+    // if (isSingleLine && lineCount == 0) {
+    //   current_y = 20;
+    // }
 
     // Horizontally center the current line of text
-    int position = 32; // Assumes a screen width of 32 characters
+    int position = 30; // Assumes a screen width of 30 characters
     position -= strlen(token);
     position /= 2;
 
