@@ -922,6 +922,7 @@ void SongView::DrawView() {
         props.invert_ = true;
       }
       if (d == 0xFF) {
+        SetColor(CD_ACCENTALT);
         DrawString(pos._x, pos._y, "--", props);
       } else {
         hex2char(d, row);
