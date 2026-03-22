@@ -139,7 +139,7 @@ inline void display_draw_sub_region(uint8_t x, uint8_t y, uint8_t width,
         uint16_t bg_color = palette[colors[idx] & 0xf];
 
         uint16_t const *pixel_data = (ui_font_index == 0)
-                                         ? FONT_HOURGLASS_BITMAP[character]
+                                         ? FONT_STEALTH57_BITMAP[character]
                                          : FONT_YOU_SQUARED_BITMAP[character];
 
         // draw the character into the buffer
