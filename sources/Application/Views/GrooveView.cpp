@@ -170,13 +170,22 @@ void GrooveView::DrawView() {
 
   GUIPoint anchor = GetAnchor();
 
+  // Display label
+  pos = anchor;
+  SetColor(CD_HILITE2);
+  DrawString(pos._x, pos._y, "G", props);
+
   // Display row numbers
-  SetColor(CD_HILITE1);
   char buffer[6];
   pos = anchor;
   pos._x -= 3;
+  pos._y += 1;
   for (int j = 0; j < 16; j++) {
-    ((j / ALT_ROW_NUMBER) % 2) ? SetColor(CD_ACCENT) : SetColor(CD_ACCENTALT);
+    if (j == position_) {
+      SetColor(CD_HILITE2);
+    } else {
+      ((j % ALT_ROW_NUMBER) == 0) ? SetColor(CD_ACCENT) : SetColor(CD_ACCENTALT);
+    }
     hex2char(j, buffer);
     DrawString(pos._x, pos._y, buffer, props);
     pos._y++;
@@ -184,6 +193,7 @@ void GrooveView::DrawView() {
 
   // Display current groove
   pos = anchor;
+  pos._y += 1;
   SetColor(CD_NORMAL);
 
   unsigned char *grooveData =
@@ -211,7 +221,7 @@ void GrooveView::OnPlayerUpdate(PlayerEventType, unsigned int tick) {
   GUIPoint pos;
 
   pos._x = anchor._x - 1;
-  pos._y = anchor._y + lastPosition_;
+  pos._y = anchor._y + lastPosition_ + 1;
   DrawString(pos._x, pos._y, " ", props);
 
   Groove *gr = Groove::GetInstance();
@@ -227,7 +237,7 @@ void GrooveView::OnPlayerUpdate(PlayerEventType, unsigned int tick) {
       viewData_->playMode_ != PM_AUDITION) {
     lastPosition_ = groovepos;
     pos._x = anchor._x - 1;
-    pos._y = anchor._y + lastPosition_;
+    pos._y = anchor._y + lastPosition_ + 1;
     SetColor(CD_ACCENT);
     DrawString(pos._x, pos._y, ">", props);
     SetColor(CD_NORMAL);

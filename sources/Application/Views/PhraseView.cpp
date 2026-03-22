@@ -151,14 +151,14 @@ void PhraseView::updateCursor(int dx, int dy) {
   switch (col_) {
   case 3:
     p._x += 12;
-    p._y += row_;
+    p._y += row_ + 1;
     cmdEditField_.SetPosition(p);
     cmdEdit_.SetInt(
         *(phrase_->param1_ + (16 * viewData_->currentPhrase_ + row_)));
     break;
   case 5:
     p._x += 21;
-    p._y += row_;
+    p._y += row_ + 1;
     cmdEditField_.SetPosition(p);
     cmdEdit_.SetInt(
         *(phrase_->param2_ + (16 * viewData_->currentPhrase_ + row_)));
@@ -1220,20 +1220,33 @@ void PhraseView::DrawView() {
 
   // Display row numbers
 
-  SetColor(CD_HILITE1);
   char buffer[6];
   pos = anchor;
   pos._x -= 3;
+  pos._y += 1;
   for (int j = 0; j < 16; j++) {
-    ((j / ALT_ROW_NUMBER) % 2) ? SetColor(CD_ACCENT) : SetColor(CD_ACCENTALT);
+    if (j == row_) {
+      SetColor(CD_HILITE2);
+    } else {
+      ((j % ALT_ROW_NUMBER) == 0) ? SetColor(CD_ACCENT) : SetColor(CD_ACCENTALT);
+    }
     hex2char(j, buffer);
     DrawString(pos._x, pos._y, buffer, props);
     pos._y++;
   }
 
+  const char *labels[] = {"NOTE", "INS", "FX1", "    ", "FX2", "    "};
+  pos = anchor;
+  for (int i = 0; i < 6; ++i) {
+    SetColor(i == col_ ? CD_HILITE2 : CD_HILITE1);
+    DrawString(pos._x, pos._y, labels[i], props);
+    pos._x += static_cast<int>(strlen(labels[i])) + 1;
+  }
+
   SetColor(CD_NORMAL);
 
   pos = anchor;
+  pos._y += 1;
 
   // Display notes
   unsigned char *data = phrase_->note_ + (16 * viewData_->currentPhrase_);
@@ -1253,6 +1266,7 @@ void PhraseView::DrawView() {
     (0 == j || 4 == j || 8 == j || 12 == j) ? SetColor(CD_HILITE1)
                                             : SetColor(CD_NORMAL);
     if (d == NO_NOTE) {
+      SetColor(CD_RESERVED2);
       DrawString(pos._x, pos._y, "----", props);
     } else if (d == NOTE_OFF) {
       DrawString(pos._x, pos._y, "off ", props);
@@ -1292,7 +1306,8 @@ void PhraseView::DrawView() {
 
   // Draw instruments
   pos = anchor;
-  pos._x += 4;
+  pos._x += 5;
+  pos._y += 1;
 
   data = phrase_->instr_ + (16 * viewData_->currentPhrase_);
   buffer[0] = 'I';
@@ -1302,8 +1317,10 @@ void PhraseView::DrawView() {
     unsigned char d = *data++;
     setTextProps(props, 1, j, false);
     if (d == 0xFF) {
+      SetColor(CD_RESERVED2);
       DrawString(pos._x, pos._y, "I--", props);
     } else {
+      SetColor(CD_NORMAL);
       hex2char(d, buffer + 1);
       DrawString(pos._x, pos._y, buffer, props);
       if (j == row_) {
@@ -1325,7 +1342,8 @@ void PhraseView::DrawView() {
   // Draw command 1
 
   pos = anchor;
-  pos._x += 8;
+  pos._x += 9;
+  pos._y += 1;
 
   FourCC *f = phrase_->cmd1_ + (16 * viewData_->currentPhrase_);
 
@@ -1343,7 +1361,8 @@ void PhraseView::DrawView() {
   // Draw commands params 1
 
   pos = anchor;
-  pos._x += 12;
+  pos._x += 13;
+  pos._y += 1;
 
   ushort *param = phrase_->param1_ + (16 * viewData_->currentPhrase_);
   buffer[5] = 0;
@@ -1366,7 +1385,8 @@ void PhraseView::DrawView() {
   // Draw commands 2
 
   pos = anchor;
-  pos._x += 17;
+  pos._x += 18;
+  pos._y += 1;
 
   f = phrase_->cmd2_ + (16 * viewData_->currentPhrase_);
 
@@ -1384,7 +1404,8 @@ void PhraseView::DrawView() {
   // Draw commands params
 
   pos = anchor;
-  pos._x += 21;
+  pos._x += 22;
+  pos._y += 1;
 
   param = phrase_->param2_ + (16 * viewData_->currentPhrase_);
   buffer[5] = 0;
@@ -1464,7 +1485,7 @@ void PhraseView::AnimationUpdate() {
     SetColor(CD_NORMAL);
 
     // Clear last played position
-    pos._y = anchor._y + lastPlayingPos_;
+    pos._y = anchor._y + lastPlayingPos_ + 1;
     DrawString(pos._x, pos._y, " ", props);
 
     // Only update play position if player is running
@@ -1474,7 +1495,7 @@ void PhraseView::AnimationUpdate() {
         if (player->IsChannelPlaying(i)) {
           if (viewData_->currentPlayPhrase_[i] == viewData_->currentPhrase_ &&
               viewData_->playMode_ != PM_AUDITION) {
-            pos._y = anchor._y + viewData_->phrasePlayPos_[i];
+            pos._y = anchor._y + viewData_->phrasePlayPos_[i] + 1;
             if (!player->IsChannelMuted(i)) {
               SetColor(CD_ACCENT);
               DrawString(pos._x, pos._y, ">", props);

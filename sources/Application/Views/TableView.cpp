@@ -308,19 +308,19 @@ void TableView::updateCursor(int dx, int dy) {
   switch (col_) {
   case 1:
     p._x += 4;
-    p._y += row_;
+    p._y += row_ + 1;
     cmdEditField_.SetPosition(p);
     cmdEdit_.SetInt(*(table.param1_ + row_));
     break;
   case 3:
     p._x += 13;
-    p._y += row_;
+    p._y += row_ + 1;
     cmdEditField_.SetPosition(p);
     cmdEdit_.SetInt(*(table.param2_ + row_));
     break;
   case 5:
     p._x += 22;
-    p._y += row_;
+    p._y += row_ + 1;
     cmdEditField_.SetPosition(p);
     cmdEdit_.SetInt(*(table.param3_ + row_));
     break;
@@ -795,15 +795,27 @@ void TableView::DrawView() {
   GUIPoint anchor = GetAnchor();
 
   // Display row numbers
-  SetColor(CD_HILITE1);
   char buffer[6];
   pos = anchor;
   pos._x -= 3;
+  pos._y += 1;
   for (int j = 0; j < 16; j++) {
-    ((j / ALT_ROW_NUMBER) % 2) ? SetColor(CD_ACCENT) : SetColor(CD_ACCENTALT);
+    if (j == row_) {
+      SetColor(CD_HILITE2);
+    } else {
+      ((j % ALT_ROW_NUMBER) == 0) ? SetColor(CD_ACCENT) : SetColor(CD_ACCENTALT);
+    }
     hex2char(j, buffer);
     DrawString(pos._x, pos._y, buffer, props);
     pos._y++;
+  }
+
+  const char *labels[] = {"FX1", "    ", "FX2", "    ", "FX3", "    "};
+  pos = anchor;
+  for (int i = 0; i < 6; ++i) {
+    SetColor(i == col_ ? CD_HILITE2 : CD_HILITE1);
+    DrawString(pos._x, pos._y, labels[i], props);
+    pos._x += static_cast<int>(strlen(labels[i])) + 1;
   }
 
   SetColor(CD_NORMAL);
@@ -811,6 +823,7 @@ void TableView::DrawView() {
   // Draw command 1
 
   pos = anchor;
+  pos._y += 1;
 
   FourCC *f = table.cmd1_;
 
@@ -829,6 +842,7 @@ void TableView::DrawView() {
 
   pos = anchor;
   pos._x += 4;
+  pos._y += 1;
 
   ushort *param = table.param1_;
   buffer[5] = 0;
@@ -846,6 +860,7 @@ void TableView::DrawView() {
 
   pos = anchor;
   pos._x += 9;
+  pos._y += 1;
 
   f = table.cmd2_;
 
@@ -864,6 +879,7 @@ void TableView::DrawView() {
 
   pos = anchor;
   pos._x += 13;
+  pos._y += 1;
 
   param = table.param2_;
   buffer[5] = 0;
@@ -881,6 +897,7 @@ void TableView::DrawView() {
 
   pos = anchor;
   pos._x += 18;
+  pos._y += 1;
 
   f = table.cmd3_;
 
@@ -899,6 +916,7 @@ void TableView::DrawView() {
 
   pos = anchor;
   pos._x += 22;
+  pos._y += 1;
 
   param = table.param3_;
   buffer[5] = 0;
@@ -969,7 +987,7 @@ void TableView::AnimationUpdate() {
     for (int i = 0; i < 3; i++) {
       pos._x = anchor._x - 1 + (i * 9);
       for (int row = 0; row < 16; row++) {
-        pos._y = anchor._y + row;
+        pos._y = anchor._y + row + 1;
         DrawString(pos._x, pos._y, " ", props);
       }
     }
@@ -989,7 +1007,7 @@ void TableView::AnimationUpdate() {
             int yPos = tpb.GetPlaybackPosition(i);
             if (yPos >= 0 && yPos < 16) {
               pos._x = anchor._x - 1 + (i * 9);
-              pos._y = anchor._y + yPos;
+              pos._y = anchor._y + yPos + 1;
               DrawString(pos._x, pos._y, ">", props);
             }
           }
@@ -999,7 +1017,7 @@ void TableView::AnimationUpdate() {
             int yPos = atp.GetPlaybackPosition(i);
             if (yPos >= 0 && yPos < 16) {
               pos._x = anchor._x - 1 + (i * 9);
-              pos._y = anchor._y + yPos;
+              pos._y = anchor._y + yPos + 1;
               DrawString(pos._x, pos._y, ">", props);
             }
           }
