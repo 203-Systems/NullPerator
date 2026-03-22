@@ -22,17 +22,6 @@ void NullView::ProcessButtonMask(unsigned short mask, bool pressed){
 void NullView::DrawView() {
 
   Clear();
-
-  GUITextProperties props;
-  SetColor(CD_HILITE2);
-
-  char buildString[SCREEN_WIDTH + 1];
-  npf_snprintf(buildString, sizeof(buildString), "picoTracker build %s%s_%s",
-               PROJECT_NUMBER, PROJECT_RELEASE, BUILD_COUNT);
-  GUIPoint pos;
-  pos._y = 22;
-  pos._x = (32 - strlen(buildString)) / 2;
-  DrawString(pos._x, pos._y, buildString, props);
 };
 
 void NullView::OnPlayerUpdate(PlayerEventType, unsigned int tick){

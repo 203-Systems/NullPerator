@@ -988,13 +988,6 @@ void AppWindow::PrintMultiLine(char *line) {
     lineCount++;
   }
 
-  // Preserve the build string at the bottom of the screen
-  char buildString[SCREEN_WIDTH + 1];
-  npf_snprintf(buildString, sizeof(buildString), "picoTracker build %s%s_%s",
-               PROJECT_NUMBER, PROJECT_RELEASE, BUILD_COUNT);
-  GUIPoint pos(0, 22);
-  pos._x = (32 - strlen(buildString)) / 2;
-  DrawString(buildString, pos, props);
   Flush();
 };
 
