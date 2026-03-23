@@ -41,12 +41,19 @@ SamplePool::~SamplePool() {
 
 void SamplePool::updateStatus(uint32_t index, uint32_t total,
                               const char *message) {
-  progressBar_t progressBar;
   uint32_t percentage = (total > 0) ? (index * 100U) / total : 100U;
-  fillProgressBar(index, total, &progressBar);
-  Status::SetMultiLine("%s %.19s" char_indicator_ellipsis_s " \n \n %s %3d%%",
-                       message, importName, progressBar,
-                       static_cast<int>(percentage));
+  #ifdef NODE
+    Status::SetMultiLine("%s %.19s\n%3d%%",
+                        message, importName,
+                        static_cast<int>(percentage));
+  #else
+    progressBar_t progressBar;
+    fillProgressBar(index, total, &progressBar);
+    Status::SetMultiLine("%s %.19s" char_indicator_ellipsis_s " \n \n %s %3d%%",
+                        message, importName, progressBar,
+                        static_cast<int>(percentage));
+  #endif
+
 };
 
 void SamplePool::Load(const char *projectName) {
