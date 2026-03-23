@@ -39,6 +39,8 @@ void switch_audio_mode(audio_mode mode);
 
 void switch_speaker_mode(bool on);
 
+void platform_brightness(uint8_t value);
+
 void enter_sleep();
 
 uint32_t millis(void);
