@@ -5,6 +5,7 @@
 #include "driver/i2c_master.h"
 #include "driver/i2s_std.h"
 #include "driver/i2s_tdm.h"
+#include "driver/ledc.h"
 #include "driver/rtc_io.h"
 #include "esp_private/usb_phy.h"
 #include "esp_log.h"
@@ -32,6 +33,9 @@ static bool codec_muted = false;
 static bool audio_i2s_ready = false;
 
 static constexpr uint8_t kCodecAddr7bit = 0x10; // Fixed strap
+static constexpr ledc_timer_t kBacklightTimer = LEDC_TIMER_0;
+static constexpr ledc_channel_t kBacklightChannel = LEDC_CHANNEL_0;
+static constexpr ledc_mode_t kBacklightSpeedMode = LEDC_LOW_SPEED_MODE;
 
 extern "C" {
 void board_init() {
@@ -123,6 +127,27 @@ void board_init() {
         switch_audio_mode(headphone_out);
         switch_speaker_mode(false);
     }
+
+    ledc_timer_config_t backlight_timer = {
+        .speed_mode = kBacklightSpeedMode,
+        .duty_resolution = LEDC_TIMER_8_BIT,
+        .timer_num = kBacklightTimer,
+        .freq_hz = 5000,
+        .clk_cfg = LEDC_AUTO_CLK,
+        .deconfigure = false,
+    };
+    ESP_ERROR_CHECK(ledc_timer_config(&backlight_timer));
+
+    ledc_channel_config_t backlight_channel = {
+        .gpio_num = DISPLAY_BL_PIN,
+        .speed_mode = kBacklightSpeedMode,
+        .channel = kBacklightChannel,
+        .intr_type = LEDC_INTR_DISABLE,
+        .timer_sel = kBacklightTimer,
+        .duty = 255,
+        .hpoint = 0,
+    };
+    ESP_ERROR_CHECK(ledc_channel_config(&backlight_channel));
 }
 
 void platform_init() {
@@ -158,7 +183,7 @@ void switch_speaker_mode(bool on) {
 }
 
 void enter_sleep() {
-    gpio_set_level((gpio_num_t)DISPLAY_BL_PIN, 0);
+    platform_brightness(0);
     // gpio_set_level((gpio_num_t)POWER_EN_PIN, 0);
 
     ESP_ERROR_CHECK(esp_sleep_enable_ext0_wakeup((gpio_num_t)INPUT_MENU_PIN, 0));
@@ -176,6 +201,11 @@ uint32_t millis(void) {
 }
 
 uint32_t micros(void) { return static_cast<uint32_t>(esp_timer_get_time()); }
+
+void platform_brightness(uint8_t value) {
+    ESP_ERROR_CHECK(ledc_set_duty(kBacklightSpeedMode, kBacklightChannel, value));
+    ESP_ERROR_CHECK(ledc_update_duty(kBacklightSpeedMode, kBacklightChannel));
+}
 
 // Audio codec API implementation
 esp_err_t audio_codec_init(void) {

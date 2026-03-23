@@ -104,10 +104,6 @@ void ili9341_init() {
   ESP_LOGI("ILI9341", "Initializing display");
   gpio_reset_pin((gpio_num_t)DISPLAY_DC_PIN);
   gpio_set_direction((gpio_num_t)DISPLAY_DC_PIN, GPIO_MODE_OUTPUT);
-
-  gpio_reset_pin((gpio_num_t)DISPLAY_BL_PIN);
-  gpio_set_direction((gpio_num_t)DISPLAY_BL_PIN, GPIO_MODE_OUTPUT);
-  gpio_set_level((gpio_num_t)DISPLAY_BL_PIN, 1);
   
 
   if (DISPLAY_RESET_PIN >= 0) {

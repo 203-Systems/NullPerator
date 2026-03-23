@@ -188,7 +188,7 @@ unsigned int NodeSystem::GetMemoryUsage() {
 }
 
 void NodeSystem::SetDisplayBrightness(unsigned char value) {
-  (void)value;
+  platform_brightness(value);
 }
 
 void NodeSystem::PowerDown() { enter_sleep(); }
