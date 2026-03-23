@@ -451,7 +451,7 @@ void MixerView::AnimationUpdate() {
   if (needsPlayTimeUpdate_) {
     GUIPoint pos = GetAnchor();
     // explicitly position timer directly below the battery gauge
-    pos._x = 27;
+    pos._x = 24;
     pos._y = 1;
     drawPlayTime(player, pos, props);
     needsPlayTimeUpdate_ = false;

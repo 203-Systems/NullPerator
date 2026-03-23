@@ -1005,7 +1005,7 @@ void SongView::AnimationUpdate() {
     // Only handle play time updates if needed
     if (needsPlayTimeUpdate_) {
       GUIPoint timePos = 0;
-      timePos._x = 27;
+      timePos._x = 24;
       timePos._y += 1;
       SetColor(CD_NORMAL);
       drawPlayTime(player, timePos, props);
