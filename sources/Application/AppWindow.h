@@ -26,7 +26,14 @@
 #define CHAR_WIDTH 10
 #define CHAR_HEIGHT 10
 #endif
+
+#ifdef NODE
+#define SCREEN_WIDTH 30
+#else
 #define SCREEN_WIDTH 32
+#endif
+
+
 #define SCREEN_HEIGHT 24
 #define SCREEN_MAP_HEIGHT 4
 #define SCREEN_MAP_WIDTH 4
