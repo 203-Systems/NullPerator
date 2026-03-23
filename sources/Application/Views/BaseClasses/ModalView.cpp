@@ -58,7 +58,7 @@ void ModalView::SetWindow(int width, int height) {
     height = 20;
   };
 
-  left_ = 16 - width / 2;
+  left_ = (SCREEN_WIDTH / 2) - width / 2;
   top_ = 8 - height / 2;
   if (top_ < 2) {
     top_ = 2;
