@@ -71,16 +71,20 @@ int NodeEventManager::MainLoop() {
   (void)xTimerStart(timer_, pdMS_TO_TICKS(100));
 
   // Tasks: keep names and roles aligned with ADV.
-  (void)xTaskCreate(NodeEventManager::ProcessInputEvent, "InEvent",
-                    kInputTaskStackBytes, NULL, tskIDLE_PRIORITY + 2, NULL);
+  (void)xTaskCreatePinnedToCore(NodeEventManager::ProcessInputEvent, "InEvent",
+                                kInputTaskStackBytes, NULL,
+                                tskIDLE_PRIORITY + 2, NULL, 0);
 #ifdef SERIAL_REPL
-  (void)xTaskCreate(NodeEventManager::ProcessSerialInputEvent, "SerialInEvent",
-                    kSerialTaskStackBytes, NULL, tskIDLE_PRIORITY + 2, NULL);
+  (void)xTaskCreatePinnedToCore(NodeEventManager::ProcessSerialInputEvent,
+                                "SerialInEvent", kSerialTaskStackBytes, NULL,
+                                tskIDLE_PRIORITY + 2, NULL, 0);
 #endif
-  (void)xTaskCreate(NodeEventManager::ProcessEvent, "ProcEvent",
-                    kEventTaskStackBytes, NULL, tskIDLE_PRIORITY + 1, NULL);
-  (void)xTaskCreate(NodeEventManager::USBDevice, "USB Device", kUsbTaskStackBytes, NULL,
-                    tskIDLE_PRIORITY + 2, NULL);
+  (void)xTaskCreatePinnedToCore(NodeEventManager::ProcessEvent, "ProcEvent",
+                                kEventTaskStackBytes, NULL,
+                                tskIDLE_PRIORITY + 1, NULL, 0);
+  (void)xTaskCreatePinnedToCore(NodeEventManager::USBDevice, "USB Device",
+                                kUsbTaskStackBytes, NULL,
+                                tskIDLE_PRIORITY + 2, NULL, 0);
 
   for (;;) {
     vTaskDelay(pdMS_TO_TICKS(1000));
