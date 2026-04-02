@@ -7,6 +7,7 @@ target_link_libraries(platform_filesystem PUBLIC
   idf::sdmmc
   idf::vfs
   idf::esp_timer
+  node_hal
 )
 
 target_include_directories(platform_filesystem PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

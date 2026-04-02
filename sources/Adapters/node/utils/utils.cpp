@@ -1,16 +1,5 @@
 #include "utils.h"
-#include "System/System/System.h"
 #include <stdio.h>
-
-#include "esp_timer.h"
-
-uint32_t millis(void) {
-    return esp_timer_get_time() / 1000;  // Convert microseconds to milliseconds
-}
-
-uint32_t micros(void) {
-    return esp_timer_get_time();  // Directly return microseconds
-}
 
 uint32_t measure_free_mem(void) { // Not Implemented
   // void *buff[256];

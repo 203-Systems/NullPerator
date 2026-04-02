@@ -5,7 +5,7 @@ add_library(platform_midi
     USBMidiDevice.h USBMidiDevice.cpp
 )
 
-target_link_libraries(platform_midi PRIVATE platform_usb PUBLIC idf::driver
+target_link_libraries(platform_midi PRIVATE platform_usb PUBLIC idf::driver node_hal
 )
 
 target_include_directories(platform_midi PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

@@ -9,6 +9,7 @@ target_link_libraries(platform_system INTERFACE system_system
                                       PUBLIC uiframework_simplebaseclasses
                                       PUBLIC platform_timer
                                       PUBLIC platform_audio
+                                      PUBLIC node_hal
                                       PUBLIC services_audio
                                       PUBLIC platform_midi
                                       PUBLIC platform_gui

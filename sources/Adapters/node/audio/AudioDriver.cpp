@@ -1,6 +1,5 @@
 #include "AudioDriver.h"
 #include "Adapters/node/platform/platform.h"
-#include "Adapters/node/utils/utils.h"
 #include "Application/Model/Config.h"
 #include "Services/Midi/MidiService.h"
 #include "System/System/System.h"
@@ -121,9 +120,6 @@ bool NodeAudioDriver::InitDriver() { // New
 
 
   ESP_LOGI("NodeAudioDriver", "Loaded Audio Volume %d", volume);
-
-  // Initialize audio codec through platform API
-  ESP_ERROR_CHECK(audio_codec_init());
 
   // Set initial volume
   audio_codec_set_volume(volume);

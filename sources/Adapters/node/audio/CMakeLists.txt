@@ -9,7 +9,6 @@ target_link_libraries(platform_audio PUBLIC
   platform
   idf::driver
   idf::freertos
-  idf::esp_lcd
 )
 
 target_include_directories(platform_audio PUBLIC
