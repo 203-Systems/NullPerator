@@ -29,6 +29,7 @@
 #include <unistd.h>
 
 #include "Adapters/node/platform/platform.h"
+#include "esp_heap_caps.h"
 #include "esp_system.h"
 
 #include "esp_adc/adc_oneshot.h"
@@ -94,9 +95,16 @@ void NodeSystem::Boot(int argc, char **argv) {
   Audio::Install(new (audioMemBuf) NodeAudio(hint));
 
   // Install SamplePool
-  alignas(NodeSamplePool) static char
-      samplePoolMemBuf[sizeof(NodeSamplePool)];
-  SamplePool::Install(new (samplePoolMemBuf) NodeSamplePool());
+  void *samplePoolMem = nullptr;
+  if (heap_caps_get_total_size(MALLOC_CAP_SPIRAM) > 0) {
+    samplePoolMem =
+        heap_caps_malloc(sizeof(NodeSamplePool), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  }
+  if (samplePoolMem == nullptr) {
+    samplePoolMem = heap_caps_malloc(sizeof(NodeSamplePool), MALLOC_CAP_8BIT);
+  }
+  assert(samplePoolMem != nullptr);
+  SamplePool::Install(new (samplePoolMem) NodeSamplePool());
 
   eventManager_ = I_GUIWindowFactory::GetInstance()->GetEventManager();
   eventManager_->Init();

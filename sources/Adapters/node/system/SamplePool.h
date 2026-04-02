@@ -27,8 +27,13 @@ protected:
   bool loadSample(const char *name) override;
 
 private:
+  bool ensureDedicatedPsramStore();
   void freeSampleBuffer(WavFile &wave);
   std::optional<void *> allocSampleBuffer(size_t bytes);
+  bool dedicatedStoreAttempted_ = false;
+  uint8_t *sampleStore_ = nullptr;
+  uint32_t writeOffset_ = 0;
+  uint32_t storeLimit_ = 0;
 };
 
 #endif

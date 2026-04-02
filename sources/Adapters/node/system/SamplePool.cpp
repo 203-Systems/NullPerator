@@ -10,13 +10,59 @@
 #include <cstring>
 #include <utility>
 
+static constexpr uint32_t kDedicatedSampleStoreSize = 8U * 1024U * 1024U;
+
 static bool has_psram() {
   return heap_caps_get_total_size(MALLOC_CAP_SPIRAM) > 0;
 }
 
 NodeSamplePool::NodeSamplePool() : SamplePool() {}
 
+bool NodeSamplePool::ensureDedicatedPsramStore() {
+  if (sampleStore_ != nullptr) {
+    return true;
+  }
+  if (dedicatedStoreAttempted_) {
+    return false;
+  }
+
+  dedicatedStoreAttempted_ = true;
+  if (!has_psram()) {
+    Trace::Log("SAMPLEPOOL", "PSRAM unavailable, using heap-backed samples");
+    return false;
+  }
+
+  const size_t largestBlock = heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM);
+  const size_t reserveBytes =
+      largestBlock >= kDedicatedSampleStoreSize ? kDedicatedSampleStoreSize
+                                                : largestBlock;
+  if (reserveBytes == 0) {
+    Trace::Error("SAMPLEPOOL", "No free PSRAM block available for sample pool");
+    return false;
+  }
+
+  void *ptr = heap_caps_malloc(reserveBytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  if (ptr == nullptr) {
+    Trace::Error("SAMPLEPOOL",
+                 "Failed reserving %u bytes of PSRAM for sample pool",
+                 static_cast<unsigned>(reserveBytes));
+    return false;
+  }
+
+  sampleStore_ = static_cast<uint8_t *>(ptr);
+  storeLimit_ = static_cast<uint32_t>(reserveBytes);
+  writeOffset_ = 0;
+
+  Trace::Log("SAMPLEPOOL", "Reserved %u bytes of PSRAM for sample pool",
+             static_cast<unsigned>(storeLimit_));
+  return true;
+}
+
 void NodeSamplePool::freeSampleBuffer(WavFile &wave) {
+  if (sampleStore_ != nullptr) {
+    wave.SetSampleBuffer(nullptr);
+    return;
+  }
   void *buffer = wave.GetSampleBuffer(0);
   if (buffer != nullptr) {
     heap_caps_free(buffer);
@@ -25,6 +71,15 @@ void NodeSamplePool::freeSampleBuffer(WavFile &wave) {
 }
 
 std::optional<void *> NodeSamplePool::allocSampleBuffer(size_t bytes) {
+  if (sampleStore_ != nullptr) {
+    uint32_t alignedOffset = (writeOffset_ + 3U) & ~3U;
+    if ((alignedOffset + bytes) > storeLimit_) {
+      return std::nullopt;
+    }
+    writeOffset_ = alignedOffset;
+    return sampleStore_ + alignedOffset;
+  }
+
   // Prefer PSRAM if available, fall back to internal heap.
   if (has_psram()) {
     void *ptr = heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
@@ -40,6 +95,7 @@ std::optional<void *> NodeSamplePool::allocSampleBuffer(size_t bytes) {
 }
 
 void NodeSamplePool::Reset() {
+  (void)ensureDedicatedPsramStore();
   for (uint32_t i = 0; i < count_; ++i) {
     freeSampleBuffer(wav_[i]);
     wav_[i].Close();
@@ -51,9 +107,14 @@ void NodeSamplePool::Reset() {
   }
 
   count_ = 0;
+  writeOffset_ = 0;
 }
 
 bool NodeSamplePool::CheckSampleFits(int sampleSize) {
+  if (ensureDedicatedPsramStore()) {
+    uint32_t alignedOffset = (writeOffset_ + 3U) & ~3U;
+    return (alignedOffset + static_cast<uint32_t>(sampleSize)) <= storeLimit_;
+  }
   // Use a conservative estimate of available heap (PSRAM preferred).
   size_t freeBytes = has_psram() ? heap_caps_get_free_size(MALLOC_CAP_SPIRAM)
                                  : heap_caps_get_free_size(MALLOC_CAP_8BIT);
@@ -61,6 +122,9 @@ bool NodeSamplePool::CheckSampleFits(int sampleSize) {
 }
 
 uint32_t NodeSamplePool::GetAvailableSampleStorageSpace() {
+  if (ensureDedicatedPsramStore()) {
+    return storeLimit_ - writeOffset_;
+  }
   size_t freeBytes = heap_caps_get_free_size(MALLOC_CAP_8BIT);
   if (has_psram()) {
     freeBytes += heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
@@ -83,6 +147,7 @@ bool NodeSamplePool::loadSample(const char *name) {
 
   WavFile &wav = wav_[count_];
   const uint32_t sampleBytes = wav.GetDiskSize(-1);
+  const uint32_t initialWriteOffset = writeOffset_;
   if (!CheckSampleFits(static_cast<int>(sampleBytes))) {
     Trace::Error("SAMPLEPOOL", "Not enough heap for sample (%u bytes)",
                  sampleBytes);
@@ -100,6 +165,12 @@ bool NodeSamplePool::loadSample(const char *name) {
 
   wav.SetSampleBuffer(static_cast<int16_t *>(buffer.value()));
 
+  uint32_t alignedOffset = initialWriteOffset;
+  if (sampleStore_ != nullptr) {
+    alignedOffset = (initialWriteOffset + 3U) & ~3U;
+    writeOffset_ = alignedOffset;
+  }
+
   uint32_t offset = 0;
   uint32_t bytesRead = 0;
   uint32_t totalRead = 0;
@@ -114,6 +185,9 @@ bool NodeSamplePool::loadSample(const char *name) {
     if (!wav.Read(static_cast<uint8_t *>(buffer.value()) + offset, toRead,
                   &bytesRead)) {
       Trace::Error("SAMPLEPOOL", "Failed reading sample data: %s", name);
+      if (sampleStore_ != nullptr) {
+        writeOffset_ = initialWriteOffset;
+      }
       freeSampleBuffer(wav);
       wav.Close();
       return false;
@@ -134,6 +208,9 @@ bool NodeSamplePool::loadSample(const char *name) {
   std::strncpy(nameStore_[count_], name, MAX_INSTRUMENT_FILENAME_LENGTH);
   nameStore_[count_][MAX_INSTRUMENT_FILENAME_LENGTH] = '\0';
   count_++;
+  if (sampleStore_ != nullptr) {
+    writeOffset_ = alignedOffset + offset;
+  }
 
   wav_[count_ - 1].Close();
   return true;
@@ -142,6 +219,81 @@ bool NodeSamplePool::loadSample(const char *name) {
 bool NodeSamplePool::unloadSample(uint32_t index) {
   if (index >= count_) {
     return false;
+  }
+
+  if (sampleStore_ != nullptr) {
+    auto *moveDst = static_cast<uint8_t *>(wav_[index].GetSampleBuffer(0));
+    if (moveDst == nullptr || moveDst < sampleStore_ ||
+        moveDst >= sampleStore_ + storeLimit_) {
+      Trace::Error("SAMPLEPOOL", "Invalid dedicated sample buffer");
+      return false;
+    }
+
+    const uint32_t moveDstOffset =
+        static_cast<uint32_t>(moveDst - sampleStore_);
+    if (moveDstOffset >= writeOffset_) {
+      Trace::Error("SAMPLEPOOL", "Invalid sample address while deleting");
+      return false;
+    }
+
+    uint8_t *moveSrc = nullptr;
+    for (uint32_t j = 0; j < count_; ++j) {
+      if (j == index) {
+        continue;
+      }
+      auto *candidate = static_cast<uint8_t *>(wav_[j].GetSampleBuffer(0));
+      if (candidate != nullptr && candidate > moveDst &&
+          candidate < sampleStore_ + writeOffset_) {
+        if (moveSrc == nullptr || candidate < moveSrc) {
+          moveSrc = candidate;
+        }
+      }
+    }
+
+    uint32_t shift = 0;
+    uint32_t bytesToMove = 0;
+    if (moveSrc != nullptr) {
+      shift = static_cast<uint32_t>(moveSrc - moveDst);
+      bytesToMove = writeOffset_ - static_cast<uint32_t>(moveSrc - sampleStore_);
+    } else {
+      shift = writeOffset_ - moveDstOffset;
+    }
+
+    if (bytesToMove > 0) {
+      std::memmove(moveDst, moveSrc, bytesToMove);
+    }
+
+    writeOffset_ -= shift;
+
+    if (shift > 0 && moveSrc != nullptr) {
+      for (uint32_t j = 0; j < count_; ++j) {
+        if (j == index) {
+          continue;
+        }
+        auto *buf = static_cast<uint8_t *>(wav_[j].GetSampleBuffer(0));
+        if (buf != nullptr && buf >= moveSrc && buf < sampleStore_ + storeLimit_) {
+          wav_[j].SetSampleBuffer(reinterpret_cast<int16_t *>(buf - shift));
+        }
+      }
+    }
+
+    for (uint32_t j = index; j < count_ - 1; ++j) {
+      wav_[j] = std::move(wav_[j + 1]);
+      std::memcpy(nameStore_[j], nameStore_[j + 1],
+                  MAX_INSTRUMENT_FILENAME_LENGTH + 1);
+    }
+
+    wav_[count_ - 1].Close();
+    wav_[count_ - 1].SetSampleBuffer(nullptr);
+    nameStore_[count_ - 1][0] = '\0';
+    --count_;
+
+    SetChanged();
+    SamplePoolEvent ev;
+    ev.index_ = static_cast<int>(index);
+    ev.type_ = SPET_DELETE;
+    NotifyObservers(&ev);
+    return true;
   }
 
   freeSampleBuffer(wav_[index]);
