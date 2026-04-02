@@ -41,6 +41,7 @@ public:
 
 protected:
   static void VLog(const char *category, const char *fmt, va_list &args);
+  static void VError(const char *category, const char *fmt, va_list &args);
 
 private:
   Trace::Logger *logger_;

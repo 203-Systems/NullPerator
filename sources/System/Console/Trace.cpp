@@ -24,6 +24,24 @@
 
 Trace::Trace() {}
 
+namespace {
+bool LooksLikeErrorCategory(const char *text) {
+  if (text == nullptr || text[0] == '\0') {
+    return false;
+  }
+
+  for (const char *c = text; *c != '\0'; ++c) {
+    const bool is_upper = (*c >= 'A') && (*c <= 'Z');
+    const bool is_digit = (*c >= '0') && (*c <= '9');
+    const bool is_symbol = (*c == '_') || (*c == '-') || (*c == '*');
+    if (!(is_upper || is_digit || is_symbol)) {
+      return false;
+    }
+  }
+  return true;
+}
+} // namespace
+
 void Trace::trace_uart_putc(int c, void *context) {
   System *sys = System::GetInstance();
   sys->SystemPutChar(c);
@@ -38,6 +56,23 @@ void Trace::VLog(const char *category, const char *fmt, va_list &args) {
 
   npf_vpprintf(&trace_uart_putc, NULL, fmt, args);
   // end with NL+CR as thats how it previously worked using stdio' printf
+  npf_pprintf(&trace_uart_putc, NULL, "\r\n");
+#else
+  (void)category;
+  (void)fmt;
+  (void)args;
+#endif
+}
+
+//------------------------------------------------------------------------------
+
+void Trace::VError(const char *category, const char *fmt, va_list &args) {
+#ifndef NDEBUG
+  npf_pprintf(&trace_uart_putc, NULL, "[*ERROR*] ");
+  if (category && category[0] != '\0') {
+    npf_pprintf(&trace_uart_putc, NULL, "[%s] ", category);
+  }
+  npf_vpprintf(&trace_uart_putc, NULL, fmt, args);
   npf_pprintf(&trace_uart_putc, NULL, "\r\n");
 #else
   (void)category;
@@ -79,7 +114,21 @@ void Trace::Error(const char *fmt, ...) {
 #ifndef NDEBUG
   va_list args;
   va_start(args, fmt);
-  VLog("*ERROR*", fmt, args);
+
+  if (LooksLikeErrorCategory(fmt)) {
+    va_list tagged_args;
+    va_copy(tagged_args, args);
+    const char *tagged_fmt = va_arg(tagged_args, const char *);
+    if (tagged_fmt != nullptr) {
+      VError(fmt, tagged_fmt, tagged_args);
+      va_end(tagged_args);
+      va_end(args);
+      return;
+    }
+    va_end(tagged_args);
+  }
+
+  VError(nullptr, fmt, args);
   va_end(args);
 #else
   (void)fmt;
