@@ -591,20 +591,26 @@ void SampleInstrument::doTickUpdate(int channel) {
 
   // Process updaters
   renderParams *rp = renderParams_ + channel;
-  for (auto it = rp->activeUpdaters_.begin(); it != rp->activeUpdaters_.end();
-       it++) {
-    I_SRPUpdater *current = *it;
-    current->Trigger(true);
+  const size_t updaterCount = rp->activeUpdaters_.size();
+  if (updaterCount == 1) {
+    rp->activeUpdaters_[0]->Trigger(true);
+    return;
+  }
+  for (size_t i = 0; i < updaterCount; ++i) {
+    rp->activeUpdaters_[i]->Trigger(true);
   }
 };
 
 void SampleInstrument::doKRateUpdate(int channel) {
 
   renderParams *rp = renderParams_ + channel;
-  for (auto it = rp->activeUpdaters_.begin(); it != rp->activeUpdaters_.end();
-       it++) {
-    I_SRPUpdater *current = *it;
-    current->Trigger(false);
+  const size_t updaterCount = rp->activeUpdaters_.size();
+  if (updaterCount == 1) {
+    rp->activeUpdaters_[0]->Trigger(false);
+    return;
+  }
+  for (size_t i = 0; i < updaterCount; ++i) {
+    rp->activeUpdaters_[i]->Trigger(false);
   }
 };
 
@@ -612,7 +618,6 @@ void SampleInstrument::doKRateUpdate(int channel) {
 
 bool SampleInstrument::Render(int channel, fixed *buffer, int size,
                               bool updateTick) {
-
   bool somethingToMix = false;
 
   // Get Current render parameters
@@ -629,7 +634,9 @@ bool SampleInstrument::Render(int channel, fixed *buffer, int size,
 
     memset(buffer, 0, size * 2 * sizeof(fixed));
 
-    bool hasUpdaters = !(rp->activeUpdaters_.empty());
+    const size_t updaterCount = rp->activeUpdaters_.size();
+    const bool hasUpdaters = (updaterCount != 0);
+    const bool hasSingleUpdater = (updaterCount == 1);
 
     int filterMix = filterMix_.GetInt();
     FilterMode filterMode = (FilterMode)filterMode_.GetInt();
@@ -657,10 +664,12 @@ bool SampleInstrument::Render(int channel, fixed *buffer, int size,
             0;
         rup.speedOffset_ = FP_ONE;
 
-        for (auto it = rp->activeUpdaters_.begin();
-             it != rp->activeUpdaters_.end(); it++) {
-          I_SRPUpdater *current = *it;
-          current->UpdateSRP(rup);
+        if (hasSingleUpdater) {
+          rp->activeUpdaters_[0]->UpdateSRP(rup);
+        } else {
+          for (size_t i = 0; i < updaterCount; ++i) {
+            rp->activeUpdaters_[i]->UpdateSRP(rup);
+          }
         }
 
         rp->volume_ = rp->baseVolume_ + rup.volumeOffset_;
@@ -689,16 +698,21 @@ bool SampleInstrument::Render(int channel, fixed *buffer, int size,
 
     // Crush
 
-    int shift = 16 - rp->crush_;
+    const bool bypassCrushAndDrive =
+        (rp->crush_ >= 16) && (rp->drive_ >= 0xFF);
     fixed mask = 0xFFFFFFFF;
-    if (shift != 0) {
-      mask <<= FIXED_SHIFT + shift;
+    fixed fpcrushvol = FP_ONE;
+    if (!bypassCrushAndDrive) {
+      int shift = 16 - rp->crush_;
+      if (shift != 0) {
+        mask <<= FIXED_SHIFT + shift;
+      }
+
+      // Crush vol
+
+      int crushvol = rp->drive_;
+      fpcrushvol = fl2fp(crushvol / 255.0F);
     }
-
-    // Crush vol
-
-    int crushvol = rp->drive_;
-    fixed fpcrushvol = fl2fp(crushvol / 255.0F);
 
     // downsample
 
@@ -731,6 +745,12 @@ bool SampleInstrument::Render(int channel, fixed *buffer, int size,
     int pan = fp2i(rp->pan_);
     fixed fixedpanl = panlaw[pan];
     fixed fixedpanr = panlaw[254 - pan];
+    fixed monoPanL = fp_mul(volfactor, fixedpanl);
+    fixed monoPanR = fp_mul(volfactor, fixedpanr);
+    bool monoPanScaledEqual = (monoPanL == monoPanR);
+    fixed monoPanScaledBoth = monoPanL;
+    bool monoPanEqual = (fixedpanl == fixedpanr);
+    fixed monoPanBoth = fixedpanl;
 
     // filter constants
 
@@ -773,17 +793,51 @@ bool SampleInstrument::Render(int channel, fixed *buffer, int size,
     fixed *fltSpeed = flt->speed;
     fixed *fltHeight = flt->height;
     fixed fltMix = flt->mix;
-    fixed fltMixInv = FP_ONE - fltMix;
     fixed *fltDelay = flt->hipdelay;
     fixed fltParm1 = flt->freq;
     fixed fltParm2 = flt->reso;
     fixed fltDirt = flt->dirt;
+    fixed fltBoostParm2 = fp_mul(fltDirt, fltParm2);
 
     fixed *fltSpeedPtr = 0;
     fixed *fltDelayPtr = 0;
     fixed *fltHeightPtr = 0;
 
     short *dsBasePtr = ((short *)wavbuf) + rp->rendFirst_ * channelCount;
+    const bool monoNearestCapable = (channelCount == 1) && (interpol == 1);
+    const bool monoNearestFastCapable =
+        monoNearestCapable &&
+        ((dsMask == 0xFFFFFFFF) || !useDirtyDownsampling_);
+    const int fpFracMask = FIXED_SCALE - 1;
+    const bool monoNearestUsesCleanDownsampling =
+        monoNearestFastCapable && (dsMask != 0xFFFFFFFF);
+    const unsigned int dsBlockSize =
+        monoNearestUsesCleanDownsampling ? (1U << downsmpl) : 0U;
+    short *cachedMonoDsStart = 0;
+    short *cachedMonoDsEnd = 0;
+    short *cachedMonoSamplePtr = 0;
+    short *cachedMonoNextSamplePtr = 0;
+    enum MonoFastPath {
+      MFP_NONE = 0,
+      MFP_NO_FILTER,
+      MFP_PLAIN_LOWPASS,
+      MFP_PLAIN_MIXED,
+      MFP_BOOST_LOWPASS,
+      MFP_BOOST_MIXED
+    };
+    const auto computeMonoFastPath = [&]() -> MonoFastPath {
+      if (!monoNearestFastCapable) {
+        return MFP_NONE;
+      }
+      if (!filtering) {
+        return MFP_NO_FILTER;
+      }
+      if (!filterBoost) {
+        return (filterMix == 0) ? MFP_PLAIN_LOWPASS : MFP_PLAIN_MIXED;
+      }
+      return (filterMix == 0) ? MFP_BOOST_LOWPASS : MFP_BOOST_MIXED;
+    };
+    MonoFastPath monoFastPath = computeMonoFastPath();
 
     while (count > 0) {
 
@@ -891,43 +945,304 @@ bool SampleInstrument::Render(int channel, fixed *buffer, int size,
 
         // See if time to process k-rate change
 
-        if (rpKrateCount-- == 0) {
+        if (hasUpdaters && rpKrateCount-- == 0) {
           rpKrateCount = KRATE_SAMPLE_COUNT;
+          doKRateUpdate(channel);
+          struct RUParams rup;
+          rup.cutOffset_ = rup.resOffset_ = rup.volumeOffset_ =
+              rup.panOffset_ = rup.fbMixOffset_ = rup.fbTunOffset_ = 0;
+          rup.speedOffset_ = FP_ONE;
 
-          if (hasUpdaters) {
-            doKRateUpdate(channel);
-            struct RUParams rup;
-            rup.cutOffset_ = rup.resOffset_ = rup.volumeOffset_ =
-                rup.panOffset_ = rup.fbMixOffset_ = rup.fbTunOffset_ = 0;
-            rup.speedOffset_ = FP_ONE;
-
-            for (auto it = rp->activeUpdaters_.begin();
-                 it != rp->activeUpdaters_.end(); it++) {
-              I_SRPUpdater *current = *it;
-              current->UpdateSRP(rup);
+          if (hasSingleUpdater) {
+            rp->activeUpdaters_[0]->UpdateSRP(rup);
+          } else {
+            for (size_t i = 0; i < updaterCount; ++i) {
+              rp->activeUpdaters_[i]->UpdateSRP(rup);
             }
+          }
 
-            rp->volume_ = rp->baseVolume_ + rup.volumeOffset_;
-            rp->pan_ = rp->basePan_ + rup.panOffset_;
-            rp->speed_ = fp_mul(rp->baseSpeed_, rup.speedOffset_);
-            rp->cutoff_ = rp->baseFCut_ + rup.cutOffset_;
-            rp->reso_ = rp->baseFRes_ + rup.resOffset_;
-            rp->fbMix_ = rp->baseFbMix_ + rup.fbMixOffset_;
-            rp->fbTun_ = rp->baseFbTun_ + rup.fbTunOffset_;
+          const fixed newVolume = rp->baseVolume_ + rup.volumeOffset_;
+          const fixed newPan = rp->basePan_ + rup.panOffset_;
+          const fixed newSpeed = fp_mul(rp->baseSpeed_, rup.speedOffset_);
+          const fixed newCutoff = rp->baseFCut_ + rup.cutOffset_;
+          const fixed newReso = rp->baseFRes_ + rup.resOffset_;
+          const fixed newFbMix = rp->baseFbMix_ + rup.fbMixOffset_;
+          const fixed newFbTun = rp->baseFbTun_ + rup.fbTunOffset_;
 
+          const bool gainChanged =
+              (newVolume != rp->volume_) || (newPan != rp->pan_);
+          const bool speedChanged = (newSpeed != rp->speed_);
+          const bool filterChanged =
+              (newCutoff != rp->cutoff_) || (newReso != rp->reso_);
+
+          rp->volume_ = newVolume;
+          rp->pan_ = newPan;
+          rp->speed_ = newSpeed;
+          rp->cutoff_ = newCutoff;
+          rp->reso_ = newReso;
+          rp->fbMix_ = newFbMix;
+          rp->fbTun_ = newFbTun;
+
+          if (filterChanged) {
             set_filter(channel, FLT_LOWPASS, rp->cutoff_, rp->reso_, filterMix,
                        bassyFilter);
-            filtering = (rp->cutoff_ < i2fp(1)) || (rp->reso_ > i2fp(0));
+            fltMix = flt->mix;
+            fltParm1 = flt->freq;
+            fltParm2 = flt->reso;
+            fltDirt = flt->dirt;
+            fltBoostParm2 = fp_mul(fltDirt, fltParm2);
+          }
+          filtering = (rp->cutoff_ < i2fp(1)) || (rp->reso_ > i2fp(0));
+          monoFastPath = computeMonoFastPath();
 
+          if (gainChanged) {
             volfactor = fp_mul(rp->volume_, volscale);
             pan = fp2i(rp->pan_);
+            fixedpanl = panlaw[pan];
+            fixedpanr = panlaw[254 - pan];
+            monoPanL = fp_mul(volfactor, fixedpanl);
+            monoPanR = fp_mul(volfactor, fixedpanr);
+            monoPanScaledEqual = (monoPanL == monoPanR);
+            monoPanScaledBoth = monoPanL;
+            monoPanEqual = (fixedpanl == fixedpanr);
+            monoPanBoth = fixedpanl;
+          }
 
+          if (speedChanged) {
             if (rpReverse) {
               fpSpeed = -rp->speed_;
             } else {
               fpSpeed = rp->speed_;
             }
           }
+        }
+
+        const bool integerNearestStep =
+            monoNearestFastCapable && ((fpPos & fpFracMask) == 0) &&
+            ((fpSpeed & fpFracMask) == 0);
+        const int nearestStep = integerNearestStep ? fp2i(fpSpeed) : 0;
+        fixed monoFetched = 0;
+        fixed monoCrushed = 0;
+        if (monoFastPath != MFP_NONE) {
+          short *monoSamplePtr = input;
+          short *monoNextSamplePtr = input + 1;
+
+          if (monoNearestUsesCleanDownsampling) {
+            if (input < dsBasePtr) {
+              monoSamplePtr = dsBasePtr;
+              monoNextSamplePtr = dsBasePtr + 1;
+            } else if (cachedMonoDsStart != 0 && input >= cachedMonoDsStart &&
+                       input < cachedMonoDsEnd) {
+              monoSamplePtr = cachedMonoSamplePtr;
+              monoNextSamplePtr = cachedMonoNextSamplePtr;
+            } else {
+              unsigned int distance = (unsigned int)(input - dsBasePtr);
+              monoSamplePtr = dsBasePtr + (distance & dsMask);
+              monoNextSamplePtr = monoSamplePtr + 1;
+              cachedMonoDsStart = monoSamplePtr;
+              cachedMonoDsEnd = monoSamplePtr + dsBlockSize;
+              cachedMonoSamplePtr = monoSamplePtr;
+              cachedMonoNextSamplePtr = monoNextSamplePtr;
+            }
+          }
+
+          monoFetched =
+              integerNearestStep
+                  ? i2fp(*monoSamplePtr)
+                  : i2fp((fpPos > zerofive) ? *monoNextSamplePtr
+                                            : *monoSamplePtr);
+
+          monoCrushed = monoFetched;
+          if (!bypassCrushAndDrive) {
+            monoCrushed = fp_mul(monoCrushed, fpcrushvol);
+            monoCrushed = (monoCrushed & mask);
+          }
+        }
+
+        if (monoFastPath == MFP_NO_FILTER) {
+          fixed mono = monoCrushed;
+
+          if (monoPanScaledEqual) {
+            fixed out = fp_mul(mono, monoPanScaledBoth);
+            *result++ = out;
+            *result++ = out;
+          } else {
+            *result++ = fp_mul(mono, monoPanL);
+            *result++ = fp_mul(mono, monoPanR);
+          }
+
+          if (integerNearestStep) {
+            input += nearestStep;
+          } else {
+            fpPos = fp_add(fpPos, fpSpeed);
+            int delta = fp2i(fpPos);
+            input += delta;
+            fpPos = fp_sub(fpPos, i2fp(delta));
+          }
+          count--;
+          continue;
+        }
+
+        if (monoFastPath == MFP_PLAIN_LOWPASS) {
+          fixed mono = fp_mul(monoCrushed, volfactor);
+
+          fixed speed0 = fltSpeed[0];
+          fixed height0 = fltHeight[0];
+          fixed difr = fp_sub(mono, height0);
+          speed0 = fp_mul(speed0, fltParm2);
+          speed0 = fp_add(speed0, fp_mul(difr, fltParm1));
+          height0 += speed0;
+          fltSpeed[0] = speed0;
+          fltHeight[0] = height0;
+          mono = height0;
+
+          if (monoPanEqual) {
+            fixed out = fp_mul(mono, monoPanBoth);
+            *result++ = out;
+            *result++ = out;
+          } else {
+            *result++ = fp_mul(mono, fixedpanl);
+            *result++ = fp_mul(mono, fixedpanr);
+          }
+
+          if (integerNearestStep) {
+            input += nearestStep;
+          } else {
+            fpPos = fp_add(fpPos, fpSpeed);
+            int delta = fp2i(fpPos);
+            input += delta;
+            fpPos = fp_sub(fpPos, i2fp(delta));
+          }
+          count--;
+          continue;
+        }
+
+        if (monoFastPath == MFP_PLAIN_MIXED) {
+          fixed mono = fp_mul(monoCrushed, volfactor);
+
+          fixed speed0 = fltSpeed[0];
+          fixed height0 = fltHeight[0];
+          fixed delay0 = fltDelay[0];
+          fixed wet = fp_mul(mono, fltMix);
+          fixed lpin = fp_sub(mono, wet);
+          fixed hpin = -wet;
+          fixed difr = fp_sub(lpin, height0);
+
+          speed0 = fp_mul(speed0, fltParm2);
+          speed0 = fp_add(speed0, fp_mul(difr, fltParm1));
+          height0 += speed0;
+          height0 += delay0 - hpin;
+          delay0 = hpin;
+          fltSpeed[0] = speed0;
+          fltHeight[0] = height0;
+          fltDelay[0] = delay0;
+          mono = height0;
+
+          if (monoPanEqual) {
+            fixed out = fp_mul(mono, monoPanBoth);
+            *result++ = out;
+            *result++ = out;
+          } else {
+            *result++ = fp_mul(mono, fixedpanl);
+            *result++ = fp_mul(mono, fixedpanr);
+          }
+
+          if (integerNearestStep) {
+            input += nearestStep;
+          } else {
+            fpPos = fp_add(fpPos, fpSpeed);
+            int delta = fp2i(fpPos);
+            input += delta;
+            fpPos = fp_sub(fpPos, i2fp(delta));
+          }
+          count--;
+          continue;
+        }
+
+        if (monoFastPath == MFP_BOOST_LOWPASS) {
+          fixed mono = fp_mul(monoCrushed, volfactor);
+
+          fixed speed0 = fltSpeed[0];
+          fixed height0 = fltHeight[0];
+          fixed difr = fp_sub(mono, height0);
+          if (speed0 < -FP_ONE) {
+            speed0 = -f_s;
+          } else if (speed0 > FP_ONE) {
+            speed0 = f_s;
+          }
+          speed0 = fp_mul(speed0, fltBoostParm2);
+          speed0 = fp_add(speed0, fp_mul(difr, fltParm1));
+          height0 += speed0;
+          fltSpeed[0] = speed0;
+          fltHeight[0] = height0;
+          mono = height0;
+
+          if (monoPanEqual) {
+            fixed out = fp_mul(mono, monoPanBoth);
+            *result++ = out;
+            *result++ = out;
+          } else {
+            *result++ = fp_mul(mono, fixedpanl);
+            *result++ = fp_mul(mono, fixedpanr);
+          }
+
+          if (integerNearestStep) {
+            input += nearestStep;
+          } else {
+            fpPos = fp_add(fpPos, fpSpeed);
+            int delta = fp2i(fpPos);
+            input += delta;
+            fpPos = fp_sub(fpPos, i2fp(delta));
+          }
+          count--;
+          continue;
+        }
+
+        if (monoFastPath == MFP_BOOST_MIXED) {
+          fixed mono = fp_mul(monoCrushed, volfactor);
+
+          fixed speed0 = fltSpeed[0];
+          fixed height0 = fltHeight[0];
+          fixed delay0 = fltDelay[0];
+          fixed wet = fp_mul(mono, fltMix);
+          fixed lpin = fp_sub(mono, wet);
+          fixed hpin = -wet;
+          fixed difr = fp_sub(lpin, height0);
+
+          if (speed0 < -FP_ONE) {
+            speed0 = -f_s;
+          } else if (speed0 > FP_ONE) {
+            speed0 = f_s;
+          }
+          speed0 = fp_mul(speed0, fltBoostParm2);
+          speed0 = fp_add(speed0, fp_mul(difr, fltParm1));
+          height0 += speed0;
+          height0 += delay0 - hpin;
+          delay0 = hpin;
+          fltSpeed[0] = speed0;
+          fltHeight[0] = height0;
+          fltDelay[0] = delay0;
+          mono = height0;
+
+          if (monoPanEqual) {
+            fixed out = fp_mul(mono, monoPanBoth);
+            *result++ = out;
+            *result++ = out;
+          } else {
+            *result++ = fp_mul(mono, fixedpanl);
+            *result++ = fp_mul(mono, fixedpanr);
+          }
+
+          if (integerNearestStep) {
+            input += nearestStep;
+          } else {
+            fpPos = fp_add(fpPos, fpSpeed);
+            int delta = fp2i(fpPos);
+            input += delta;
+            fpPos = fp_sub(fpPos, i2fp(delta));
+          }
+          count--;
+          continue;
         }
 
         // get input sample to interpolate from
@@ -991,11 +1306,15 @@ bool SampleInstrument::Render(int channel, fixed *buffer, int size,
 
           // crush predrive
 
-          s2 = fp_mul_coef(s1, fpcrushvol);
+          if (bypassCrushAndDrive) {
+            s2 = s1;
+          } else {
+            s2 = fp_mul_coef(s1, fpcrushvol);
 
-          // store result, applying crush
+            // store result, applying crush
 
-          s2 = (s2 & mask);
+            s2 = (s2 & mask);
+          }
 
           // apply volume
 
@@ -1005,8 +1324,9 @@ bool SampleInstrument::Render(int channel, fixed *buffer, int size,
 
           if (filtering) {
 
-            fixed lpin = fp_mul_coef(s2, fltMixInv);
-            fixed hpin = -fp_mul_coef(s2, fltMix);
+            fixed wet = fp_mul_coef(s2, fltMix);
+            fixed lpin = fp_sub(s2, wet);
+            fixed hpin = -wet;
 
             fixed difr = fp_sub(lpin, *fltHeightPtr);
 
@@ -1021,9 +1341,9 @@ bool SampleInstrument::Render(int channel, fixed *buffer, int size,
               *fltSpeedPtr = fp_mul(*fltSpeedPtr, fltDirt);
             }
 
-            *fltSpeedPtr =
-                fp_mul_coef(*fltSpeedPtr, fltParm2); // mul by res, it's some
-                                                     // kind of inertia.
+            *fltSpeedPtr = fp_mul_coef(
+                *fltSpeedPtr, fltParm2); // mul by res, it's some kind
+                                         // of inertia.
             /*HOG:5*/ *fltSpeedPtr = fp_add(
                 *fltSpeedPtr,
                 fp_mul_coef(difr, fltParm1)); // mul by cutoff, less cutoff = no
@@ -1038,6 +1358,7 @@ bool SampleInstrument::Render(int channel, fixed *buffer, int size,
             fltHeightPtr++;
             fltSpeedPtr++;
           }
+
         }
 
         if (channelCount == 1) {

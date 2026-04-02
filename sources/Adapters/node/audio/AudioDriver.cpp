@@ -22,52 +22,78 @@ NodeAudioDriver *NodeAudioDriver::instance_ = NULL;
 TaskHandle_t audioThreadHandle_ = NULL;
 TaskHandle_t i2sThreadHandle_ = NULL;
 SemaphoreHandle_t core1_audio = NULL;
+static StaticSemaphore_t core1_audio_buffer;
 
 static volatile unsigned long esp32_sound_pausei, esp32_exit;
+
+static void reset_audio_fill_semaphore() {
+  if (core1_audio == NULL) {
+    return;
+  }
+
+  while (xSemaphoreTake(core1_audio, 0) == pdTRUE) {
+  }
+}
 
 void esp32_sound_pause(int yes) { esp32_sound_pausei = yes; }
 
 void NodeAudioDriver::AudioThread(void *arg) {
   while (1) {
     xSemaphoreTake(core1_audio, portMAX_DELAY);
+    if (instance_ == NULL || !instance_->isPlaying_) {
+      continue;
+    }
     NodeAudioDriver::BufferNeeded();
   }
 }
 
 void NodeAudioDriver::I2SThread(void *arg) {
   while (1) {
-     if (instance_->isPlaying_) {
-        // Mark current buffer as empty
-        pool_[instance_->poolPlayPosition_].empty_ = true;
-
-        int next = (instance_->poolPlayPosition_ + 1) % SOUND_BUFFER_COUNT;
-
-        if (pool_[next].empty_) {
-          // If buffer underrun, write silence
-          size_t written = 0;
-          audio_codec_write(miniBlank_, sizeof(miniBlank_), &written, portMAX_DELAY);
-          // ESP_LOGI("NodeAudioDriver", "Sending Blank as Buffer %d", instance_->poolPlayPosition_);
-        } else {
-          // Move to next buffer
-          instance_->poolPlayPosition_ = next;
-
-          // Write audio data
-          size_t written = 0;
-          audio_codec_write(pool_[instance_->poolPlayPosition_].buffer_,
-                           pool_[instance_->poolPlayPosition_].size_,
-                           &written, portMAX_DELAY);
-          // ESP_LOGI("NodeAudioDriver", "Sending Buffer %d", instance_->poolPlayPosition_);
-      }
-      xSemaphoreGive(core1_audio);
+    if (instance_ == NULL || !instance_->isPlaying_) {
+      vTaskDelay(pdMS_TO_TICKS(1));
+      continue;
     }
+
+    // This mirrors the picoTracker flow: after one chunk finishes writing,
+    // free the just-played slot, then advance to the next queued buffer.
+    pool_[instance_->poolPlayPosition_].empty_ = true;
+
+    int next = (instance_->poolPlayPosition_ + 1) % SOUND_BUFFER_COUNT;
+
+    if (pool_[next].empty_) {
+      size_t written = 0;
+      esp_err_t err =
+          audio_codec_write(miniBlank_, sizeof(miniBlank_), &written,
+                            portMAX_DELAY);
+      if (err != ESP_OK || written != sizeof(miniBlank_)) {
+        ESP_LOGW("NodeAudioDriver",
+                 "silence write err=0x%x written=%u expected=%u play=%d next=%d",
+                 (unsigned)err, (unsigned)written,
+                 (unsigned)sizeof(miniBlank_), instance_->poolPlayPosition_,
+                 next);
+      }
+    } else {
+      instance_->poolPlayPosition_ = next;
+
+      size_t written = 0;
+      int expected = pool_[instance_->poolPlayPosition_].size_;
+      esp_err_t err = audio_codec_write(
+          pool_[instance_->poolPlayPosition_].buffer_, expected, &written,
+          portMAX_DELAY);
+      if (err != ESP_OK || written != static_cast<size_t>(expected)) {
+        ESP_LOGW("NodeAudioDriver",
+                 "audio write err=0x%x written=%u expected=%u play=%d next=%d",
+                 (unsigned)err, (unsigned)written, (unsigned)expected,
+                 instance_->poolPlayPosition_, next);
+      }
+    }
+    xSemaphoreGive(core1_audio);
   }
 }
 
 
 void NodeAudioDriver::BufferNeeded() {
-  // Audio tick processes MIDI among other things
   instance_->onAudioBufferTick();
-
   instance_->OnNewBufferNeeded();
 }
 
@@ -105,7 +131,8 @@ bool NodeAudioDriver::InitDriver() { // New
   switch_audio_mode(headphone_out);
   switch_speaker_mode(false);
 
-  core1_audio = xSemaphoreCreateCounting(SOUND_BUFFER_COUNT - 1, SOUND_BUFFER_COUNT - 1);
+  core1_audio = xSemaphoreCreateCountingStatic(SOUND_BUFFER_COUNT - 1, 0,
+                                               &core1_audio_buffer);
 
   if (core1_audio == NULL) {
     ESP_LOGE("NodeAudioDriver", "Failed to create semaphore");
@@ -113,10 +140,10 @@ bool NodeAudioDriver::InitDriver() { // New
   }
 
   xTaskCreatePinnedToCore(NodeAudioDriver::AudioThread, "AudioThread",
-                          4096, NULL, 5, &audioThreadHandle_, 1);
+                          8192, NULL, 5, &audioThreadHandle_, 1);
 
   xTaskCreatePinnedToCore(NodeAudioDriver::I2SThread, "I2SThread",
-                          4096, NULL, 1, &i2sThreadHandle_, 0);
+                          4096, NULL, 6, &i2sThreadHandle_, 0);
 
   if (audioThreadHandle_ == NULL || i2sThreadHandle_ == NULL) {
     ESP_LOGE("NodeAudioDriver", "Failed to create audio tasks");
@@ -154,6 +181,17 @@ bool NodeAudioDriver::StartDriver() {
   switch_audio_mode(headphone_out);
   switch_speaker_mode(false);
   isPlaying_ = true;
+  for (int i = 0; i < SOUND_BUFFER_COUNT; ++i) {
+    pool_[i].size_ = 0;
+    pool_[i].empty_ = true;
+  }
+  poolQueuePosition_ = 0;
+  poolPlayPosition_ = SOUND_BUFFER_COUNT - 1;
+  hasData_ = false;
+  reset_audio_fill_semaphore();
+  for (int i = 0; i < SOUND_BUFFER_COUNT - 1; ++i) {
+    xSemaphoreGive(core1_audio);
+  }
   esp32_sound_pause(0);
   startTime_ = millis();
   return true;
@@ -162,6 +200,7 @@ bool NodeAudioDriver::StartDriver() {
 void NodeAudioDriver::StopDriver() {
   esp32_sound_pause(1);
   isPlaying_ = false;
+  reset_audio_fill_semaphore();
   switch_speaker_mode(false);
 }
 
