@@ -158,7 +158,7 @@ void NodeGUIWindowImp::Flush() {
 };
 
 void NodeGUIWindowImp::Invalidate() {
-  NodeEventManager::PostEvent(PICO_REDRAW);
+  NodeEventManager::PostEvent(PICO_FLUSH);
 };
 
 void NodeGUIWindowImp::PushEvent(GUIEvent &event) {
@@ -173,9 +173,10 @@ GUIRect NodeGUIWindowImp::GetRect() {
 void NodeGUIWindowImp::ProcessEvent(NodeEvent &event) {
   switch (event.type_) {
   case PICO_REDRAW:
-    //        instance_->currentBuffer_^=0x01 ;
-    instance_->_window->Update(false);
-    //        gp_setFramebuffer(instance_->framebuffer_[instance_->currentBuffer_],1);
+    instance_->_window->ClockTick();
+    break;
+  case PICO_FLUSH:
+    instance_->_window->Flush();
     break;
   case PICO_CLOCK:
     instance_->_window->ClockTick();

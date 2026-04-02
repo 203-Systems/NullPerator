@@ -164,6 +164,7 @@ void NodeEventManager::ProcessInputEvent(void *) {
 
       NodeGUIWindowImp::ProcessButtonChange(sendMask, newMask);
       buttonMask_ = newMask;
+      PostEvent(PICO_REDRAW);
     }
 
 #ifdef SERIAL_REPL

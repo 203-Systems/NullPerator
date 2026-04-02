@@ -4,7 +4,7 @@
 #include "Externals/etl/include/etl/deque.h"
 #include "Foundation/T_Singleton.h"
 
-enum NodeEventType { PICO_REDRAW, PICO_CLOCK, LAST };
+enum NodeEventType { PICO_REDRAW, PICO_FLUSH, PICO_CLOCK, LAST };
 
 class NodeEvent {
 public:

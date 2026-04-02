@@ -11,7 +11,6 @@ extern "C" {
 #define TEXT_HEIGHT 24
 #define CHAR_HEIGHT 10
 #define CHAR_WIDTH 8
-#define OFFSET 0
 
 // ARNE-16 palette converted to RGB565
 typedef enum {

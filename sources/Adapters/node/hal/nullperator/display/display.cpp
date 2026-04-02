@@ -20,6 +20,7 @@ static const char* TAG = "NP_DISPLAY";
 
 namespace NullperatorHAL::Display {
     static esp_lcd_panel_handle_t panel = nullptr;
+    static esp_lcd_panel_io_handle_t panelIO = nullptr;
     static uint8_t currentBrightness = 100;
     static bool spiInitialized = false;
 
@@ -71,7 +72,6 @@ namespace NullperatorHAL::Display {
         }
 
         if (!panel) {
-            esp_lcd_panel_io_handle_t io_handle = nullptr;
             esp_lcd_panel_io_spi_config_t io_config = {
                 .cs_gpio_num = -1,
                 .dc_gpio_num = DISPLAY_DC_PIN,
@@ -82,7 +82,7 @@ namespace NullperatorHAL::Display {
                 .lcd_param_bits = 8,
             };
 
-            ret = esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)SPI2_HOST, &io_config, &io_handle);
+            ret = esp_lcd_new_panel_io_spi((esp_lcd_spi_bus_handle_t)SPI2_HOST, &io_config, &panelIO);
             if (ret != ESP_OK) {
                 ESP_LOGE(TAG, "Failed to create panel IO: %s", esp_err_to_name(ret));
                 return ret;
@@ -94,7 +94,7 @@ namespace NullperatorHAL::Display {
                 .bits_per_pixel = 16,
             };
 
-            ret = esp_lcd_new_panel_st7789(io_handle, &panel_config, &panel);
+            ret = esp_lcd_new_panel_st7789(panelIO, &panel_config, &panel);
             if (ret != ESP_OK) {
                 ESP_LOGE(TAG, "Failed to create LCD panel: %s", esp_err_to_name(ret));
                 return ret;
@@ -123,6 +123,10 @@ namespace NullperatorHAL::Display {
 
     esp_lcd_panel_handle_t GetPanel() {
         return panel;
+    }
+
+    esp_lcd_panel_io_handle_t GetPanelIO() {
+        return panelIO;
     }
 
     esp_err_t SetBrightness(uint8_t brightness) {
