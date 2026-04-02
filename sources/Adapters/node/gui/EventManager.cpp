@@ -26,7 +26,7 @@ char inBuffer[INPUT_BUFFER_SIZE];
 
 static void timerHandler(TimerHandle_t xTimer) {
     (void)xTimer;
-    NodeEventManager::PostEvent(PICO_CLOCK);
+    NodeEventManager::PostEvent(CLOCK);
 }
 
 NodeEventManager::NodeEventManager() {}
@@ -61,7 +61,7 @@ int NodeEventManager::MainLoop() {
     return 0;
   }
 
-  // Create periodic timer for PICO_CLOCK (same period as ADV timerHandler).
+  // Create periodic timer for CLOCK (same period as ADV timerHandler).
   timer_ = xTimerCreate("NodeTimer", pdMS_TO_TICKS(PICO_CLOCK_INTERVAL), pdTRUE,
                         NULL, timerHandler);
   if (!timer_) {
@@ -164,7 +164,7 @@ void NodeEventManager::ProcessInputEvent(void *) {
 
       NodeGUIWindowImp::ProcessButtonChange(sendMask, newMask);
       buttonMask_ = newMask;
-      PostEvent(PICO_REDRAW);
+      PostEvent(REDRAW);
     }
 
 #ifdef SERIAL_REPL
