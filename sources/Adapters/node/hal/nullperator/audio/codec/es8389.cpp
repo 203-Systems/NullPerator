@@ -22,6 +22,9 @@ namespace NullperatorHAL::Codec::ES8389 {
         constexpr uint8_t REG_DAC2_VOLUME = 0x47;
         constexpr uint8_t REG_PGA1_GAIN = 0x72;
         constexpr uint8_t REG_PGA2_GAIN = 0x73;
+        constexpr uint32_t CODEC_SAMPLE_RATE = 44100;
+        constexpr uint8_t CODEC_CHANNELS = 2;
+        constexpr uint8_t CODEC_BITS_PER_SAMPLE = 16;
 
         constexpr uint8_t ISOLATION_NORMAL = 0x00;
         constexpr uint8_t RESET_RUN = 0x00;
@@ -191,6 +194,19 @@ namespace NullperatorHAL::Codec::ES8389 {
             s_codecOutDev = esp_codec_dev_new(&dev_cfg);
             if (!s_codecOutDev) {
                 ESP_LOGE(TAG, "Failed to create codec output device");
+                return ESP_FAIL;
+            }
+
+            esp_codec_dev_sample_info_t fs = {
+                .bits_per_sample = CODEC_BITS_PER_SAMPLE,
+                .channel = CODEC_CHANNELS,
+                .channel_mask = 0,
+                .sample_rate = CODEC_SAMPLE_RATE,
+                .mclk_multiple = 0,
+            };
+            int ret = esp_codec_dev_open(s_codecOutDev, &fs);
+            if (ret != ESP_CODEC_DEV_OK) {
+                ESP_LOGE(TAG, "Failed to open codec output device: %d", ret);
                 return ESP_FAIL;
             }
 

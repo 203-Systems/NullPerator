@@ -15,6 +15,8 @@ namespace NullperatorHAL::Audio {
 
     namespace {
         constexpr i2s_data_bit_width_t I2S_AUDIO_BIT_WIDTH = I2S_DATA_BIT_WIDTH_16BIT;
+        constexpr uint32_t I2S_DMA_FRAME_NUM = 128;
+        constexpr uint32_t I2S_SAMPLE_RATE = 44100;
         esp_err_t sync_rx_slot_mode() {
             if (!rxChan) {
                 return ESP_ERR_INVALID_STATE;
@@ -52,6 +54,7 @@ namespace NullperatorHAL::Audio {
 
         if (!txChan && !rxChan) {
             i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_0, I2S_ROLE_MASTER);
+            chan_cfg.dma_frame_num = I2S_DMA_FRAME_NUM;
 
             esp_err_t ret = i2s_new_channel(&chan_cfg, &txChan, &rxChan);
             if (ret != ESP_OK) {
@@ -61,7 +64,7 @@ namespace NullperatorHAL::Audio {
 
             i2s_std_config_t std_cfg = {
                 .clk_cfg = {
-                    .sample_rate_hz = 48000,
+                    .sample_rate_hz = I2S_SAMPLE_RATE,
                     .clk_src = I2S_CLK_SRC_DEFAULT,
                     .ext_clk_freq_hz = 0,
                     .mclk_multiple = I2S_MCLK_MULTIPLE_256,
@@ -91,6 +94,12 @@ namespace NullperatorHAL::Audio {
             ret = i2s_channel_init_std_mode(rxChan, &std_cfg);
             if (ret != ESP_OK) {
                 ESP_LOGE(TAG, "Failed to init I2S RX: %s", esp_err_to_name(ret));
+                return ret;
+            }
+
+            ret = i2s_channel_enable(txChan);
+            if (ret != ESP_OK) {
+                ESP_LOGE(TAG, "Failed to enable I2S TX: %s", esp_err_to_name(ret));
                 return ret;
             }
         }
