@@ -1,6 +1,6 @@
 #include "EventManager.h"
+#include "Adapters/node/platform/platform.h"
 #include "Adapters/node/system/input.h"
-#include "Adapters/node/utils/utils.h"
 #include "Application/Application.h"
 #include "GUIWindowImp.h"
 #include "esp_log.h"

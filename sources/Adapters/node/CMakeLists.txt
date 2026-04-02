@@ -19,6 +19,7 @@ endif()
 include_directories("${PICOTRACKER_ROOT}")
 include_directories("${PICOTRACKER_ROOT}/Adapters/node")
 
+add_subdirectory(hal)
 add_subdirectory(system)
 add_subdirectory(gui)
 add_subdirectory(timer)

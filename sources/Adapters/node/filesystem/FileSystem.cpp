@@ -4,24 +4,20 @@
 
 #include "FileSystem.h"
 
-#include "Adapters/node/platform/gpio.h"
+#include "Adapters/node/hal/nullperator/storage/storage.h"
 #include "System/Console/Trace.h"
 #include "System/FileSystem/I_File.h"
-#include "esp_vfs_fat.h"
-#include "sdmmc_cmd.h"
-#include "driver/sdmmc_host.h"
 #include <ctype.h>
 #include <dirent.h>
+#include <errno.h>
+#include <sstream>
+#include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <errno.h>
-#include <string.h>
-#include <sstream>
 #include <unistd.h>
 
 namespace {
 constexpr const char *kMountPoint = "/sdcard";
-sdmmc_card_t *g_card = nullptr;
 
 std::string ResolvePath(const std::string &cwd, const char *path) {
   if (!path) {
@@ -77,41 +73,10 @@ bool EnsureParentDirs(const std::string &full_path) {
 }
 
 bool MountCard() {
-  if (g_card != nullptr) {
-    return true;
-  }
-
-  // Use SDMMC host (4-line mode) for Node
-  sdmmc_host_t host = SDMMC_HOST_DEFAULT();
-  host.max_freq_khz = SDMMC_FREQ_DEFAULT;  // 40 MHz for high speed
-
-  // Configure 4-bit SD bus
-  sdmmc_slot_config_t slot_config = SDMMC_SLOT_CONFIG_DEFAULT();
-  slot_config.width = 1;  // 4-line mode  // Set to 1 for now
-  slot_config.clk = (gpio_num_t)SD_CLK_PIN;
-  slot_config.cmd = (gpio_num_t)SD_CMD_PIN;
-  slot_config.d0 = (gpio_num_t)SD_D0_PIN;
-  slot_config.d1 = (gpio_num_t)SD_D1_PIN;
-  slot_config.d2 = (gpio_num_t)SD_D2_PIN;
-  slot_config.d3 = (gpio_num_t)SD_D3_PIN;
-
-  esp_vfs_fat_sdmmc_mount_config_t mount_config = {
-      .format_if_mount_failed = false,
-      .max_files = 8,
-      .allocation_unit_size = 16 * 1024,
-      .disk_status_check_enable = false,
-      .use_one_fat = false,
-  };
-
-  esp_err_t ret = esp_vfs_fat_sdmmc_mount(kMountPoint, &host, &slot_config,
-                                          &mount_config, &g_card);
-  if (ret != ESP_OK) {
-    Trace::Error("FILESYSTEM", "SD mount failed: %d (%s)", ret, esp_err_to_name(ret));
-    g_card = nullptr;
+  if (!NullperatorHAL::Storage::IsMounted()) {
+    Trace::Error("FILESYSTEM", "SD card is not mounted");
     return false;
   }
-  Trace::Log("FILESYSTEM", "Mounted SD at %s", kMountPoint);
-  sdmmc_card_print_info(stdout, g_card);
   return true;
 }
 } // namespace
