@@ -735,7 +735,7 @@ void ChainView::DrawView() {
     unsigned char d = *data++;
     setTextProps(props, 0, j, false);
     if (d == 0xFF) {
-      SetColor(CD_RESERVED2);
+      SetColor(CD_ACCENTALT);
       DrawString(pos._x, pos._y, "--", props);
     } else {
       SetColor(CD_NORMAL);

@@ -1266,7 +1266,7 @@ void PhraseView::DrawView() {
     (0 == j || 4 == j || 8 == j || 12 == j) ? SetColor(CD_HILITE1)
                                             : SetColor(CD_NORMAL);
     if (d == NO_NOTE) {
-      SetColor(CD_RESERVED2);
+      SetColor(CD_ACCENTALT);
       DrawString(pos._x, pos._y, "----", props);
     } else if (d == NOTE_OFF) {
       DrawString(pos._x, pos._y, "off ", props);
@@ -1317,7 +1317,7 @@ void PhraseView::DrawView() {
     unsigned char d = *data++;
     setTextProps(props, 1, j, false);
     if (d == 0xFF) {
-      SetColor(CD_RESERVED2);
+      SetColor(CD_ACCENTALT);
       DrawString(pos._x, pos._y, "I--", props);
     } else {
       SetColor(CD_NORMAL);
