@@ -23,10 +23,9 @@ void UISwatchField::Draw(GUIWindow &w, int offset) {
   position._y += offset;
 
   props.invert_ = true;
-  position._x += 1;
 
   ((AppWindow &)w).SetColor(color_);
-  w.DrawString("   ", position, props);
+  w.DrawString("      ", position, props);
   ((AppWindow &)w).SetColor(CD_NORMAL);
 };
 

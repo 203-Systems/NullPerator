@@ -76,7 +76,7 @@ void ThemeImportView::DrawView() {
   // Draw title
   const char *title = "Import Theme";
   SetColor(CD_INFO);
-  DrawString(pos._x + 1, pos._y, title, props);
+  DrawString(pos._x, pos._y, title, props);
 
   // Draw theme files
   int x = 1;

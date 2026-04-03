@@ -321,7 +321,7 @@ void ImportView::DrawView() {
   npf_snprintf(titleBuffer, sizeof(titleBuffer), "%s", baseTitle);
 
   SetColor(CD_NORMAL);
-  DrawString(pos._x + 1, pos._y, titleBuffer, props);
+  DrawString(pos._x, pos._y, titleBuffer, props);
 
   // Draw samples
   int x = 1;
