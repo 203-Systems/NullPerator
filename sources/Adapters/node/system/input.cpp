@@ -8,11 +8,7 @@ constexpr uint16_t kUninitializedKeyCache = 0xFFFF;
 
 struct StartButtonState {
   uint32_t pressed_since_ms = 0;
-  bool tap_candidate = false;
-  bool nav_active = false;
-  bool play_pulse_pending = false;
-  bool started_with_alt = false;
-  bool was_pressed = false;
+  bool chord_triggered = false;
 };
 
 struct InputState {
@@ -60,58 +56,33 @@ uint16_t build_base_key_mask(const NullperatorHAL::Input::ButtonState_t& buttons
 }
 
 // START has dual behavior: a short standalone tap emits PLAY, while a
-// hold or chord behaves as NAV. Keep that state machine isolated so scanKeys()
-// can read as a straight pipeline.
-uint16_t resolve_start_key_mask(bool start_pressed, bool alt_pressed,
-                                uint16_t other_keys, uint32_t now_ms) {
+// hold behaves as NAV while pressed. If it was a pure standalone tap and gets
+// released before the timeout, emit an extra PLAY pulse on release.
+uint16_t resolve_start_key_mask(bool start_pressed, uint16_t other_keys,
+                                uint32_t now_ms) {
   StartButtonState& state = g_input_state.start;
+  uint16_t result = 0;
+  const bool was_pressed = (state.pressed_since_ms != 0);
 
   if (start_pressed) {
-    if (!state.was_pressed) {
-      state.started_with_alt = alt_pressed;
+    if (!was_pressed) {
+      state.pressed_since_ms = now_ms;
+      state.chord_triggered = (other_keys != 0u);
     }
 
-    if (!state.tap_candidate && !state.nav_active) {
-      if (other_keys == 0u) {
-        state.tap_candidate = true;
-        state.pressed_since_ms = now_ms;
-      } else {
-        state.nav_active = true;
-      }
+    if (other_keys != 0u ||
+        (now_ms - state.pressed_since_ms) >= START_TAP_TIME_MS) {
+      state.chord_triggered = true;
     }
 
-    if (state.tap_candidate) {
-      const bool chord_started = other_keys != 0u;
-      const bool held_long_enough =
-          (now_ms - state.pressed_since_ms) >= START_TAP_TIME_MS;
-      if (chord_started || held_long_enough) {
-        state.tap_candidate = false;
-        state.nav_active = true;
-      }
+    result |= KEY_NAV;
+  } else if (was_pressed) {
+    if (!state.chord_triggered &&
+        ((now_ms - state.pressed_since_ms) < START_TAP_TIME_MS)) {
+      result |= KEY_PLAY;
     }
-  } else {
-    const bool is_short_standalone_tap =
-        state.tap_candidate &&
-        (other_keys == 0u) &&
-        ((now_ms - state.pressed_since_ms) < START_TAP_TIME_MS);
-    if (is_short_standalone_tap) {
-      state.play_pulse_pending = true;
-    }
-
-    state.tap_candidate = false;
-    state.nav_active = false;
-    state.started_with_alt = false;
-  }
-
-  state.was_pressed = start_pressed;
-
-  uint16_t result = 0;
-  if (state.nav_active) {
-    result |= state.started_with_alt ? KEY_PLAY : KEY_NAV;
-  }
-  if (state.play_pulse_pending) {
-    result |= KEY_PLAY;
-    state.play_pulse_pending = false;
+    state.pressed_since_ms = 0;
+    state.chord_triggered = false;
   }
   return result;
 }
@@ -144,8 +115,7 @@ uint16_t scanKeys() {
   const uint32_t now_ms = millis();
   uint16_t key_mask = build_base_key_mask(buttons);
 
-  key_mask |= resolve_start_key_mask(buttons.start, buttons.select, key_mask,
-                                     now_ms);
+  key_mask |= resolve_start_key_mask(buttons.start, key_mask, now_ms);
 
   return filter_unstable_changes(key_mask);
 }
