@@ -589,9 +589,11 @@ void View::drawPowerButtonUI(GUITextProperties &props) {
     // Reset hold counter when button is released
     powerButtonHoldCount_ = 0;
 
-    // Force immediate redraw by calling DrawView directly
-    // This will redraw the entire screen with the correct content
+    // Mirror the normal AppWindow frame order: redraw main content, then
+    // re-apply animation overlays such as battery/playtime before the next
+    // flush.
     DrawView();
+    AnimationUpdate();
 
     Trace::Debug("Power button released! View redrawn.");
   }
