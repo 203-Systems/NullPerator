@@ -206,11 +206,11 @@ void SelectProjectView::DrawView() {
   // Draw title
   const char *title = "Browse Projects";
   SetColor(CD_INFO);
-  DrawString(pos._x + 1, pos._y, title, props);
+  DrawString(pos._x, pos._y, title, props);
   SetColor(CD_NORMAL);
 
   // Draw projects
-  int x = 1;
+  int x = 2;
   int y = pos._y + 2;
 
   auto var = viewData_->project_->FindVariable(FourCC::VarProjectName);

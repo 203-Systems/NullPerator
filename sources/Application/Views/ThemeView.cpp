@@ -18,7 +18,7 @@
 #include <Application/Model/ThemeConstants.h>
 #include <stdint.h>
 
-#define FONT_FIELD_LINE 3
+#define FONT_FIELD_LINE 6
 
 #define COLOR_LABEL_WIDTH 12
 #define COMPONENT_SPACING 3
@@ -32,34 +32,7 @@ ThemeView::ThemeView(GUIWindow &w, ViewData *data)
     : FieldView(w, data), themeNameVar_(FourCC::ActionThemeName,
                                         ThemeConstants::DEFAULT_THEME_NAME) {
 
-  GUIPoint position = GetAnchor();
-
   auto config = Config::GetInstance();
-
-  // Add import/export buttons at the top
-  GUIPoint actionPos = position;
-
-  actionPos._y -= 1;
-
-  actionField_.emplace_back("Import", FourCC::ActionImport, actionPos);
-  fieldList_.insert(fieldList_.end(), &(*actionField_.rbegin()));
-  (*actionField_.rbegin()).AddObserver(*this);
-
-  actionPos._x += 8;
-  actionField_.emplace_back("Export", FourCC::ActionExport, actionPos);
-  fieldList_.insert(fieldList_.end(), &(*actionField_.rbegin()));
-  (*actionField_.rbegin()).AddObserver(*this);
-  actionPos._y += 1;
-
-  // Font selection
-  position._y = FONT_FIELD_LINE;
-  Variable *fontVar = config->FindVariable(FourCC::VarUIFont);
-  intVarField_.emplace_back(position, *fontVar, "Font: %s", 0,
-                            ThemeConstants::FONT_COUNT - 1, 1,
-                            ThemeConstants::FONT_COUNT - 1);
-  fieldList_.insert(fieldList_.end(), &(*intVarField_.rbegin()));
-  (*intVarField_.rbegin()).AddObserver(*this);
-  position._y += 2;
 
   // Get the current theme name from Config
   Variable *configThemeVar = config->FindVariable(FourCC::VarThemeName);
@@ -76,7 +49,8 @@ ThemeView::ThemeView(GUIWindow &w, ViewData *data)
 
   themeNameVar_.SetString(currentThemeName.c_str(), false);
 
-  // Add the text field
+  // Theme name at y=3.
+  GUIPoint position = GetAnchor();
   textFields_.emplace_back(themeNameVar_, position, label,
                            FourCC::ActionThemeName, defaultValue);
   themeNameField_ = &(*textFields_.rbegin());
@@ -89,8 +63,30 @@ ThemeView::ThemeView(GUIWindow &w, ViewData *data)
   // Initialize the export theme name
   exportThemeName_ = currentThemeName;
 
+  // Import / Export at y=4.
+  GUIPoint actionPos = position;
+  actionPos._y += 1;
+
+  actionField_.emplace_back("Import", FourCC::ActionImport, actionPos);
+  fieldList_.insert(fieldList_.end(), &(*actionField_.rbegin()));
+  (*actionField_.rbegin()).AddObserver(*this);
+
+  actionPos._x += 8;
+  actionField_.emplace_back("Export", FourCC::ActionExport, actionPos);
+  fieldList_.insert(fieldList_.end(), &(*actionField_.rbegin()));
+  (*actionField_.rbegin()).AddObserver(*this);
+
+  // Font at y=6.
+  position._y = FONT_FIELD_LINE;
+  Variable *fontVar = config->FindVariable(FourCC::VarUIFont);
+  intVarField_.emplace_back(position, *fontVar, "Font: %s", 0,
+                            ThemeConstants::FONT_COUNT - 1, 1,
+                            ThemeConstants::FONT_COUNT - 1);
+  fieldList_.insert(fieldList_.end(), &(*intVarField_.rbegin()));
+  (*intVarField_.rbegin()).AddObserver(*this);
+
   // Foreground color
-  position._y += 3;
+  position._y = 9;
   addColorField("Foreground", config->FindVariable(FourCC::VarFGColor),
                 CD_NORMAL, position);
 
@@ -201,11 +197,11 @@ void ThemeView::DrawView() {
 
   // just draw the RGB column headings directly:
   GUITextProperties headerProps;
-  DrawString(17, 6, "R  G  B", headerProps);
+  DrawString(13, 8, "R  G  B", headerProps);
 }
 
 void ThemeView::addSwatchField(ColorDefinition color, GUIPoint position) {
-  position._x -= 5;
+  position._x += 22;
   swatchField_.emplace_back(position, color);
   fieldList_.insert(fieldList_.end(), &(*swatchField_.rbegin()));
 }
