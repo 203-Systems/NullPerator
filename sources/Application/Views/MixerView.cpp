@@ -347,11 +347,12 @@ void MixerView::DrawView() {
   Player *player = Player::GetInstance();
   Project *project = player->GetProject(); // Use Player's GetProject method
 
-  props.invert_ = true;
-  const char *buffer =
-      ((player->GetSequencerMode() == SM_SONG) ? "Song" : "Live");
+  // props.invert_ = true;
+  // const char *buffer =
+  //     ((player->GetSequencerMode() == SM_SONG) ? "Song" : "Live");
+  const char *buffer = "Mixer";
   DrawString(pos._x, pos._y, buffer, props);
-  props.invert_ = false;
+  // props.invert_ = false;
 
   // Now draw busses
   // we start at the bottom of the VU meter and draw it growing upwards
