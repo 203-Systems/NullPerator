@@ -27,6 +27,7 @@ public:
   virtual void DrawView();
   virtual void OnPlayerUpdate(PlayerEventType, unsigned int){};
   virtual void OnFocus(){};
+  virtual bool ShouldDrawPlayTime() const override;
   void OnFocusLost() override;
 
   // Observer for action callback

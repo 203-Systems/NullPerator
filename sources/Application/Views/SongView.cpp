@@ -984,10 +984,6 @@ void SongView::DrawView() {
         }
       }
     }
-
-    GUIPoint timePos(24, 1);
-    SetColor(CD_NORMAL);
-    drawPlayTime(player, timePos, props);
     OnPlayerUpdate(PET_UPDATE);
   };
 };
@@ -1041,14 +1037,6 @@ void SongView::AnimationUpdate() {
   // Use the consolidated flag for all UI updates
   if (needsUIUpdate_) {
     drawNotes();
-
-    // Only handle play time updates if needed
-    if (needsPlayTimeUpdate_) {
-      GUIPoint timePos(24, 1);
-      SetColor(CD_NORMAL);
-      drawPlayTime(player, timePos, props);
-      needsPlayTimeUpdate_ = false;
-    }
 
     // Handle position updates
     GUIPoint anchor = GetAnchor();

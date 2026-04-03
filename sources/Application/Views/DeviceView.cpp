@@ -106,6 +106,8 @@ DeviceView::DeviceView(GUIWindow &w, ViewData *data) : FieldView(w, data) {
   #endif
 }
 
+bool DeviceView::ShouldDrawPlayTime() const { return false; }
+
 DeviceView::~DeviceView() {}
 
 void DeviceView::ProcessButtonMask(unsigned short mask, bool pressed) {
