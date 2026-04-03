@@ -36,6 +36,8 @@ DeviceView::DeviceView(GUIWindow &w, ViewData *data) : FieldView(w, data) {
 
   GUIPoint position = GetAnchor();
 
+  position._x -= 3;
+
   auto config = Config::GetInstance();
 
   Variable *v;
@@ -94,12 +96,14 @@ DeviceView::DeviceView(GUIWindow &w, ViewData *data) : FieldView(w, data) {
                             position);
   fieldList_.insert(fieldList_.end(), &(*actionField_.rbegin()));
   (*actionField_.rbegin()).AddObserver(*this);
-
+  
+  #ifndef NODE
   position._y += 2;
   actionField_.emplace_back("Update firmware", FourCC::ActionBootSelect,
                             position);
   fieldList_.insert(fieldList_.end(), &(*actionField_.rbegin()));
   (*actionField_.rbegin()).AddObserver(*this);
+  #endif
 }
 
 DeviceView::~DeviceView() {}
@@ -150,10 +154,9 @@ void DeviceView::DrawView() {
   SetColor(CD_NORMAL);
   drawMap();
 
-  pos._x = SCREEN_MAP_WIDTH + 1;
   pos._y = SCREEN_HEIGHT - 1;
 
-  npf_snprintf(projectString, sizeof(projectString), "Build %s%s_%s",
+  npf_snprintf(projectString, sizeof(projectString), "Version %s%s_%s",
                PROJECT_NUMBER, PROJECT_RELEASE, BUILD_COUNT);
   SetColor(CD_NORMAL);
   DrawString(pos._x, pos._y, projectString, props);
