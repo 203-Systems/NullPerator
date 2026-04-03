@@ -1207,13 +1207,15 @@ void PhraseView::DrawView() {
   GUITextProperties props;
   GUIPoint pos = GetTitlePosition();
 
-  // Draw title
+  // Draw title only when the FX help legend is not using the top rows.
+  if (!isShowingHelpLegend()) {
+    char title[SCREEN_WIDTH + 1];
 
-  char title[SCREEN_WIDTH + 1];
-
-  SetColor(CD_NORMAL);
-  npf_snprintf(title, sizeof(title), "Phrase %2.2X", viewData_->currentPhrase_);
-  DrawString(pos._x, pos._y, title, props);
+    SetColor(CD_NORMAL);
+    npf_snprintf(title, sizeof(title), "Phrase %2.2X",
+                 viewData_->currentPhrase_);
+    DrawString(pos._x, pos._y, title, props);
+  }
 
   // Compute song grid location
 
@@ -1325,7 +1327,7 @@ void PhraseView::DrawView() {
       SetColor(CD_NORMAL);
       hex2char(d, buffer + 1);
       DrawString(pos._x, pos._y, buffer, props);
-      if (j == row_) {
+      if (j == row_ && !isShowingHelpLegend()) {
         npf_snprintf(buffer, sizeof(buffer), "I%2.2X:", d);
         etl::string<32 - BATTERY_GAUGE_WIDTH> instrLine = buffer;
         setTextProps(props, 1, j, true);
@@ -1547,6 +1549,31 @@ void PhraseView::AnimationUpdate() {
   // Flush the window to ensure changes are displayed
   w_.Flush();
 }
+
+bool PhraseView::isShowingHelpLegend() const {
+  if ((col_ != 2) && (col_ != 3) && (col_ != 4) && (col_ != 5)) {
+    return false;
+  }
+
+  FourCC command = FourCC::InstrumentCommandNone;
+  switch (col_) {
+  case 2:
+  case 3:
+    command = *(phrase_->cmd1_ + (16 * viewData_->currentPhrase_ + row_));
+    break;
+  case 4:
+  case 5:
+    command = *(phrase_->cmd2_ + (16 * viewData_->currentPhrase_ + row_));
+    break;
+  }
+
+  return command != FourCC::InstrumentCommandNone;
+}
+
+bool PhraseView::ShouldDrawBattery() const { return !isShowingHelpLegend(); }
+
+bool PhraseView::ShouldDrawPlayTime() const { return !isShowingHelpLegend(); }
+
 void PhraseView::printHelpLegend(FourCC command, GUITextProperties props) {
   if (command == FourCC::InstrumentCommandNone) {
     // no command -> no help text
