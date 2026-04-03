@@ -62,7 +62,7 @@ static char **getHelpLegend(FourCC command) {
     result[1] = (char *)("CC message aa value bb");
     break;
   case FourCC::InstrumentCommandMidiPC:
-    result[0] = (char *)("MIDI Program Change: --bb");
+    result[0] = (char *)("MIDI PC: --bb");
     result[1] = (char *)("send program change bb");
     break;
   case FourCC::InstrumentCommandPlayOfset:
@@ -70,7 +70,7 @@ static char **getHelpLegend(FourCC command) {
     result[1] = (char *)("jmp abs aa & mv rel signed bb");
     break;
   case FourCC::InstrumentCommandFilterResonance:
-    result[0] = (char *)("FiLTer&Res: aabb");
+    result[0] = (char *)("FiLTer & Res: aabb");
     result[1] = (char *)("speed aa, resonance bb");
     break;
   case FourCC::InstrumentCommandLowPassFilter:
@@ -82,11 +82,11 @@ static char **getHelpLegend(FourCC command) {
     result[1] = (char *)("run table bb");
     break;
   case FourCC::InstrumentCommandCrush:
-    result[0] = (char *)("drive&CruSH: aa-b");
+    result[0] = (char *)("drive & CruSH: aa-b");
     result[1] = (char *)("drive aa crush -b");
     break;
   case FourCC::InstrumentCommandFilterCut:
-    result[0] = (char *)("FilterCuToff: aabb");
+    result[0] = (char *)("Filter CuToff: aabb");
     result[1] = (char *)("speed aa, target cutoff bb");
     break;
   case FourCC::InstrumentCommandPan:
@@ -98,11 +98,11 @@ static char **getHelpLegend(FourCC command) {
     result[1] = (char *)("set bb (aa > 0,set all tracks)");
     break;
   case FourCC::InstrumentCommandInstrumentRetrigger:
-    result[0] = (char *)("InstrumentReTrig: --bb");
+    result[0] = (char *)("Instrument ReTrig: --bb");
     result[1] = (char *)("retrigger & transpose by bb");
     break;
   case FourCC::InstrumentCommandPitchFineTune:
-    result[0] = (char *)("PitchFineTune: aabb");
+    result[0] = (char *)("Pitch Fine Tune: aabb");
     result[1] = (char *)("speed aa, tune bb (~+/-1 st)");
     break;
   case FourCC::InstrumentCommandDelay:
@@ -114,7 +114,7 @@ static char **getHelpLegend(FourCC command) {
     result[1] = (char *)("");
     break;
   case FourCC::InstrumentCommandGateOff:
-    result[0] = (char *)("GateOff (Synth only)");
+    result[0] = (char *)("Gate Off (Synth only)");
     result[1] = (char *)("");
     break;
   case FourCC::InstrumentCommandMidiChord:
