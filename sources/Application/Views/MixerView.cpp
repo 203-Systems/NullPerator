@@ -301,7 +301,7 @@ void MixerView::initChannelVolumeFields() {
   for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {
     // Create position for this channel's volume field
     GUIPoint fieldPos = position;
-    fieldPos._x = position._x + (i * CHANNELS_X_OFFSET_);
+    fieldPos._x = position._x + ((i - 1) * CHANNELS_X_OFFSET_);
 
     // Find the variable for this channel's volume
     Variable *v = project->FindVariable(channelVolumeFourCCs[i]);
@@ -324,7 +324,7 @@ void MixerView::initChannelVolumeFields() {
 
   Variable *v = project->FindVariable(FourCC::VarMasterVolume);
   if (v) {
-    masterVolumeField_.emplace_back(masterPos, *v, "%2.2d", 0, 100, 1, 5);
+    masterVolumeField_.emplace_back(masterPos, *v, "%2.2d", 0, 99, 1, 5);
     fieldList_.insert(fieldList_.end(), &(*masterVolumeField_.begin()));
   }
 
@@ -395,8 +395,8 @@ void MixerView::DrawView() {
   // Draw master volume label
   GUIPoint labelPos = GetAnchor();
   // Align with master volume control
-  labelPos._x += (SONG_CHANNEL_COUNT * CHANNELS_X_OFFSET_);
-  labelPos._y = SCREEN_HEIGHT - 3; // Position below the volume control
+  labelPos._x += ((SONG_CHANNEL_COUNT - 1) * CHANNELS_X_OFFSET_);
+  labelPos._y = SCREEN_HEIGHT - 4; // Position below the volume control
   SetColor(CD_HILITE2);
   DrawString(labelPos._x, labelPos._y, "MB", props);
   SetColor(CD_NORMAL);
@@ -494,6 +494,7 @@ void MixerView::drawChannelVUMeters(
 
   // we start at the bottom of the VU meter and draw it growing upwards
   GUIPoint pos = GetAnchor();
+  pos._x -= CHANNELS_X_OFFSET_;
   pos._y += VU_METER_HEIGHT - 1; // -1 to align with song grid
 
   // draw vu meter for each bus

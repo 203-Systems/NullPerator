@@ -181,9 +181,7 @@ void View::drawMap() {
     break;
   case VT_MIXER:
     SetColor(CD_NORMAL);
-    pos._y += 1;
-    DrawString(pos._x, pos._y, "P", props);
-    pos._y += 2;
+    pos._y += 3;
     SetColor(CD_HILITE2);
     DrawString(pos._x, pos._y, "M", props);
     break;
