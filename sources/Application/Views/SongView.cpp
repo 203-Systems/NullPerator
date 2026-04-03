@@ -948,6 +948,43 @@ void SongView::DrawView() {
   drawNotes();
 
   if (player->IsRunning()) {
+    GUIPoint indicatorPos = anchor;
+    indicatorPos._x -= 1;
+    indicatorPos._y += 1;
+
+    for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {
+      if (player->IsChannelPlaying(i)) {
+        if (viewData_->currentPlayChain_[i] != 0xFF) {
+          int y = viewData_->songPlayPos_[i] - viewData_->songOffset_;
+          if (y >= 0 && y < View::songRowCount_ &&
+              viewData_->playMode_ != PM_AUDITION) {
+            GUIPoint pos = indicatorPos;
+            pos._x += i * 3;
+            pos._y += y;
+            if (!player->IsChannelMuted(i)) {
+              SetColor(CD_ACCENT);
+              DrawString(pos._x, pos._y, ">", props);
+            } else {
+              SetColor(CD_ACCENTALT);
+              DrawString(pos._x, pos._y, "-", props);
+            }
+          }
+        }
+      }
+
+      if (player->GetSequencerMode() == SM_LIVE) {
+        if (player->GetQueueingMode(i) != QM_NONE) {
+          int y = player->GetQueuePosition(i) - viewData_->songOffset_;
+          if (y >= 0 && y < View::songRowCount_) {
+            GUIPoint pos = indicatorPos;
+            pos._x += i * 3;
+            pos._y += y;
+            DrawString(pos._x, pos._y, player->GetLiveIndicator(i), props);
+          }
+        }
+      }
+    }
+
     GUIPoint timePos(24, 1);
     SetColor(CD_NORMAL);
     drawPlayTime(player, timePos, props);
