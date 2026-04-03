@@ -103,7 +103,7 @@ void InstrumentImportView::DrawView() {
   // Draw title
   const char *title = "Import Instrument";
   SetColor(CD_INFO);
-  DrawString(pos._x + 1, pos._y, title, props);
+  DrawString(pos._x, pos._y, title, props);
 
   SetColor(CD_NORMAL);
 
