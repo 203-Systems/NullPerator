@@ -471,7 +471,7 @@ void View::drawBattery(GUITextProperties &props) {
   }
 
   GUIPoint battpos = GetAnchor();
-  battpos._y = 0;
+  battpos._y = 1;
 
 #if BATTERY_LEVEL_AS_PERCENTAGE
   uint8_t batteryPercent = batteryState_.percentage;
@@ -537,7 +537,7 @@ void View::drawBattery(GUITextProperties &props) {
 
   int battLen = (battText != nullptr) ? static_cast<int>(strlen(battText)) : 0;
   constexpr int kBattWidth = 6; // "[100%]" is the widest we render
-  int startX = SCREEN_WIDTH - kBattWidth;
+  int startX = SCREEN_WIDTH - kBattWidth - 1;
   ClearTextRect(startX, battpos._y, kBattWidth, 1);
   battpos._x =
       startX + (kBattWidth - battLen); // we want to right align the batt widget
