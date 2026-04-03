@@ -1137,6 +1137,9 @@ bool TableView::ShouldDrawBattery() const { return !isShowingHelpLegend(); }
 bool TableView::ShouldDrawPlayTime() const { return !isShowingHelpLegend(); }
 
 void TableView::printHelpLegend(FourCC command, GUITextProperties props) {
+  if (command == FourCC::InstrumentCommandNone) {
+    return;
+  }
   char **helpLegend = getHelpLegend(command);
   drawWrappedHelpLegend(*this, helpLegend, props);
 }
