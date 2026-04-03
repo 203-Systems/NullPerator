@@ -82,6 +82,27 @@ InstrumentView::~InstrumentView() {}
 
 GUIPoint InstrumentView::GetAnchor() { return GUIPoint(1, 4); }
 
+FourCC InstrumentView::getFieldID(UIField *field) {
+  if (field == nullptr || field->IsStatic()) {
+    return FourCC::VarInstrumentType;
+  }
+
+  if (!nameTextField_.empty() && field == &nameTextField_.front()) {
+    return FourCC::InstrumentName;
+  }
+  if (!persistentActionField_.empty() && field == &persistentActionField_[0]) {
+    return FourCC::ActionImport;
+  }
+  if (persistentActionField_.size() > 1 && field == &persistentActionField_[1]) {
+    return FourCC::ActionExport;
+  }
+  if (!sampleActionField_.empty() && field == &sampleActionField_.front()) {
+    return FourCC::ActionShowSampleSlices;
+  }
+
+  return static_cast<UIIntVarField *>(field)->GetVariableID();
+}
+
 void InstrumentView::Reset() {
   lastSampleIndex_ = -1;
   suppressSampleChangeWarning_ = false;
@@ -329,7 +350,7 @@ void InstrumentView::refreshInstrumentFields() {
   };
 
   for (auto field : fieldList_) {
-    if (((UIIntVarField *)field)->GetVariableID() == lastFocusID_) {
+    if (getFieldID(field) == lastFocusID_) {
       SetFocus(field);
       break;
     }
@@ -782,6 +803,15 @@ void InstrumentView::ProcessButtonMask(unsigned short mask, bool pressed) {
     return;
 
   isDirty_ = false;
+  UIField *focus = GetFocus();
+  FourCC focusID = getFieldID(focus);
+  UIIntVarField *focusedIntField =
+      (focus != nullptr && focusID != FourCC::InstrumentName &&
+       focusID != FourCC::ActionImport && focusID != FourCC::ActionExport &&
+       focusID != FourCC::ActionShowSampleSlices)
+          ? static_cast<UIIntVarField *>(focus)
+          : nullptr;
+
   if ((mask & EPBM_EDIT) && (mask & EPBM_ENTER)) {
     int i = viewData_->currentInstrumentID_;
     InstrumentBank *bank = viewData_->project_->GetInstrumentBank();
@@ -800,9 +830,9 @@ void InstrumentView::ProcessButtonMask(unsigned short mask, bool pressed) {
       return;
     }
     if (getInstrument()->GetType() == IT_SAMPLE) {
-      UIIntVarField *field = (UIIntVarField *)GetFocus();
-      if (field->GetVariableID() == FourCC::SampleInstrumentEnd) {
-        Variable &var = field->GetVariable();
+      if (focusedIntField &&
+          focusedIntField->GetVariableID() == FourCC::SampleInstrumentEnd) {
+        Variable &var = focusedIntField->GetVariable();
         SampleInstrument *instrument = (SampleInstrument *)instr;
         var.SetInt(instrument->GetSampleSize() - 1);
         isDirty_ = true;
@@ -819,11 +849,9 @@ void InstrumentView::ProcessButtonMask(unsigned short mask, bool pressed) {
 
   if (mask == EPBM_ENTER) {
     // Get the current field to check if we're on the sample field
-    UIIntVarField *currentField = (UIIntVarField *)GetFocus();
-
     // Only allow sample import when the sample field is selected
-    if (getInstrument()->GetType() == IT_SAMPLE && currentField &&
-        currentField->GetVariableID() == FourCC::SampleInstrumentSample) {
+    if (getInstrument()->GetType() == IT_SAMPLE && focusedIntField &&
+        focusedIntField->GetVariableID() == FourCC::SampleInstrumentSample) {
 
       if (viewMode_ == VM_NEW) {
         viewMode_ = VM_NORMAL; // clear the "enter double tap" state
@@ -862,19 +890,20 @@ void InstrumentView::ProcessButtonMask(unsigned short mask, bool pressed) {
       viewMode_ = VM_NORMAL;
     }
 
-    UIIntVarField *field = (UIIntVarField *)GetFocus();
-    Variable &v = field->GetVariable();
-    switch (v.GetID()) {
-    case FourCC::SampleInstrumentTable: {
-      int next = TableHolder::GetInstance()->GetNext();
-      if (next != NO_MORE_TABLE) {
-        v.SetInt(next);
-        isDirty_ = true;
+    if (focusedIntField) {
+      Variable &v = focusedIntField->GetVariable();
+      switch (v.GetID()) {
+      case FourCC::SampleInstrumentTable: {
+        int next = TableHolder::GetInstance()->GetNext();
+        if (next != NO_MORE_TABLE) {
+          v.SetInt(next);
+          isDirty_ = true;
+        }
+        break;
       }
-      break;
-    }
-    default:
-      break;
+      default:
+        break;
+      }
     }
     mask &= (0xFFFF - EPBM_ENTER);
   } else {
@@ -886,21 +915,23 @@ void InstrumentView::ProcessButtonMask(unsigned short mask, bool pressed) {
 
   if (viewMode_ == VM_CLONE) {
     if ((mask & EPBM_ENTER) && (mask & EPBM_ALT)) {
-      UIIntVarField *field = (UIIntVarField *)GetFocus();
       mask &= (0xFFFF - EPBM_ENTER);
-      Variable &v = field->GetVariable();
-      int current = v.GetInt();
-      if (current == -1)
-        return;
+      if (focusedIntField) {
+        Variable &v = focusedIntField->GetVariable();
+        int current = v.GetInt();
+        if (current == -1)
+          return;
 
-      if ((field->GetVariableID() == FourCC::SampleInstrumentTable) ||
-          (field->GetVariableID() == FourCC::MidiInstrumentTable)) {
-        int next = TableHolder::GetInstance()->Clone(current);
-        if (next != NO_MORE_TABLE) {
-          v.SetInt(next);
-          isDirty_ = true;
-        }
-      };
+        if ((focusedIntField->GetVariableID() ==
+             FourCC::SampleInstrumentTable) ||
+            (focusedIntField->GetVariableID() == FourCC::MidiInstrumentTable)) {
+          int next = TableHolder::GetInstance()->Clone(current);
+          if (next != NO_MORE_TABLE) {
+            v.SetInt(next);
+            isDirty_ = true;
+          }
+        };
+      }
     }
     mask &= (0xFFFF - (EPBM_ENTER | EPBM_ALT));
   };
@@ -973,10 +1004,7 @@ void InstrumentView::ProcessButtonMask(unsigned short mask, bool pressed) {
     }
   }
 
-  UIIntVarField *field = (UIIntVarField *)GetFocus();
-  if (field) {
-    lastFocusID_ = field->GetVariableID();
-  }
+  lastFocusID_ = getFieldID(GetFocus());
 };
 
 void InstrumentView::DrawView() {

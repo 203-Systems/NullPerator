@@ -61,6 +61,7 @@ protected:
   void handleInstrumentExport();
 
 private:
+  FourCC getFieldID(UIField *field);
   void onConfirmInstrumentTypeChange(View &view, ModalView &dialog);
   void onConfirmResetInstrument(View &view, ModalView &dialog);
   void onConfirmSampleChange(View &view, ModalView &dialog);
