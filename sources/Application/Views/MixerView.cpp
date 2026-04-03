@@ -447,17 +447,6 @@ void MixerView::AnimationUpdate() {
     drawMasterVuMeter(player, props);
   }
 
-  // Handle any pending updates from OnPlayerUpdate
-  // This ensures all UI drawing happens in the same thread (core0)
-  if (needsPlayTimeUpdate_) {
-    GUIPoint pos = GetAnchor();
-    // explicitly position timer directly below the battery gauge
-    pos._x = 24;
-    pos._y = 1;
-    drawPlayTime(player, pos, props);
-    needsPlayTimeUpdate_ = false;
-  }
-
   if (needsNotesUpdate_) {
     drawNotes();
     needsNotesUpdate_ = false;

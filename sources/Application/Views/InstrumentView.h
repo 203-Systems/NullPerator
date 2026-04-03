@@ -40,6 +40,8 @@ public:
   virtual void DrawView();
   virtual void OnPlayerUpdate(PlayerEventType, unsigned int){};
   virtual void OnFocus();
+  virtual bool ShouldDrawBattery() const override;
+  virtual bool ShouldDrawPlayTime() const override;
   void onInstrumentTypeChange(bool updateUI = false);
   bool checkInstrumentModified();
   void resetInstrumentToDefaults();
@@ -62,6 +64,7 @@ protected:
 
 private:
   FourCC getFieldID(UIField *field);
+  bool ShouldShowExperimentalBanner() const;
   void onConfirmInstrumentTypeChange(View &view, ModalView &dialog);
   void onConfirmResetInstrument(View &view, ModalView &dialog);
   void onConfirmSampleChange(View &view, ModalView &dialog);

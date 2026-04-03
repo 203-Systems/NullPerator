@@ -82,6 +82,25 @@ InstrumentView::~InstrumentView() {}
 
 GUIPoint InstrumentView::GetAnchor() { return GUIPoint(1, 4); }
 
+bool InstrumentView::ShouldShowExperimentalBanner() const {
+  InstrumentBank *bank = viewData_ ? viewData_->project_->GetInstrumentBank() : nullptr;
+  I_Instrument *instr =
+      bank ? bank->GetInstrument(viewData_->currentInstrumentID_) : nullptr;
+  if (!instr) {
+    return false;
+  }
+  InstrumentType type = instr->GetType();
+  return type == IT_SID || type == IT_OPAL;
+}
+
+bool InstrumentView::ShouldDrawBattery() const {
+  return !ShouldShowExperimentalBanner();
+}
+
+bool InstrumentView::ShouldDrawPlayTime() const {
+  return !ShouldShowExperimentalBanner();
+}
+
 FourCC InstrumentView::getFieldID(UIField *field) {
   if (field == nullptr || field->IsStatic()) {
     return FourCC::VarInstrumentType;
@@ -1025,16 +1044,12 @@ void InstrumentView::DrawView() {
   drawMap();
 
   // Draw instrument type with special handling for SID and OPAL
-  I_Instrument *instr = getInstrument();
-  if (instr) {
-    InstrumentType type = instr->GetType();
-    if (type == IT_SID || type == IT_OPAL) {
-      SetColor(CD_WARN);
-      DrawString(16, 1, char_button_border_left_s, props);
-      DrawString(17, 1, "EXPERIMENTAL", GUITextProperties(true));
-      DrawString(29, 1, char_button_border_right_s, props);
-      SetColor(CD_NORMAL);
-    }
+  if (ShouldShowExperimentalBanner()) {
+    SetColor(CD_WARN);
+    DrawString(16, 1, char_button_border_left_s, props);
+    DrawString(17, 1, "EXPERIMENTAL", GUITextProperties(true));
+    DrawString(29, 1, char_button_border_right_s, props);
+    SetColor(CD_NORMAL);
   }
 }
 

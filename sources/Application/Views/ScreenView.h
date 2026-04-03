@@ -21,6 +21,8 @@ public:
   virtual void DrawView(){};
   virtual void OnPlayerUpdate(PlayerEventType, unsigned int tick = 0){};
   virtual void OnFocus(){};
+  virtual bool ShouldDrawBattery() const;
+  virtual bool ShouldDrawPlayTime() const;
   virtual void AnimationUpdate() override;
 
 private:
