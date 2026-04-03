@@ -4,6 +4,7 @@ doxygen/html/**
 projects/buildOSX/**
 projects/lgpt
 lgpt.log
+.*
 
 # OSX
 ## General
