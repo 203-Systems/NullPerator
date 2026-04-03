@@ -303,7 +303,8 @@ void TableView::updateCursor(int dx, int dy) {
   }
   Table &table = TableHolder::GetInstance()->GetTable(viewData_->currentTable_);
 
-  GUIPoint anchor = GetAnchor();
+  GUIPoint anchor = View::GetAnchor();
+  anchor._x += 3;
   GUIPoint p(anchor);
   switch (col_) {
   case 1:
@@ -792,7 +793,8 @@ void TableView::DrawView() {
 
   // Compute song grid location
 
-  GUIPoint anchor = GetAnchor();
+  GUIPoint anchor = View::GetAnchor();
+  anchor._x += 3;
 
   // Display row numbers
   char buffer[6];
@@ -980,7 +982,8 @@ void TableView::AnimationUpdate() {
     drawNotes();
 
     // Get anchor position for drawing
-    GUIPoint anchor = GetAnchor();
+    GUIPoint anchor = View::GetAnchor();
+    anchor._x += 3;
     GUIPoint pos = anchor;
 
     // Clear all cursor columns first (positions 0, 9, 18 from anchor)

@@ -128,7 +128,6 @@ ProjectView::ProjectView(GUIWindow &w, ViewData *data) : FieldView(w, data) {
   project_ = data->project_;
 
   GUIPoint position = GetAnchor();
-  position._x -= 3;
 
   Variable *v = project_->FindVariable(FourCC::VarTempo);
   tempoField_.emplace_back(FourCC::ActionTempoChanged, position, *v,

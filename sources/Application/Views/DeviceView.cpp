@@ -36,8 +36,6 @@ DeviceView::DeviceView(GUIWindow &w, ViewData *data) : FieldView(w, data) {
 
   GUIPoint position = GetAnchor();
 
-  position._x -= 3;
-
   auto config = Config::GetInstance();
 
   Variable *v;

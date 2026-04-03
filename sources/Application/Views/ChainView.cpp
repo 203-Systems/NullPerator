@@ -693,7 +693,8 @@ void ChainView::DrawView() {
 
   // Compute song grid location
 
-  GUIPoint anchor = GetAnchor();
+  GUIPoint anchor = View::GetAnchor();
+  anchor._x += 3;
 
   const char *labels[] = {"PH", "TR"};
   pos = anchor;
@@ -798,7 +799,7 @@ void ChainView::AnimationUpdate() {
   }
 
   // Always update VU meter even if other parts of UI dont need updating
-  // drawMasterVuMeter(player, props);
+  drawMasterVuMeter(player, props);
 
   // Handle any pending updates from OnPlayerUpdate
   // This ensures all UI drawing happens on the "main" thread (core0)
@@ -807,7 +808,8 @@ void ChainView::AnimationUpdate() {
     drawNotes();
 
     // Handle position updates
-    GUIPoint anchor = GetAnchor();
+    GUIPoint anchor = View::GetAnchor();
+    anchor._x += 3;
     GUIPoint pos = anchor;
     pos._x -= 1;
 

@@ -187,7 +187,7 @@ protected:
                      uint16_t total);
   void drawBattery(GUITextProperties &props);
   void drawMasterVuMeter(Player *player, GUITextProperties props,
-                         bool forceRedraw = false, uint8_t xoffset = 24);
+                         bool forceRedraw = false, uint8_t xoffset = 27);
   void drawPlayTime(Player *player, GUIPoint pos, GUITextProperties &props);
   void drawVUMeter(int32_t leftBars, int32_t rightBars, GUIPoint pos,
                    GUITextProperties props, int vuIndex,

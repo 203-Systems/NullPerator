@@ -285,7 +285,8 @@ void MixerView::initChannelVolumeFields() {
     return;
 
   // Position for volume fields - below VU meters
-  GUIPoint position = GetAnchor();
+  GUIPoint position = View::GetAnchor();
+  position._x += CHANNELS_X_OFFSET_;
   position._y += VU_METER_HEIGHT + 1; // Position below VU meters
 
   // Get FourCC codes for channel volumes
@@ -339,7 +340,8 @@ void MixerView::DrawView() {
 
   GUITextProperties props;
   GUIPoint pos = GetTitlePosition();
-  GUIPoint anchor = GetAnchor();
+  GUIPoint anchor = View::GetAnchor();
+  anchor._x += CHANNELS_X_OFFSET_;
 
   // Draw title
   SetColor(CD_NORMAL);
@@ -394,7 +396,8 @@ void MixerView::DrawView() {
   drawMasterVuMeter(player, props);
 
   // Draw master volume label
-  GUIPoint labelPos = GetAnchor();
+  GUIPoint labelPos = View::GetAnchor();
+  labelPos._x += CHANNELS_X_OFFSET_;
   // Align with master volume control
   labelPos._x += ((SONG_CHANNEL_COUNT - 1) * CHANNELS_X_OFFSET_);
   labelPos._y = SCREEN_HEIGHT - 4; // Position below the volume control
@@ -483,7 +486,8 @@ void MixerView::drawChannelVUMeters(
   }
 
   // we start at the bottom of the VU meter and draw it growing upwards
-  GUIPoint pos = GetAnchor();
+  GUIPoint pos = View::GetAnchor();
+  pos._x += CHANNELS_X_OFFSET_;
   pos._x -= CHANNELS_X_OFFSET_;
   pos._y += VU_METER_HEIGHT - 1; // -1 to align with song grid
 
