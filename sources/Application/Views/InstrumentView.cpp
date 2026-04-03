@@ -42,7 +42,7 @@ InstrumentView::InstrumentView(GUIWindow &w, ViewData *data)
       lastSampleIndex_(-1), suppressSampleChangeWarning_(false) {
   project_ = data->project_;
 
-  GUIPoint position = GUIPoint(5, 1);
+  GUIPoint position = GUIPoint(1, 3);
   typeIntVarField_.emplace_back(position, *&instrumentType_, "Type: %s", 0,
                                 static_cast<int>(kMaxSelectableInstrumentType),
                                 1, 1);
@@ -55,20 +55,21 @@ InstrumentView::InstrumentView(GUIWindow &w, ViewData *data)
   if (instr) {
     // NONE dont have a name field
     if (instr->GetType() != IT_NONE) {
-      position._y = 3;
+      position._y = 5;
       addNameTextField(instr, position);
     }
   }
 
   // add ui action fields for exporting and importing instrument settings
-  position._y = 2;
+  position._y = 3;
 
+  position._x += 15;
   persistentActionField_.emplace_back("Import", FourCC::ActionImport, position);
   fieldList_.insert(fieldList_.end(), &(*persistentActionField_.rbegin()));
   (*persistentActionField_.rbegin()).AddObserver(*this);
   lastFocusID_ = FourCC::ActionImport;
 
-  position._x += 8;
+  position._x += 7;
   persistentActionField_.emplace_back("Export", FourCC::ActionExport, position);
   fieldList_.insert(fieldList_.end(), &(*persistentActionField_.rbegin()));
   (*persistentActionField_.rbegin()).AddObserver(*this);
@@ -974,8 +975,7 @@ void InstrumentView::DrawView() {
 
   GUITextProperties props;
   GUIPoint pos = GetTitlePosition();
-  pos._y -= 1;
-
+  
   // Draw title
 
   char title[20];
@@ -993,9 +993,9 @@ void InstrumentView::DrawView() {
     InstrumentType type = instr->GetType();
     if (type == IT_SID || type == IT_OPAL) {
       SetColor(CD_WARN);
-      DrawString(18, 1, char_button_border_left_s, props);
-      DrawString(19, 1, "EXPERIMENTAL", GUITextProperties(true));
-      DrawString(31, 1, char_button_border_right_s, props);
+      DrawString(16, 1, char_button_border_left_s, props);
+      DrawString(17, 1, "EXPERIMENTAL", GUITextProperties(true));
+      DrawString(29, 1, char_button_border_right_s, props);
       SetColor(CD_NORMAL);
     }
   }
