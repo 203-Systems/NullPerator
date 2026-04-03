@@ -19,7 +19,7 @@
   ((color._r & 0b11111000) << 8) | ((color._g & 0b11111100) << 3) |            \
       (color._b >> 3)
 
-static GUIEventPadButtonType eventMappingPico[10] = {
+static GUIEventPadButtonType eventMappingPico[11] = {
     EPBT_LEFT,  
     EPBT_DOWN,  
     EPBT_RIGHT, 
@@ -29,7 +29,8 @@ static GUIEventPadButtonType eventMappingPico[10] = {
     EPBT_A,     
     EPBT_R,     
     EPBT_START, 
-    EPBT_SELECT
+    EPBT_SELECT,
+    EPBT_POWER
 };
 
 static GUIEventPadButtonType *eventMapping = eventMappingPico;
@@ -191,7 +192,7 @@ void NodeGUIWindowImp::ProcessButtonChange(uint16_t changeMask,
   int e = 1;
   System *system = System::GetInstance();
   unsigned long now = system->GetClock();
-  for (int i = 0; i < 10; i++) {
+  for (int i = 0; i < 11; i++) {
     if (changeMask & e) {
       GUIEventType type = (buttonMask & e) ? ET_PADBUTTONDOWN : ET_PADBUTTONUP;
 

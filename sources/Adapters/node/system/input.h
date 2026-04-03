@@ -18,6 +18,7 @@ typedef enum KEYPAD_BITS {
   KEY_NAV = BIT(7),    //!< Keypad NAV button.
   KEY_PLAY = BIT(8),   //!< Keypad PLAY/START button.
   KEY_SELECT = BIT(9), //!< Keypad SELECT button.
+  KEY_POWER = BIT(10), //!< Keypad power/FUNC button.
   KEY_UNUSED = 0,      //!< Unused/skip position
 } KEYPAD_BITS;
 

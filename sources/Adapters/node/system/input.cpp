@@ -3,8 +3,7 @@
 #include "Adapters/node/platform/platform.h"
 
 namespace {
-constexpr uint32_t SLEEP_HOLD_TIME_MS = 2000;
-constexpr uint32_t START_TAP_TIME_MS = 200;
+constexpr uint32_t START_TAP_TIME_MS = 500;
 constexpr uint16_t kUninitializedKeyCache = 0xFFFF;
 
 struct StartButtonState {
@@ -18,7 +17,6 @@ struct StartButtonState {
 
 struct InputState {
   uint16_t last_key_mask = kUninitializedKeyCache;
-  uint32_t menu_pressed_since_ms = 0;
   StartButtonState start = {};
 };
 
@@ -57,25 +55,8 @@ uint16_t build_base_key_mask(const NullperatorHAL::Input::ButtonState_t& buttons
   remapped |= (buttons.b ? KEY_EDIT : 0u);
   remapped |= (buttons.a ? KEY_ENTER : 0u);
   remapped |= (buttons.select ? KEY_ALT : 0u);
+  remapped |= (buttons.func ? KEY_POWER : 0u);
   return remapped;
-}
-
-// MENU long-press is a board-level power gesture, so centralize that timing
-// here instead of scattering sleep checks through the input processing path.
-void handle_menu_sleep(bool menu_pressed, uint32_t now_ms) {
-  if (menu_pressed && (g_input_state.menu_pressed_since_ms == 0)) {
-    g_input_state.menu_pressed_since_ms = now_ms;
-    return;
-  }
-
-  if (!menu_pressed) {
-    g_input_state.menu_pressed_since_ms = 0;
-    return;
-  }
-
-  if ((now_ms - g_input_state.menu_pressed_since_ms) > SLEEP_HOLD_TIME_MS) {
-    enter_sleep();
-  }
 }
 
 // START has dual behavior: a short standalone tap emits PLAY, while a
@@ -160,11 +141,9 @@ uint16_t scanKeys() {
 
   const NullperatorHAL::Input::ButtonState_t buttons =
       NullperatorHAL::Input::GetButtonState();
-  const bool menu_pressed = buttons.func;
   const uint32_t now_ms = millis();
   uint16_t key_mask = build_base_key_mask(buttons);
 
-  handle_menu_sleep(menu_pressed, now_ms);
   key_mask |= resolve_start_key_mask(buttons.start, buttons.select, key_mask,
                                      now_ms);
 
