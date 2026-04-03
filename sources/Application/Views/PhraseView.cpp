@@ -146,7 +146,8 @@ void PhraseView::updateCursor(int dx, int dy) {
       row_ = 0;
     }
   }
-  GUIPoint anchor = GetAnchor();
+  GUIPoint anchor = View::GetAnchor();
+  anchor._x += 3;
   GUIPoint p(anchor);
   switch (col_) {
   case 3:
@@ -1216,7 +1217,8 @@ void PhraseView::DrawView() {
 
   // Compute song grid location
 
-  GUIPoint anchor = GetAnchor();
+  GUIPoint anchor = View::GetAnchor();
+  anchor._x += 3;
 
   // Display row numbers
 
@@ -1469,7 +1471,7 @@ void PhraseView::AnimationUpdate() {
 
   GUITextProperties props;
   // Always update VU meter even if other parts of UI dont need updating
-  drawMasterVuMeter(player, props, false, 25);
+  // drawMasterVuMeter(player, props, false);
 
   // Handle any pending updates from OnPlayerUpdate using the consolidated flag
   // This ensures all UI drawing happens on the "main" thread (core0)
@@ -1478,7 +1480,8 @@ void PhraseView::AnimationUpdate() {
     drawNotes();
 
     // Draw play position marker
-    GUIPoint anchor = GetAnchor();
+    GUIPoint anchor = View::GetAnchor();
+    anchor._x += 3;
     GUIPoint pos = anchor;
     pos._x -= 1;
 

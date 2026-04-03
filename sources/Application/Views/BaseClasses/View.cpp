@@ -67,7 +67,7 @@ GUIPoint View::GetAnchor() {
   // changing the song count didn't work anyway given that there are many places
   // where it was statically defined as 8. Other screens also don't fit with a
   // dynamic anchor point
-  return GUIPoint(4, 3);
+  return GUIPoint(1, 3);
 }
 
 GUIPoint View::GetTitlePosition() { return GUIPoint(1, 1); };

@@ -848,6 +848,7 @@ void SongView::DrawView() {
 
   // Compute song grid location
   GUIPoint anchor = GetAnchor();
+  anchor._x += 3;
 
   // Display channel headers
   char row[3];
@@ -1040,6 +1041,7 @@ void SongView::AnimationUpdate() {
 
     // Handle position updates
     GUIPoint anchor = GetAnchor();
+    anchor._x += 3;
     GUIPoint pos = anchor;
     pos._x -= 1;
 

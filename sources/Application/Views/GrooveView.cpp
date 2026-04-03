@@ -168,7 +168,8 @@ void GrooveView::DrawView() {
 
   // Compute song grid location
 
-  GUIPoint anchor = GetAnchor();
+  GUIPoint anchor = View::GetAnchor();
+  anchor._x += 3;
 
   // Display label
   pos = anchor;
@@ -217,7 +218,8 @@ void GrooveView::DrawView() {
 void GrooveView::OnPlayerUpdate(PlayerEventType, unsigned int tick) {
 
   GUITextProperties props;
-  GUIPoint anchor = GetAnchor();
+  GUIPoint anchor = View::GetAnchor();
+  anchor._x += 3;
   GUIPoint pos;
 
   pos._x = anchor._x - 1;
