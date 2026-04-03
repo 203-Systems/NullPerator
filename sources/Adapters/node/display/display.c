@@ -44,45 +44,26 @@ static uint16_t palette[16] = {
 static SemaphoreHandle_t transfer_done = NULL;
 static esp_lcd_panel_io_handle_t registered_panel_io = NULL;
 
-// node uses an 8x10 text grid, so we provide 8x10 equivalents for the
-// bargraph glyphs that picoTracker renders from its 10x10 special font.
-static const uint16_t special_bargraph_bitmap[9][10] = {
-    {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-     0xFF}, // 0xA1
-    {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF,
-     0xFF}, // 0xA2
-    {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF,
-     0xFF}, // 0xA3
-    {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF,
-     0xFF}, // 0xA4
-    {0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF,
-     0xFF}, // 0xA5
-    {0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-     0xFF}, // 0xA6
-    {0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-     0xFF}, // 0xA7
-    {0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-     0xFF}, // 0xA8
-    {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-     0xFF}, // 0xDB
-};
+static const uint16_t *get_regular_glyph_bitmap(uint8_t character) {
+  return (ui_font_index == 0) ? FONT_STEALTH57_BITMAP[character]
+                              : FONT_YOU_SQUARED_BITMAP[character];
+}
 
-static const uint16_t *get_glyph_bitmap(uint8_t character) {
-  if (character < 96) {
-    return (ui_font_index == 0) ? FONT_STEALTH57_BITMAP[character]
-                                : FONT_YOU_SQUARED_BITMAP[character];
-  }
-
+static const uint8_t *get_special_glyph_bitmap(uint8_t character) {
   const uint8_t codepoint = static_cast<uint8_t>(character + 32);
-  if (codepoint >= 0xA1 && codepoint <= 0xA8) {
-    return special_bargraph_bitmap[codepoint - 0xA1];
-  }
-  if (codepoint == 0xDB) {
-    return special_bargraph_bitmap[8];
+  return (codepoint < 0x80) ? nullptr : FONT_SPECIAL_CHARACTERS_BITMAP[codepoint - 0x80];
+}
+
+static uint16_t get_glyph_row_bits(uint8_t character, uint8_t pixel_y) {
+  if (character < 96) {
+    return get_regular_glyph_bitmap(character)[pixel_y];
   }
 
-  return (ui_font_index == 0) ? FONT_STEALTH57_BITMAP[0]
-                              : FONT_YOU_SQUARED_BITMAP[0];
+  if (const uint8_t *special = get_special_glyph_bitmap(character)) {
+    return special[pixel_y];
+  }
+
+  return get_regular_glyph_bitmap(0)[pixel_y];
 }
 
 static bool on_color_transfer_done(esp_lcd_panel_io_handle_t,
@@ -163,8 +144,7 @@ static void render_text_span(uint8_t x, uint8_t y, uint8_t width) {
       const uint8_t character = screen[idx];
       const uint16_t fg_color = palette[colors[idx] >> 4];
       const uint16_t bg_color = palette[colors[idx] & 0x0F];
-      const uint16_t *pixel_data = get_glyph_bitmap(character);
-      const uint16_t row_bits = pixel_data[pixel_y];
+      const uint16_t row_bits = get_glyph_row_bits(character, pixel_y);
       uint16_t *glyph = row + (char_x * CHAR_WIDTH);
 
       for (uint8_t pixel_x = 0; pixel_x < CHAR_WIDTH; ++pixel_x) {
