@@ -882,7 +882,22 @@ void TableView::DrawView() {
   const char *labels[] = {"FX1", "    ", "FX2", "    ", "FX3", "    "};
   pos = anchor;
   for (int i = 0; i < 6; ++i) {
-    SetColor(i == col_ ? CD_HILITE2 : CD_HILITE1);
+    bool isSelected = false;
+    switch (i) {
+    case 0:
+    case 1:
+      isSelected = (col_ == 0 || col_ == 1);
+      break;
+    case 2:
+    case 3:
+      isSelected = (col_ == 2 || col_ == 3);
+      break;
+    case 4:
+    case 5:
+      isSelected = (col_ == 4 || col_ == 5);
+      break;
+    }
+    SetColor(isSelected ? CD_HILITE2 : CD_HILITE1);
     DrawString(pos._x, pos._y, labels[i], props);
     pos._x += static_cast<int>(strlen(labels[i])) + 1;
   }
@@ -899,6 +914,8 @@ void TableView::DrawView() {
   for (int j = 0; j < 16; j++) {
     FourCC command = *f++;
     setTextProps(props, 0, j, false);
+    SetColor(command == FourCC::InstrumentCommandNone ? CD_ACCENTALT
+                                                      : CD_NORMAL);
     DrawString(pos._x, pos._y, commandDisplayText(command), props);
     setTextProps(props, 0, j, true);
     pos._y++;
@@ -919,6 +936,8 @@ void TableView::DrawView() {
   for (int j = 0; j < 16; j++) {
     ushort p = *param++;
     setTextProps(props, 1, j, false);
+    SetColor(table.cmd1_[j] == FourCC::InstrumentCommandNone ? CD_ACCENTALT
+                                                             : CD_NORMAL);
     hexshort2char(p, buffer);
     DrawString(pos._x, pos._y, buffer, props);
     setTextProps(props, 1, j, true);
@@ -936,6 +955,8 @@ void TableView::DrawView() {
   for (int j = 0; j < 16; j++) {
     FourCC command = *f++;
     setTextProps(props, 2, j, false);
+    SetColor(command == FourCC::InstrumentCommandNone ? CD_ACCENTALT
+                                                      : CD_NORMAL);
     DrawString(pos._x, pos._y, commandDisplayText(command), props);
     setTextProps(props, 2, j, true);
     pos._y++;
@@ -956,6 +977,8 @@ void TableView::DrawView() {
   for (int j = 0; j < 16; j++) {
     ushort p = *param++;
     setTextProps(props, 3, j, false);
+    SetColor(table.cmd2_[j] == FourCC::InstrumentCommandNone ? CD_ACCENTALT
+                                                             : CD_NORMAL);
     hexshort2char(p, buffer);
     DrawString(pos._x, pos._y, buffer, props);
     setTextProps(props, 3, j, true);
@@ -973,6 +996,8 @@ void TableView::DrawView() {
   for (int j = 0; j < 16; j++) {
     FourCC command = *f++;
     setTextProps(props, 4, j, false);
+    SetColor(command == FourCC::InstrumentCommandNone ? CD_ACCENTALT
+                                                      : CD_NORMAL);
     DrawString(pos._x, pos._y, commandDisplayText(command), props);
     setTextProps(props, 4, j, true);
     pos._y++;
@@ -993,6 +1018,8 @@ void TableView::DrawView() {
   for (int j = 0; j < 16; j++) {
     ushort p = *param++;
     setTextProps(props, 5, j, false);
+    SetColor(table.cmd3_[j] == FourCC::InstrumentCommandNone ? CD_ACCENTALT
+                                                             : CD_NORMAL);
     hexshort2char(p, buffer);
     DrawString(pos._x, pos._y, buffer, props);
     setTextProps(props, 5, j, true);

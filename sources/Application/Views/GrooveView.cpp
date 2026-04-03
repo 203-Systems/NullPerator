@@ -203,8 +203,10 @@ void GrooveView::DrawView() {
     if (grooveData[j] != NO_GROOVE_DATA) {
       hex2char(grooveData[j], buffer);
       buffer[3] = 0;
+      SetColor(CD_NORMAL);
     } else {
       strcpy(buffer, "--");
+      SetColor(CD_ACCENTALT);
     };
     props.invert_ = (j == position_);
     DrawString(pos._x, pos._y, buffer, props);

@@ -758,6 +758,7 @@ void ChainView::DrawView() {
   for (int j = 0; j < 16; j++) {
     unsigned char d = *data++;
     hex2char(d, row);
+    SetColor(d == 0x00 ? CD_ACCENTALT : CD_NORMAL);
     setTextProps(props, 1, j, false);
     DrawString(pos._x, pos._y, row, props);
     setTextProps(props, 1, j, true);
