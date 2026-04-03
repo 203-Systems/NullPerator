@@ -238,7 +238,7 @@ void View::drawNotes() {
                  props); // row for the octive values
     }
     pos._y++;
-    char trackStr[3] = {'0', static_cast<char>('1' + i), '\0'};
+    char trackStr[3] = {'T', static_cast<char>('1' + i), '\0'};
     DrawString(pos._x, pos._y, trackStr, props);
     pos._y = initialY;
     pos._x += 3;
