@@ -128,8 +128,42 @@ ProjectView::ProjectView(GUIWindow &w, ViewData *data) : FieldView(w, data) {
   project_ = data->project_;
 
   GUIPoint position = GetAnchor();
+  int xalign = position._x;
+  Variable *v = project_->FindVariable(FourCC::VarProjectName);
+  auto label =
+      etl::make_string_with_capacity<MAX_UITEXTFIELD_LABEL_LENGTH>("project: ");
+  auto defaultName = etl::make_string_with_capacity<MAX_PROJECT_NAME_LENGTH>(
+      UNNAMED_PROJECT_NAME);
+  textField_.emplace_back(*v, position, label, FourCC::ActionProjectRename,
+                          defaultName);
+  nameField_ = &(*textField_.rbegin());
 
-  Variable *v = project_->FindVariable(FourCC::VarTempo);
+  nameField_->AddObserver(*this);
+  fieldList_.insert(fieldList_.end(), nameField_);
+
+  position._y += 1;
+  actionField_.emplace_back("Browse", FourCC::ActionBrowse, position);
+  fieldList_.insert(fieldList_.end(), &(*actionField_.rbegin()));
+  (*actionField_.rbegin()).AddObserver(*this);
+
+  position._x += 7;
+  actionField_.emplace_back("Save", FourCC::ActionSave, position);
+  fieldList_.insert(fieldList_.end(), &(*actionField_.rbegin()));
+  (*actionField_.rbegin()).AddObserver(*this);
+
+  position._x += 5;
+  actionField_.emplace_back("New", FourCC::ActionNewProject, position);
+  fieldList_.insert(fieldList_.end(), &(*actionField_.rbegin()));
+  (*actionField_.rbegin()).AddObserver(*this);
+
+  position._x += 4;
+  actionField_.emplace_back("Random", FourCC::ActionRandomName, position);
+  fieldList_.insert(fieldList_.end(), &(*actionField_.rbegin()));
+  (*actionField_.rbegin()).AddObserver(*this);
+  position._x = xalign;
+
+  v = project_->FindVariable(FourCC::VarTempo);
+  position._y += 2;
   tempoField_.emplace_back(FourCC::ActionTempoChanged, position, *v,
                            "tempo: %d [%2.2X]  ", MIN_TEMPO, MAX_TEMPO, 1, 10);
   fieldList_.insert(fieldList_.end(), &(*tempoField_.rbegin()));
@@ -179,44 +213,6 @@ ProjectView::ProjectView(GUIWindow &w, ViewData *data) : FieldView(w, data) {
                             FourCC::ActionPurgeInstrument, position);
   fieldList_.insert(fieldList_.end(), &(*actionField_.rbegin()));
   (*actionField_.rbegin()).AddObserver(*this);
-
-  position._y += 2;
-
-  // save existing fields horizontal alignment
-  int xalign = position._x;
-
-  v = project_->FindVariable(FourCC::VarProjectName);
-  auto label =
-      etl::make_string_with_capacity<MAX_UITEXTFIELD_LABEL_LENGTH>("project: ");
-  auto defaultName = etl::make_string_with_capacity<MAX_PROJECT_NAME_LENGTH>(
-      UNNAMED_PROJECT_NAME);
-  textField_.emplace_back(*v, position, label, FourCC::ActionProjectRename,
-                          defaultName);
-  nameField_ = &(*textField_.rbegin());
-
-  nameField_->AddObserver(*this);
-  fieldList_.insert(fieldList_.end(), nameField_);
-
-  position._y += 1;
-  actionField_.emplace_back("Browse", FourCC::ActionBrowse, position);
-  fieldList_.insert(fieldList_.end(), &(*actionField_.rbegin()));
-  (*actionField_.rbegin()).AddObserver(*this);
-
-  position._x += 7;
-  actionField_.emplace_back("Save", FourCC::ActionSave, position);
-  fieldList_.insert(fieldList_.end(), &(*actionField_.rbegin()));
-  (*actionField_.rbegin()).AddObserver(*this);
-
-  position._x += 5;
-  actionField_.emplace_back("New", FourCC::ActionNewProject, position);
-  fieldList_.insert(fieldList_.end(), &(*actionField_.rbegin()));
-  (*actionField_.rbegin()).AddObserver(*this);
-
-  position._x += 4;
-  actionField_.emplace_back("Random", FourCC::ActionRandomName, position);
-  fieldList_.insert(fieldList_.end(), &(*actionField_.rbegin()));
-  (*actionField_.rbegin()).AddObserver(*this);
-  position._x = xalign;
 
   // Add rendering action fields
   position._y += 2;
