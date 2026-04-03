@@ -28,6 +28,12 @@
 short PhraseView::offsets_[2][4] = {-1, 1, 12, -12, -1, 1, 16, -16};
 
 namespace {
+const char *commandDisplayText(FourCC command) {
+  const char *text = command.c_str();
+  return (text && text[0] && text[1] && text[2] && text[3] == '\0') ? text
+                                                                     : "???";
+}
+
 void drawWrappedHelpLegend(View &view, char **helpLegend,
                            GUITextProperties props) {
   std::string title = helpLegend[0] ? helpLegend[0] : "";
@@ -1412,7 +1418,7 @@ void PhraseView::DrawView() {
   for (int j = 0; j < 16; j++) {
     FourCC command = *f++;
     setTextProps(props, 2, j, false);
-    DrawString(pos._x, pos._y, command.c_str(), props);
+    DrawString(pos._x, pos._y, commandDisplayText(command), props);
     setTextProps(props, 2, j, true);
     pos._y++;
     if (j == row_ && (col_ == 2 || col_ == 3)) {
@@ -1455,7 +1461,7 @@ void PhraseView::DrawView() {
   for (int j = 0; j < 16; j++) {
     FourCC command = *f++;
     setTextProps(props, 4, j, false);
-    DrawString(pos._x, pos._y, command.c_str(), props);
+    DrawString(pos._x, pos._y, commandDisplayText(command), props);
     setTextProps(props, 4, j, true);
     pos._y++;
     if (j == row_ && (col_ == 4 || col_ == 5)) {
