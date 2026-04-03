@@ -107,12 +107,6 @@ namespace NullperatorHAL::Display {
             esp_lcd_panel_set_gap(panel, 0, 0);
             esp_lcd_panel_disp_on_off(panel, true);
 
-            uint16_t* buffer = static_cast<uint16_t*>(malloc(WIDTH * HEIGHT * sizeof(uint16_t)));
-            if (buffer) {
-                std::memset(buffer, 0, WIDTH * HEIGHT * sizeof(uint16_t));
-                esp_lcd_panel_draw_bitmap(panel, 0, 0, WIDTH, HEIGHT, buffer);
-                free(buffer);
-            }
         }
 
         SetBrightness(0); // Display turn on by app when it is ready

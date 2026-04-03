@@ -78,10 +78,16 @@ static void wait_for_color_transfer_done(void) {
   if (transfer_done == NULL) {
     return;
   }
+  configASSERT(xSemaphoreTake(transfer_done, portMAX_DELAY) == pdTRUE);
+}
+
+static void clear_stale_color_transfer_done(void) {
+  if (transfer_done == NULL) {
+    return;
+  }
 
   while (xSemaphoreTake(transfer_done, 0) == pdTRUE) {
   }
-  configASSERT(xSemaphoreTake(transfer_done, portMAX_DELAY) == pdTRUE);
 }
 
 static void mark_all_changed(void) { memset(changed, 0xFF, sizeof(changed)); }
@@ -129,6 +135,7 @@ static void render_text_span(uint8_t x, uint8_t y, uint8_t width) {
     }
   }
 
+  clear_stale_color_transfer_done();
   ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel, screen_x, screen_y,
                                             screen_x + screen_width,
                                             screen_y + CHAR_HEIGHT, row_buffer));
@@ -292,6 +299,7 @@ void display_fill_rect(uint8_t color_index, uint16_t x, uint16_t y,
       fill_buffer[i] = color;
     }
 
+    clear_stale_color_transfer_done();
     ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel, x, draw_y, x + width,
                                               draw_y + chunk_rows, fill_buffer));
     wait_for_color_transfer_done();
