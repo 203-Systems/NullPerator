@@ -852,12 +852,14 @@ void SongView::DrawView() {
 
   // Display channel headers
   char row[3];
+  char trackLabel[4];
   pos = anchor;
   for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {
-    char p = static_cast<char>(i + 1);
-    hex2char(p, row);
+    trackLabel[0] = 'T';
+    trackLabel[1] = static_cast<char>('1' + i);
+    trackLabel[2] = '\0';
     SetColor(i == viewData_->songX_ ? CD_HILITE2 : CD_HILITE1);
-    DrawString(pos._x, pos._y, &row[1], props);
+    DrawString(pos._x, pos._y, trackLabel, props);
     pos._x += 3;
   }
 
