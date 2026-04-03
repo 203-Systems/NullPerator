@@ -51,7 +51,7 @@ int NodeEventManager::MainLoop() {
   // and USB. ESP-IDF has already started the scheduler, so we only create tasks
   // and then block forever.
   static constexpr uint32_t kEventQueueLength = 32;
-  static constexpr uint32_t kInputTaskStackBytes = 4096;
+  static constexpr uint32_t kInputTaskStackBytes = 8192;
   static constexpr uint32_t kEventTaskStackBytes = 8192;
   static constexpr uint32_t kSerialTaskStackBytes = 2048;
   static constexpr uint32_t kUsbTaskStackBytes = 2048;
