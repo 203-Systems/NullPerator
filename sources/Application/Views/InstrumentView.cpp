@@ -76,6 +76,8 @@ InstrumentView::InstrumentView(GUIWindow &w, ViewData *data)
 
 InstrumentView::~InstrumentView() {}
 
+GUIPoint InstrumentView::GetAnchor() { return GUIPoint(1, 4); }
+
 void InstrumentView::Reset() {
   lastSampleIndex_ = -1;
   suppressSampleChangeWarning_ = false;
@@ -268,6 +270,13 @@ void InstrumentView::refreshInstrumentFields() {
 
   // Re-add the action fields for export and import only if not IT_NONE
   if (instrumentType_.GetInt() != IT_NONE) {
+    if (persistentActionField_.size() > 1) {
+      // Import is temporarily moved onto Export's column for IT_NONE, so move
+      // it back relative to Export when both actions are visible again.
+      GUIPoint importPos = persistentActionField_[1].GetPosition();
+      importPos._x -= 7;
+      persistentActionField_[0].SetPosition(importPos);
+    }
     for (auto &action : persistentActionField_) {
       fieldList_.insert(fieldList_.end(), &action);
       action.AddObserver(*this); // Make sure observers are re-added
@@ -275,7 +284,11 @@ void InstrumentView::refreshInstrumentFields() {
   } else {
     // add back only the import field for IT_NONE
     // bit of a hack !!since we just assume that import is the first action
-    // field
+    // field, and show it in Export's column so the lone action stays aligned
+    if (persistentActionField_.size() > 1) {
+      GUIPoint exportPos = persistentActionField_[1].GetPosition();
+      persistentActionField_[0].SetPosition(exportPos);
+    }
     fieldList_.insert(fieldList_.end(), &(*persistentActionField_.begin()));
     (*persistentActionField_.rbegin()).AddObserver(*this);
   }
@@ -349,7 +362,7 @@ void InstrumentView::fillSampleParameters() {
   const int baseX = position._x;
 
   // offset y to account for instrument type and export/import fields
-  position._y += 1;
+  position._y += 2;
 
   Variable *v = instrument->FindVariable(FourCC::SampleInstrumentSample);
   SamplePool *sp = SamplePool::GetInstance();
@@ -389,10 +402,11 @@ void InstrumentView::fillSampleParameters() {
   intVarField_.emplace_back(position, *v, "detune: %2.2X", 0, 255, 1, 0x10);
   fieldList_.insert(fieldList_.end(), &(*intVarField_.rbegin()));
 
-  position._y += 1;
+  position._x += 12;
   v = instrument->FindVariable(FourCC::SampleInstrumentCrushVolume);
   intVarField_.emplace_back(position, *v, "drive: %2.2X", 0, 0xFF, 1, 0x10);
   fieldList_.insert(fieldList_.end(), &(*intVarField_.rbegin()));
+  position._x = baseX;
 
   position._y += 1;
   v = instrument->FindVariable(FourCC::SampleInstrumentCrush);
@@ -478,11 +492,6 @@ void InstrumentView::fillSIDParameters() {
   GUIPoint position = GetAnchor();
 
   // offset y to account for instrument type, name and export/import fields
-  position._y += 1;
-
-  staticField_.emplace_back(position, instrument->GetChipName());
-  fieldList_.insert(fieldList_.end(), &(*staticField_.rbegin()));
-
   position._y += 2;
   staticField_.emplace_back(position, "Oscillator Settings" char_line_5_s);
   fieldList_.insert(fieldList_.end(), &(*staticField_.rbegin()));
@@ -590,7 +599,7 @@ void InstrumentView::fillMidiParameters() {
   GUIPoint position = GetAnchor();
 
   // offset y to account for instrument type, name and export/import fields
-  position._y += 3;
+  position._y += 2;
 
   Variable *v = instrument->FindVariable(FourCC::MidiInstrumentChannel);
   intVarField_.emplace_back(

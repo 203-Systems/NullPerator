@@ -46,6 +46,7 @@ public:
   void applyProposedTypeChangeUI();
 
 protected:
+  GUIPoint GetAnchor();
   void warpToNext(int offset);
   void onInstrumentChange();
   void fillSampleParameters();
