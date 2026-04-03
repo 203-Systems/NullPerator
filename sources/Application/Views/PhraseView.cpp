@@ -215,14 +215,14 @@ void PhraseView::updateCursor(int dx, int dy) {
   GUIPoint p(anchor);
   switch (col_) {
   case 3:
-    p._x += 12;
+    p._x += 13;
     p._y += row_ + 1;
     cmdEditField_.SetPosition(p);
     cmdEdit_.SetInt(
         *(phrase_->param1_ + (16 * viewData_->currentPhrase_ + row_)));
     break;
   case 5:
-    p._x += 21;
+    p._x += 22;
     p._y += row_ + 1;
     cmdEditField_.SetPosition(p);
     cmdEdit_.SetInt(
@@ -1306,7 +1306,24 @@ void PhraseView::DrawView() {
   const char *labels[] = {"NOTE", "INS", "FX1", "    ", "FX2", "    "};
   pos = anchor;
   for (int i = 0; i < 6; ++i) {
-    SetColor(i == col_ ? CD_HILITE2 : CD_HILITE1);
+    bool isSelected = false;
+    switch (i) {
+    case 0:
+      isSelected = (col_ == 0);
+      break;
+    case 1:
+      isSelected = (col_ == 1);
+      break;
+    case 2:
+    case 3:
+      isSelected = (col_ == 2 || col_ == 3);
+      break;
+    case 4:
+    case 5:
+      isSelected = (col_ == 4 || col_ == 5);
+      break;
+    }
+    SetColor(isSelected ? CD_HILITE2 : CD_HILITE1);
     DrawString(pos._x, pos._y, labels[i], props);
     pos._x += static_cast<int>(strlen(labels[i])) + 1;
   }
@@ -1331,14 +1348,14 @@ void PhraseView::DrawView() {
     }
     unsigned char effectiveInstr = lastInstr;
     setTextProps(props, 0, j, false);
-    (0 == j || 4 == j || 8 == j || 12 == j) ? SetColor(CD_HILITE1)
-                                            : SetColor(CD_NORMAL);
     if (d == NO_NOTE) {
       SetColor(CD_ACCENTALT);
       DrawString(pos._x, pos._y, "----", props);
     } else if (d == NOTE_OFF) {
+      SetColor(CD_NORMAL);
       DrawString(pos._x, pos._y, "off ", props);
     } else {
+      SetColor(CD_NORMAL);
       bool showSlice = false;
       bool invalidSlice = false;
       uint8_t sliceIndex = 0;
@@ -1418,6 +1435,8 @@ void PhraseView::DrawView() {
   for (int j = 0; j < 16; j++) {
     FourCC command = *f++;
     setTextProps(props, 2, j, false);
+    SetColor(command == FourCC::InstrumentCommandNone ? CD_ACCENTALT
+                                                      : CD_NORMAL);
     DrawString(pos._x, pos._y, commandDisplayText(command), props);
     setTextProps(props, 2, j, true);
     pos._y++;
@@ -1438,6 +1457,10 @@ void PhraseView::DrawView() {
   for (int j = 0; j < 16; j++) {
     ushort p = *param++;
     setTextProps(props, 3, j, false);
+    SetColor(phrase_->cmd1_[16 * viewData_->currentPhrase_ + j] ==
+                     FourCC::InstrumentCommandNone
+                 ? CD_ACCENTALT
+                 : CD_NORMAL);
     /*		if (p==0xFFFF) {
                             DrawString(pos._x,pos._y,"----",props) ;
                     } else {
@@ -1461,6 +1484,8 @@ void PhraseView::DrawView() {
   for (int j = 0; j < 16; j++) {
     FourCC command = *f++;
     setTextProps(props, 4, j, false);
+    SetColor(command == FourCC::InstrumentCommandNone ? CD_ACCENTALT
+                                                      : CD_NORMAL);
     DrawString(pos._x, pos._y, commandDisplayText(command), props);
     setTextProps(props, 4, j, true);
     pos._y++;
@@ -1481,6 +1506,10 @@ void PhraseView::DrawView() {
   for (int j = 0; j < 16; j++) {
     ushort p = *param++;
     setTextProps(props, 5, j, false);
+    SetColor(phrase_->cmd2_[16 * viewData_->currentPhrase_ + j] ==
+                     FourCC::InstrumentCommandNone
+                 ? CD_ACCENTALT
+                 : CD_NORMAL);
     /*		if (p==0xFFFF) {
                             DrawString(pos._x,pos._y,"----",props) ;
                     } else {
