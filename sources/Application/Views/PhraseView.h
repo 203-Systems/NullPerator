@@ -25,6 +25,8 @@ public:
   virtual void OnPlayerUpdate(PlayerEventType, unsigned int tick = 0);
   virtual void OnFocus();
   virtual void AnimationUpdate();
+  bool ShouldDrawBattery() const override;
+  bool ShouldDrawPlayTime() const override;
 
 protected:
   void updateCursor(int dx, int dy);
@@ -55,6 +57,7 @@ protected:
 
   void setTextProps(GUITextProperties &props, int row, int col, bool restore);
   bool getEffectiveInstrumentForRow(int row, uint8_t &instrumentId) const;
+  bool isShowingHelpLegend() const;
 
 private:
   int row_;

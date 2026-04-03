@@ -784,12 +784,14 @@ void TableView::DrawView() {
 
   Table &table = TableHolder::GetInstance()->GetTable(viewData_->currentTable_);
 
-  // Draw title
-
-  char title[20];
-  SetColor(CD_NORMAL);
-  npf_snprintf(title, sizeof(title), "Table %2.2X", viewData_->currentTable_);
-  DrawString(pos._x, pos._y, title, props);
+  // Draw title only when the FX help legend is not using the top rows.
+  if (!isShowingHelpLegend()) {
+    char title[20];
+    SetColor(CD_NORMAL);
+    npf_snprintf(title, sizeof(title), "Table %2.2X",
+                 viewData_->currentTable_);
+    DrawString(pos._x, pos._y, title, props);
+  }
 
   // Compute song grid location
 
@@ -1029,6 +1031,36 @@ void TableView::AnimationUpdate() {
   // Flush the window to ensure changes are displayed
   w_.Flush();
 }
+
+bool TableView::isShowingHelpLegend() const {
+  if ((col_ != 0) && (col_ != 1) && (col_ != 2) && (col_ != 3) &&
+      (col_ != 4) && (col_ != 5)) {
+    return false;
+  }
+
+  Table &table = TableHolder::GetInstance()->GetTable(viewData_->currentTable_);
+  FourCC command = FourCC::InstrumentCommandNone;
+  switch (col_) {
+  case 0:
+  case 1:
+    command = *(table.cmd1_ + row_);
+    break;
+  case 2:
+  case 3:
+    command = *(table.cmd2_ + row_);
+    break;
+  case 4:
+  case 5:
+    command = *(table.cmd3_ + row_);
+    break;
+  }
+
+  return command != FourCC::InstrumentCommandNone;
+}
+
+bool TableView::ShouldDrawBattery() const { return !isShowingHelpLegend(); }
+
+bool TableView::ShouldDrawPlayTime() const { return !isShowingHelpLegend(); }
 
 void TableView::printHelpLegend(FourCC command, GUITextProperties props) {
   char **helpLegend = getHelpLegend(command);

@@ -25,6 +25,8 @@ public:
   virtual void OnPlayerUpdate(PlayerEventType, unsigned int tick = 0);
   virtual void OnFocus();
   virtual void AnimationUpdate();
+  bool ShouldDrawBattery() const override;
+  bool ShouldDrawPlayTime() const override;
 
 protected:
   void processNormalButtonMask(unsigned short mask);
@@ -43,6 +45,7 @@ protected:
   void updateCursorValue(int offset);
   void setTextProps(GUITextProperties &props, int row, int col, bool restore);
   void warpToNeighbour(int dir);
+  bool isShowingHelpLegend() const;
 
   GUIRect getSelectionRect();
 
