@@ -44,6 +44,47 @@ static uint16_t palette[16] = {
 static SemaphoreHandle_t transfer_done = NULL;
 static esp_lcd_panel_io_handle_t registered_panel_io = NULL;
 
+// node uses an 8x10 text grid, so we provide 8x10 equivalents for the
+// bargraph glyphs that picoTracker renders from its 10x10 special font.
+static const uint16_t special_bargraph_bitmap[9][10] = {
+    {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+     0xFF}, // 0xA1
+    {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF,
+     0xFF}, // 0xA2
+    {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF,
+     0xFF}, // 0xA3
+    {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF,
+     0xFF}, // 0xA4
+    {0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF,
+     0xFF}, // 0xA5
+    {0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+     0xFF}, // 0xA6
+    {0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+     0xFF}, // 0xA7
+    {0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+     0xFF}, // 0xA8
+    {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+     0xFF}, // 0xDB
+};
+
+static const uint16_t *get_glyph_bitmap(uint8_t character) {
+  if (character < 96) {
+    return (ui_font_index == 0) ? FONT_STEALTH57_BITMAP[character]
+                                : FONT_YOU_SQUARED_BITMAP[character];
+  }
+
+  const uint8_t codepoint = static_cast<uint8_t>(character + 32);
+  if (codepoint >= 0xA1 && codepoint <= 0xA8) {
+    return special_bargraph_bitmap[codepoint - 0xA1];
+  }
+  if (codepoint == 0xDB) {
+    return special_bargraph_bitmap[8];
+  }
+
+  return (ui_font_index == 0) ? FONT_STEALTH57_BITMAP[0]
+                              : FONT_YOU_SQUARED_BITMAP[0];
+}
+
 static bool on_color_transfer_done(esp_lcd_panel_io_handle_t,
                                    esp_lcd_panel_io_event_data_t *,
                                    void *user_ctx) {
@@ -122,9 +163,7 @@ static void render_text_span(uint8_t x, uint8_t y, uint8_t width) {
       const uint8_t character = screen[idx];
       const uint16_t fg_color = palette[colors[idx] >> 4];
       const uint16_t bg_color = palette[colors[idx] & 0x0F];
-      const uint16_t *pixel_data =
-          (ui_font_index == 0) ? FONT_STEALTH57_BITMAP[character]
-                               : FONT_YOU_SQUARED_BITMAP[character];
+      const uint16_t *pixel_data = get_glyph_bitmap(character);
       const uint16_t row_bits = pixel_data[pixel_y];
       uint16_t *glyph = row + (char_x * CHAR_WIDTH);
 
@@ -175,11 +214,12 @@ void display_putc(char c, bool invert) {
   }
 
   int idx = cursor_y * TEXT_WIDTH + cursor_x;
-  if (c < 32 || c > 127) {
-    c = ' ';
+  const uint8_t glyph = static_cast<uint8_t>(c);
+  if (glyph < 32) {
+    screen[idx] = 0;
+  } else {
+    screen[idx] = glyph - 32;
   }
-
-  screen[idx] = c - 32;
   SetBit(changed, idx);
   if (invert) {
     colors[idx] = ((screen_bg_color & 0xf) << 4) | (screen_fg_color & 0xf);
