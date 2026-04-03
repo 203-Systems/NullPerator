@@ -15,6 +15,65 @@
 #include "Application/Views/SampleEditorView.h"
 #include "ViewData.h"
 #include <nanoprintf.h>
+#include <string>
+
+namespace {
+void drawWrappedHelpLegend(View &view, char **helpLegend,
+                           GUITextProperties props) {
+  std::string title = helpLegend[0] ? helpLegend[0] : "";
+  std::string desc = helpLegend[1] ? helpLegend[1] : "";
+
+  const size_t colonPos = title.find(':');
+  if (colonPos != std::string::npos) {
+    std::string suffix = title.substr(colonPos + 1);
+    title = title.substr(0, colonPos + 1);
+    while (!suffix.empty() && suffix.front() == ' ') {
+      suffix.erase(suffix.begin());
+    }
+    if (!suffix.empty()) {
+      if (!desc.empty()) {
+        desc = suffix + " " + desc;
+      } else {
+        desc = suffix;
+      }
+    }
+  }
+
+  const size_t maxWidth = SCREEN_WIDTH;
+  std::string line2;
+  std::string line3;
+
+  if (desc.size() <= maxWidth) {
+    line2 = desc;
+  } else {
+    size_t split = desc.rfind(' ', maxWidth);
+    if (split == std::string::npos || split == 0) {
+      split = maxWidth;
+    }
+    line2 = desc.substr(0, split);
+
+    size_t next = split;
+    while (next < desc.size() && desc[next] == ' ') {
+      ++next;
+    }
+    line3 = desc.substr(next, maxWidth);
+  }
+
+  char clearLine[SCREEN_WIDTH + 1];
+  memset(clearLine, ' ', SCREEN_WIDTH);
+  clearLine[SCREEN_WIDTH] = '\0';
+  view.DrawString(0, 0, clearLine, props);
+  view.DrawString(0, 1, clearLine, props);
+  view.DrawString(0, 2, clearLine, props);
+  view.DrawString(0, 0, title.c_str(), props);
+  if (!line2.empty()) {
+    view.DrawString(0, 1, line2.c_str(), props);
+  }
+  if (!line3.empty()) {
+    view.DrawString(0, 2, line3.c_str(), props);
+  }
+}
+} // namespace
 
 TableView::TableView(GUIWindow &w, ViewData *viewData)
     : ScreenView(w, viewData), cmdEdit_(FourCC::ActionEdit, 0),
@@ -1073,13 +1132,5 @@ bool TableView::ShouldDrawPlayTime() const { return !isShowingHelpLegend(); }
 
 void TableView::printHelpLegend(FourCC command, GUITextProperties props) {
   char **helpLegend = getHelpLegend(command);
-  char line[32]; //-1 for 1char space start of line
-  strcpy(line, " ");
-  strcpy(line, helpLegend[0]);
-  DrawString(0, 0, line, props);
-  memset(line, ' ', 32);
-  if (helpLegend[1] != NULL) {
-    strcpy(line, helpLegend[1]);
-    DrawString(0, 1, line, props);
-  }
+  drawWrappedHelpLegend(*this, helpLegend, props);
 }
