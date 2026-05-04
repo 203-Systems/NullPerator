@@ -94,11 +94,9 @@ bool AudioMixer::Render(fixed *buffer, int samplecount) {
   }
 
   // Apply volume to mix of all of this instance's "sub" audiomixers
-  // TODO (democloid): This is wildly inefficient, doing this loop takes 4 - 5
-  // times the time it takes a mix loop above. Some tests show that at least
-  // double performance is not hard to achieve
   if (gotData) {
     fixed *c = buffer;
+    int totalFixed = samplecount * 2;
 
     if (volume_ == FP_ONE) {
       // unity gain, no calculations to be done, just grab the levels
@@ -111,23 +109,36 @@ bool AudioMixer::Render(fixed *buffer, int samplecount) {
           peakR = r;
       }
     } else {
-      for (int i = 0; i < samplecount; i++) {
-        // Left
-        fixed l = fp_mul(*c, volume_);
-        *c++ = l;
+      int i = 0;
+      for (; i + 16 <= totalFixed; i += 16) {
+        c[i + 0] = fp_mul(c[i + 0], volume_);
+        c[i + 1] = fp_mul(c[i + 1], volume_);
+        c[i + 2] = fp_mul(c[i + 2], volume_);
+        c[i + 3] = fp_mul(c[i + 3], volume_);
+        c[i + 4] = fp_mul(c[i + 4], volume_);
+        c[i + 5] = fp_mul(c[i + 5], volume_);
+        c[i + 6] = fp_mul(c[i + 6], volume_);
+        c[i + 7] = fp_mul(c[i + 7], volume_);
+        c[i + 8] = fp_mul(c[i + 8], volume_);
+        c[i + 9] = fp_mul(c[i + 9], volume_);
+        c[i + 10] = fp_mul(c[i + 10], volume_);
+        c[i + 11] = fp_mul(c[i + 11], volume_);
+        c[i + 12] = fp_mul(c[i + 12], volume_);
+        c[i + 13] = fp_mul(c[i + 13], volume_);
+        c[i + 14] = fp_mul(c[i + 14], volume_);
+        c[i + 15] = fp_mul(c[i + 15], volume_);
+      }
+      for (; i < totalFixed; ++i) {
+        c[i] = fp_mul(c[i], volume_);
+      }
 
-        // Right
-        fixed r = fp_mul(*c, volume_);
-        *c++ = r;
-
-        // update the level every 32 sample pairs
-        // (!(i & 31)) =^= (i % 32 == 0) and is used for performance
-        if (!(i & 31)) {
-          if (l > peakL)
-            peakL = l;
-          if (r > peakR)
-            peakR = r;
-        }
+      for (int j = 0; j < samplecount; j += 32) {
+        fixed l = buffer[j * 2];
+        fixed r = buffer[j * 2 + 1];
+        if (l > peakL)
+          peakL = l;
+        if (r > peakR)
+          peakR = r;
       }
     }
   }
