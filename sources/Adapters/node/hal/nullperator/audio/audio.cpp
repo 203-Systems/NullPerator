@@ -15,7 +15,7 @@ namespace NullperatorHAL::Audio {
 
     namespace {
         constexpr i2s_data_bit_width_t I2S_AUDIO_BIT_WIDTH = I2S_DATA_BIT_WIDTH_16BIT;
-        constexpr uint32_t I2S_DMA_FRAME_NUM = 128;
+        constexpr uint32_t I2S_DMA_FRAME_NUM = 256;
         constexpr uint32_t I2S_SAMPLE_RATE = 44100;
         esp_err_t sync_rx_slot_mode() {
             if (!rxChan) {
