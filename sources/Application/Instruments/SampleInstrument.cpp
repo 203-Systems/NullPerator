@@ -31,6 +31,27 @@
 #include "Application/Player/SyncMaster.h"
 #include "SampleInstrumentDatas.h"
 
+namespace {
+void renderMonoUnityPitch(short *input, fixed *output, int frameCount,
+                          fixed volume, fixed panLeft, fixed panRight) {
+  for (int frame = 0; frame < frameCount; ++frame) {
+    fixed sample = fp_mul(i2fp(*input++), volume);
+    *output++ = fp_mul(sample, panLeft);
+    *output++ = fp_mul(sample, panRight);
+  }
+}
+
+void renderStereoUnityPitch(short *input, fixed *output, int frameCount,
+                            fixed volume, fixed panLeft, fixed panRight) {
+  for (int frame = 0; frame < frameCount; ++frame) {
+    fixed left = fp_mul(i2fp(*input++), volume);
+    fixed right = fp_mul(i2fp(*input++), volume);
+    *output++ = fp_mul(left, panLeft);
+    *output++ = fp_mul(right, panRight);
+  }
+}
+} // namespace
+
 bool SampleInstrument::useDirtyDownsampling_ = false;
 
 renderParams SampleInstrument::renderParams_[SONG_CHANNEL_COUNT];
@@ -784,6 +805,29 @@ bool SampleInstrument::Render(int channel, fixed *buffer, int size,
     fixed *fltHeightPtr = 0;
 
     short *dsBasePtr = ((short *)wavbuf) + rp->rendFirst_ * channelCount;
+
+    bool fastUnityOneShot = !hasUpdaters && !filtering && !rp->retrig_ &&
+                            loopMode == SILM_ONESHOT && !rpReverse &&
+                            rp->crush_ == 16 && rp->drive_ == 0xFF &&
+                            rp->downsample_ == 0 && fpSpeed == FP_ONE &&
+                            fpPos == 0 &&
+                            (channelCount == 1 || channelCount == 2);
+    if (fastUnityOneShot && input < lastSample) {
+      int framesAvailable = static_cast<int>(lastSample - input) / channelCount;
+      int fastFrames = std::min(count, framesAvailable);
+      if (fastFrames > 0) {
+        if (channelCount == 1) {
+          renderMonoUnityPitch(input, result, fastFrames, volfactor, fixedpanl,
+                               fixedpanr);
+        } else {
+          renderStereoUnityPitch(input, result, fastFrames, volfactor,
+                                 fixedpanl, fixedpanr);
+        }
+        input += fastFrames * channelCount;
+        result += fastFrames * 2;
+        count -= fastFrames;
+      }
+    }
 
     while (count > 0) {
 
