@@ -8,6 +8,7 @@
  */
 
 #include "AudioOutDriver.h"
+#include "System/Console/Trace.h"
 #include "System/System/System.h"
 
 fixed AudioOutDriver::primarySoundBuffer_[MIX_BUFFER_SIZE];
@@ -57,6 +58,18 @@ void AudioOutDriver::Update(Observable &o, I_ObservableData *d) {
 
 void AudioOutDriver::prepareMixBuffers() {
   sampleCount_ = getPlaySampleCount();
+  if (sampleCount_ > MAX_SAMPLE_COUNT) {
+    static bool loggedOversizeBuffer = false;
+    if (!loggedOversizeBuffer) {
+      Trace::Error("AUDIO_OUT", "Sample count %d exceeds max %d, clamping",
+                   sampleCount_, MAX_SAMPLE_COUNT);
+      loggedOversizeBuffer = true;
+    }
+    sampleCount_ = MAX_SAMPLE_COUNT;
+  }
+  if (sampleCount_ < 0) {
+    sampleCount_ = 0;
+  }
 };
 
 void AudioOutDriver::clipToMix() {

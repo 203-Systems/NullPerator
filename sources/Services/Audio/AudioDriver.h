@@ -13,9 +13,9 @@
 #include "AudioSettings.h"
 #include "Foundation/Observable.h"
 
-#define SOUND_BUFFER_COUNT 4
-#define SOUND_BUFFER_MAX 7500
 #define MAX_SAMPLE_COUNT 1875
+#define SOUND_BUFFER_COUNT 4
+#define SOUND_BUFFER_MAX (MAX_SAMPLE_COUNT * 2 * sizeof(short))
 
 struct AudioBufferData {
   char buffer_[MAX_SAMPLE_COUNT * 2 * sizeof(short)];
