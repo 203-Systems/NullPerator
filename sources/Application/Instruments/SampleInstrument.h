@@ -21,6 +21,7 @@
 #include "SampleRenderingParams.h"
 #include "SampleVariable.h"
 #include "SoundSource.h"
+#include "config/MemorySections.h"
 
 enum SampleInstrumentLoopMode {
   SILM_ONESHOT = 0,
@@ -104,7 +105,7 @@ private:
   etl::list<Variable *, 21> variables_;
 
   SoundSource *source_;
-  __attribute__((section(".DTCMRAM"))) static struct renderParams
+  PICOTRACKER_FAST_DATA static struct renderParams
       renderParams_[SONG_CHANNEL_COUNT];
   bool running_;
   bool dirty_;

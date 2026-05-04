@@ -15,6 +15,11 @@ archive: libservices_audio.a
 entries:
     * (dtcmram_to_bss)
 
+[mapping:dtcmram_platform_audio]
+archive: libplatform_audio.a
+entries:
+    * (dtcmram_to_bss)
+
 [mapping:dtcmram_application_instruments]
 archive: libapplication_instruments.a
 entries:

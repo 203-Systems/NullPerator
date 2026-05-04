@@ -15,6 +15,7 @@
 #include "AudioOut.h"
 #include "Externals/etl/include/etl/string.h"
 #include "Foundation/Observable.h"
+#include "config/MemorySections.h"
 #include "config/StringLimits.h"
 
 class AudioDriver;
@@ -57,10 +58,9 @@ private:
   bool hasSound_ = false;
   stereosample lastPeakVolume_ = 0;
 
-  __attribute__((section(".DTCMRAM"))) __attribute__((
-      aligned(32))) static fixed primarySoundBuffer_[MIX_BUFFER_SIZE];
-  __attribute__((section(".DTCMRAM")))
-  __attribute__((aligned(32))) static short mixBuffer_[MIX_BUFFER_SIZE];
+  PICOTRACKER_FAST_AUDIO_BUFFER static fixed
+      primarySoundBuffer_[MIX_BUFFER_SIZE];
+  PICOTRACKER_FAST_AUDIO_BUFFER static short mixBuffer_[MIX_BUFFER_SIZE];
   int sampleCount_;
 };
 #endif
