@@ -11,6 +11,8 @@
 #include <utility>
 
 static constexpr uint32_t kDedicatedSampleStoreSize = 8U * 1024U * 1024U;
+static constexpr size_t kInternalSampleMaxBytes = 64U * 1024U;
+static constexpr size_t kInternalSampleReserveBytes = 128U * 1024U;
 
 static bool has_psram() {
   return heap_caps_get_total_size(MALLOC_CAP_SPIRAM) > 0;
@@ -58,19 +60,49 @@ bool NodeSamplePool::ensureDedicatedPsramStore() {
   return true;
 }
 
+bool NodeSamplePool::canUseInternalSampleStorage(size_t bytes) const {
+  if (bytes == 0 || bytes > kInternalSampleMaxBytes) {
+    return false;
+  }
+
+  const size_t freeInternal =
+      heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  return freeInternal > bytes + kInternalSampleReserveBytes;
+}
+
+bool NodeSamplePool::isDedicatedSampleBuffer(const void *buffer) const {
+  if (sampleStore_ == nullptr || buffer == nullptr) {
+    return false;
+  }
+
+  const auto *ptr = static_cast<const uint8_t *>(buffer);
+  return ptr >= sampleStore_ && ptr < sampleStore_ + storeLimit_;
+}
+
 void NodeSamplePool::freeSampleBuffer(WavFile &wave) {
-  if (sampleStore_ != nullptr) {
+  void *buffer = wave.GetSampleBuffer(0);
+  if (buffer == nullptr) {
+    return;
+  }
+
+  if (isDedicatedSampleBuffer(buffer)) {
     wave.SetSampleBuffer(nullptr);
     return;
   }
-  void *buffer = wave.GetSampleBuffer(0);
-  if (buffer != nullptr) {
-    heap_caps_free(buffer);
-    wave.SetSampleBuffer(nullptr);
-  }
+
+  heap_caps_free(buffer);
+  wave.SetSampleBuffer(nullptr);
 }
 
 std::optional<void *> NodeSamplePool::allocSampleBuffer(size_t bytes) {
+  if (canUseInternalSampleStorage(bytes)) {
+    void *ptr =
+        heap_caps_malloc(bytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    if (ptr != nullptr) {
+      return ptr;
+    }
+  }
+
   if (sampleStore_ != nullptr) {
     uint32_t alignedOffset = (writeOffset_ + 3U) & ~3U;
     if ((alignedOffset + bytes) > storeLimit_) {
@@ -111,6 +143,10 @@ void NodeSamplePool::Reset() {
 }
 
 bool NodeSamplePool::CheckSampleFits(int sampleSize) {
+  if (canUseInternalSampleStorage(static_cast<size_t>(sampleSize))) {
+    return true;
+  }
+
   if (ensureDedicatedPsramStore()) {
     uint32_t alignedOffset = (writeOffset_ + 3U) & ~3U;
     return (alignedOffset + static_cast<uint32_t>(sampleSize)) <= storeLimit_;
@@ -133,7 +169,7 @@ uint32_t NodeSamplePool::GetAvailableSampleStorageSpace() {
 }
 
 bool NodeSamplePool::loadSample(const char *name) {
-  Trace::Log("SAMPLEPOOL", "Loading sample into heap: %s", name);
+  Trace::Log("SAMPLEPOOL", "Loading sample into memory: %s", name);
 
   if (count_ == MAX_SAMPLES) {
     return false;
@@ -166,7 +202,8 @@ bool NodeSamplePool::loadSample(const char *name) {
   wav.SetSampleBuffer(static_cast<int16_t *>(buffer.value()));
 
   uint32_t alignedOffset = initialWriteOffset;
-  if (sampleStore_ != nullptr) {
+  const bool usingDedicatedStore = isDedicatedSampleBuffer(buffer.value());
+  if (usingDedicatedStore) {
     alignedOffset = (initialWriteOffset + 3U) & ~3U;
     writeOffset_ = alignedOffset;
   }
@@ -185,7 +222,7 @@ bool NodeSamplePool::loadSample(const char *name) {
     if (!wav.Read(static_cast<uint8_t *>(buffer.value()) + offset, toRead,
                   &bytesRead)) {
       Trace::Error("SAMPLEPOOL", "Failed reading sample data: %s", name);
-      if (sampleStore_ != nullptr) {
+      if (usingDedicatedStore) {
         writeOffset_ = initialWriteOffset;
       }
       freeSampleBuffer(wav);
@@ -208,7 +245,7 @@ bool NodeSamplePool::loadSample(const char *name) {
   std::strncpy(nameStore_[count_], name, MAX_INSTRUMENT_FILENAME_LENGTH);
   nameStore_[count_][MAX_INSTRUMENT_FILENAME_LENGTH] = '\0';
   count_++;
-  if (sampleStore_ != nullptr) {
+  if (usingDedicatedStore) {
     writeOffset_ = alignedOffset + offset;
   }
 
@@ -221,10 +258,10 @@ bool NodeSamplePool::unloadSample(uint32_t index) {
     return false;
   }
 
-  if (sampleStore_ != nullptr) {
+  if (sampleStore_ != nullptr &&
+      isDedicatedSampleBuffer(wav_[index].GetSampleBuffer(0))) {
     auto *moveDst = static_cast<uint8_t *>(wav_[index].GetSampleBuffer(0));
-    if (moveDst == nullptr || moveDst < sampleStore_ ||
-        moveDst >= sampleStore_ + storeLimit_) {
+    if (moveDst == nullptr) {
       Trace::Error("SAMPLEPOOL", "Invalid dedicated sample buffer");
       return false;
     }
