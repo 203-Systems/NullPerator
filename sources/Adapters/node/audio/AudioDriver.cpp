@@ -11,104 +11,196 @@
 
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
-#include "freertos/semphr.h"
+#include "freertos/queue.h"
 #include "freertos/task.h"
 
-// mini blank buffer for underrun, initialized to 0
 uint8_t NodeAudioDriver::miniBlank_[MINI_BLANK_SIZE * 2U * sizeof(int16_t)] = {0};
 
 NodeAudioDriver *NodeAudioDriver::instance_ = NULL;
 TaskHandle_t audioThreadHandle_ = NULL;
 TaskHandle_t i2sThreadHandle_ = NULL;
-SemaphoreHandle_t core1_audio = NULL;
-static StaticSemaphore_t core1_audio_buffer;
+
+static QueueHandle_t freeAudioBuffers = NULL;
+static QueueHandle_t filledAudioBuffers = NULL;
+static StaticQueue_t freeAudioBuffersControl;
+static StaticQueue_t filledAudioBuffersControl;
+static uint8_t freeAudioBuffersStorage[SOUND_BUFFER_COUNT * sizeof(uint8_t)];
+static uint8_t filledAudioBuffersStorage[SOUND_BUFFER_COUNT * sizeof(uint8_t)];
 
 static volatile unsigned long esp32_sound_pausei, esp32_exit;
 
-static void reset_audio_fill_semaphore() {
-  if (core1_audio == NULL) {
+namespace {
+constexpr uint32_t kI2SWriteTimeoutMs = 20;
+constexpr uint32_t kQueueUnderrunTimeoutMs = 2;
+constexpr UBaseType_t kAudioRenderPriority = 10;
+constexpr UBaseType_t kI2SWriterPriority = 12;
+
+void reset_audio_queues() {
+  if (freeAudioBuffers == NULL || filledAudioBuffers == NULL) {
     return;
   }
 
-  while (xSemaphoreTake(core1_audio, 0) == pdTRUE) {
+  xQueueReset(freeAudioBuffers);
+  xQueueReset(filledAudioBuffers);
+  for (uint8_t i = 0; i < SOUND_BUFFER_COUNT; ++i) {
+    xQueueSend(freeAudioBuffers, &i, 0);
   }
 }
+
+void wake_audio_queues() {
+  if (freeAudioBuffers == NULL || filledAudioBuffers == NULL) {
+    return;
+  }
+
+  uint8_t index = 0;
+  xQueueSend(freeAudioBuffers, &index, 0);
+  xQueueSend(filledAudioBuffers, &index, 0);
+}
+
+void return_free_buffer(uint8_t index) {
+  if (freeAudioBuffers == NULL) {
+    return;
+  }
+  if (xQueueSend(freeAudioBuffers, &index, 0) != pdTRUE) {
+    ESP_LOGW("NodeAudioDriver", "free buffer queue full index=%u", index);
+  }
+}
+} // namespace
 
 void esp32_sound_pause(int yes) { esp32_sound_pausei = yes; }
 
 void NodeAudioDriver::AudioThread(void *arg) {
-  while (1) {
-    xSemaphoreTake(core1_audio, portMAX_DELAY);
-    if (instance_ == NULL || !instance_->isPlaying_) {
-      continue;
-    }
-    NodeAudioDriver::BufferNeeded();
-  }
-}
-
-void NodeAudioDriver::I2SThread(void *arg) {
+  uint8_t bufferIndex = 0;
   while (1) {
     if (instance_ == NULL || !instance_->isPlaying_) {
       vTaskDelay(pdMS_TO_TICKS(1));
       continue;
     }
 
-    // This mirrors the picoTracker flow: after one chunk finishes writing,
-    // free the just-played slot, then advance to the next queued buffer.
-    pool_[instance_->poolPlayPosition_].empty_ = true;
-
-    int next = (instance_->poolPlayPosition_ + 1) % SOUND_BUFFER_COUNT;
-
-    if (pool_[next].empty_) {
-      size_t written = 0;
-      esp_err_t err =
-          audio_codec_write(miniBlank_, sizeof(miniBlank_), &written,
-                            portMAX_DELAY);
-      if (err != ESP_OK || written != sizeof(miniBlank_)) {
-        ESP_LOGW("NodeAudioDriver",
-                 "silence write err=0x%x written=%u expected=%u play=%d next=%d",
-                 (unsigned)err, (unsigned)written,
-                 (unsigned)sizeof(miniBlank_), instance_->poolPlayPosition_,
-                 next);
-      }
-    } else {
-      instance_->poolPlayPosition_ = next;
-
-      size_t written = 0;
-      int expected = pool_[instance_->poolPlayPosition_].size_;
-      esp_err_t err = audio_codec_write(
-          pool_[instance_->poolPlayPosition_].buffer_, expected, &written,
-          portMAX_DELAY);
-      if (err != ESP_OK || written != static_cast<size_t>(expected)) {
-        ESP_LOGW("NodeAudioDriver",
-                 "audio write err=0x%x written=%u expected=%u play=%d next=%d",
-                 (unsigned)err, (unsigned)written, (unsigned)expected,
-                 instance_->poolPlayPosition_, next);
-      }
+    if (xQueueReceive(freeAudioBuffers, &bufferIndex, portMAX_DELAY) !=
+        pdTRUE) {
+      continue;
     }
-    xSemaphoreGive(core1_audio);
+
+    if (instance_ == NULL || !instance_->isPlaying_) {
+      return_free_buffer(bufferIndex);
+      continue;
+    }
+
+    instance_->renderBufferIndex_ = bufferIndex;
+    instance_->renderBufferQueued_ = false;
+    NodeAudioDriver::BufferNeeded();
+
+    if (!instance_->renderBufferQueued_) {
+      pool_[bufferIndex].size_ = 0;
+      pool_[bufferIndex].empty_ = true;
+      return_free_buffer(bufferIndex);
+    }
+    instance_->renderBufferIndex_ = -1;
   }
 }
 
+void NodeAudioDriver::I2SThread(void *arg) {
+  uint8_t bufferIndex = 0;
+  while (1) {
+    if (instance_ == NULL || !instance_->isPlaying_) {
+      vTaskDelay(pdMS_TO_TICKS(1));
+      continue;
+    }
+
+    if (xQueueReceive(filledAudioBuffers, &bufferIndex,
+                      pdMS_TO_TICKS(kQueueUnderrunTimeoutMs)) != pdTRUE) {
+      size_t written = 0;
+      esp_err_t err =
+          audio_codec_write(miniBlank_, sizeof(miniBlank_), &written,
+                            kI2SWriteTimeoutMs);
+      if (err != ESP_OK || written != sizeof(miniBlank_)) {
+        ESP_LOGW("NodeAudioDriver",
+                 "silence write err=0x%x written=%u expected=%u",
+                 (unsigned)err, (unsigned)written, (unsigned)sizeof(miniBlank_));
+      }
+      continue;
+    }
+
+    if (instance_ == NULL || !instance_->isPlaying_) {
+      pool_[bufferIndex].size_ = 0;
+      pool_[bufferIndex].empty_ = true;
+      return_free_buffer(bufferIndex);
+      continue;
+    }
+
+    instance_->poolPlayPosition_ = bufferIndex;
+
+    size_t written = 0;
+    int expected = pool_[bufferIndex].size_;
+    esp_err_t err = audio_codec_write(pool_[bufferIndex].buffer_, expected,
+                                      &written, kI2SWriteTimeoutMs);
+    if (err != ESP_OK || written != static_cast<size_t>(expected)) {
+      ESP_LOGW("NodeAudioDriver",
+               "audio write err=0x%x written=%u expected=%u buffer=%u",
+               (unsigned)err, (unsigned)written, (unsigned)expected,
+               bufferIndex);
+    }
+
+    pool_[bufferIndex].size_ = 0;
+    pool_[bufferIndex].empty_ = true;
+    return_free_buffer(bufferIndex);
+  }
+}
 
 void NodeAudioDriver::BufferNeeded() {
   instance_->onAudioBufferTick();
   instance_->OnNewBufferNeeded();
 }
 
+void NodeAudioDriver::AddBuffer(short *buffer, int samplecount) {
+  int len = samplecount * 2 * sizeof(short);
+
+  if (!isPlaying_) {
+    return;
+  }
+
+  if (renderBufferIndex_ < 0 || renderBufferIndex_ >= SOUND_BUFFER_COUNT) {
+    ESP_LOGW("NodeAudioDriver", "AddBuffer without reserved buffer");
+    return;
+  }
+
+  if (len > SOUND_BUFFER_MAX) {
+    ESP_LOGW("NodeAudioDriver", "Audio buffer exceeded, clamping samples=%d",
+             samplecount);
+    samplecount = MAX_SAMPLE_COUNT;
+    len = SOUND_BUFFER_MAX;
+  }
+
+  uint8_t bufferIndex = static_cast<uint8_t>(renderBufferIndex_);
+  memcpy(pool_[bufferIndex].buffer_, (char *)buffer, len);
+  pool_[bufferIndex].size_ = len;
+  pool_[bufferIndex].empty_ = false;
+
+  if (xQueueSend(filledAudioBuffers, &bufferIndex, 0) != pdTRUE) {
+    ESP_LOGW("NodeAudioDriver", "filled buffer queue full index=%u",
+             bufferIndex);
+    pool_[bufferIndex].size_ = 0;
+    pool_[bufferIndex].empty_ = true;
+    return_free_buffer(bufferIndex);
+    return;
+  }
+
+  renderBufferQueued_ = true;
+  hasData_ = true;
+}
+
 NodeAudioDriver::NodeAudioDriver(AudioSettings &settings)
     : AudioDriver(settings) {
-
   isPlaying_ = false;
   esp32_exit = 0;
 }
 
 NodeAudioDriver::~NodeAudioDriver() { esp32_exit = 1; }
 
-bool NodeAudioDriver::InitDriver() { // New
+bool NodeAudioDriver::InitDriver() {
   instance_ = this;
 
-  // Get configuration values
   Config *config = Config::GetInstance();
   uint8_t volume = 40;
   if (config) {
@@ -118,31 +210,36 @@ bool NodeAudioDriver::InitDriver() { // New
     }
   }
 
-
   ESP_LOGI("NodeAudioDriver", "Loaded Audio Volume %d", volume);
 
-  // Set initial volume
   audio_codec_set_volume(volume);
   audio_codec_set_mute(false);
   switch_audio_mode(headphone_out);
   switch_speaker_mode(false);
 
-  core1_audio = xSemaphoreCreateCountingStatic(SOUND_BUFFER_COUNT - 1, 0,
-                                               &core1_audio_buffer);
+  freeAudioBuffers = xQueueCreateStatic(
+      SOUND_BUFFER_COUNT, sizeof(uint8_t), freeAudioBuffersStorage,
+      &freeAudioBuffersControl);
+  filledAudioBuffers = xQueueCreateStatic(
+      SOUND_BUFFER_COUNT, sizeof(uint8_t), filledAudioBuffersStorage,
+      &filledAudioBuffersControl);
 
-  if (core1_audio == NULL) {
-    ESP_LOGE("NodeAudioDriver", "Failed to create semaphore");
+  if (freeAudioBuffers == NULL || filledAudioBuffers == NULL) {
+    ESP_LOGE("NodeAudioDriver", "Failed to create audio queues");
     return false;
   }
 
-  xTaskCreatePinnedToCore(NodeAudioDriver::AudioThread, "AudioThread",
-                          8192, NULL, 5, &audioThreadHandle_, 1);
+  BaseType_t audioTaskCreated = xTaskCreatePinnedToCore(
+      NodeAudioDriver::AudioThread, "AudioThread", 8192, NULL,
+      kAudioRenderPriority, &audioThreadHandle_, 1);
 
-  xTaskCreatePinnedToCore(NodeAudioDriver::I2SThread, "I2SThread",
-                          4096, NULL, 6, &i2sThreadHandle_, 0);
+  BaseType_t i2sTaskCreated = xTaskCreatePinnedToCore(
+      NodeAudioDriver::I2SThread, "I2SThread", 4096, NULL,
+      kI2SWriterPriority, &i2sThreadHandle_, 0);
 
-  if (audioThreadHandle_ == NULL || i2sThreadHandle_ == NULL) {
+  if (audioTaskCreated != pdPASS || i2sTaskCreated != pdPASS) {
     ESP_LOGE("NodeAudioDriver", "Failed to create audio tasks");
+    CloseDriver();
     return false;
   }
 
@@ -155,13 +252,11 @@ void NodeAudioDriver::SetVolume(int v) {
   Trace::Debug("Setting volume to %d", volume_);
 };
 
-int NodeAudioDriver::GetVolume() {
-  return audio_codec_get_volume();
-};
+int NodeAudioDriver::GetVolume() { return audio_codec_get_volume(); };
 
 void NodeAudioDriver::CloseDriver() {
-  // Stop the task if it's running
   isPlaying_ = false;
+  wake_audio_queues();
   switch_speaker_mode(false);
   if (audioThreadHandle_ != NULL) {
     vTaskDelete(audioThreadHandle_);
@@ -171,23 +266,31 @@ void NodeAudioDriver::CloseDriver() {
     vTaskDelete(i2sThreadHandle_);
     i2sThreadHandle_ = NULL;
   }
+  if (freeAudioBuffers != NULL) {
+    vQueueDelete(freeAudioBuffers);
+    freeAudioBuffers = NULL;
+  }
+  if (filledAudioBuffers != NULL) {
+    vQueueDelete(filledAudioBuffers);
+    filledAudioBuffers = NULL;
+  }
 }
 
 bool NodeAudioDriver::StartDriver() {
   switch_audio_mode(headphone_out);
   switch_speaker_mode(false);
-  isPlaying_ = true;
+  isPlaying_ = false;
   for (int i = 0; i < SOUND_BUFFER_COUNT; ++i) {
     pool_[i].size_ = 0;
     pool_[i].empty_ = true;
   }
   poolQueuePosition_ = 0;
   poolPlayPosition_ = SOUND_BUFFER_COUNT - 1;
+  renderBufferIndex_ = -1;
+  renderBufferQueued_ = false;
   hasData_ = false;
-  reset_audio_fill_semaphore();
-  for (int i = 0; i < SOUND_BUFFER_COUNT - 1; ++i) {
-    xSemaphoreGive(core1_audio);
-  }
+  reset_audio_queues();
+  isPlaying_ = true;
   esp32_sound_pause(0);
   startTime_ = millis();
   return true;
@@ -196,14 +299,11 @@ bool NodeAudioDriver::StartDriver() {
 void NodeAudioDriver::StopDriver() {
   esp32_sound_pause(1);
   isPlaying_ = false;
-  reset_audio_fill_semaphore();
+  wake_audio_queues();
   switch_speaker_mode(false);
 }
 
-int NodeAudioDriver::GetPlayedBufferPercentage() {
-  // TODO: Do this right
-  return 0;
-};
+int NodeAudioDriver::GetPlayedBufferPercentage() { return 0; };
 
 double NodeAudioDriver::GetStreamTime() {
   return (millis() - startTime_) / 1000.0;

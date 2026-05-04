@@ -3,9 +3,9 @@
 
 #include "Foundation/T_Singleton.h"
 #include "Services/Audio/AudioDriver.h"
-#include "freeRTOS/FreeRTOS.h"
-#include "freeRTOS/task.h"
 #include "driver/i2s_std.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include <cstdint>
 
 
@@ -24,6 +24,7 @@ public:
   virtual int GetPlayedBufferPercentage();
   virtual int GetSampleRate() { return 44100; };
   virtual bool Interlaced() { return true; };
+  void AddBuffer(short *buffer, int samplecount) override;
 
   // Additional
   void SetVolume(int v);
@@ -43,6 +44,8 @@ private:
   TaskHandle_t audioBufferTaskHandle_ = NULL;
   TaskHandle_t i2sTaskHandle_ = NULL;
   int volume_;
+  int renderBufferIndex_ = -1;
+  bool renderBufferQueued_ = false;
   uint32_t startTime_;
 };
 #endif
