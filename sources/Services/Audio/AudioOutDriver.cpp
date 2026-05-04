@@ -73,48 +73,87 @@ void AudioOutDriver::prepareMixBuffers() {
 };
 
 void AudioOutDriver::clipToMix() {
-
-  bool interlaced = driver_->Interlaced();
-
   if (!hasSound_) {
     memset(mixBuffer_, 0, sampleCount_ * 2 * sizeof(short));
-  } else {
-    short *s1 = mixBuffer_;
-    short *s2 = (interlaced) ? s1 + 1 : s1 + sampleCount_;
-    int offset = (interlaced) ? 2 : 1;
-
-    fixed *p = primarySoundBuffer_;
-
-    fixed v;
-    fixed f_32767 = i2fp(32767);
-    fixed f_m32768 = i2fp(-32768);
-
-    short peakL = 0;
-    short peakR = 0;
-
-    for (int i = 0; i < sampleCount_; i++) {
-      // Left
-      v = *p++;
-      int iVal = fp2i(v);
-      *s1 = short(iVal);
-      s1 += offset;
-      if (iVal >= peakL) {
-        peakL = iVal;
-      }
-
-      // Right
-      v = *p++;
-      iVal = fp2i(v);
-      *s2 = short(iVal);
-      s2 += offset;
-      if (iVal >= peakR) {
-        peakR = iVal;
-      }
-    };
-    lastPeakVolume_ = peakL << 16;
-    lastPeakVolume_ += peakR;
-    peakL = peakR = 0;
+    lastPeakVolume_ = 0;
+    return;
   }
+
+  short peakL = 0;
+  short peakR = 0;
+  fixed *src = primarySoundBuffer_;
+
+  if (driver_->Interlaced()) {
+    short *dst = mixBuffer_;
+    int i = 0;
+    for (; i + 4 <= sampleCount_; i += 4) {
+      int l0 = fp2i(src[0]);
+      int r0 = fp2i(src[1]);
+      int l1 = fp2i(src[2]);
+      int r1 = fp2i(src[3]);
+      int l2 = fp2i(src[4]);
+      int r2 = fp2i(src[5]);
+      int l3 = fp2i(src[6]);
+      int r3 = fp2i(src[7]);
+
+      dst[0] = static_cast<short>(l0);
+      dst[1] = static_cast<short>(r0);
+      dst[2] = static_cast<short>(l1);
+      dst[3] = static_cast<short>(r1);
+      dst[4] = static_cast<short>(l2);
+      dst[5] = static_cast<short>(r2);
+      dst[6] = static_cast<short>(l3);
+      dst[7] = static_cast<short>(r3);
+
+      if (l0 >= peakL)
+        peakL = l0;
+      if (r0 >= peakR)
+        peakR = r0;
+      if (l1 >= peakL)
+        peakL = l1;
+      if (r1 >= peakR)
+        peakR = r1;
+      if (l2 >= peakL)
+        peakL = l2;
+      if (r2 >= peakR)
+        peakR = r2;
+      if (l3 >= peakL)
+        peakL = l3;
+      if (r3 >= peakR)
+        peakR = r3;
+
+      src += 8;
+      dst += 8;
+    }
+    for (; i < sampleCount_; ++i) {
+      int l = fp2i(src[0]);
+      int r = fp2i(src[1]);
+      dst[0] = static_cast<short>(l);
+      dst[1] = static_cast<short>(r);
+      if (l >= peakL)
+        peakL = l;
+      if (r >= peakR)
+        peakR = r;
+      src += 2;
+      dst += 2;
+    }
+  } else {
+    short *left = mixBuffer_;
+    short *right = left + sampleCount_;
+    for (int i = 0; i < sampleCount_; ++i) {
+      int l = fp2i(*src++);
+      int r = fp2i(*src++);
+      *left++ = static_cast<short>(l);
+      *right++ = static_cast<short>(r);
+      if (l >= peakL)
+        peakL = l;
+      if (r >= peakR)
+        peakR = r;
+    }
+  }
+
+  lastPeakVolume_ = peakL << 16;
+  lastPeakVolume_ += peakR;
 };
 
 int AudioOutDriver::GetPlayedBufferPercentage() {
