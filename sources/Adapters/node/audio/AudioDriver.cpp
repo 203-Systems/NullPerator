@@ -3,6 +3,7 @@
 #include "Application/Model/Config.h"
 #include "Services/Midi/MidiService.h"
 #include "System/System/System.h"
+#include "config/MemorySections.h"
 #include <cstdint>
 #include <math.h>
 #include <stdio.h>
@@ -14,7 +15,8 @@
 #include "freertos/queue.h"
 #include "freertos/task.h"
 
-uint8_t NodeAudioDriver::miniBlank_[MINI_BLANK_SIZE * 2U * sizeof(int16_t)] = {0};
+uint8_t NodeAudioDriver::miniBlank_[MINI_BLANK_SIZE * 2U * sizeof(int16_t)]
+    PICOTRACKER_FAST_AUDIO_BUFFER = {0};
 
 NodeAudioDriver *NodeAudioDriver::instance_ = NULL;
 TaskHandle_t audioThreadHandle_ = NULL;
@@ -24,8 +26,10 @@ static QueueHandle_t freeAudioBuffers = NULL;
 static QueueHandle_t filledAudioBuffers = NULL;
 static StaticQueue_t freeAudioBuffersControl;
 static StaticQueue_t filledAudioBuffersControl;
-static uint8_t freeAudioBuffersStorage[SOUND_BUFFER_COUNT * sizeof(uint8_t)];
-static uint8_t filledAudioBuffersStorage[SOUND_BUFFER_COUNT * sizeof(uint8_t)];
+static uint8_t freeAudioBuffersStorage[SOUND_BUFFER_COUNT * sizeof(uint8_t)]
+    PICOTRACKER_FAST_DATA;
+static uint8_t filledAudioBuffersStorage[SOUND_BUFFER_COUNT * sizeof(uint8_t)]
+    PICOTRACKER_FAST_DATA;
 
 static volatile unsigned long esp32_sound_pausei, esp32_exit;
 

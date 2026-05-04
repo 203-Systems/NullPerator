@@ -15,6 +15,7 @@
 #include "Externals/etl/include/etl/string.h"
 #include "Externals/etl/include/etl/vector.h"
 #include "Services/Audio/AudioDriver.h" // for MAX_SAMPLE_COUNT
+#include "config/MemorySections.h"
 #include "config/StringLimits.h"
 
 class AudioMixer : public AudioModule {
@@ -45,7 +46,7 @@ private:
   // the mix
   stereosample peakMixerLevel_ = 0;
 
-  __attribute__((section(".DTCMRAM")))
-  __attribute__((aligned(32))) static fixed renderBuffer_[MAX_SAMPLE_COUNT * 2];
+  PICOTRACKER_FAST_AUDIO_BUFFER static fixed
+      renderBuffer_[MAX_SAMPLE_COUNT * 2];
 };
 #endif
