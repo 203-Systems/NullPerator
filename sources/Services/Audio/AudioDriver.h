@@ -13,7 +13,7 @@
 #include "AudioSettings.h"
 #include "Foundation/Observable.h"
 
-#define SOUND_BUFFER_COUNT 2
+#define SOUND_BUFFER_COUNT 4
 #define SOUND_BUFFER_MAX 7500
 #define MAX_SAMPLE_COUNT 1875
 
@@ -55,7 +55,7 @@ public:
 
   virtual double GetStreamTime() = 0; // in secs
 
-  void AddBuffer(short *buffer, int size); // size in samples
+  virtual void AddBuffer(short *buffer, int size); // size in samples
 
   AudioSettings GetAudioSettings();
 
