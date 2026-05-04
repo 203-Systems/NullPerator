@@ -10,6 +10,7 @@
 #include "Application/Instruments/SamplePool.h"
 #include "Application/Instruments/WavFile.h"
 #include "System/Console/Trace.h"
+#include <cstddef>
 #include <esp_heap_caps.h>
 #include <optional>
 
@@ -28,6 +29,8 @@ protected:
 
 private:
   bool ensureDedicatedPsramStore();
+  bool canUseInternalSampleStorage(size_t bytes) const;
+  bool isDedicatedSampleBuffer(const void *buffer) const;
   void freeSampleBuffer(WavFile &wave);
   std::optional<void *> allocSampleBuffer(size_t bytes);
   bool dedicatedStoreAttempted_ = false;
