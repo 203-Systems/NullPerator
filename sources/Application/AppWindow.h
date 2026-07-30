@@ -148,6 +148,7 @@ private:
 
   bool loadProject_ = false;
   bool awaitingProjectLoadAck_ = false;
+  bool projectLoadAckReady_ = false;
   bool createProjectOnLoad_ = false;
   bool playerInitialized_ = false;
 

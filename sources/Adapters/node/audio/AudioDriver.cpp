@@ -1,4 +1,5 @@
 #include "AudioDriver.h"
+#include "Adapters/node/hal/nullperator/audio/audio.h"
 #include "Adapters/node/platform/platform.h"
 #include "Application/Model/Config.h"
 #include "Services/Midi/MidiService.h"
@@ -36,6 +37,7 @@ static volatile unsigned long esp32_sound_pausei, esp32_exit;
 namespace {
 constexpr uint32_t kI2SWriteTimeoutMs = 20;
 constexpr uint32_t kQueueUnderrunTimeoutMs = 2;
+constexpr uint32_t kHeadphonePollIntervalMs = 250;
 constexpr UBaseType_t kAudioRenderPriority = 10;
 constexpr UBaseType_t kI2SWriterPriority = 12;
 
@@ -106,7 +108,23 @@ void NodeAudioDriver::AudioThread(void *arg) {
 
 void NodeAudioDriver::I2SThread(void *arg) {
   uint8_t bufferIndex = 0;
+  bool headphoneStateInitialized = false;
+  bool headphoneConnected = false;
+  uint32_t lastHeadphonePollMs = 0;
   while (1) {
+    const uint32_t now = millis();
+    if (now - lastHeadphonePollMs >= kHeadphonePollIntervalMs) {
+      lastHeadphonePollMs = now;
+      const bool connected =
+          NullperatorHAL::Audio::IsHeadphoneConnected();
+      if (headphoneStateInitialized && connected != headphoneConnected) {
+        ESP_LOGI("NodeAudioDriver", "Headphone %s",
+                 connected ? "connected" : "disconnected");
+      }
+      headphoneConnected = connected;
+      headphoneStateInitialized = true;
+    }
+
     if (instance_ == NULL || !instance_->isPlaying_) {
       vTaskDelay(pdMS_TO_TICKS(1));
       continue;
