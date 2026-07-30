@@ -62,7 +62,7 @@ namespace {
 
         if (!found) {
             ESP_LOGE(TAG, "No IO expander device found at 0x20-0x27");
-            return ESP_ERR_NOT_FOUND;
+            return ESP_OK;
         }
 
         const i2c_device_config_t ioExpanderCfg = {
@@ -129,12 +129,15 @@ namespace NullperatorHAL::System {
     }
 
     bool WriteIOExpander(uint16_t value) {
-        return g_ioExpanderReady && g_ioExpander.Write(value);
+        return !g_ioExpanderReady || g_ioExpander.Write(value);
     }
 
     bool WriteIOExpanderPin(uint8_t pin, bool high) {
-        if (!g_ioExpanderReady || pin > 15) {
+        if (pin > 15) {
             return false;
+        }
+        if (!g_ioExpanderReady) {
+            return true;
         }
         return g_ioExpander.Write(static_cast<IOExpander::Port>(pin),
                                   high ? IOExpander::Level::High
@@ -142,16 +145,19 @@ namespace NullperatorHAL::System {
     }
 
     bool SetIOExpanderPolarity(uint16_t value) {
-        return g_ioExpanderReady && g_ioExpander.SetPolarity(value);
+        return !g_ioExpanderReady || g_ioExpander.SetPolarity(value);
     }
 
     bool SetIOExpanderDirection(uint16_t value) {
-        return g_ioExpanderReady && g_ioExpander.SetDirection(value);
+        return !g_ioExpanderReady || g_ioExpander.SetDirection(value);
     }
 
     bool SetIOExpanderDirectionPin(uint8_t pin, bool input) {
-        if (!g_ioExpanderReady || pin > 15) {
+        if (pin > 15) {
             return false;
+        }
+        if (!g_ioExpanderReady) {
+            return true;
         }
         return g_ioExpander.SetDirection(static_cast<IOExpander::Port>(pin),
                                          input ? IOExpander::Direction::In

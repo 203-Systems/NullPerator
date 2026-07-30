@@ -52,7 +52,6 @@ namespace NullperatorHAL {
         ret = Storage::Init();
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "Storage init failed: %s", esp_err_to_name(ret));
-            first_error = keep_first_error(first_error, ret);
         }
 
         ret = MIDI::Init();

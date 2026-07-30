@@ -12,7 +12,7 @@
 #define I2C_SCL_PIN 48
 
 // I2C Devices
-#define ES8390_ADDR 0x10
+#define ES8389_ADDR 0x10
 #define PCA9555_ADDR 0x20
 #define LSM6DS3TRC_ADDR 0x6A
 
@@ -36,7 +36,7 @@
 #define SD_D2_PIN 15
 #define SD_D3_PIN 14
 
-// Sound / I2S (ES8390)
+// Sound / I2S (ES8389)
 #define I2S_MCLK_PIN 45
 #define I2S_DOUT_PIN 40
 #define I2S_DIN_PIN 38

@@ -29,7 +29,7 @@ namespace NullperatorHAL::Input {
         uint16_t s_inputCache = 0;
 
         esp_err_t configure_button_polarity() {
-            if (!NullperatorHAL::System::SetIOExpanderPolarity(INPUT_MASK)) {
+            if (!NullperatorHAL::System::SetIOExpanderPolarity(BUTTON_MASK)) {
                 ESP_LOGE(TAG, "Failed to configure button polarity");
                 return ESP_FAIL;
             }

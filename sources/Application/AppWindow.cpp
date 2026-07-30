@@ -435,7 +435,25 @@ AppWindow::LoadProjectResult AppWindow::LoadProject(const char *projectName) {
   project_.Load(projectName);
   Project *project = &project_;
 
-  if (createProjectOnLoad_) {
+  bool missingUnnamedProject = false;
+  if (strcmp(projectName, UNNAMED_PROJECT_NAME) == 0) {
+    FileSystem *fs = FileSystem::GetInstance();
+    constexpr const char *samplesPath =
+        PROJECTS_DIR "/" UNNAMED_PROJECT_NAME "/" PROJECT_SAMPLES_DIR;
+    constexpr const char *projectPath =
+        PROJECTS_DIR "/" UNNAMED_PROJECT_NAME "/" PROJECT_DATA_FILE;
+    constexpr const char *autosavePath =
+        PROJECTS_DIR "/" UNNAMED_PROJECT_NAME "/" AUTO_SAVE_FILENAME;
+
+    if (!fs->exists(samplesPath) && !fs->makeDir(samplesPath, true)) {
+      Trace::Error("Failed to create untitled samples directory");
+      return LoadProjectResult::LOAD_FAILED;
+    }
+    missingUnnamedProject =
+        !fs->exists(projectPath) && !fs->exists(autosavePath);
+  }
+
+  if (createProjectOnLoad_ || missingUnnamedProject) {
     PersistencyResult created = persist->CreateProject();
     if (created != PERSIST_SAVED) {
       Trace::Error("Failed to create new project '%s'", projectName);
@@ -674,14 +692,17 @@ void AppWindow::AnimationUpdate() {
   char failedProjectName_[MAX_PROJECT_NAME_LENGTH + 1] = {0};
 
   if (awaitingProjectLoadAck_) {
-    if (_mask != 0) {
+    if (_mask == 0) {
+      projectLoadAckReady_ = true;
+    } else if (projectLoadAckReady_) {
+      Trace::Error("Falling back to untitled after failed load of '%s'",
+                   projectName_);
       FileSystem::GetInstance()->DeleteFile("/.current");
       npf_snprintf(projectName_, sizeof(projectName_), "%s",
                    UNNAMED_PROJECT_NAME);
       loadProject_ = true;
       awaitingProjectLoadAck_ = false;
-      Trace::Error("Falling back to untitled after failed load of '%s'",
-                   failedProjectName_);
+      projectLoadAckReady_ = false;
     }
     return;
   }
@@ -699,6 +720,7 @@ void AppWindow::AnimationUpdate() {
           "Failed to load project '%s'. Waiting for key press to load untitled",
           failedProjectName_);
       awaitingProjectLoadAck_ = true;
+      projectLoadAckReady_ = false;
       return;
     }
   }
