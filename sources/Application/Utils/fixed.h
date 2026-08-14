@@ -22,18 +22,27 @@
 #define i2fp(a) ((a) << FIXED_SHIFT)
 #define fp2i(a) ((a) >> FIXED_SHIFT)
 
+typedef signed int fixed;
+
 #define fp_add(a, b) ((a) + (b))
 #define fp_sub(a, b) ((a) - (b))
 
 #define fp_mul(x, y) ((fixed)(((long long)(x) * (long long)(y)) >> FIXED_SHIFT))
+
+// fp_mul_coef(x, COEF): equivalent to fp_mul(x, coef) but restricted to cases
+// where |COEF| <= FP_ONE. Splitting x into 16-bit halves lets the whole
+// computation use 32-bit multiplications instead.
+inline fixed fp_mul_coef(fixed x, fixed coef) {
+  fixed x_hi = x >> 16;
+  fixed x_lo = x & 0xFFFF;
+  return (x_hi * coef << 1) + ((x_lo * coef) >> FIXED_SHIFT);
+}
 
 #define fp_div(x, y) ((((x) << 2) / ((y) >> 8)) << 10)
 #define fp_mulint(x, y) fp_mul(x, y)
 
 #define FP_ONE (1 << FIXED_SHIFT)
 #define FPONE FP_ONE
-
-typedef signed int fixed;
 
 inline fixed fl2fp(float val) { return (fixed)(val * FIXED_SCALE); }
 
