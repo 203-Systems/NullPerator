@@ -14,6 +14,8 @@
 #include "Foundation/Observable.h"
 
 #define MAX_SAMPLE_COUNT 1875
+// TODO(node): Make this adapter-configurable and restore the shared default to
+// 2 once Node can render worst-case audio within its real-time budget.
 #define SOUND_BUFFER_COUNT 4
 #define SOUND_BUFFER_MAX (MAX_SAMPLE_COUNT * 2 * sizeof(short))
 
