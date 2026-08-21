@@ -291,9 +291,15 @@ void display_set_palette_color(int idx, uint16_t rgb565_color) {
 
 void display_fill_rect(uint8_t color_index, uint16_t x, uint16_t y,
                        uint16_t width, uint16_t height) {
-  if (width == 0 || height == 0) {
+  if (width == 0 || height == 0 || x >= DISPLAY_WIDTH ||
+      y >= DISPLAY_HEIGHT) {
     return;
   }
+
+  const uint16_t clipped_width =
+      (width > DISPLAY_WIDTH - x) ? DISPLAY_WIDTH - x : width;
+  const uint16_t clipped_height =
+      (height > DISPLAY_HEIGHT - y) ? DISPLAY_HEIGHT - y : height;
 
   const uint16_t color = palette[color_index & 0x0F];
   esp_lcd_panel_handle_t panel = NullperatorHAL::Display::GetPanel();
@@ -302,26 +308,19 @@ void display_fill_rect(uint8_t color_index, uint16_t x, uint16_t y,
   }
   ensure_panel_io_callback();
 
-  const uint16_t chunk_width =
-      (width > DISPLAY_WIDTH) ? DISPLAY_WIDTH : static_cast<uint16_t>(width);
-  const size_t chunk_pixels = (size_t)chunk_width * FILL_CHUNK_ROWS;
+  const size_t chunk_pixels = (size_t)clipped_width * FILL_CHUNK_ROWS;
   for (size_t i = 0; i < chunk_pixels; ++i) {
     fill_buffer[i] = color;
   }
 
-  uint16_t remaining = height;
+  uint16_t remaining = clipped_height;
   uint16_t draw_y = y;
   while (remaining > 0) {
     const uint16_t chunk_rows =
         (remaining > FILL_CHUNK_ROWS) ? FILL_CHUNK_ROWS : remaining;
-    const size_t row_pixels = (size_t)width * chunk_rows;
-    for (size_t i = 0; i < row_pixels; ++i) {
-      fill_buffer[i] = color;
-    }
-
     clear_stale_color_transfer_done();
-    ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel, x, draw_y, x + width,
-                                              draw_y + chunk_rows, fill_buffer));
+    ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(
+        panel, x, draw_y, x + clipped_width, draw_y + chunk_rows, fill_buffer));
     wait_for_color_transfer_done();
     draw_y += chunk_rows;
     remaining -= chunk_rows;
