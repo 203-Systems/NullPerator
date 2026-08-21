@@ -68,23 +68,33 @@ int NodeEventManager::MainLoop() {
     ESP_LOGE("NODE", "Failed to create UI timer");
     return 0;
   }
-  (void)xTimerStart(timer_, pdMS_TO_TICKS(100));
+  if (xTimerStart(timer_, pdMS_TO_TICKS(100)) != pdPASS) {
+    ESP_LOGE("NODE", "Failed to start UI timer");
+  }
 
   // Tasks: keep names and roles aligned with ADV.
-  (void)xTaskCreatePinnedToCore(NodeEventManager::ProcessInputEvent, "InEvent",
-                                kInputTaskStackBytes, NULL,
-                                tskIDLE_PRIORITY + 2, NULL, 0);
+  if (xTaskCreatePinnedToCore(NodeEventManager::ProcessInputEvent, "InEvent",
+                              kInputTaskStackBytes, NULL,
+                              tskIDLE_PRIORITY + 2, NULL, 0) != pdPASS) {
+    ESP_LOGE("NODE", "Failed to create input event task");
+  }
 #ifdef SERIAL_REPL
-  (void)xTaskCreatePinnedToCore(NodeEventManager::ProcessSerialInputEvent,
-                                "SerialInEvent", kSerialTaskStackBytes, NULL,
-                                tskIDLE_PRIORITY + 2, NULL, 0);
+  if (xTaskCreatePinnedToCore(NodeEventManager::ProcessSerialInputEvent,
+                              "SerialInEvent", kSerialTaskStackBytes, NULL,
+                              tskIDLE_PRIORITY + 2, NULL, 0) != pdPASS) {
+    ESP_LOGE("NODE", "Failed to create serial input task");
+  }
 #endif
-  (void)xTaskCreatePinnedToCore(NodeEventManager::ProcessEvent, "ProcEvent",
-                                kEventTaskStackBytes, NULL,
-                                tskIDLE_PRIORITY + 1, NULL, 0);
-  (void)xTaskCreatePinnedToCore(NodeEventManager::USBDevice, "USB Device",
-                                kUsbTaskStackBytes, NULL,
-                                tskIDLE_PRIORITY + 2, NULL, 0);
+  if (xTaskCreatePinnedToCore(NodeEventManager::ProcessEvent, "ProcEvent",
+                              kEventTaskStackBytes, NULL,
+                              tskIDLE_PRIORITY + 1, NULL, 0) != pdPASS) {
+    ESP_LOGE("NODE", "Failed to create event processing task");
+  }
+  if (xTaskCreatePinnedToCore(NodeEventManager::USBDevice, "USB Device",
+                              kUsbTaskStackBytes, NULL,
+                              tskIDLE_PRIORITY + 2, NULL, 0) != pdPASS) {
+    ESP_LOGE("NODE", "Failed to create USB device task");
+  }
 
   for (;;) {
     vTaskDelay(pdMS_TO_TICKS(1000));
