@@ -1,5 +1,6 @@
 add_library(platform_filesystem
   FileSystem.cpp
+  PathResolver.cpp
 )
 
 target_link_libraries(platform_filesystem PUBLIC

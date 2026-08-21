@@ -3,6 +3,7 @@
  */
 
 #include "FileSystem.h"
+#include "PathResolver.h"
 
 #include "Adapters/node/hal/nullperator/storage/storage.h"
 #include "System/Console/Trace.h"
@@ -18,26 +19,6 @@
 
 namespace {
 constexpr const char *kMountPoint = "/sdcard";
-
-std::string ResolvePath(const std::string &cwd, const char *path) {
-  if (!path) {
-    return cwd;
-  }
-  // Absolute path: if already under the mount point, return as-is. Otherwise, map to the SD mount.
-  constexpr size_t kMountLen = 7;  // strlen("/sdcard")
-  if (path[0] == '/') {
-    if (strncmp(path, kMountPoint, kMountLen) == 0) {
-      return std::string(path);
-    }
-    return std::string(kMountPoint) + path;
-  }
-  std::string full = cwd;
-  if (!full.empty() && full.back() != '/') {
-    full.push_back('/');
-  }
-  full += path;
-  return full;
-}
 
 bool EnsureParentDirs(const std::string &full_path) {
   // Create parent directories for a file path if they don't exist.
@@ -92,7 +73,12 @@ FileHandle NodeFileSystem::Open(const char *name, const char *mode) {
   if (!MountCard()) {
     return FileHandle();
   }
-  std::string full = ResolvePath(cwd_, name);
+  const auto resolved = NodePath::Resolve(cwd_, name);
+  if (!resolved) {
+    Trace::Error("FILESYSTEM", "Path escapes SD mount: %s", name ? name : "");
+    return FileHandle();
+  }
+  const std::string &full = *resolved;
   // If writing/creating, ensure parent directories exist.
   if (mode && (strchr(mode, 'w') || strchr(mode, 'a') || strchr(mode, '+'))) {
     if (!EnsureParentDirs(full)) {
@@ -130,18 +116,12 @@ bool NodeFileSystem::chdir(const char *path) {
   if (path == nullptr) {
     return false;
   }
-  std::string newPath;
-  if (strcmp(path, "..") == 0) {
-    if (cwd_ == kMountPoint) {
-      return true;
-    }
-    const size_t separator = cwd_.find_last_of('/');
-    newPath = separator <= strlen(kMountPoint)
-                  ? std::string(kMountPoint)
-                  : cwd_.substr(0, separator);
-  } else {
-    newPath = ResolvePath(cwd_, path);
+  const auto resolved = NodePath::Resolve(cwd_, path);
+  if (!resolved) {
+    Trace::Error("FILESYSTEM", "Path escapes SD mount: %s", path);
+    return false;
   }
+  const std::string &newPath = *resolved;
   struct stat st {};
   if (stat(newPath.c_str(), &st) == 0 && S_ISDIR(st.st_mode)) {
     cwd_ = newPath;
@@ -259,26 +239,33 @@ bool NodeFileSystem::isCurrentRoot() { return cwd_ == kMountPoint; }
 
 bool NodeFileSystem::DeleteFile(const char *name) {
   std::lock_guard<std::mutex> lock(mutex_);
-  std::string full = ResolvePath(cwd_, name);
-  return unlink(full.c_str()) == 0;
+  const auto full = NodePath::Resolve(cwd_, name);
+  return full && unlink(full->c_str()) == 0;
 }
 
 bool NodeFileSystem::DeleteDir(const char *name) {
   std::lock_guard<std::mutex> lock(mutex_);
-  std::string full = ResolvePath(cwd_, name);
-  return rmdir(full.c_str()) == 0;
+  const auto full = NodePath::Resolve(cwd_, name);
+  return full && rmdir(full->c_str()) == 0;
 }
 
 bool NodeFileSystem::exists(const char *path) {
   std::lock_guard<std::mutex> lock(mutex_);
-  std::string full = ResolvePath(cwd_, path);
+  const auto full = NodePath::Resolve(cwd_, path);
+  if (!full) {
+    return false;
+  }
   struct stat st {};
-  return stat(full.c_str(), &st) == 0;
+  return stat(full->c_str(), &st) == 0;
 }
 
 bool NodeFileSystem::makeDir(const char *path, bool pFlag) {
   std::lock_guard<std::mutex> lock(mutex_);
-  std::string full = ResolvePath(cwd_, path);
+  const auto resolved = NodePath::Resolve(cwd_, path);
+  if (!resolved) {
+    return false;
+  }
+  const std::string &full = *resolved;
   if (!pFlag) {
     return mkdir(full.c_str(), 0755) == 0;
   }
@@ -313,17 +300,16 @@ uint64_t NodeFileSystem::getFileSize(int index) {
 
 bool NodeFileSystem::CopyFile(const char *src, const char *dest) {
   std::lock_guard<std::mutex> lock(mutex_);
-  std::string base = cwd_;
-  if (!base.empty() && base.back() != '/') {
-    base.push_back('/');
+  const auto source = NodePath::Resolve(cwd_, src);
+  const auto target = NodePath::Resolve(cwd_, dest);
+  if (!source || !target || !EnsureParentDirs(*target)) {
+    return false;
   }
-  std::string s = base + src;
-  std::string d = base + dest;
-  FILE *in = fopen(s.c_str(), "rb");
+  FILE *in = fopen(source->c_str(), "rb");
   if (in == nullptr) {
     return false;
   }
-  FILE *out = fopen(d.c_str(), "wb");
+  FILE *out = fopen(target->c_str(), "wb");
   if (out == nullptr) {
     fclose(in);
     return false;
@@ -344,12 +330,12 @@ bool NodeFileSystem::CopyFile(const char *src, const char *dest) {
 
 bool NodeFileSystem::MoveFile(const char *src, const char *dest) {
   std::lock_guard<std::mutex> lock(mutex_);
-  std::string source = ResolvePath(cwd_, src);
-  std::string target = ResolvePath(cwd_, dest);
-  if (!EnsureParentDirs(target)) {
+  const auto source = NodePath::Resolve(cwd_, src);
+  const auto target = NodePath::Resolve(cwd_, dest);
+  if (!source || !target || !EnsureParentDirs(*target)) {
     return false;
   }
-  return rename(source.c_str(), target.c_str()) == 0;
+  return rename(source->c_str(), target->c_str()) == 0;
 }
 
 bool NodeFileSystem::isExFat() { return false; }
