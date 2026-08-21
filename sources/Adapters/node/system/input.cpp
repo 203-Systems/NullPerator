@@ -102,7 +102,10 @@ uint16_t filter_unstable_changes(uint16_t key_mask) {
 
 // Build the final keypad mask from remote UI or HAL button state, then apply
 // the small amount of adapter-specific behavior that still lives above HAL.
-uint16_t scanKeys() {
+uint16_t scanKeys(bool *headphoneConnected) {
+  const NullperatorHAL::Input::ButtonState_t buttons =
+      NullperatorHAL::Input::GetButtonState(headphoneConnected);
+
 #ifdef USB_REMOTE_UI_INPUT
   const int16_t remote_mask = read_remote_ui_mask();
   if (remote_mask >= 0) {
@@ -110,8 +113,6 @@ uint16_t scanKeys() {
   }
 #endif
 
-  const NullperatorHAL::Input::ButtonState_t buttons =
-      NullperatorHAL::Input::GetButtonState();
   const uint32_t now_ms = millis();
   uint16_t key_mask = build_base_key_mask(buttons);
 

@@ -22,6 +22,6 @@ typedef enum KEYPAD_BITS {
   KEY_UNUSED = 0,      //!< Unused/skip position
 } KEYPAD_BITS;
 
-uint16_t scanKeys();
+uint16_t scanKeys(bool *headphoneConnected = nullptr);
 
 #endif

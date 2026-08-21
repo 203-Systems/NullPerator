@@ -118,6 +118,8 @@ void NodeEventManager::USBDevice(void *) {
 }
 
 void NodeEventManager::ProcessInputEvent(void *) {
+  bool audioRouteInitialized = false;
+  bool headphoneConnected = false;
   for (;;) {
     if (finished_) {
       vTaskDelay(pdMS_TO_TICKS(100));
@@ -134,7 +136,20 @@ void NodeEventManager::ProcessInputEvent(void *) {
     bool gotEvent = false;
 
     // Get current mask
-    newMask = scanKeys();
+    bool detectedHeadphone = false;
+    newMask = scanKeys(&detectedHeadphone);
+
+    if (!audioRouteInitialized || detectedHeadphone != headphoneConnected) {
+      const int volume = audio_codec_get_volume();
+      audio_codec_set_mute(true);
+      switch_audio_mode(headphone_out);
+      switch_speaker_mode(!detectedHeadphone);
+      audio_codec_set_volume(volume);
+      headphoneConnected = detectedHeadphone;
+      audioRouteInitialized = true;
+      ESP_LOGI("NODE", "Audio routed to %s",
+               headphoneConnected ? "headphones" : "speaker");
+    }
 
     // compute mask to send
     sendMask = (newMask ^ buttonMask_) |

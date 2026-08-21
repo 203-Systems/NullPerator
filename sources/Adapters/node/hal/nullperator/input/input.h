@@ -18,5 +18,5 @@ namespace NullperatorHAL::Input {
     };
 
     esp_err_t Init();
-    ButtonState_t GetButtonState();
+    ButtonState_t GetButtonState(bool* headphoneConnected = nullptr);
 }

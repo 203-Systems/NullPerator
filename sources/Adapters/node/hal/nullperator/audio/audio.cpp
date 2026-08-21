@@ -225,8 +225,4 @@ namespace NullperatorHAL::Audio {
         return currentInputMode;
     }
 
-    bool IsHeadphoneConnected() {
-        const uint16_t level = NullperatorHAL::System::ReadIOExpander();
-        return (level & (1U << PCA_PHONE_DET)) != 0;
-    }
 }

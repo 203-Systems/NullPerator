@@ -37,7 +37,6 @@ static volatile unsigned long esp32_sound_pausei, esp32_exit;
 namespace {
 constexpr uint32_t kI2SWriteTimeoutMs = 20;
 constexpr uint32_t kQueueUnderrunTimeoutMs = 2;
-constexpr uint32_t kHeadphonePollIntervalMs = 250;
 constexpr UBaseType_t kAudioRenderPriority = 10;
 constexpr UBaseType_t kI2SWriterPriority = 12;
 
@@ -108,23 +107,7 @@ void NodeAudioDriver::AudioThread(void *arg) {
 
 void NodeAudioDriver::I2SThread(void *arg) {
   uint8_t bufferIndex = 0;
-  bool headphoneStateInitialized = false;
-  bool headphoneConnected = false;
-  uint32_t lastHeadphonePollMs = 0;
   while (1) {
-    const uint32_t now = millis();
-    if (now - lastHeadphonePollMs >= kHeadphonePollIntervalMs) {
-      lastHeadphonePollMs = now;
-      const bool connected =
-          NullperatorHAL::Audio::IsHeadphoneConnected();
-      if (headphoneStateInitialized && connected != headphoneConnected) {
-        ESP_LOGI("NodeAudioDriver", "Headphone %s",
-                 connected ? "connected" : "disconnected");
-      }
-      headphoneConnected = connected;
-      headphoneStateInitialized = true;
-    }
-
     if (instance_ == NULL || !instance_->isPlaying_) {
       vTaskDelay(pdMS_TO_TICKS(1));
       continue;
@@ -237,7 +220,6 @@ bool NodeAudioDriver::InitDriver() {
   audio_codec_set_volume(volume);
   audio_codec_set_mute(false);
   switch_audio_mode(headphone_out);
-  switch_speaker_mode(false);
 
   freeAudioBuffers = xQueueCreateStatic(
       SOUND_BUFFER_COUNT, sizeof(uint8_t), freeAudioBuffersStorage,
@@ -300,7 +282,6 @@ void NodeAudioDriver::CloseDriver() {
 
 bool NodeAudioDriver::StartDriver() {
   switch_audio_mode(headphone_out);
-  switch_speaker_mode(false);
   isPlaying_ = false;
   for (int i = 0; i < SOUND_BUFFER_COUNT; ++i) {
     pool_[i].size_ = 0;
@@ -322,7 +303,6 @@ void NodeAudioDriver::StopDriver() {
   esp32_sound_pause(1);
   isPlaying_ = false;
   wake_audio_queues();
-  switch_speaker_mode(false);
 }
 
 int NodeAudioDriver::GetPlayedBufferPercentage() { return 0; };

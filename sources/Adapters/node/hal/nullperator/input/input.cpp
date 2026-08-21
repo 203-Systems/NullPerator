@@ -3,6 +3,7 @@
 #include "Adapters/node/hal/nullperator/system/system.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 
 static const char* TAG = "NP_INPUT";
 
@@ -27,6 +28,34 @@ namespace NullperatorHAL::Input {
             (1U << PCA_PHONE_DET);
 
         uint16_t s_inputCache = 0;
+        constexpr uint32_t HEADPHONE_DEBOUNCE_MS = 500;
+        bool s_headphoneCandidate = false;
+        bool s_headphoneConnected = false;
+        int64_t s_headphoneCandidateSinceUs = 0;
+
+        void update_headphone_state(uint16_t input, bool initialize = false) {
+            const bool detected = (input & (1U << PCA_PHONE_DET)) != 0;
+            const int64_t nowUs = esp_timer_get_time();
+
+            if (initialize) {
+                s_headphoneCandidate = detected;
+                s_headphoneConnected = detected;
+                s_headphoneCandidateSinceUs = nowUs;
+                return;
+            }
+
+            if (detected != s_headphoneCandidate) {
+                s_headphoneCandidate = detected;
+                s_headphoneCandidateSinceUs = nowUs;
+                return;
+            }
+
+            constexpr int64_t kDebounceUs = HEADPHONE_DEBOUNCE_MS * 1000LL;
+            if (s_headphoneConnected != detected &&
+                nowUs - s_headphoneCandidateSinceUs >= kDebounceUs) {
+                s_headphoneConnected = detected;
+            }
+        }
 
         esp_err_t configure_button_polarity() {
             if (!NullperatorHAL::System::SetIOExpanderPolarity(BUTTON_MASK)) {
@@ -60,6 +89,7 @@ namespace NullperatorHAL::Input {
         }
 
         s_inputCache = read_button_inputs_stable();
+        update_headphone_state(s_inputCache, true);
 
         gpio_config_t io_conf = {
             .pin_bit_mask = (1ULL << FUNC_BTN_PIN),
@@ -74,13 +104,20 @@ namespace NullperatorHAL::Input {
         return ESP_OK;
     }
 
-    ButtonState_t GetButtonState() {
+    ButtonState_t GetButtonState(bool* headphoneConnected) {
         ButtonState_t state = {};
         if (!NullperatorHAL::System::GetI2CBus()) {
+            if (headphoneConnected) {
+                *headphoneConnected = s_headphoneConnected;
+            }
             return state;
         }
 
         const uint16_t level = read_button_inputs_stable();
+        update_headphone_state(level);
+        if (headphoneConnected) {
+            *headphoneConnected = s_headphoneConnected;
+        }
 
         // Button polarity is inverted in the PCA9555, so pressed reads back as high here.
         state.select = (level & (1U << PCA_BTN_SELECT)) != 0;

@@ -30,5 +30,4 @@ namespace NullperatorHAL::Audio {
     esp_err_t SetInputMode(InputMode_t mode);
     InputMode_t GetInputMode();
 
-    bool IsHeadphoneConnected();
 }
