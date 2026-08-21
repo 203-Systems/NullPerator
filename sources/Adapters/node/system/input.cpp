@@ -48,7 +48,9 @@ uint16_t build_base_key_mask(const NullperatorHAL::Input::ButtonState_t& buttons
   remapped |= (buttons.down ? KEY_DOWN : 0u);
   remapped |= (buttons.right ? KEY_RIGHT : 0u);
   remapped |= (buttons.up ? KEY_UP : 0u);
-  remapped |= (buttons.b ? KEY_EDIT : 0u);
+  // TODO(node): Restore the physical EDIT mapping once the ENTER button
+  // hardware issue is resolved. Until then, EDIT acts as ENTER.
+  remapped |= (buttons.b ? KEY_ENTER : 0u);
   remapped |= (buttons.a ? KEY_ENTER : 0u);
   remapped |= (buttons.select ? KEY_ALT : 0u);
   remapped |= (buttons.func ? KEY_POWER : 0u);

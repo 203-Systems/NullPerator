@@ -124,7 +124,9 @@ namespace NullperatorHAL::Input {
         state.start = (level & (1U << PCA_BTN_START)) != 0;
         state.rb = (level & (1U << PCA_BTN_RB)) != 0;
         state.lb = (level & (1U << PCA_BTN_LB)) != 0;
-        state.a = (level & (1U << PCA_BTN_A)) != 0;
+        // TODO(node): Restore the physical ENTER button once the stuck-button
+        // hardware issue is resolved. USB Remote UI input remains available.
+        state.a = false;
         state.b = (level & (1U << PCA_BTN_B)) != 0;
         state.up = (level & (1U << PCA_BTN_UP)) != 0;
         state.down = (level & (1U << PCA_BTN_DOWN)) != 0;
