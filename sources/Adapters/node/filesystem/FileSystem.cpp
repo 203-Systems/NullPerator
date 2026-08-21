@@ -130,7 +130,18 @@ bool NodeFileSystem::chdir(const char *path) {
   if (path == nullptr) {
     return false;
   }
-  std::string newPath = ResolvePath(cwd_, path);
+  std::string newPath;
+  if (strcmp(path, "..") == 0) {
+    if (cwd_ == kMountPoint) {
+      return true;
+    }
+    const size_t separator = cwd_.find_last_of('/');
+    newPath = separator <= strlen(kMountPoint)
+                  ? std::string(kMountPoint)
+                  : cwd_.substr(0, separator);
+  } else {
+    newPath = ResolvePath(cwd_, path);
+  }
   struct stat st {};
   if (stat(newPath.c_str(), &st) == 0 && S_ISDIR(st.st_mode)) {
     cwd_ = newPath;
@@ -155,6 +166,9 @@ void NodeFileSystem::RefreshDir(const char *filter, bool subDirOnly,
   DIR *dir = opendir(cwd_.c_str());
   if (!dir) {
     return;
+  }
+  if (cwd_ != kMountPoint) {
+    entries_.push_back({"..", true, 0});
   }
   while (true) {
     dirent *ent = readdir(dir);
@@ -233,7 +247,14 @@ PicoFileType NodeFileSystem::getFileType(int index) {
   return entries_[index].is_dir ? PFT_DIR : PFT_FILE;
 }
 
-bool NodeFileSystem::isParentRoot() { return cwd_ == kMountPoint; }
+bool NodeFileSystem::isParentRoot() {
+  if (cwd_ == kMountPoint) {
+    return false;
+  }
+  const size_t separator = cwd_.find_last_of('/');
+  return separator != std::string::npos &&
+         cwd_.substr(0, separator) == kMountPoint;
+}
 bool NodeFileSystem::isCurrentRoot() { return cwd_ == kMountPoint; }
 
 bool NodeFileSystem::DeleteFile(const char *name) {
