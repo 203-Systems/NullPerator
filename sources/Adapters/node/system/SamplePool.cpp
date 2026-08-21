@@ -183,6 +183,11 @@ bool NodeSamplePool::loadSample(const char *name) {
 
   WavFile &wav = wav_[count_];
   const uint32_t sampleBytes = wav.GetDiskSize(-1);
+  if (sampleBytes == 0) {
+    Trace::Error("SAMPLEPOOL", "Sample contains no audio data: %s", name);
+    wav.Close();
+    return false;
+  }
   const uint32_t initialWriteOffset = writeOffset_;
   if (!CheckSampleFits(static_cast<int>(sampleBytes))) {
     Trace::Error("SAMPLEPOOL", "Not enough heap for sample (%u bytes)",
@@ -240,6 +245,18 @@ bool NodeSamplePool::loadSample(const char *name) {
       ++subStep;
       updateStatus(importIndex * 10 + subStep, importCount * 10, "Importing");
     }
+  }
+
+  if (offset != sampleBytes) {
+    Trace::Error("SAMPLEPOOL", "Truncated sample data: %s (%u/%u bytes)", name,
+                 static_cast<unsigned>(offset),
+                 static_cast<unsigned>(sampleBytes));
+    if (usingDedicatedStore) {
+      writeOffset_ = initialWriteOffset;
+    }
+    freeSampleBuffer(wav);
+    wav.Close();
+    return false;
   }
 
   std::strncpy(nameStore_[count_], name, MAX_INSTRUMENT_FILENAME_LENGTH);
