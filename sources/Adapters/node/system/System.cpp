@@ -103,7 +103,14 @@ void NodeSystem::Boot(int argc, char **argv) {
   eventManager_->Init();
 };
 
-void NodeSystem::Shutdown() { delete Audio::GetInstance(); };
+void NodeSystem::Shutdown() {
+  Audio *audio = Audio::GetInstance();
+  if (audio != nullptr) {
+    // NodeAudio is placement-new'd into static storage during initialization.
+    // Close its hardware resources without attempting to free that storage.
+    audio->Close();
+  }
+};
 
 unsigned long NodeSystem::GetClock() { return Millis(); }
 

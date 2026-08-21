@@ -21,7 +21,8 @@ AudioOutDriver::AudioOutDriver(AudioDriver &driver) {
 
 AudioOutDriver::~AudioOutDriver() {
   driver_->RemoveObserver(*this);
-  delete driver_;
+  // Audio drivers are owned by the platform adapter. Embedded adapters place
+  // them in static storage, so deleting the borrowed pointer is invalid.
 };
 
 bool AudioOutDriver::Init() { return driver_->Init(); };
