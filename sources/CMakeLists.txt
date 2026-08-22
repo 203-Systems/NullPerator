@@ -9,10 +9,27 @@ if(NOT DEFINED Node)
   set(Node false)
 endif()
 
+if(NOT DEFINED WASM)
+  set(WASM false)
+endif()
+
+if(Node AND WASM)
+  message(FATAL_ERROR "Node and WASM are mutually exclusive build targets")
+endif()
+
 # ESP-IDF node build (vanilla style). Invoke with -DNode=true from sources/.
 if(Node)
   include("${CMAKE_CURRENT_SOURCE_DIR}/Adapters/node/esp-idf.cmake")
   adapter_node_setup()
+  return()
+endif()
+
+# Browser build. Keep this before all Pico SDK configuration so the Pico and
+# Node platform flags cannot leak into the Emscripten target.
+if(WASM)
+  project(picoTrackerWasm LANGUAGES C CXX)
+  include("${CMAKE_CURRENT_SOURCE_DIR}/../cmake/wasm/toolchain-check.cmake")
+  add_subdirectory(Adapters/wasm)
   return()
 endif()
 

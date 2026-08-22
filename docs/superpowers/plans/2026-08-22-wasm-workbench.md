@@ -165,7 +165,7 @@ git commit -m "build(wasm): add isolated static workbench shell"
 - Produces C exports: `PicoTracker_Wasm_GetBuildMetadataJson()`, `PicoTracker_Wasm_GetState()`, `PicoTracker_Wasm_RequestShutdown()`, and `PicoTracker_Wasm_GetLastError()`.
 - Produces JS: `createRuntime(options): Promise<RuntimeHandle>` and `restartRuntime(): Promise<void>`.
 
-- [ ] **Step 1: Write lifecycle state-machine tests**
+- [x] **Step 1: Write lifecycle state-machine tests**
 
 ```js
 it('terminates the old module before creating a replacement', async () => {
@@ -176,32 +176,33 @@ it('terminates the old module before creating a replacement', async () => {
 })
 ```
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
-Run: `cd web && npm test -- --run tests/runtime.test.js`
+Run: `cd web && pnpm exec vitest run tests/runtime.test.js`
 
 Expected: FAIL because the runtime store is absent.
 
-- [ ] **Step 3: Implement the minimal module and explicit lifecycle**
+- [x] **Step 3: Implement the minimal module and explicit lifecycle**
 
 ```cpp
-enum class WasmRuntimeState : uint32_t { Booting, Ready, Stopping, Failed };
+enum class WasmRuntimeState : uint32_t { Booting, Ready, Stopping, Failed, Stopped };
 extern "C" EMSCRIPTEN_KEEPALIVE uint32_t PicoTracker_Wasm_GetState();
 extern "C" EMSCRIPTEN_KEEPALIVE const char *PicoTracker_Wasm_GetBuildMetadataJson();
 ```
 
-Link with `-pthread`, `-sUSE_PTHREADS=1`, `-sPROXY_TO_PTHREAD=1`, a fixed
-pthread pool, modularized output, and explicit exported functions.
+Link with standard `-pthread`, `-sPROXY_TO_PTHREAD=1`, a fixed pthread pool,
+modularized output, and explicit exported functions. Restart waits for the
+C++ application pthread to publish `Stopped` before terminating idle workers.
 
-- [ ] **Step 4: Verify lifecycle tests and WASM smoke boot**
+- [x] **Step 4: Verify lifecycle tests and WASM smoke boot**
 
-Run: `cd web && npm test -- --run tests/runtime.test.js`
+Run: `cd web && pnpm exec vitest run tests/runtime.test.js`
 
 Run: `tools/build-wasm.sh Debug`
 
 Expected: the generated module reaches `Ready` under the local isolated preview.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add sources/CMakeLists.txt sources/Adapters/wasm web/src web/tests

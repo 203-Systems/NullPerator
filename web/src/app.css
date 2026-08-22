@@ -105,12 +105,35 @@ button:focus-visible {
   font-size: 12px;
 }
 
+.runtime-state button {
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: #ddd;
+  background: var(--surface-raised);
+  cursor: pointer;
+}
+
+.runtime-state button:hover {
+  border-color: rgba(72, 200, 240, 0.4);
+}
+
 .status-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   background: var(--warning);
   box-shadow: 0 0 8px rgba(231, 183, 93, 0.5);
+}
+
+.runtime-state[data-runtime-state='ready'] .status-dot {
+  background: #5fd28b;
+  box-shadow: 0 0 8px rgba(95, 210, 139, 0.5);
+}
+
+.runtime-state[data-runtime-state='failed'] .status-dot {
+  background: #f26b6b;
+  box-shadow: 0 0 8px rgba(242, 107, 107, 0.5);
 }
 
 .workbench-body {

@@ -1,6 +1,20 @@
 <script>
+  import { onMount } from 'svelte'
+
+  import { restartRuntime, runtimeStore } from './stores/runtime.js'
+
   const sections = ['Device', 'Files', 'MIDI', 'Logs', 'Trace', 'Settings', 'About']
   let activeSection = 'Device'
+  let runtime = runtimeStore.getSnapshot()
+
+  onMount(() => {
+    const unsubscribe = runtimeStore.subscribe((snapshot) => (runtime = snapshot))
+    runtimeStore.start().catch(() => {})
+    return () => {
+      unsubscribe()
+      runtimeStore.stop().catch(() => {})
+    }
+  })
 </script>
 
 <svelte:head>
@@ -19,9 +33,10 @@
         <span>WASM Workbench</span>
       </div>
     </div>
-    <div class="runtime-state" data-runtime-state="not-built">
+    <div class="runtime-state" data-runtime-state={runtime.state} title={runtime.error ?? undefined}>
       <span class="status-dot"></span>
-      Runtime not built
+      <span>Runtime {runtime.state}</span>
+      <button type="button" onclick={() => restartRuntime().catch(() => {})}>Restart</button>
     </div>
   </header>
 
@@ -48,13 +63,13 @@
               <p class="eyebrow">Simulator</p>
               <h1 id="device-heading">PicoTracker Device</h1>
             </div>
-            <span class="phase-badge">Toolchain setup</span>
+            <span class="phase-badge">Runtime lifecycle</span>
           </div>
 
           <div class="device-placeholder">
             <div class="display-placeholder" role="img" aria-label="PicoTracker display placeholder">
               <span>240 × 240</span>
-              <small>WASM canvas arrives in Task 4</small>
+              <small>{runtime.error ?? 'WASM canvas arrives in Task 4'}</small>
             </div>
           </div>
         </section>
@@ -72,7 +87,7 @@
       {#each ['WASM', 'Audio', 'Storage', 'MIDI'] as subsystem}
         <div class="status-card">
           <span>{subsystem}</span>
-          <strong>Pending</strong>
+          <strong>{subsystem === 'WASM' ? runtime.state : 'Pending'}</strong>
         </div>
       {/each}
     </aside>
