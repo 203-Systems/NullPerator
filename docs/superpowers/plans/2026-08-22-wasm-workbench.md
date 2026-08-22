@@ -6,7 +6,7 @@
 
 **Architecture:** Compile the existing PicoTracker application against a new SDL2/Emscripten adapter and run it on a pthread. Host it inside an adapted MatrixOS-style Svelte/Vite workbench; use a WASM AudioWorklet and shared lock-free buffers for sound, IDBFS plus an optional File System Access mirror for storage, and bounded shared queues for MIDI, logs, and trace events.
 
-**Tech Stack:** C++23, CMake, Emscripten, SDL2, pthreads, Wasm AudioWorklets, Svelte 5, Vite 7, Vitest, Playwright, doctest, IndexedDB/IDBFS, File System Access API, Web MIDI API.
+**Tech Stack:** C++23, CMake, Emscripten, SDL2, pthreads, Wasm AudioWorklets, Svelte 5, Vite 8, Vitest, Playwright, doctest, IndexedDB/IDBFS, File System Access API, Web MIDI API.
 
 **Spec:** `docs/superpowers/specs/2026-08-22-wasm-workbench-design.md`
 
@@ -91,10 +91,10 @@
 - Modify: `.gitignore`
 
 **Interfaces:**
-- Produces: `tools/build-wasm.sh [Debug|Release]`, `npm run build`, and `parseBuildMetadata(raw: unknown): BuildMetadata`.
+- Produces: `tools/build-wasm.sh [Debug|Release]`, `pnpm build`, and `parseBuildMetadata(raw: unknown): BuildMetadata`.
 - Produces: Vite development and preview servers with both required isolation headers.
 
-- [ ] **Step 1: Write the failing metadata and config tests**
+- [x] **Step 1: Write the failing metadata and config tests**
 
 ```js
 import { describe, expect, it } from 'vitest'
@@ -108,13 +108,13 @@ describe('parseBuildMetadata', () => {
 })
 ```
 
-- [ ] **Step 2: Run the tests and verify RED**
+- [x] **Step 2: Run the tests and verify RED**
 
-Run: `cd web && npm install && npm test -- --run`
+Run: `cd web && pnpm install && pnpm exec vitest run`
 
 Expected: FAIL because `package.json` and `buildMetadata.js` do not exist.
 
-- [ ] **Step 3: Add the minimal isolated static shell and toolchain check**
+- [x] **Step 3: Add the minimal isolated static shell and toolchain check**
 
 ```cmake
 if(NOT EMSCRIPTEN)
@@ -135,13 +135,13 @@ export function parseBuildMetadata(raw) {
 The copied MatrixOS-derived shell must include its MIT notice and contain no
 HID or Serial packages, routes, stores, or components.
 
-- [ ] **Step 4: Verify GREEN and production build**
+- [x] **Step 4: Verify GREEN and production build**
 
-Run: `cd web && npm test -- --run && npm run build`
+Run: `cd web && pnpm exec vitest run && pnpm build`
 
 Expected: Vitest passes and `web/dist/index.html` exists.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add cmake/wasm tools/build-wasm.sh web .gitignore

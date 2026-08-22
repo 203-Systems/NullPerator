@@ -1,4 +1,7 @@
 build**
+!tools/build-wasm.sh
+!web/src/buildMetadata.js
+!web/tests/buildMetadata.test.js
 ref/**
 doxygen/html/**
 projects/buildOSX/**
@@ -43,3 +46,7 @@ optbuild/**
 AGENTS.md
 sources/build
 sources/sdkconfig.old
+web/node_modules/
+web/dist/
+web/playwright-report/
+web/test-results/
