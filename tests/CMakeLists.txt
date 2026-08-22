@@ -10,7 +10,14 @@ add_executable(picoTracker_tests
   test_main.cpp
   foundation_types_tests.cpp
   wavheader_tests.cpp
+  wasm_platform_tests.cpp
   ../sources/Application/Instruments/WavHeader.cpp
+  ../sources/Adapters/wasm/system/WasmSystem.cpp
+  ../sources/Adapters/wasm/timer/WasmTimer.cpp
+  ../sources/Adapters/wasm/filesystem/WasmFile.cpp
+  ../sources/Adapters/wasm/filesystem/WasmFileSystem.cpp
+  ../sources/Foundation/Observable.cpp
+  ../sources/System/Timer/Timer.cpp
 )
 
 target_include_directories(picoTracker_tests PRIVATE
