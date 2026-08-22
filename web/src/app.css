@@ -232,7 +232,7 @@ h1 {
   font: 500 10px/1 ui-monospace, monospace;
 }
 
-.device-placeholder {
+.device-panel {
   display: grid;
   min-height: 480px;
   place-items: center;
@@ -242,25 +242,39 @@ h1 {
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.24);
 }
 
-.display-placeholder {
-  display: grid;
+.device-frame {
+  display: flex;
   width: min(55vw, 360px);
   aspect-ratio: 1;
-  place-content: center;
-  gap: 10px;
+  align-items: center;
+  justify-content: center;
   border: 8px solid #202027;
   border-radius: 8px;
-  color: var(--accent);
   background: #07070a;
-  text-align: center;
   box-shadow: 0 0 0 1px #30303a, 0 18px 60px rgba(0, 0, 0, 0.45);
 }
 
-.display-placeholder span {
-  font: 600 20px/1 ui-monospace, monospace;
+#picotracker-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
 }
 
-.display-placeholder small,
+#canvas {
+  display: none;
+}
+
+.device-caption {
+  display: flex;
+  justify-content: space-between;
+  width: min(55vw, 360px);
+  margin-top: -84px;
+  color: var(--muted);
+  font: 500 10px/1.4 ui-monospace, monospace;
+}
+
 .tool-placeholder p {
   color: var(--muted);
 }

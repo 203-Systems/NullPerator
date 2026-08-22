@@ -4,6 +4,41 @@ import { createRuntime } from '../src/handles/runtime.js'
 import { createRuntimeManager } from '../src/stores/runtime.js'
 
 describe('WASM runtime lifecycle', () => {
+  it('passes the tracker canvas to Emscripten', async () => {
+    const canvas = {}
+    let moduleOptions
+    const module = {
+      _PicoTracker_Wasm_GetState: () => 1,
+      PThread: { terminateAllThreads() {} },
+    }
+
+    await createRuntime({
+      canvas,
+      moduleFactory: async (options) => {
+        moduleOptions = options
+        return module
+      },
+    })
+
+    expect(moduleOptions.canvas).toBe(canvas)
+  })
+
+  it('exports an immutable 240x240 RGBA frame copy', async () => {
+    const module = {
+      _PicoTracker_Wasm_CaptureFrameRgba: () => 4,
+      HEAPU8: new Uint8Array([9, 8, 7, 6, 5, 4, 3, 2]),
+    }
+    const runtime = await createRuntime({ moduleFactory: async () => module })
+
+    const frame = runtime.captureFrameRgba()
+
+    expect(frame).toBeInstanceOf(Uint8Array)
+    expect(frame).not.toBe(module.HEAPU8)
+    expect(frame).toEqual(new Uint8Array([5, 4, 3, 2]))
+    module.HEAPU8[4] = 0
+    expect(frame[0]).toBe(5)
+  })
+
   it('terminates the old module before creating a replacement', async () => {
     const calls = []
     let acknowledgeShutdown
@@ -106,6 +141,23 @@ describe('WASM runtime lifecycle', () => {
     cppState = 1
     await starting
     expect(runtime.getSnapshot().state).toBe('ready')
+  })
+
+  it('publishes whether the exported C++ frame contains visible content', async () => {
+    const frame = new Uint8Array(240 * 240 * 4)
+    frame.set([255, 255, 255, 255], 4)
+    const runtime = createRuntimeManager({
+      crossOriginIsolated: true,
+      createModule: async () => ({
+        getState: () => 1,
+        captureFrameRgba: () => frame,
+        terminate() {},
+      }),
+    })
+
+    await runtime.start()
+
+    expect(runtime.getSnapshot().frameContent).toBe('rendered')
   })
 
   it('clears a stale module and reports cleanup failures', async () => {

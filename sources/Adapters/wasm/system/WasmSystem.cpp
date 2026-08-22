@@ -10,6 +10,7 @@
 #include "Adapters/wasm/midi/WasmDisconnectedMidi.h"
 #include "Adapters/wasm/platform/wasm_bridge.h"
 #include "Adapters/wasm/process/WasmProcess.h"
+#include "Adapters/wasm/system/WasmSamplePool.h"
 #include "Adapters/wasm/timer/WasmTimer.h"
 #include "Services/Audio/Audio.h"
 #include "Services/Midi/MidiService.h"
@@ -102,6 +103,10 @@ bool WasmSystem::InstallPlatformServices() {
   alignas(WasmSilentAudio)
       static unsigned char audioStorage[sizeof(WasmSilentAudio)];
   Audio::Install(new (audioStorage) WasmSilentAudio(settings));
+
+  alignas(WasmSamplePool)
+      static unsigned char samplePoolStorage[sizeof(WasmSamplePool)];
+  SamplePool::Install(new (samplePoolStorage) WasmSamplePool());
   return true;
 }
 

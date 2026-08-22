@@ -1,4 +1,5 @@
 const defaultModuleUrl = '/wasm/picotracker.js'
+const frameRgbaLength = 240 * 240 * 4
 
 function toMessage(module, pointer) {
   if (!pointer) return ''
@@ -7,13 +8,14 @@ function toMessage(module, pointer) {
 
 export async function createRuntime(options = {}) {
   const {
+    canvas = globalThis.document?.querySelector?.('#picotracker-canvas'),
     moduleFactory,
     moduleUrl = defaultModuleUrl,
     locateFile = (path) => new URL(path, new URL(moduleUrl, window.location.href)).href,
   } = options
 
   const factory = moduleFactory ?? (await import(/* @vite-ignore */ moduleUrl)).default
-  const module = await factory({ locateFile })
+  const module = await factory({ canvas, locateFile })
 
   async function waitForShutdown() {
     const deadline = Date.now() + (options.shutdownTimeoutMs ?? 5_000)
@@ -38,6 +40,11 @@ export async function createRuntime(options = {}) {
     },
     getState() {
       return module._PicoTracker_Wasm_GetState()
+    },
+    captureFrameRgba() {
+      const pointer = module._PicoTracker_Wasm_CaptureFrameRgba?.()
+      if (!pointer || !module.HEAPU8) return null
+      return module.HEAPU8.slice(pointer, pointer + frameRgbaLength)
     },
     async requestShutdown() {
       module._PicoTracker_Wasm_RequestShutdown()

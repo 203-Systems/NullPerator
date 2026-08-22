@@ -1,11 +1,20 @@
 <script>
-  import { onMount } from 'svelte'
+  import { onMount, tick } from 'svelte'
 
-  import { restartRuntime, runtimeStore } from './stores/runtime.js'
+  import DevicePanel from './components/DevicePanel.svelte'
+  import { runtimeStore } from './stores/runtime.js'
 
   const sections = ['Device', 'Files', 'MIDI', 'Logs', 'Trace', 'Settings', 'About']
   let activeSection = 'Device'
   let runtime = runtimeStore.getSnapshot()
+  let canvasGeneration = 0
+
+  async function restart() {
+    await runtimeStore.stop()
+    canvasGeneration += 1
+    await tick()
+    await runtimeStore.start()
+  }
 
   onMount(() => {
     const unsubscribe = runtimeStore.subscribe((snapshot) => (runtime = snapshot))
@@ -18,6 +27,7 @@
 </script>
 
 <svelte:head>
+  <link rel="icon" href="data:," />
   <meta
     name="description"
     content="PicoTracker WebAssembly development and performance workbench"
@@ -36,7 +46,7 @@
     <div class="runtime-state" data-runtime-state={runtime.state} title={runtime.error ?? undefined}>
       <span class="status-dot"></span>
       <span>Runtime {runtime.state}</span>
-      <button type="button" onclick={() => restartRuntime().catch(() => {})}>Restart</button>
+      <button type="button" onclick={() => restart().catch(() => {})}>Restart</button>
     </div>
   </header>
 
@@ -66,12 +76,9 @@
             <span class="phase-badge">Runtime lifecycle</span>
           </div>
 
-          <div class="device-placeholder">
-            <div class="display-placeholder" role="img" aria-label="PicoTracker display placeholder">
-              <span>240 × 240</span>
-              <small>{runtime.error ?? 'WASM canvas arrives in Task 4'}</small>
-            </div>
-          </div>
+          {#key canvasGeneration}
+            <DevicePanel {runtime} />
+          {/key}
         </section>
       {:else}
         <section class="tool-placeholder" aria-live="polite">

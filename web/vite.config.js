@@ -10,4 +10,5 @@ export default defineConfig({
   plugins: [svelte()],
   server: { headers: isolationHeaders },
   preview: { headers: isolationHeaders },
+  test: { exclude: ['e2e/**', 'node_modules/**', 'dist/**'] },
 })

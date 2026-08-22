@@ -1,8 +1,13 @@
 #include "Adapters/wasm/platform/wasm_bridge.h"
+#include "Adapters/wasm/gui/GUIFactory.h"
+#include "Adapters/wasm/gui/WasmGUIWindowImp.h"
 #include "Adapters/wasm/system/WasmSystem.h"
+#include "Application/Application.h"
+#include "UIFramework/Interfaces/I_GUIWindowFactory.h"
 
 #include <emscripten/emscripten.h>
 #include <emscripten/threading.h>
+#include <new>
 
 int main() {
   if (!WasmSystem::InstallPlatformServices()) {
@@ -10,11 +15,40 @@ int main() {
     emscripten_exit_with_live_runtime();
     return 1;
   }
-  PicoTracker_Wasm_MarkReady();
-  while (PicoTracker_Wasm_GetState() ==
-         static_cast<std::uint32_t>(WasmRuntimeState::Ready)) {
-    emscripten_thread_sleep(10.0);
+
+  alignas(GUIFactory) static unsigned char factoryStorage[sizeof(GUIFactory)];
+  auto *factory = new (factoryStorage) GUIFactory();
+  I_GUIWindowFactory::Install(factory);
+  EventManager *eventManager = factory->GetEventManager();
+  if (eventManager == nullptr || !eventManager->Init()) {
+    PicoTracker_Wasm_Fail("Failed to initialize SDL2 browser UI");
+    emscripten_exit_with_live_runtime();
+    return 1;
   }
+
+  GUICreateWindowParams params{};
+  params.title = "PicoTracker";
+  if (!Application::GetInstance()->Init(params)) {
+    PicoTracker_Wasm_Fail("Failed to initialize PicoTracker application");
+    emscripten_exit_with_live_runtime();
+    return 1;
+  }
+  GUIWindow *window = Application::GetInstance()->GetWindow();
+  if (window == nullptr) {
+    PicoTracker_Wasm_Fail("PicoTracker application did not create a window");
+    emscripten_exit_with_live_runtime();
+    return 1;
+  }
+  window->Update(true);
+  window->ClockTick();
+  auto *wasmWindow = static_cast<WasmGUIWindowImp *>(window->GetImpWindow());
+  if (wasmWindow == nullptr || !wasmWindow->HasPresentedFrame()) {
+    PicoTracker_Wasm_Fail("PicoTracker did not present an initial browser frame");
+    emscripten_exit_with_live_runtime();
+    return 1;
+  }
+  PicoTracker_Wasm_MarkReady();
+  eventManager->MainLoop();
   if (PicoTracker_Wasm_GetState() ==
       static_cast<std::uint32_t>(WasmRuntimeState::Stopping)) {
     WasmSystem::ShutdownPlatformServices();

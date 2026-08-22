@@ -29,7 +29,9 @@ target_include_directories(platform PUBLIC
   "${CMAKE_CURRENT_SOURCE_DIR}/platform")
 target_link_libraries(platform PUBLIC platform_mutex)
 
-add_library(platform_system system/WasmSystem.cpp)
+add_library(platform_system
+  system/WasmSamplePool.cpp
+  system/WasmSystem.cpp)
 target_include_directories(platform_system PUBLIC "${PROJECT_SOURCE_DIR}")
 target_link_libraries(platform_system PUBLIC
   platform_audio
@@ -38,10 +40,12 @@ target_link_libraries(platform_system PUBLIC
   platform_timer
   platform)
 
-# Task 4 supplies the actual SDL2 display and GUI factory. The core view
-# libraries only need the platform display target to exist while Task 3 proves
-# non-device link closure; this interface target provides no GUI implementation.
-add_library(platform_display INTERFACE)
+add_library(platform_display
+  gui/GUIFactory.cpp
+  gui/WasmEventManager.cpp
+  gui/WasmGUIWindowImp.cpp)
+target_include_directories(platform_display PUBLIC "${PROJECT_SOURCE_DIR}")
+target_compile_options(platform_display PRIVATE --use-port=sdl2)
 
 add_subdirectory("${PROJECT_SOURCE_DIR}/System"
                  "${CMAKE_CURRENT_BINARY_DIR}/core/System")
@@ -98,10 +102,14 @@ add_executable(picotracker_wasm
 set_source_files_properties(main/core_link_closure.cpp PROPERTIES
   COMPILE_OPTIONS
     "-Wno-error;-Wno-unused-parameter;-Wno-deprecated-declarations;-Wno-inconsistent-missing-override")
+set_source_files_properties(main/main.cpp PROPERTIES
+  COMPILE_OPTIONS
+    "-Wno-error;-Wno-unused-parameter;-Wno-deprecated-declarations")
 
 target_include_directories(picotracker_wasm PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../..")
 target_link_libraries(picotracker_wasm PRIVATE
   platform_system
+  platform_display
   -Wl,--whole-archive
   application
   -Wl,--no-whole-archive
@@ -116,20 +124,28 @@ target_compile_definitions(picotracker_wasm PRIVATE
   PICOTRACKER_WASM_BUILD_COMMIT="${PICOTRACKER_WASM_COMMIT}"
   PICOTRACKER_WASM_BUILD_DIRTY=${PICOTRACKER_WASM_DIRTY}
   PICOTRACKER_WASM_BUILD_TIME="${PICOTRACKER_WASM_BUILT_AT}")
-target_compile_options(picotracker_wasm PRIVATE -pthread -Wall -Wextra -Werror)
+target_compile_options(picotracker_wasm PRIVATE
+  -pthread
+  --use-port=sdl2
+  -Wall
+  -Wextra
+  -Werror)
 target_link_options(picotracker_wasm PRIVATE
   -pthread
+  --use-port=sdl2
   "-Wl,-Map,${CMAKE_CURRENT_BINARY_DIR}/picotracker-core-link.map"
   -sERROR_ON_UNDEFINED_SYMBOLS=1
   -sPROXY_TO_PTHREAD=1
+  -sOFFSCREENCANVAS_SUPPORT=1
+  "-sOFFSCREENCANVASES_TO_PTHREAD=#picotracker-canvas"
   -sPTHREAD_POOL_SIZE=4
   -sMODULARIZE=1
   -sEXPORT_ES6=1
   -sEXPORT_NAME=createPicoTrackerModule
   -sINITIAL_MEMORY=268435456
   -sENVIRONMENT=web,worker
-  "-sEXPORTED_FUNCTIONS=['_main','_PicoTracker_Wasm_GetBuildMetadataJson','_PicoTracker_Wasm_GetState','_PicoTracker_Wasm_RequestShutdown','_PicoTracker_Wasm_GetLastError','_PicoTracker_Wasm_CoreApplicationAnchor','_PicoTracker_Wasm_CoreAppWindowAnchor','_PicoTracker_Wasm_CorePlayerAnchor','_PicoTracker_Wasm_CoreViewAnchor']"
-  "-sEXPORTED_RUNTIME_METHODS=['UTF8ToString','PThread']")
+  "-sEXPORTED_FUNCTIONS=['_main','_PicoTracker_Wasm_GetBuildMetadataJson','_PicoTracker_Wasm_GetState','_PicoTracker_Wasm_RequestShutdown','_PicoTracker_Wasm_GetLastError','_PicoTracker_Wasm_CaptureFrameRgba','_PicoTracker_Wasm_CoreApplicationAnchor','_PicoTracker_Wasm_CoreAppWindowAnchor','_PicoTracker_Wasm_CorePlayerAnchor','_PicoTracker_Wasm_CoreViewAnchor']"
+  "-sEXPORTED_RUNTIME_METHODS=['UTF8ToString','HEAPU8','PThread']")
 
 set(PICOTRACKER_WEB_WASM_DIR
   "${CMAKE_CURRENT_SOURCE_DIR}/../../../web/public/wasm"

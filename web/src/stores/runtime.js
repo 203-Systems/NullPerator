@@ -4,7 +4,26 @@ const initialSnapshot = Object.freeze({
   state: 'idle',
   error: null,
   buildMetadata: null,
+  frameContent: 'unavailable',
 })
+
+function classifyFrame(frame) {
+  if (!(frame instanceof Uint8Array) || frame.length !== 240 * 240 * 4) {
+    return 'unavailable'
+  }
+  const [red, green, blue, alpha] = frame
+  for (let offset = 4; offset < frame.length; offset += 4) {
+    if (
+      frame[offset] !== red ||
+      frame[offset + 1] !== green ||
+      frame[offset + 2] !== blue ||
+      frame[offset + 3] !== alpha
+    ) {
+      return 'rendered'
+    }
+  }
+  return 'uniform'
+}
 
 export function createRuntimeManager(options = {}) {
   const createModule = options.createModule ?? (() => createRuntime(options))
@@ -57,7 +76,8 @@ export function createRuntimeManager(options = {}) {
       const buildMetadata = module.getBuildMetadataJson
         ? JSON.parse(module.getBuildMetadataJson())
         : null
-      publish({ state: 'ready', buildMetadata })
+      const frameContent = classifyFrame(module.captureFrameRgba?.())
+      publish({ state: 'ready', buildMetadata, frameContent })
       return module
     } catch (error) {
       const failedModule = module
@@ -72,7 +92,7 @@ export function createRuntimeManager(options = {}) {
       const message = cleanupError
         ? `${primaryMessage}; cleanup failed: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`
         : primaryMessage
-      publish({ state: 'failed', error: message })
+      publish({ state: 'failed', error: message, frameContent: 'unavailable' })
       throw error
     }
   }
@@ -99,7 +119,7 @@ export function createRuntimeManager(options = {}) {
       publish({ state: 'failed', error: message, buildMetadata: null })
       throw cleanupError
     }
-    publish({ state: 'idle', error: null, buildMetadata: null })
+    publish({ state: 'idle', error: null, buildMetadata: null, frameContent: 'unavailable' })
   }
 
   return {
