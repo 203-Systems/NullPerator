@@ -17,7 +17,10 @@ add_library(platform_filesystem
   filesystem/WasmFileSystem.cpp)
 target_include_directories(platform_filesystem PUBLIC "${PROJECT_SOURCE_DIR}")
 
-add_library(platform_audio audio/WasmSilentAudio.cpp)
+add_library(platform_audio
+  audio/OutputResampler.cpp
+  audio/PcmRingBuffer.cpp
+  audio/WasmSilentAudio.cpp)
 target_include_directories(platform_audio PUBLIC "${PROJECT_SOURCE_DIR}")
 
 add_library(platform_midi midi/WasmDisconnectedMidi.cpp)

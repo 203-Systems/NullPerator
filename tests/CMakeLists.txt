@@ -10,7 +10,10 @@ add_executable(picoTracker_tests
   test_main.cpp
   foundation_types_tests.cpp
   wavheader_tests.cpp
+  wasm_audio_tests.cpp
   wasm_platform_tests.cpp
+  ../sources/Adapters/wasm/audio/PcmRingBuffer.cpp
+  ../sources/Adapters/wasm/audio/OutputResampler.cpp
   ../sources/Adapters/wasm/input/InputMap.cpp
   ../sources/Application/Instruments/WavHeader.cpp
   ../sources/Adapters/wasm/system/WasmSystem.cpp
