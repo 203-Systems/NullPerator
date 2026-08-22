@@ -5,6 +5,7 @@
 #include "Adapters/wasm/gui/WasmEventManager.h"
 
 #include "Adapters/wasm/gui/WasmGUIWindowImp.h"
+#include "Adapters/wasm/input/InputMap.h"
 #include "Adapters/wasm/platform/wasm_bridge.h"
 #include "Adapters/wasm/system/WasmSystem.h"
 #include "Application/Application.h"
@@ -20,7 +21,15 @@ bool WasmEventManager::Init() {
   }
   finished_.store(false, std::memory_order_release);
   runtimeStopped_ = false;
-  return SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_TIMER) == 0;
+  if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_TIMER) != 0) {
+    return false;
+  }
+  // Browser keyboard ownership belongs exclusively to the Svelte KeyMap. SDL
+  // otherwise installs document-level keyboard hooks that bypass focus and
+  // remapping rules even though the compatibility canvas is hidden.
+  SDL_EventState(SDL_KEYDOWN, SDL_DISABLE);
+  SDL_EventState(SDL_KEYUP, SDL_DISABLE);
+  return true;
 }
 
 int WasmEventManager::MainLoop() {
@@ -44,6 +53,10 @@ void WasmEventManager::PumpFrame() {
     return;
   }
 
+  // SDL can temporarily reject an event when its queue is full. InputMap keeps
+  // the browser's latest desired state and retries it here in frame order.
+  InputMap::RetryPendingTransitions();
+
   GUIWindow *window = Application::GetInstance()->GetWindow();
   auto *wasmWindow = static_cast<WasmGUIWindowImp *>(window->GetImpWindow());
   SDL_Event event{};
@@ -58,22 +71,26 @@ void WasmEventManager::PumpFrame() {
       }
       break;
     case SDL_USEREVENT: {
-      auto *guiEvent = static_cast<GUIEvent *>(event.user.data1);
-      if (guiEvent != nullptr) {
-        window->DispatchEvent(*guiEvent);
-        delete guiEvent;
+      if (event.user.code == InputMap::ActionEventCode) {
+        std::uint16_t action = 0;
+        bool pressed = false;
+        if (InputMap::DecodeActionEvent(
+                reinterpret_cast<std::uintptr_t>(event.user.data1), action,
+                pressed)) {
+          GUIEvent guiEvent(static_cast<long>(action),
+                            pressed ? ET_PADBUTTONDOWN : ET_PADBUTTONUP,
+                            System::GetInstance()->GetClock(), false, false,
+                            false);
+          window->DispatchEvent(guiEvent);
+          InputMap::AcknowledgeAction(action, pressed);
+        }
+      } else {
+        auto *guiEvent = static_cast<GUIEvent *>(event.user.data1);
+        if (guiEvent != nullptr) {
+          window->DispatchEvent(*guiEvent);
+          delete guiEvent;
+        }
       }
-      break;
-    }
-    case SDL_KEYDOWN:
-    case SDL_KEYUP: {
-      const GUIEventType type =
-          event.type == SDL_KEYDOWN ? ET_KEYDOWN : ET_KEYUP;
-      GUIEvent guiEvent(static_cast<long>(event.key.keysym.sym), type,
-                        System::GetInstance()->GetClock(),
-                        (event.key.keysym.mod & KMOD_CTRL) != 0,
-                        (event.key.keysym.mod & KMOD_SHIFT) != 0, false);
-      window->DispatchEvent(guiEvent);
       break;
     }
     default:
@@ -93,6 +110,7 @@ void WasmEventManager::StopRuntime() {
     return;
   }
   runtimeStopped_ = true;
+  PicoTracker_Wasm_ReleaseAllActions();
   emscripten_cancel_main_loop();
   if (PicoTracker_Wasm_GetState() ==
       static_cast<std::uint32_t>(WasmRuntimeState::Stopping)) {
@@ -104,6 +122,7 @@ void WasmEventManager::StopRuntime() {
 
 void WasmEventManager::PostQuitMessage() {
   finished_.store(true, std::memory_order_release);
+  PicoTracker_Wasm_ReleaseAllActions();
   PicoTracker_Wasm_RequestShutdown();
 }
 

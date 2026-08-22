@@ -1,4 +1,5 @@
 #include "Adapters/wasm/filesystem/WasmFileSystem.h"
+#include "Adapters/wasm/input/InputMap.h"
 #include "Adapters/wasm/system/WasmSystem.h"
 #include "Adapters/wasm/timer/WasmTimer.h"
 
@@ -7,7 +8,9 @@
 #include <cstdint>
 #include <filesystem>
 #include <functional>
+#include <mutex>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -56,6 +59,31 @@ public:
   std::filesystem::path root;
   std::filesystem::path outside;
 };
+
+struct InputQueueFixture {
+  static bool Queue(std::uint16_t action, bool pressed) {
+    std::lock_guard<std::mutex> lock(mutex);
+    if (fail) {
+      return false;
+    }
+    events.emplace_back(action, pressed);
+    return true;
+  }
+
+  static void Reset() {
+    std::lock_guard<std::mutex> lock(mutex);
+    fail = false;
+    events.clear();
+  }
+
+  static std::mutex mutex;
+  static bool fail;
+  static std::vector<std::pair<std::uint16_t, bool>> events;
+};
+
+std::mutex InputQueueFixture::mutex;
+bool InputQueueFixture::fail = false;
+std::vector<std::pair<std::uint16_t, bool>> InputQueueFixture::events;
 } // namespace
 
 TEST_CASE("WASM monotonic clock converts milliseconds without moving backwards") {
@@ -163,4 +191,70 @@ TEST_CASE("WASM filesystem rejects symlinks that leave its root") {
   CHECK_FALSE(filesystem.chdir("/outside-link"));
   CHECK_FALSE(filesystem.Open("/outside-link/escaped.txt", "wb"));
   CHECK_FALSE(std::filesystem::exists(fixture.outside / "escaped.txt"));
+}
+
+TEST_CASE("WASM action queue orders concurrent releases after accepted presses") {
+  InputQueueFixture::Reset();
+  InputMap::SetQueueForTesting(&InputQueueFixture::Queue);
+  InputMap::ReleaseAllActions();
+
+  std::thread press([] { InputMap::SetAction(3, true); });
+  std::thread release([] { InputMap::ReleaseAllActions(); });
+  press.join();
+  release.join();
+  InputMap::ReleaseAllActions();
+
+  bool pressed = false;
+  for (const auto &[action, isPressed] : InputQueueFixture::events) {
+    if (action != 3) {
+      continue;
+    }
+    if (isPressed) {
+      pressed = true;
+    } else {
+      CHECK(pressed);
+    }
+  }
+  CHECK(InputMap::GetHeldActionMask() == 0);
+  InputMap::ResetQueueForTesting();
+}
+
+TEST_CASE("WASM action queue retains failed releases until they can be queued") {
+  InputQueueFixture::Reset();
+  InputMap::SetQueueForTesting(&InputQueueFixture::Queue);
+  InputMap::ReleaseAllActions();
+
+  REQUIRE(InputMap::SetAction(6, true));
+  InputQueueFixture::fail = true;
+  InputMap::ReleaseAllActions();
+  CHECK(InputMap::GetHeldActionMask() == (1u << 6));
+
+  InputQueueFixture::fail = false;
+  InputMap::ReleaseAllActions();
+  CHECK(InputMap::GetHeldActionMask() == 0);
+  REQUIRE(InputQueueFixture::events.size() == 2);
+  CHECK(InputQueueFixture::events[0].first == 6);
+  CHECK(InputQueueFixture::events[0].second);
+  CHECK(InputQueueFixture::events[1].first == 6);
+  CHECK_FALSE(InputQueueFixture::events[1].second);
+  InputMap::ResetQueueForTesting();
+}
+
+TEST_CASE("WASM frame pump retries an ordinary failed action release") {
+  InputQueueFixture::Reset();
+  InputMap::SetQueueForTesting(&InputQueueFixture::Queue);
+  InputMap::ReleaseAllActions();
+
+  REQUIRE(InputMap::SetAction(3, true));
+  InputQueueFixture::fail = true;
+  CHECK_FALSE(InputMap::SetAction(3, false));
+  CHECK(InputMap::GetHeldActionMask() == (1u << 3));
+
+  InputQueueFixture::fail = false;
+  InputMap::RetryPendingTransitions();
+  CHECK(InputMap::GetHeldActionMask() == 0);
+  REQUIRE(InputQueueFixture::events.size() == 2);
+  CHECK(InputQueueFixture::events[1].first == 3);
+  CHECK_FALSE(InputQueueFixture::events[1].second);
+  InputMap::ResetQueueForTesting();
 }

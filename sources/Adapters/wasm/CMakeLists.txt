@@ -96,6 +96,7 @@ endif()
 string(TIMESTAMP PICOTRACKER_WASM_BUILT_AT "%Y-%m-%dT%H:%M:%SZ" UTC)
 
 add_executable(picotracker_wasm
+  input/InputMap.cpp
   main/core_link_closure.cpp
   main/main.cpp
   platform/wasm_bridge.cpp)
@@ -144,7 +145,7 @@ target_link_options(picotracker_wasm PRIVATE
   -sEXPORT_NAME=createPicoTrackerModule
   -sINITIAL_MEMORY=268435456
   -sENVIRONMENT=web,worker
-  "-sEXPORTED_FUNCTIONS=['_main','_PicoTracker_Wasm_GetBuildMetadataJson','_PicoTracker_Wasm_GetState','_PicoTracker_Wasm_RequestShutdown','_PicoTracker_Wasm_GetLastError','_PicoTracker_Wasm_CaptureFrameRgba','_PicoTracker_Wasm_CoreApplicationAnchor','_PicoTracker_Wasm_CoreAppWindowAnchor','_PicoTracker_Wasm_CorePlayerAnchor','_PicoTracker_Wasm_CoreViewAnchor']"
+  "-sEXPORTED_FUNCTIONS=['_main','_PicoTracker_Wasm_GetBuildMetadataJson','_PicoTracker_Wasm_GetState','_PicoTracker_Wasm_RequestShutdown','_PicoTracker_Wasm_GetLastError','_PicoTracker_Wasm_SetAction','_PicoTracker_Wasm_ReleaseAllActions','_PicoTracker_Wasm_GetActionMask','_PicoTracker_Wasm_GetActionGeneration','_PicoTracker_Wasm_GetLastAction','_PicoTracker_Wasm_CaptureFrameRgba','_PicoTracker_Wasm_CoreApplicationAnchor','_PicoTracker_Wasm_CoreAppWindowAnchor','_PicoTracker_Wasm_CorePlayerAnchor','_PicoTracker_Wasm_CoreViewAnchor']"
   "-sEXPORTED_RUNTIME_METHODS=['UTF8ToString','HEAPU8','PThread']")
 
 set(PICOTRACKER_WEB_WASM_DIR

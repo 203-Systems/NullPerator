@@ -1,3 +1,5 @@
+import { createInputBridge } from './input.js'
+
 const defaultModuleUrl = '/wasm/picotracker.js'
 const frameRgbaLength = 240 * 240 * 4
 
@@ -32,6 +34,7 @@ export async function createRuntime(options = {}) {
 
   return {
     module,
+    input: createInputBridge(module),
     getBuildMetadataJson() {
       return toMessage(module, module._PicoTracker_Wasm_GetBuildMetadataJson())
     },

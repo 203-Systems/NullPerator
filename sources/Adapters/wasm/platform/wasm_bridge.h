@@ -17,6 +17,12 @@ EMSCRIPTEN_KEEPALIVE const char *PicoTracker_Wasm_GetBuildMetadataJson();
 EMSCRIPTEN_KEEPALIVE std::uint32_t PicoTracker_Wasm_GetState();
 EMSCRIPTEN_KEEPALIVE void PicoTracker_Wasm_RequestShutdown();
 EMSCRIPTEN_KEEPALIVE const char *PicoTracker_Wasm_GetLastError();
+EMSCRIPTEN_KEEPALIVE void PicoTracker_Wasm_SetAction(std::uint16_t action,
+                                                     bool pressed);
+EMSCRIPTEN_KEEPALIVE void PicoTracker_Wasm_ReleaseAllActions();
+EMSCRIPTEN_KEEPALIVE std::uint16_t PicoTracker_Wasm_GetActionMask();
+EMSCRIPTEN_KEEPALIVE std::uint32_t PicoTracker_Wasm_GetActionGeneration();
+EMSCRIPTEN_KEEPALIVE std::uint16_t PicoTracker_Wasm_GetLastAction();
 }
 
 void PicoTracker_Wasm_MarkReady();

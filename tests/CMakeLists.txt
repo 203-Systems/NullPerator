@@ -11,6 +11,7 @@ add_executable(picoTracker_tests
   foundation_types_tests.cpp
   wavheader_tests.cpp
   wasm_platform_tests.cpp
+  ../sources/Adapters/wasm/input/InputMap.cpp
   ../sources/Application/Instruments/WavHeader.cpp
   ../sources/Adapters/wasm/system/WasmSystem.cpp
   ../sources/Adapters/wasm/timer/WasmTimer.cpp

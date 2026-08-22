@@ -5,6 +5,7 @@ const initialSnapshot = Object.freeze({
   error: null,
   buildMetadata: null,
   frameContent: 'unavailable',
+  input: null,
 })
 
 function classifyFrame(frame) {
@@ -69,7 +70,7 @@ export function createRuntimeManager(options = {}) {
       throw new Error(message)
     }
 
-    publish({ state: 'booting', error: null })
+    publish({ state: 'booting', error: null, input: null })
     try {
       module = await createModule()
       await waitForCppReady(module)
@@ -77,7 +78,7 @@ export function createRuntimeManager(options = {}) {
         ? JSON.parse(module.getBuildMetadataJson())
         : null
       const frameContent = classifyFrame(module.captureFrameRgba?.())
-      publish({ state: 'ready', buildMetadata, frameContent })
+      publish({ state: 'ready', buildMetadata, frameContent, input: module.input ?? null })
       return module
     } catch (error) {
       const failedModule = module
@@ -92,7 +93,7 @@ export function createRuntimeManager(options = {}) {
       const message = cleanupError
         ? `${primaryMessage}; cleanup failed: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`
         : primaryMessage
-      publish({ state: 'failed', error: message, frameContent: 'unavailable' })
+      publish({ state: 'failed', error: message, frameContent: 'unavailable', input: null })
       throw error
     }
   }
@@ -101,8 +102,13 @@ export function createRuntimeManager(options = {}) {
     if (!module) return
     const stoppingModule = module
     module = null
-    publish({ state: 'stopping' })
+    publish({ state: 'stopping', input: null })
     let cleanupError = null
+    try {
+      stoppingModule.input?.releaseAllActions?.()
+    } catch (error) {
+      cleanupError = error
+    }
     try {
       await stoppingModule.requestShutdown?.()
     } catch (error) {
@@ -116,10 +122,10 @@ export function createRuntimeManager(options = {}) {
 
     if (cleanupError) {
       const message = cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
-      publish({ state: 'failed', error: message, buildMetadata: null })
+      publish({ state: 'failed', error: message, buildMetadata: null, input: null })
       throw cleanupError
     }
-    publish({ state: 'idle', error: null, buildMetadata: null, frameContent: 'unavailable' })
+    publish({ state: 'idle', error: null, buildMetadata: null, frameContent: 'unavailable', input: null })
   }
 
   return {

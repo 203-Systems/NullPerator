@@ -9,6 +9,11 @@ describe('WASM runtime lifecycle', () => {
     let moduleOptions
     const module = {
       _PicoTracker_Wasm_GetState: () => 1,
+      _PicoTracker_Wasm_SetAction() {},
+      _PicoTracker_Wasm_ReleaseAllActions() {},
+      _PicoTracker_Wasm_GetActionMask() {},
+      _PicoTracker_Wasm_GetActionGeneration() {},
+      _PicoTracker_Wasm_GetLastAction() {},
       PThread: { terminateAllThreads() {} },
     }
 
@@ -26,6 +31,11 @@ describe('WASM runtime lifecycle', () => {
   it('exports an immutable 240x240 RGBA frame copy', async () => {
     const module = {
       _PicoTracker_Wasm_CaptureFrameRgba: () => 4,
+      _PicoTracker_Wasm_SetAction() {},
+      _PicoTracker_Wasm_ReleaseAllActions() {},
+      _PicoTracker_Wasm_GetActionMask() {},
+      _PicoTracker_Wasm_GetActionGeneration() {},
+      _PicoTracker_Wasm_GetLastAction() {},
       HEAPU8: new Uint8Array([9, 8, 7, 6, 5, 4, 3, 2]),
     }
     const runtime = await createRuntime({ moduleFactory: async () => module })
@@ -185,6 +195,29 @@ describe('WASM runtime lifecycle', () => {
     expect(runtime.getSnapshot().state).toBe('ready')
   })
 
+  it('never publishes an input bridge outside the ready state', async () => {
+    const input = { releaseAllActions: vi.fn() }
+    const runtime = createRuntimeManager({
+      crossOriginIsolated: true,
+      createModule: async () => ({
+        getState: () => 1,
+        input,
+        requestShutdown() {},
+        terminate() {
+          throw new Error('terminate failed')
+        },
+      }),
+    })
+    const snapshots = []
+    runtime.subscribe((snapshot) => snapshots.push(snapshot))
+
+    await runtime.start()
+    await expect(runtime.stop()).rejects.toThrow('terminate failed')
+
+    expect(input.releaseAllActions).toHaveBeenCalledOnce()
+    expect(snapshots.filter(({ state }) => state !== 'ready').every(({ input }) => input === null)).toBe(true)
+  })
+
   it('rejects module handles that cannot report C++ readiness', async () => {
     const runtime = createRuntimeManager({
       crossOriginIsolated: true,
@@ -199,6 +232,11 @@ describe('WASM runtime lifecycle', () => {
     let cppState = 1
     const module = {
       _PicoTracker_Wasm_GetState: () => cppState,
+      _PicoTracker_Wasm_SetAction() {},
+      _PicoTracker_Wasm_ReleaseAllActions() {},
+      _PicoTracker_Wasm_GetActionMask() {},
+      _PicoTracker_Wasm_GetActionGeneration() {},
+      _PicoTracker_Wasm_GetLastAction() {},
       _PicoTracker_Wasm_RequestShutdown: () => {
         cppState = 2
         setTimeout(() => (cppState = 4), 0)

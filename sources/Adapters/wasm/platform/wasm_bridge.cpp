@@ -1,5 +1,7 @@
 #include "Adapters/wasm/platform/wasm_bridge.h"
 
+#include "Adapters/wasm/input/InputMap.h"
+
 #include <atomic>
 #include <cstring>
 
@@ -26,11 +28,32 @@ extern "C" std::uint32_t PicoTracker_Wasm_GetState() {
 }
 
 extern "C" void PicoTracker_Wasm_RequestShutdown() {
+  PicoTracker_Wasm_ReleaseAllActions();
   runtimeState.store(static_cast<std::uint32_t>(WasmRuntimeState::Stopping),
                      std::memory_order_release);
 }
 
 extern "C" const char *PicoTracker_Wasm_GetLastError() { return lastError; }
+
+extern "C" void PicoTracker_Wasm_SetAction(std::uint16_t action, bool pressed) {
+  InputMap::SetAction(action, pressed);
+}
+
+extern "C" void PicoTracker_Wasm_ReleaseAllActions() {
+  InputMap::ReleaseAllActions();
+}
+
+extern "C" std::uint16_t PicoTracker_Wasm_GetActionMask() {
+  return InputMap::GetDispatchedActionMask();
+}
+
+extern "C" std::uint32_t PicoTracker_Wasm_GetActionGeneration() {
+  return InputMap::GetDispatchGeneration();
+}
+
+extern "C" std::uint16_t PicoTracker_Wasm_GetLastAction() {
+  return InputMap::GetLastDispatchedAction();
+}
 
 void PicoTracker_Wasm_MarkReady() {
   runtimeState.store(static_cast<std::uint32_t>(WasmRuntimeState::Ready),
