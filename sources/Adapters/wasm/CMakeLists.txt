@@ -35,6 +35,9 @@ add_library(platform_snapshot
   platform/WasmApplicationSnapshot.cpp)
 target_include_directories(platform_snapshot PUBLIC "${PROJECT_SOURCE_DIR}")
 
+add_subdirectory("${PROJECT_SOURCE_DIR}/UI2"
+                 "${CMAKE_CURRENT_BINARY_DIR}/core/UI2")
+
 add_library(platform_audio
   audio/AudioRenderOracle.cpp
   audio/AudioWorklet.cpp
@@ -85,10 +88,11 @@ target_link_libraries(platform_system PUBLIC
 add_library(platform_display
   gui/GUIFactory.cpp
   gui/WasmEventManager.cpp
-  gui/WasmGUIWindowImp.cpp)
+  gui/WasmGUIWindowImp.cpp
+  gui/WasmUiPresenter.cpp)
 target_include_directories(platform_display PUBLIC "${PROJECT_SOURCE_DIR}")
 target_compile_options(platform_display PRIVATE --use-port=sdl2)
-target_link_libraries(platform_display PUBLIC platform_snapshot platform_tracing)
+target_link_libraries(platform_display PUBLIC platform_snapshot platform_tracing ui2)
 
 add_subdirectory("${PROJECT_SOURCE_DIR}/System"
                  "${CMAKE_CURRENT_BINARY_DIR}/core/System")

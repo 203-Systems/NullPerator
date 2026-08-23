@@ -42,6 +42,7 @@ add_executable(picoTracker_tests
   ../sources/Adapters/wasm/filesystem/WasmFile.cpp
   ../sources/Adapters/wasm/filesystem/WasmFileSystem.cpp
   ../sources/Adapters/wasm/filesystem/WasmStorageBridge.cpp
+  ../sources/Adapters/wasm/gui/WasmUiPresenter.cpp
   ../sources/Foundation/Observable.cpp
   ../sources/System/Timer/Timer.cpp
   ../sources/UI2/Chrome/UiBarResolver.cpp

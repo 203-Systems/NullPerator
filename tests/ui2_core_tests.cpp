@@ -11,6 +11,7 @@
 #include "UI2/UiEngine.h"
 #include "UI2/Render/UiFrameRenderer.h"
 #include "UI2/Views/Song/UiSongView.h"
+#include "Adapters/wasm/gui/WasmUiPresenter.h"
 
 #include "ui2_song_fixture.h"
 
@@ -44,6 +45,20 @@ public:
   ui2::Rgb888 firstColor{};
   std::size_t stripCount = 0;
   std::array<ui2::DirtyStrip, 8> lastStrips{};
+};
+
+} // namespace
+
+namespace {
+
+struct CommitProbe {
+  static bool Commit(void *context) {
+    auto &probe = *static_cast<CommitProbe *>(context);
+    ++probe.calls;
+    return probe.result;
+  }
+  int calls = 0;
+  bool result = true;
 };
 
 } // namespace
@@ -317,4 +332,35 @@ TEST_CASE("UI2 engine calls one presenter and clears dirt only after success") {
   engine.Surface().SetPixel(20, 20, 4);
   CHECK(engine.PresentDirty() == ui2::PresentResult::Deferred);
   CHECK(engine.Surface().DirtyTiles().Any());
+}
+
+TEST_CASE("UI2 WASM presenter converts only dirty strips and commits once") {
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiPalette palette;
+  surface.Clear(palette.Index(ui2::UiColorToken::SurfaceField));
+  surface.ClearDirty();
+  surface.FillRect({8, 8, 8, 8},
+                   palette.Index(ui2::UiColorToken::CursorPrimary));
+  ui2::DirtyStripList strips;
+  REQUIRE(surface.DirtyTiles().Collect(strips));
+  std::array<std::uint8_t, 240 * 240 * 4> rgba{};
+  rgba.fill(0xA5);
+  CommitProbe probe;
+  WasmUiPresenter presenter(rgba.data(), rgba.size(), &CommitProbe::Commit,
+                            &probe);
+  CHECK(presenter.Present(surface, palette, strips.Strips()) ==
+        ui2::PresentResult::Presented);
+  CHECK(probe.calls == 1);
+  const std::size_t inside = (8U * 240U + 8U) * 4U;
+  CHECK(rgba[inside] == 0x45);
+  CHECK(rgba[inside + 1] == 0xDC);
+  CHECK(rgba[inside + 2] == 0xE8);
+  CHECK(rgba[inside + 3] == 0xFF);
+  CHECK(rgba[0] == 0xA5);
+
+  probe.result = false;
+  CHECK(presenter.Present(surface, palette, strips.Strips()) ==
+        ui2::PresentResult::Deferred);
+  CHECK(probe.calls == 2);
 }

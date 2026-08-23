@@ -7,6 +7,7 @@
 #pragma once
 
 #include "UIFramework/Interfaces/I_GUIWindowImp.h"
+#include "Adapters/wasm/gui/WasmUiPresenter.h"
 
 #include <SDL.h>
 #include <emscripten/html5_webgl.h>
@@ -15,7 +16,8 @@
 #include <cstdint>
 #include <mutex>
 
-class WasmGUIWindowImp final : public I_GUIWindowImp {
+class WasmGUIWindowImp final : public I_GUIWindowImp,
+                               public ui2::IUiPresenter {
 public:
   static constexpr int CanvasWidth = 240;
   static constexpr int CanvasHeight = 240;
@@ -46,6 +48,10 @@ public:
   bool HasPresentedFrame() const;
   static const std::uint8_t *CaptureFrameRgba();
   static const std::uint32_t *FrameSnapshotSequence();
+  ui2::PresentResult
+  Present(const ui2::UiIndexedSurface &surface,
+          const ui2::UiPalette &palette,
+          std::span<const ui2::DirtyStrip> strips) override;
 
 private:
   static SDL_Rect TransformRect(const GUIRect &rect);
@@ -57,6 +63,7 @@ private:
   bool InitializePresenter();
   void DestroyPresenter();
   bool PresentFrame();
+  static bool CommitUi2Frame(void *context);
 
   SDL_Window *window_ = nullptr;
   EMSCRIPTEN_WEBGL_CONTEXT_HANDLE context_ = 0;
@@ -66,6 +73,7 @@ private:
   int positionLocation_ = -1;
   int textureLocation_ = -1;
   std::array<std::uint8_t, CanvasWidth * CanvasHeight * 4> frame_{};
+  WasmUiPresenter ui2Presenter_;
   std::recursive_mutex mutex_;
   std::uint32_t currentColor_ = 0xADADADFFu;
   std::uint32_t backgroundColor_ = 0x0F0F0FFFu;

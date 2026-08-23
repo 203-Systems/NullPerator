@@ -90,7 +90,9 @@ unsigned int CompileShader(unsigned int type, const char *source) {
 
 WasmGUIWindowImp *WasmGUIWindowImp::instance_ = nullptr;
 
-WasmGUIWindowImp::WasmGUIWindowImp(GUICreateWindowParams &params) {
+WasmGUIWindowImp::WasmGUIWindowImp(GUICreateWindowParams &params)
+    : ui2Presenter_(frame_.data(), frame_.size(),
+                    &WasmGUIWindowImp::CommitUi2Frame, this) {
   (void)params;
   SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
 #ifdef SDL_HINT_EMSCRIPTEN_CANVAS_SELECTOR
@@ -334,6 +336,26 @@ void WasmGUIWindowImp::ProcessQuit() {
 }
 
 bool WasmGUIWindowImp::HasPresentedFrame() const { return hasPresentedFrame_; }
+
+ui2::PresentResult WasmGUIWindowImp::Present(
+    const ui2::UiIndexedSurface &surface, const ui2::UiPalette &palette,
+    std::span<const ui2::DirtyStrip> strips) {
+  std::lock_guard<std::recursive_mutex> lock(mutex_);
+  return ui2Presenter_.Present(surface, palette, strips);
+}
+
+bool WasmGUIWindowImp::CommitUi2Frame(void *context) {
+  auto *window = static_cast<WasmGUIWindowImp *>(context);
+  if (window == nullptr || window->context_ <= 0) return false;
+  if (!window->PresentFrame()) {
+    InputFrameLatencyTracker::ObserveNoPresentation();
+    return false;
+  }
+  InputFrameLatencyTracker::PresentedFrame();
+  frameSnapshot.Publish(window->frame_);
+  window->hasPresentedFrame_ = true;
+  return true;
+}
 
 bool WasmGUIWindowImp::InitializePresenter() {
   EmscriptenWebGLContextAttributes attributes;
