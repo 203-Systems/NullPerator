@@ -33,6 +33,12 @@ function createStorageAcceptanceHandle(module, storage) {
     flush() {
       return storage.flushNow('e2e-fixture')
     },
+    snapshot() {
+      return storage.snapshot()
+    },
+    awaitDurable(generation) {
+      return storage.awaitDurable(generation)
+    },
   })
 }
 
@@ -56,6 +62,15 @@ export async function createRuntime(options = {}) {
     : { available: false, mode: 'disabled', reason: 'Audio disabled; enable low-latency audio and reload.' }
   let audioBootstrapped = false
   const storage = options.storage ?? createStorageCoordinator()
+  const detachAttachedBeforeUnloadGuard = storage.attachBeforeUnloadGuard?.(
+    options.beforeUnloadTarget ?? globalThis.window,
+  )
+  let beforeUnloadGuardAttached = typeof detachAttachedBeforeUnloadGuard === 'function'
+  const detachBeforeUnloadGuard = () => {
+    if (!beforeUnloadGuardAttached) return
+    beforeUnloadGuardAttached = false
+    detachAttachedBeforeUnloadGuard()
+  }
   const moduleOptions = {
     canvas,
     locateFile,
@@ -113,7 +128,13 @@ export async function createRuntime(options = {}) {
       audioBootstrapped = true
     },
   }
-  const module = await factory(moduleOptions)
+  let module
+  try {
+    module = await factory(moduleOptions)
+  } catch (error) {
+    detachBeforeUnloadGuard()
+    throw error
+  }
   let storageTestHandle = null
   if (exposeStorageForTesting) {
     storageTestHandle = createStorageAcceptanceHandle(module, storage)
@@ -181,6 +202,7 @@ export async function createRuntime(options = {}) {
           delete globalThis.__picoTrackerStorageTest
         }
       }
+      detachBeforeUnloadGuard()
     },
   }
 }

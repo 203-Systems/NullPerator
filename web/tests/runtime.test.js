@@ -352,6 +352,12 @@ describe('WASM runtime lifecycle', () => {
     expect(globalThis.__picoTrackerStorageTest.read('/data/sample')).toEqual([8, 7])
     globalThis.__picoTrackerStorageTest.write('/data/sample', [1, 2])
     expect(writes).toEqual([['/data/sample', [1, 2]]])
+    expect(globalThis.__picoTrackerStorageTest.snapshot()).toMatchObject({
+      mutationGeneration: 0,
+      durableGeneration: 0,
+      dirty: false,
+    })
+    await expect(globalThis.__picoTrackerStorageTest.awaitDurable(0)).resolves.toBe(0)
     expect(() => globalThis.__picoTrackerStorageTest.read('/data/../escape')).toThrow(/outside \/data/)
     expect(globalThis.__picoTrackerStorageTest.module).toBeUndefined()
     await runtime.terminate()
@@ -396,6 +402,65 @@ describe('WASM runtime lifecycle', () => {
       },
     })).rejects.toThrow('IDB unavailable')
     expect(calls).toEqual([])
+  })
+
+  it('detaches the persistence guard when the module factory fails', async () => {
+    const detach = vi.fn()
+    const storage = { attachBeforeUnloadGuard: vi.fn(() => detach) }
+
+    await expect(createRuntime({
+      storage,
+      moduleFactory: async () => { throw new Error('WASM factory failed') },
+    })).rejects.toThrow('WASM factory failed')
+
+    expect(storage.attachBeforeUnloadGuard).toHaveBeenCalledOnce()
+    expect(detach).toHaveBeenCalledOnce()
+  })
+
+  it('detaches the persistence guard only after worker termination succeeds', async () => {
+    const detach = vi.fn()
+    const terminateAllThreads = vi.fn()
+    const module = {
+      _PicoTracker_Wasm_GetState: () => 4,
+      _PicoTracker_Wasm_SetAction() {},
+      _PicoTracker_Wasm_ReleaseAllActions() {},
+      _PicoTracker_Wasm_GetActionMask() {},
+      _PicoTracker_Wasm_GetActionGeneration() {},
+      _PicoTracker_Wasm_GetLastAction() {},
+      PThread: { terminateAllThreads },
+    }
+    const runtime = await createRuntime({
+      storage: { attachBeforeUnloadGuard: () => detach },
+      moduleFactory: async () => module,
+    })
+
+    expect(detach).not.toHaveBeenCalled()
+    await runtime.terminate()
+
+    expect(terminateAllThreads).toHaveBeenCalledOnce()
+    expect(detach).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the persistence guard attached when worker termination fails', async () => {
+    const detach = vi.fn()
+    const module = {
+      _PicoTracker_Wasm_GetState: () => 4,
+      _PicoTracker_Wasm_SetAction() {},
+      _PicoTracker_Wasm_ReleaseAllActions() {},
+      _PicoTracker_Wasm_GetActionMask() {},
+      _PicoTracker_Wasm_GetActionGeneration() {},
+      _PicoTracker_Wasm_GetLastAction() {},
+      PThread: {
+        terminateAllThreads() { throw new Error('worker cleanup failed') },
+      },
+    }
+    const runtime = await createRuntime({
+      storage: { attachBeforeUnloadGuard: () => detach },
+      moduleFactory: async () => module,
+    })
+
+    await expect(runtime.terminate()).rejects.toThrow('worker cleanup failed')
+    expect(detach).not.toHaveBeenCalled()
   })
 
   it('exports an immutable 240x240 RGBA frame copy', async () => {
