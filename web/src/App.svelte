@@ -1,136 +1,81 @@
 <script>
   import { onMount, tick } from 'svelte'
-
   import DevicePanel from './components/DevicePanel.svelte'
+  import TopBar from './components/TopBar.svelte'
+  import LeftNav from './components/LeftNav.svelte'
+  import ToolTray from './components/ToolTray.svelte'
+  import ToolPanelStack from './components/ToolPanelStack.svelte'
+  import ErrorBoundary from './components/ErrorBoundary.svelte'
+  import SettingsPanel from './components/SettingsPanel.svelte'
+  import AboutPanel from './components/AboutPanel.svelte'
   import FilesPanel from './components/FilesPanel.svelte'
+  import MidiPanel from './components/MidiPanel.svelte'
+  import LogsPanel from './components/LogsPanel.svelte'
+  import TracePanel from './components/TracePanel.svelte'
+  import { toggleTool } from './stores/tools.js'
   import { runtimeStore } from './stores/runtime.js'
+  import { settingsStore } from './stores/settings.js'
 
   const sections = ['Device', 'Files', 'MIDI', 'Logs', 'Trace', 'Settings', 'About']
   let activeSection = 'Device'
+  let openTools = []
   let runtime = runtimeStore.getSnapshot()
-  let audio = runtime.audio?.snapshot?.() ?? { state: 'unavailable', metrics: null, capability: null }
+  let audio = runtime.audio?.snapshot?.() ?? { state:'unavailable', metrics:null, capability:null }
+  let midi = runtime.midi?.snapshot?.() ?? { state:'unavailable' }
+  let storage = runtime.storage?.snapshot?.() ?? { state:'unavailable' }
   let canvasGeneration = 0
-  let detachAudio = () => {}
+  let detachAudio=()=>{}, detachMidi=()=>{}, detachStorage=()=>{}, detachSettings=()=>{}
 
-  async function restart() {
-    await runtimeStore.stop()
-    canvasGeneration += 1
-    await tick()
-    await runtimeStore.start()
-  }
+  async function restart(){ await runtimeStore.stop(); canvasGeneration+=1; await tick(); await runtimeStore.start() }
+  async function stopRuntime(){ await runtimeStore.stop() }
+  function reloadAudioMode(enabled){ settingsStore.update({lowLatencyAudio:enabled}); const url=new URL(location.href); enabled?url.searchParams.set('audio','worklet'):url.searchParams.delete('audio'); location.assign(url) }
+  async function applySettingsRestart(){ const enabled=settingsStore.snapshot().lowLatencyAudio; const url=new URL(location.href); const active=url.searchParams.get('audio')==='worklet'; if(active!==enabled){enabled?url.searchParams.set('audio','worklet'):url.searchParams.delete('audio');location.assign(url);return} await restart() }
+  function selectSection(section){ activeSection=section }
+  function toggleDock(tool){ openTools=toggleTool(openTools,tool) }
 
-  async function stopRuntime() {
-    await runtimeStore.stop()
-  }
-
-  function reloadAudioMode(enabled) {
-    const url = new URL(globalThis.location.href)
-    if (enabled) url.searchParams.set('audio', 'worklet')
-    else url.searchParams.delete('audio')
-    globalThis.location.assign(url)
-  }
-
-  onMount(() => {
-    const unsubscribe = runtimeStore.subscribe((snapshot) => {
-      runtime = snapshot
-      detachAudio()
-      if (snapshot.audio) detachAudio = snapshot.audio.subscribe((next) => (audio = next))
-      else audio = { state: 'unavailable', metrics: null, capability: null }
+  onMount(()=>{
+    const unsubscribe=runtimeStore.subscribe((snapshot)=>{
+      runtime=snapshot; detachAudio();detachMidi();detachStorage()
+      if(snapshot.audio)detachAudio=snapshot.audio.subscribe((next)=>(audio=next));else audio={state:'unavailable',metrics:null,capability:null}
+      if(snapshot.midi)detachMidi=snapshot.midi.subscribe((next)=>(midi=next));else midi={state:'unavailable'}
+      if(snapshot.storage)detachStorage=snapshot.storage.subscribe((next)=>(storage=next));else storage={state:'unavailable'}
+      if(snapshot.trace&&snapshot.trace.snapshot().state!=='capturing')snapshot.trace.setMask(settingsStore.snapshot().traceMask)
     })
-    runtimeStore.start().catch(() => {})
-    return () => {
-      unsubscribe()
-      detachAudio()
-      runtimeStore.stop().catch(() => {})
-    }
+    detachSettings=settingsStore.subscribe((next)=>{if(runtime.trace?.snapshot?.().state!=='capturing')runtime.trace?.setMask?.(next.traceMask)})
+    runtimeStore.start().catch(()=>{})
+    return()=>{unsubscribe();detachAudio();detachMidi();detachStorage();detachSettings();runtimeStore.stop().catch(()=>{})}
   })
 </script>
 
-<svelte:head>
-  <link rel="icon" href="data:," />
-  <meta
-    name="description"
-    content="PicoTracker WebAssembly development and performance workbench"
-  />
-</svelte:head>
+<svelte:head><title>Operator · PicoTracker Workbench</title><link rel="icon" href="data:,"/><meta name="description" content="PicoTracker WebAssembly development and performance workbench"/></svelte:head>
 
-<div class="workbench">
-  <header class="top-bar">
-    <div class="brand">
-      <span class="brand-mark" aria-hidden="true">PT</span>
-      <div>
-        <strong>PicoTracker</strong>
-        <span>WASM Workbench</span>
-      </div>
-    </div>
-    <div class="runtime-state" data-runtime-state={runtime.state} title={runtime.error ?? undefined}>
-      <span class="status-dot"></span>
-      <span>Runtime {runtime.state}</span>
-      <button type="button" onclick={() => restart().catch(() => {})}>Restart</button>
-      <button type="button" onclick={() => stopRuntime().catch(() => {})}>Stop runtime</button>
-    </div>
-    <div class="runtime-state" data-audio-state={audio.state} aria-label={`Audio ${audio.state}`} title={audio.error ?? undefined}>
-      <span class="status-dot"></span>
-      <span>Audio {audio.state}</span>
-      {#if audio.capability?.mode === 'disabled'}
-        <button type="button" onclick={() => reloadAudioMode(true)}>Enable low-latency audio (reload)</button>
-      {:else if audio.state === 'failed'}
-        <button type="button" onclick={() => reloadAudioMode(false)}>Reload without audio</button>
-      {:else if audio.state === 'locked' || audio.state === 'suspended'}
-        <button type="button" onclick={() => runtime.audio?.unlockAudio().catch(() => {})}>Unlock audio</button>
-      {/if}
-    </div>
-  </header>
-
-  <div class="workbench-body">
-    <nav class="left-nav" aria-label="Workbench sections">
-      {#each sections as section}
-        <button
-          type="button"
-          class:active={activeSection === section}
-          aria-current={activeSection === section ? 'page' : undefined}
-          onclick={() => (activeSection = section)}
-        >
-          <span class="nav-glyph" aria-hidden="true">{section.slice(0, 1)}</span>
-          <span>{section}</span>
-        </button>
-      {/each}
-    </nav>
-
+<div class="dashboard">
+  <TopBar {runtime} {audio} {storage} {midi} onRestart={()=>restart().catch(()=>{})} onStop={()=>stopRuntime().catch(()=>{})} onAudioMode={reloadAudioMode}/>
+  <div class="dashboard-body">
+    <LeftNav {sections} active={activeSection} onSelect={selectSection}/>
     <main class="workspace">
-      <section class="device-stage" aria-labelledby="device-heading" hidden={activeSection !== 'Device'}>
-          <div class="section-heading">
-            <div>
-              <p class="eyebrow">Simulator</p>
-              <h1 id="device-heading">PicoTracker Device</h1>
-            </div>
-            <span class="phase-badge">Runtime lifecycle</span>
-          </div>
-
-          {#key canvasGeneration}
-            <DevicePanel {runtime} />
-          {/key}
-      </section>
-      {#if activeSection === 'Files'}
-        <FilesPanel files={runtime.files} storage={runtime.storage} hostFolder={runtime.hostFolder} disabled={runtime.state !== 'ready'} />
-      {:else if activeSection !== 'Device'}
-        <section class="tool-placeholder" aria-live="polite">
-          <p class="eyebrow">Workbench</p>
-          <h1>{activeSection}</h1>
-          <p>This panel will connect as its WASM subsystem is implemented.</p>
+      {#if runtime.state==='failed'}
+        <section class="recovery-card" role="alert" data-recovery-kind={runtime.error?.includes('Cross-origin isolation')?'isolation':'runtime'}>
+          <p class="eyebrow">Runtime recovery</p><h1>{runtime.error?.includes('Cross-origin isolation')?'Cross-origin isolation is missing':'PicoTracker runtime stopped'}</h1><p>{runtime.error}</p>
+          {#if runtime.error?.includes('Cross-origin isolation')}<code>Cross-Origin-Opener-Policy: same-origin<br/>Cross-Origin-Embedder-Policy: require-corp</code><button type="button" onclick={()=>location.reload()}>Reload after fixing headers</button>{:else}<button type="button" onclick={()=>restart().catch(()=>{})}>Retry runtime</button>{/if}
         </section>
       {/if}
+      <ErrorBoundary label={`${activeSection} panel`}>
+        <section class="device-stage" aria-label="Operator simulator" hidden={activeSection!=='Device'}>
+          {#key canvasGeneration}<DevicePanel {runtime} settings={settingsStore}/>{/key}
+        </section>
+        {#if activeSection==='Files'}<div class="page-panel"><FilesPanel files={runtime.files} storage={runtime.storage} hostFolder={runtime.hostFolder} disabled={runtime.state!=='ready'}/></div>
+        {:else if activeSection==='MIDI'}<div class="page-panel"><MidiPanel midi={runtime.midi} disabled={runtime.state!=='ready'}/></div>
+        {:else if activeSection==='Logs'}<div class="page-panel"><LogsPanel logs={runtime.logs}/></div>
+        {:else if activeSection==='Trace'}<div class="page-panel"><TracePanel trace={runtime.trace}/></div>
+        {:else if activeSection==='Settings'}<div class="page-panel"><SettingsPanel settings={settingsStore} trace={runtime.trace} audio={runtime.audio} runtimeState={runtime.state} onRestart={()=>applySettingsRestart().catch(()=>{})}/></div>
+        {:else if activeSection==='About'}<div class="page-panel"><AboutPanel buildMetadata={runtime.buildMetadata}/></div>{/if}
+      </ErrorBoundary>
     </main>
-
-    <aside class="status-rail" aria-label="Subsystem status">
-      <h2>Status</h2>
-      {#each ['WASM', 'Audio', 'Storage', 'MIDI'] as subsystem}
-        <div class="status-card">
-          <span>{subsystem}</span>
-          <strong>{subsystem === 'WASM' ? runtime.state : subsystem === 'Audio' ? audio.state : 'Pending'}</strong>
-        </div>
-      {/each}
-    </aside>
-    <div class="audio-diagnostics" hidden aria-hidden="true" data-audio-capability={audio.capability ? (audio.capability.available ? 'available' : 'unavailable') : 'unknown'} data-audio-capability-reason={audio.capability?.reason ?? ''} data-audio-worklet-callbacks={audio.metrics?.callbackCount ?? 0} data-audio-underruns={audio.metrics?.underrunFrames ?? 0} data-audio-setup-phase={audio.metrics?.setupPhase ?? 0} data-audio-unlock-main-thread={audio.metrics?.unlockOnBrowserMainThread ?? 0}></div>
+    {#if activeSection==='Device'}
+      <ToolPanelStack {openTools} {runtime} onClose={(tool)=>toggleDock(tool)}/>
+      <ToolTray {openTools} onToggle={toggleDock} onRestart={()=>restart().catch(()=>{})} disabled={runtime.state!=='ready'}/>
+    {/if}
+    <div class="audio-diagnostics" hidden aria-hidden="true" data-audio-capability={audio.capability?(audio.capability.available?'available':'unavailable'):'unknown'} data-audio-capability-reason={audio.capability?.reason??''} data-audio-worklet-callbacks={audio.metrics?.callbackCount??0} data-audio-underruns={audio.metrics?.underrunFrames??0} data-audio-setup-phase={audio.metrics?.setupPhase??0} data-audio-unlock-main-thread={audio.metrics?.unlockOnBrowserMainThread??0} data-audio-render-micros={audio.metrics?.renderMicros??0} data-audio-callback-micros={audio.metrics?.callbackMicros??0} data-audio-callback-max-micros={audio.metrics?.callbackMaxMicros??0} data-audio-processing-deadline-micros={audio.metrics?.callbackDeadlineMicros??0} data-audio-processing-deadline-misses={audio.metrics?.callbackDeadlineMisses??0}></div>
   </div>
 </div>

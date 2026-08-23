@@ -18,7 +18,7 @@ test('Files panel uploads, drops, renames, downloads, exports, restores, and per
   await clearDisk(page)
   await page.goto('/?storage-test=1')
   await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible({ timeout: 20_000 })
-  await page.getByRole('button', { name: 'Files' }).click()
+  await page.getByRole('button', { name: 'Files', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Files' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Upload files' }).click()
@@ -68,8 +68,10 @@ test('Files panel uploads, drops, renames, downloads, exports, restores, and per
   await expect(page.getByText(/Unsafe ZIP entry/)).toBeVisible()
   await expect.poll(() => page.evaluate(() => globalThis.__picoTrackerStorageTest.read('/data/renamed (2).wav'))).toEqual(Array.from(strToU8('replacement')))
 
+  const ready = page.locator('[data-runtime-state="ready"]')
   await page.getByRole('button', { name: 'Restart' }).click()
-  await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible({ timeout: 20_000 })
+  await ready.waitFor({ state: 'hidden', timeout: 10_000 })
+  await expect(ready).toBeVisible({ timeout: 20_000 })
   await expect.poll(() => page.evaluate(() => globalThis.__picoTrackerStorageTest.read('/data/renamed (2).wav'))).toEqual(Array.from(strToU8('replacement')))
   await expect.poll(() => page.evaluate(() => globalThis.__picoTrackerStorageTest.read('/data/dropped.dat'))).toEqual([4, 5])
   await page.getByRole('button', { name: 'Stop runtime' }).click()

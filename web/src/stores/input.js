@@ -190,20 +190,26 @@ export function createInputStore(bridge) {
 
   function attach({ target = globalThis.window, document = globalThis.document, isActive = () => true } = {}) {
     detach?.()
-    const onKeyDown = (event) => isActive(event) && handleKeyDown(event)
-    const onKeyUp = (event) => isActive(event) && handleKeyUp(event)
-    const onBlur = () => releaseAll()
+    let attached = true
+    const onKeyDown = (event) => attached && isActive(event) && handleKeyDown(event)
+    const onKeyUp = (event) => attached && isActive(event) && handleKeyUp(event)
+    const onBlur = () => { if (attached) releaseAll() }
+    const onPageHide = () => { if (attached) releaseAll() }
     const onVisibilityChange = () => {
-      if (document?.visibilityState !== 'visible') releaseAll()
+      if (attached && document?.visibilityState !== 'visible') releaseAll()
     }
     target?.addEventListener?.('keydown', onKeyDown)
     target?.addEventListener?.('keyup', onKeyUp)
     target?.addEventListener?.('blur', onBlur)
+    target?.addEventListener?.('pagehide', onPageHide)
     document?.addEventListener?.('visibilitychange', onVisibilityChange)
     detach = () => {
+      if (!attached) return
+      attached = false
       target?.removeEventListener?.('keydown', onKeyDown)
       target?.removeEventListener?.('keyup', onKeyUp)
       target?.removeEventListener?.('blur', onBlur)
+      target?.removeEventListener?.('pagehide', onPageHide)
       document?.removeEventListener?.('visibilitychange', onVisibilityChange)
       releaseAll()
       detach = null

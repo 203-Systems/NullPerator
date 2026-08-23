@@ -48,16 +48,21 @@ test('audio mode is recoverable by default and proves real callbacks only when e
       await expect(page.locator('[data-audio-state="running"]')).toBeVisible({ timeout: setupWatchdogTimeoutMs })
     } catch (error) {
       const snapshot = await diagnostics.evaluate((element) => ({ ...element.dataset })).catch(() => ({}))
-      throw new Error(`${error.message}\nAudio diagnostics: ${JSON.stringify(snapshot)}`)
+      throw new Error(`${error.message}\nAudio diagnostics: ${JSON.stringify(snapshot)}\nBrowser diagnostics: ${browserDiagnostics.join(' | ')}`)
     }
     const callbacks = page.locator('[data-audio-worklet-callbacks]')
     await expect(callbacks).not.toHaveAttribute('data-audio-worklet-callbacks', '0')
     const before = Number(await callbacks.getAttribute('data-audio-worklet-callbacks'))
     const underruns = page.locator('[data-audio-underruns]')
     const beforeUnderruns = await underruns.getAttribute('data-audio-underruns')
+    const beforeProcessingMisses = await diagnostics.getAttribute('data-audio-processing-deadline-misses')
+    await expect.poll(async () => Number(await diagnostics.getAttribute('data-audio-callback-micros'))).toBeGreaterThan(0)
+    await expect.poll(async () => Number(await diagnostics.getAttribute('data-audio-callback-max-micros'))).toBeGreaterThan(0)
+    await expect.poll(async () => Number(await diagnostics.getAttribute('data-audio-processing-deadline-micros'))).toBeGreaterThan(0)
     await page.waitForTimeout(500)
     await expect.poll(() => callbacks.getAttribute('data-audio-worklet-callbacks')).not.toBe(String(before))
     await expect(underruns).toHaveAttribute('data-audio-underruns', beforeUnderruns ?? '0')
+    await expect(diagnostics).toHaveAttribute('data-audio-processing-deadline-misses', beforeProcessingMisses ?? '0')
   } finally {
     await page.getByRole('button', { name: 'Stop runtime' }).click()
     await expect(page.locator('[data-runtime-state="idle"]')).toBeVisible({ timeout: 10_000 })

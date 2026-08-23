@@ -10,6 +10,7 @@
     "test:e2e:audio-worklet": "CI=1 PICOTRACKER_AUDIO_E2E=1 playwright test e2e/audio.spec.js --reporter=line",
     "dev": "vite",
     "build": "vite build",
+    "verify:dist": "node tools/verify-dist.mjs",
     "preview": "vite preview"
   },
   "devDependencies": {
@@ -20,6 +21,7 @@
     "vitest": "4.1.11"
   },
   "dependencies": {
+    "carbon-icons-svelte": "13.8.0",
     "fflate": "0.8.3"
   }
 }

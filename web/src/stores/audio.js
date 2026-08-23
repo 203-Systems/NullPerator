@@ -39,6 +39,10 @@ export function createAudioStore(bridge, options = {}) {
       return snapshot
     },
     refresh,
+    configure(settings) {
+      bridge?.configureAudio?.(settings)
+      return snapshot
+    },
     async unlockAudio() {
       if (unlock) return unlock
       // Calling into Wasm must remain directly inside the click handler: some

@@ -21,9 +21,11 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'pnpm build && pnpm preview --host 127.0.0.1 --port 4173 --strictPort',
+    command: 'node node_modules/vite/bin/vite.js build && node node_modules/vite/bin/vite.js preview --host 127.0.0.1 --port 4173 --strictPort',
     url: 'http://127.0.0.1:4173',
-    reuseExistingServer: !process.env.CI,
+    // Always exercise the bundle built by this Playwright run. Reusing an
+    // unrelated preview on the same port can silently validate stale WASM.
+    reuseExistingServer: false,
     timeout: 120_000,
   },
 })

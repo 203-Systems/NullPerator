@@ -1,5 +1,8 @@
 import { createRuntime } from '../handles/runtime.js'
 import { createAudioStore } from './audio.js'
+import { createMidiStore } from './midi.js'
+import { createLogStore } from './logs.js'
+import { createTraceStore } from './trace.js'
 
 const initialSnapshot = Object.freeze({
   state: 'idle',
@@ -11,6 +14,9 @@ const initialSnapshot = Object.freeze({
   storage: null,
   files: null,
   hostFolder: null,
+  midi: null,
+  logs: null,
+  trace: null,
 })
 
 function classifyFrame(frame) {
@@ -32,13 +38,76 @@ function classifyFrame(frame) {
 }
 
 export function createRuntimeManager(options = {}) {
-  const createModule = options.createModule ?? (() => createRuntime(options))
+  const logs = options.logs ?? createLogStore(options.logOptions)
+  const createModule = options.createModule ?? (() => createRuntime({ ...options, logs }))
   const isolated = options.crossOriginIsolated ?? globalThis.crossOriginIsolated === true
   const listeners = new Set()
-  let snapshot = initialSnapshot
+  let snapshot = Object.freeze({ ...initialSnapshot, logs })
   let module = null
   let stopStage = null
   let operation = Promise.resolve()
+  let nativeStateTimer = null
+  const setNativeStateInterval = options.setNativeStateInterval ??
+    globalThis.window?.setInterval?.bind(globalThis.window)
+  const clearNativeStateInterval = options.clearNativeStateInterval ??
+    globalThis.window?.clearInterval?.bind(globalThis.window)
+
+  function stopNativeStateMonitor() {
+    if (nativeStateTimer === null) return
+    clearNativeStateInterval?.(nativeStateTimer)
+    nativeStateTimer = null
+  }
+
+  function quiesceAfterNativeFailure(runtimeModule) {
+    const actions = [
+      () => runtimeModule.audioStore?.stop?.(),
+      () => runtimeModule.midiStore?.stop?.(),
+      () => runtimeModule.traceStore?.dispose?.(),
+      () => runtimeModule.quiesceAfterFatal?.(),
+    ]
+    for (const action of actions) {
+      try {
+        // Every loop is stopped synchronously by its store before any returned
+        // promise settles. Teardown errors are deliberately non-fatal here:
+        // the native C++ error remains the authoritative recovery diagnosis.
+        void Promise.resolve(action()).catch(() => {})
+      } catch {
+        // A diagnostic loop must never replace the original native failure.
+      }
+    }
+  }
+
+  function startNativeStateMonitor(runtimeModule) {
+    stopNativeStateMonitor()
+    if (typeof setNativeStateInterval !== 'function') return
+    nativeStateTimer = setNativeStateInterval(() => {
+      if (module !== runtimeModule || snapshot.state !== 'ready') return
+      let state
+      let message = ''
+      try {
+        state = runtimeModule.getState()
+        if (state === 1) return
+        message = runtimeModule.getLastError?.() || ''
+      } catch (error) {
+        message = error instanceof Error ? error.message : String(error)
+      }
+      stopNativeStateMonitor()
+      if (!message) {
+        if (state === 2) message = 'C++ runtime began stopping unexpectedly'
+        else if (state === 4) message = 'C++ runtime stopped unexpectedly'
+        else if (state === 3) message = 'C++ runtime failed'
+        else message = `C++ runtime entered unexpected state ${String(state)}`
+      }
+      quiesceAfterNativeFailure(runtimeModule)
+      // Preserve storage, files, logs, and trace so diagnostics and a ZIP
+      // backup remain available. Input/audio/MIDI are removed from the live UI
+      // until the serialized Restart has completed native teardown.
+      publish({
+        state: 'failed', error: message, frameContent: 'unavailable',
+        input: null, audio: null, midi: null,
+      })
+    }, options.nativeStatePollMs ?? 100)
+  }
 
   async function waitForCppReady(runtimeModule) {
     if (typeof runtimeModule.getState !== 'function') {
@@ -63,15 +132,23 @@ export function createRuntimeManager(options = {}) {
     while (true) {
       const state = runtimeModule.getState()
       if (state === 4) return
-      if (state === 3) {
-        throw new Error(runtimeModule.getLastError?.() || 'C++ shutdown failed')
-      }
+      // Failed remains visible while native fatal cleanup waits for the
+      // browser-main audio teardown acknowledgement. It is not a reason to
+      // terminate the worker early; wait for Stopped just like normal Stop.
       if (Date.now() >= deadline) throw new Error('Timed out waiting for C++ shutdown')
       await new Promise((resolve) => setTimeout(resolve, 10))
     }
   }
 
   function publish(next) {
+    if (next.state === 'failed' && next.error && next.error !== snapshot.error) {
+      const monotonicMs = globalThis.performance?.now?.() ?? 0
+      logs.appendLog({
+        monotonicUs: monotonicMs * 1_000,
+        wallTime: (globalThis.performance?.timeOrigin ?? Date.now() - monotonicMs) + monotonicMs,
+        severity: 'error', category: 'RUNTIME', thread: 'browser', message: next.error,
+      })
+    }
     snapshot = Object.freeze({ ...snapshot, ...next })
     for (const listener of listeners) listener(snapshot)
   }
@@ -93,7 +170,7 @@ export function createRuntimeManager(options = {}) {
       throw new Error(message)
     }
 
-    publish({ state: 'booting', error: null, input: null, storage: null, files: null, hostFolder: null })
+    publish({ state: 'booting', error: null, input: null, storage: null, files: null, hostFolder: null, midi: null, trace: null })
     try {
       module = await createModule()
       await waitForCppReady(module)
@@ -106,14 +183,22 @@ export function createRuntimeManager(options = {}) {
         await audio.initialize()
         module.audioStore = audio
       }
-      publish({ state: 'ready', buildMetadata, frameContent, input: module.input ?? null, audio, storage: module.storage ?? null, files: module.files ?? null, hostFolder: module.hostFolder ?? null })
+      const midi = module.midi ? createMidiStore(module.midi, options.midiOptions) : null
+      const trace = module.trace ? createTraceStore(module.trace, {
+        ...options.traceOptions,
+        metadata: { ...options.traceOptions?.metadata, build: buildMetadata },
+      }) : null
+      module.midiStore = midi
+      module.traceStore = trace
+      publish({ state: 'ready', buildMetadata, frameContent, input: module.input ?? null, audio, storage: module.storage ?? null, files: module.files ?? null, hostFolder: module.hostFolder ?? null, midi, trace })
+      startNativeStateMonitor(module)
       return module
     } catch (error) {
+      stopNativeStateMonitor()
       const failedModule = module
-      module = null
       let cleanupError = null
       try {
-        await failedModule?.terminate?.()
+        if (failedModule) await stopNow()
       } catch (caught) {
         cleanupError = caught
       }
@@ -121,31 +206,47 @@ export function createRuntimeManager(options = {}) {
       const message = cleanupError
         ? `${primaryMessage}; cleanup failed: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`
         : primaryMessage
-      publish({ state: 'failed', error: message, frameContent: 'unavailable', input: null, audio: null, storage: null, files: null, hostFolder: null })
+      const retainedModule = cleanupError && stopStage?.module === failedModule ? failedModule : null
+      publish({
+        state: 'failed', error: message, frameContent: 'unavailable',
+        input: null, audio: null,
+        storage: retainedModule?.storage ?? null,
+        files: retainedModule?.files ?? null,
+        hostFolder: retainedModule?.hostFolder ?? null,
+        midi: null,
+      })
       throw error
     }
   }
 
   async function stopNow() {
     if (!module && !stopStage) return
+    stopNativeStateMonitor()
     const stage = stopStage ?? {
       module,
       inputReleased: false,
       audioStopped: false,
+      midiStopped: false,
+      traceStopped: false,
       hostFolderIdle: false,
       shutdownRequested: false,
       cppStopped: false,
       flushed: false,
     }
     const stoppingModule = stage.module
-    publish({ state: 'stopping', input: null, audio: null, storage: stoppingModule.storage ?? null, files: null, hostFolder: null })
+    const recoveryHandles = {
+      storage: stoppingModule.storage ?? null,
+      files: stoppingModule.files ?? null,
+      hostFolder: stoppingModule.hostFolder ?? null,
+    }
+    publish({ state: 'stopping', input: null, audio: null, ...recoveryHandles, midi: null })
     if (!stage.inputReleased) {
       try {
         stoppingModule.input?.releaseAllActions?.()
         stage.inputReleased = true
       } catch (error) {
         stopStage = stage
-        publish({ state: 'failed', error: error instanceof Error ? error.message : String(error), buildMetadata: null, input: null, audio: null, storage: stoppingModule.storage ?? null, files: null })
+        publish({ state: 'failed', error: error instanceof Error ? error.message : String(error), buildMetadata: null, input: null, audio: null, ...recoveryHandles, midi: null })
         throw error
       }
     }
@@ -155,19 +256,33 @@ export function createRuntimeManager(options = {}) {
         stage.audioStopped = true
       } catch (error) {
         stopStage = stage
-        publish({ state: 'failed', error: error instanceof Error ? error.message : String(error), buildMetadata: null, input: null, audio: null, storage: stoppingModule.storage ?? null, files: null })
+        publish({ state: 'failed', error: error instanceof Error ? error.message : String(error), buildMetadata: null, input: null, audio: null, ...recoveryHandles, midi: null })
         throw error
       }
     } else if (!stage.audioStopped) {
       stage.audioStopped = true
     }
+    if (!stage.midiStopped) {
+      try {
+        if (typeof stoppingModule.midiStore?.stop === 'function') {
+          await stoppingModule.midiStore.stop()
+        }
+        stage.midiStopped = true
+      } catch (error) {
+        stopStage = stage
+        publish({ state: 'failed', error: error instanceof Error ? error.message : String(error), buildMetadata: null, input: null, audio: null, ...recoveryHandles, midi: null })
+        throw error
+      }
+    }
     if (!stage.hostFolderIdle) {
       try {
-        await stoppingModule.hostFolder?.waitForIdle?.()
+        if (typeof stoppingModule.hostFolder?.waitForIdle === 'function') {
+          await stoppingModule.hostFolder.waitForIdle()
+        }
         stage.hostFolderIdle = true
       } catch (error) {
         stopStage = stage
-        publish({ state: 'failed', error: error instanceof Error ? error.message : String(error), buildMetadata: null, input: null, audio: null, storage: stoppingModule.storage ?? null, files: null, hostFolder: null })
+        publish({ state: 'failed', error: error instanceof Error ? error.message : String(error), buildMetadata: null, input: null, audio: null, ...recoveryHandles, midi: null })
         throw error
       }
     }
@@ -195,7 +310,17 @@ export function createRuntimeManager(options = {}) {
         stage.cppStopped = true
       } catch (error) {
         stopStage = stage
-        publish({ state: 'failed', error: error instanceof Error ? error.message : String(error), buildMetadata: null, input: null, audio: null, storage: stoppingModule.storage ?? null, files: null })
+        publish({ state: 'failed', error: error instanceof Error ? error.message : String(error), buildMetadata: null, input: null, audio: null, ...recoveryHandles, midi: null })
+        throw error
+      }
+    }
+    if (!stage.traceStopped) {
+      try {
+        stoppingModule.traceStore?.dispose?.()
+        stage.traceStopped = true
+      } catch (error) {
+        stopStage = stage
+        publish({ state: 'failed', error: error instanceof Error ? error.message : String(error) })
         throw error
       }
     }
@@ -207,7 +332,7 @@ export function createRuntimeManager(options = {}) {
         // Keep the stopped WASM module alive: its MEMFS is the only durable
         // source until a later Stop retries this flush.
         stopStage = stage
-        publish({ state: 'failed', error: error instanceof Error ? error.message : String(error), buildMetadata: null, input: null, audio: null, storage: stoppingModule.storage ?? null, files: null })
+        publish({ state: 'failed', error: error instanceof Error ? error.message : String(error), buildMetadata: null, input: null, audio: null, ...recoveryHandles, midi: null })
         throw error
       }
     }
@@ -219,12 +344,13 @@ export function createRuntimeManager(options = {}) {
       // but do not retain a stale module as a future start candidate.
       stopStage = null
       module = null
-      publish({ state: 'failed', error: error instanceof Error ? error.message : String(error), buildMetadata: null, input: null, audio: null, storage: stoppingModule.storage ?? null, files: null, hostFolder: null })
+      publish({ state: 'failed', error: error instanceof Error ? error.message : String(error), buildMetadata: null, input: null, audio: null, ...recoveryHandles, midi: null, trace: null })
       throw error
     }
     stopStage = null
     module = null
-    publish({ state: 'idle', error: null, buildMetadata: null, frameContent: 'unavailable', input: null, audio: null, storage: null, files: null, hostFolder: null })
+    stopNativeStateMonitor()
+    publish({ state: 'idle', error: null, buildMetadata: null, frameContent: 'unavailable', input: null, audio: null, storage: null, files: null, hostFolder: null, midi: null, trace: null })
   }
 
   return {

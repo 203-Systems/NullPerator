@@ -41,6 +41,34 @@ describe('tracker input state', () => {
     expect(input.getHeldActions()).toEqual([])
   })
 
+  it('releases held input on pagehide and ignores detached lifecycle callbacks', () => {
+    const bridge = createBridge()
+    const input = createInputStore(bridge)
+    const listeners = new Map()
+    const target = {
+      addEventListener: (name, listener) => listeners.set(name, listener),
+      removeEventListener: (name, listener) => {
+        if (listeners.get(name) === listener) listeners.delete(name)
+      },
+    }
+    const document = { addEventListener() {}, removeEventListener() {}, visibilityState: 'visible' }
+    const detach = input.attach({ target, document })
+    const stalePageHide = listeners.get('pagehide')
+
+    input.press('enter', 'keyboard:KeyJ')
+    stalePageHide()
+    expect(input.getHeldActions()).toEqual([])
+    expect(bridge.releaseAllActions).toHaveBeenCalledTimes(1)
+
+    input.press('edit', 'keyboard:KeyK')
+    detach()
+    expect(listeners.has('pagehide')).toBe(false)
+    expect(bridge.releaseAllActions).toHaveBeenCalledTimes(2)
+    stalePageHide()
+    detach()
+    expect(bridge.releaseAllActions).toHaveBeenCalledTimes(2)
+  })
+
   it('keeps an action held until every simultaneous source releases it', () => {
     const bridge = createBridge()
     const input = createInputStore(bridge)

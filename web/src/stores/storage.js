@@ -16,7 +16,7 @@ function errorMessage(error) {
   return error instanceof Error ? error.message : String(error)
 }
 
-export function createStorageCoordinator() {
+export function createStorageCoordinator(options = {}) {
   const listeners = new Set()
   const durabilityWaiters = new Set()
   let module = null
@@ -29,6 +29,8 @@ export function createStorageCoordinator() {
   let closedError = null
   let activeMutation = null
   let mutationQueue = Promise.resolve()
+  let traceSink = options.trace ?? null
+  let nextSyncId = 1
   let snapshot = Object.freeze({
     state: StorageState.Initializing,
     dirty: false,
@@ -74,10 +76,20 @@ export function createStorageCoordinator() {
   }
 
   const sync = (populate) => new Promise((resolve, reject) => {
+    const id = nextSyncId
+    nextSyncId = nextSyncId === 0xffff_ffff ? 1 : nextSyncId + 1
+    // Keep the sink that observed Begin for the matching End even if runtime
+    // wiring changes while IndexedDB is in flight.
+    const operationTrace = traceSink
+    let traceToken = null
+    try { traceToken = operationTrace?.beginStorageSync?.({ id, populate }) ?? null }
+    catch { /* Tracing is observational and must never break persistence. */ }
     let settled = false
     const finish = (error) => {
       if (settled) return
       settled = true
+      try { operationTrace?.endStorageSync?.(traceToken, { success: !error }) }
+      catch { /* Tracing is observational and must never break persistence. */ }
       if (error) reject(error)
       else resolve()
     }
@@ -295,6 +307,7 @@ export function createStorageCoordinator() {
       return () => listeners.delete(listener)
     },
     snapshot: () => snapshot,
+    setTraceSink(nextTraceSink) { traceSink = nextTraceSink ?? null },
     ready: () => initialized ?? Promise.reject(new Error('Persistent storage is not initialized')),
     initializationError: () => initialError,
     failClosed(error) {

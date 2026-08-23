@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 118.5 48.2" role="img" aria-labelledby="logo-title">
+  <title id="logo-title">203 Systems</title>
+  <g fill="#e3e3e3">
+    <path d="M47.4 7v34.1h24.4V7H47.4zm22 31.7h-.7L49.8 25.5v-16h.7l18.9 13.2v16z"/>
+    <path d="M101.4 7.1 76.5 7v2.7l22.1.1-15.3 14.4 15.2 14.4-21.7-.1v2.7l24.4.1.2-34.2z"/>
+    <path d="M44 7.1H18.8L33.2 18 17.1 41.1h25.2l-14.6-11L44 7.1z"/>
+  </g>
+</svg>

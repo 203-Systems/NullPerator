@@ -1,5 +1,5 @@
-const METRICS_WORDS = 13
-const METRICS_VERSION = 4
+const METRICS_WORDS = 17
+const METRICS_VERSION = 5
 const METRICS_SIZE = METRICS_WORDS * Uint32Array.BYTES_PER_ELEMENT
 
 function decodeMessage(module, pointer) {
@@ -52,6 +52,10 @@ export function createAudioBridge(module, capability = { available: true, reason
   const sharedError = snapshot?.error >>> 0
   return {
     capability,
+    configureAudio({ audioBufferFrames = 4096, outputVolume = 100 } = {}) {
+      const gainQ16 = Math.round(Math.min(100, Math.max(0, outputVolume)) * 65536 / 100)
+      module._PicoTracker_Wasm_ConfigureAudio?.(audioBufferFrames >>> 0, gainQ16 >>> 0)
+    },
     unlockAudio() { return module._PicoTracker_Wasm_UnlockAudio() },
     stopAudio() { module._PicoTracker_Wasm_StopAudio?.() },
     getAudioState() {
@@ -76,6 +80,8 @@ export function createAudioBridge(module, capability = { available: true, reason
         underrunFrames: words[6], overrunFrames: words[7], sourceRate: words[8],
         destinationRate: words[9], callbackCount: words[10],
         setupPhase: words[11], unlockOnBrowserMainThread: words[12],
+        callbackMicros: words[13], callbackMaxMicros: words[14],
+        callbackDeadlineMicros: words[15], callbackDeadlineMisses: words[16],
       }
     },
   }

@@ -14,10 +14,14 @@ test('boots the C++ UI at 240x240 logical pixels', async ({ page }) => {
 
 test('stops the application thread before restarting the tracker canvas', async ({ page }) => {
   await page.goto('/')
-  await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible()
+  const ready = page.locator('[data-runtime-state="ready"]')
+  await expect(ready).toBeVisible()
 
   await page.getByRole('button', { name: 'Restart' }).click()
 
-  await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible({ timeout: 15_000 })
+  // A ready-only assertion can resolve against the old runtime before the
+  // queued restart has even entered Stop. Prove both lifecycle edges.
+  await ready.waitFor({ state: 'hidden', timeout: 10_000 })
+  await expect(ready).toBeVisible({ timeout: 15_000 })
   await expect(page.locator('#picotracker-canvas')).toHaveAttribute('data-frame-content', 'rendered')
 })

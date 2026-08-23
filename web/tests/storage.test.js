@@ -106,6 +106,64 @@ describe('IDBFS storage coordinator', () => {
     })
   })
 
+  it('traces each actual IDBFS pass once without changing durability fences', async () => {
+    const syncs = []
+    const events = []
+    const module = makeModule((populate, callback) => populate ? callback(null) : syncs.push(callback))
+    const storage = createStorageCoordinator()
+    await initializePersistentFs(module, storage)
+    storage.setTraceSink({
+      beginStorageSync(operation) {
+        const token = Object.freeze({ ...operation })
+        events.push(['begin', token])
+        return token
+      },
+      endStorageSync(token, result) { events.push(['end', token, result]) },
+    })
+
+    const first = storage.requestSync('project-save')
+    const second = storage.requestSync('sample-save')
+    expect(events).toEqual([['begin', { id: 2, populate: false }]])
+    expect(storage.snapshot()).toMatchObject({ mutationGeneration: 2, durableGeneration: 0 })
+
+    syncs.shift()(null)
+    await Promise.resolve()
+    expect(events).toEqual([
+      ['begin', { id: 2, populate: false }],
+      ['end', { id: 2, populate: false }, { success: true }],
+      ['begin', { id: 3, populate: false }],
+    ])
+    expect(storage.snapshot()).toMatchObject({ mutationGeneration: 2, durableGeneration: 1 })
+
+    syncs.shift()(new Error('quota exceeded'))
+    await expect(first).rejects.toThrow('quota exceeded')
+    await expect(second).rejects.toThrow('quota exceeded')
+    expect(events.at(-1)).toEqual([
+      'end', { id: 3, populate: false }, { success: false },
+    ])
+    expect(storage.snapshot()).toMatchObject({
+      mutationGeneration: 2, durableGeneration: 1, dirty: true,
+      state: StorageState.Failed,
+    })
+  })
+
+  it('does not let trace sink failures alter a successful syncfs operation', async () => {
+    const module = makeModule((_populate, callback) => callback(null))
+    const storage = createStorageCoordinator({
+      trace: {
+        beginStorageSync() { throw new Error('trace unavailable') },
+        endStorageSync() { throw new Error('trace unavailable') },
+      },
+    })
+
+    await initializePersistentFs(module, storage)
+    await expect(storage.requestSync('save')).resolves.toBeUndefined()
+    expect(storage.snapshot()).toMatchObject({
+      mutationGeneration: 1, durableGeneration: 1, dirty: false,
+      state: StorageState.Ready,
+    })
+  })
+
   it('awaits the requested durability generation across coalesced syncs', async () => {
     const syncs = []
     const module = makeModule((populate, callback) => populate ? callback(null) : syncs.push(callback))
