@@ -43,7 +43,6 @@
 </script>
 
 <div class="operator-controls" aria-label="PicoTracker virtual controls">
-  <div class="pcb-lines" aria-hidden="true"></div>
   <div class="d-pad" aria-label="Directional controls">
     {#each [['up','Up','W','▲'],['left','Left','A','◀'],['down','Down','S','▼'],['right','Right','D','▶']] as [action,label,key,glyph]}
       <button type="button" class={action} aria-label={label} data-action={action} {disabled}
@@ -78,22 +77,20 @@
 </div>
 
 <style>
-  .operator-controls { position:relative; width:100%; height:176px; overflow:hidden; border:1px solid #34343a; border-top:0; border-radius:0 0 16px 16px; background:linear-gradient(145deg,#17181b 0%,#090a0c 58%,#15161a 100%); box-shadow:inset 0 1px rgba(255,255,255,.07),inset 0 -16px 34px rgba(0,0,0,.5); touch-action:none; user-select:none; }
-  .operator-controls::before,.operator-controls::after { content:''; position:absolute; bottom:10px; width:8px; height:8px; border-radius:50%; background:radial-gradient(circle at 38% 35%,#d9d9d2,#777 50%,#222 70%); box-shadow:0 0 0 1px #030303; }
-  .operator-controls::before { left:12px; } .operator-controls::after { right:12px; }
-  .pcb-lines { position:absolute; inset:0; opacity:.18; background:repeating-radial-gradient(ellipse at 50% 45%,transparent 0 14px,#58646b 15px 15.5px,transparent 16px 23px); clip-path:polygon(15% 10%,85% 8%,78% 88%,20% 90%); }
-  button { position:absolute; width:48px; height:48px; padding:0; border:0; color:#aeb2b7; background:transparent; cursor:pointer; touch-action:none; }
+  .operator-controls { position:relative; width:100%; height:184px; margin-top:10px; overflow:hidden; border:1px solid #303239; border-radius:10px; background:#181a1f; touch-action:none; user-select:none; }
+  button { position:absolute; width:48px; height:48px; padding:0; border:1px solid #353841; border-radius:8px; color:#aeb2b7; background:#202228; cursor:pointer; touch-action:none; }
+  button:hover:not(:disabled) { border-color:#555a66; background:#252830; }
   button:disabled { cursor:not-allowed; opacity:.45; }
-  .switch { position:absolute; left:8px; top:5px; display:grid; width:32px; height:32px; place-items:center; border:2px solid #d8d9d6; border-radius:5px; color:#8b9198; background:linear-gradient(145deg,#f0f0ed 0 12%,#83878b 14% 29%,#202226 31% 100%); box-shadow:0 3px 4px #000,0 0 0 1px #171719; transform:rotate(-4deg); }
-  .switch::before { content:''; width:22px; height:22px; border-radius:50%; background:radial-gradient(circle at 37% 30%,#33353a,#111216 70%); box-shadow:inset 0 -2px 3px #000,0 1px 1px rgba(255,255,255,.12); }
-  .switch > span { position:absolute; color:#858b92; font:700 9px/1 var(--mono); opacity:.7; }
-  button:active .switch { transform:rotate(-4deg) translateY(2px); filter:brightness(.8); }
-  kbd { position:absolute; right:0; top:0; display:grid; min-width:17px; height:17px; place-items:center; border:1px solid rgba(255,255,255,.16); border-radius:3px; color:#d9f7ff; background:#272b30; font:600 9px/1 var(--mono); box-shadow:0 1px 2px #000; }
-  em { position:absolute; left:50%; bottom:-1px; transform:translateX(-50%); color:rgba(255,255,255,.36); font:500 7px/1 var(--mono); letter-spacing:.07em; font-style:normal; }
-  .d-pad { position:absolute; left:35px; top:21px; width:126px; height:126px; transform:rotate(-7deg); }
-  .d-pad button { transform:rotate(7deg); } .d-pad .up{left:39px;top:0}.d-pad .left{left:0;top:39px}.d-pad .down{left:39px;top:78px}.d-pad .right{left:78px;top:39px}
-  .face-buttons { position:absolute; right:28px; top:25px; width:90px; height:95px; transform:rotate(6deg); }
-  .face-buttons button { transform:rotate(-6deg); } .face.enter{right:0;top:0}.face.edit{left:0;top:45px}
-  .bottom-buttons { position:absolute; left:164px; bottom:13px; width:102px; height:52px; transform:rotate(-2deg); }
+  .switch { position:absolute; left:9px; top:8px; display:grid; width:28px; height:24px; place-items:center; border-radius:5px; color:#c3c7ce; background:#111318; box-shadow:inset 0 0 0 1px #30333a; }
+  .switch::before { content:''; width:14px; height:14px; border-radius:50%; background:#292c33; }
+  .switch > span { position:absolute; color:#aab0ba; font:700 9px/1 var(--mono); }
+  button:active { transform:translateY(1px); background:#15171b; }
+  kbd { position:absolute; right:4px; top:4px; display:grid; min-width:15px; height:15px; place-items:center; border-radius:3px; color:#9edff1; background:#30333a; font:600 8px/1 var(--mono); }
+  em { position:absolute; left:50%; bottom:4px; transform:translateX(-50%); color:#717680; font:500 7px/1 var(--mono); letter-spacing:.07em; font-style:normal; }
+  .d-pad { position:absolute; left:28px; top:22px; width:132px; height:132px; }
+  .d-pad .up{left:42px;top:0}.d-pad .left{left:0;top:42px}.d-pad .down{left:42px;top:84px}.d-pad .right{left:84px;top:42px}
+  .face-buttons { position:absolute; right:27px; top:25px; width:96px; height:100px; }
+  .face.enter{right:0;top:0}.face.edit{left:0;top:50px}
+  .bottom-buttons { position:absolute; right:25px; bottom:10px; width:106px; height:48px; }
   .bottom-buttons button:first-child{left:0}.bottom-buttons button:last-child{right:0}
 </style>

@@ -66,11 +66,6 @@
         </div>
       </div>
       <VirtualControls {input} disabled={runtime.state !== 'ready'} />
-      <div class="side-wordmark" aria-hidden="true">OPERATOR</div>
-    </div>
-    <div class="device-meta">
-      <span><b></b>{runtime.error ?? (runtime.state === 'ready' ? 'Firmware live' : 'Booting firmware')}</span>
-      <span>240 × 240 · Node target</span>
     </div>
   </div>
 
@@ -86,23 +81,19 @@
 
 <style>
   .device-input-host { display:flex; flex-direction:column; width:100%; height:100%; min-height:0; overflow:hidden; }
-  .device-scene { position:relative; display:flex; flex:1; min-height:0; align-items:center; justify-content:center; overflow:auto; padding:26px 24px 18px; background:radial-gradient(circle at 50% 38%,rgba(76,201,240,.055),transparent 34%),linear-gradient(135deg,#111216,#0c0d10); }
-  .device-scene::before { content:''; position:absolute; width:460px; height:120px; bottom:10%; border-radius:50%; background:rgba(0,0,0,.52); filter:blur(35px); transform:perspective(400px) rotateX(65deg); }
-  .operator-device { position:relative; width:300px; flex:0 0 auto; filter:drop-shadow(0 28px 38px rgba(0,0,0,.58)); transform:perspective(1000px) rotateX(1.2deg); zoom:var(--device-scale,1); }
-  .operator-screen-housing { position:relative; padding:18px 22px 17px; border:1px solid #515259; border-radius:16px 16px 3px 3px; background:linear-gradient(138deg,#efefed 0,#9b9da2 3%,#2d2e33 7%,#111216 92%,#4d4e52 100%); box-shadow:inset 0 2px 1px rgba(255,255,255,.45),inset 0 -10px 18px #050506; z-index:2; }
-  .screen-bezel { position:relative; width:256px; height:256px; padding:8px; border:1px solid #32343a; background:#050608; box-shadow:inset 0 0 0 2px #111318,0 3px 8px #000; }
+  .device-scene { position:relative; display:flex; flex:1; min-height:0; align-items:center; justify-content:center; overflow:auto; padding:24px; background:#0e0f12; }
+  .operator-device { position:relative; width:320px; flex:0 0 auto; zoom:var(--device-scale,1); }
+  .operator-screen-housing { position:relative; padding:16px; border:1px solid #303239; border-radius:10px; background:#181a1f; }
+  .screen-bezel { position:relative; width:264px; height:264px; margin:auto; padding:12px; border:1px solid #353841; border-radius:5px; background:#050608; }
   #picotracker-canvas { display:block; width:240px; height:240px; outline:0; background:#06070a; image-rendering:pixelated; image-rendering:crisp-edges; }
   #picotracker-canvas:focus-visible { box-shadow:0 0 0 1px var(--accent),0 0 14px rgba(76,201,240,.25); }
   #canvas { display:none; }
-  .screen-glass { position:absolute; inset:8px; pointer-events:none; background:linear-gradient(145deg,rgba(255,255,255,.075),transparent 22% 72%,rgba(76,201,240,.025)); box-shadow:inset 0 0 24px rgba(0,0,0,.45); }
-  .side-wordmark { position:absolute; right:-14px; top:286px; color:rgba(255,255,255,.12); font:600 10px/1 var(--mono); letter-spacing:.38em; writing-mode:vertical-rl; z-index:3; }
-  .device-meta { position:absolute; left:18px; bottom:13px; display:flex; flex-direction:column; gap:5px; color:var(--muted); font:500 10px/1.3 var(--mono); }
-  .device-meta span:first-child { color:#b9bdc4; } .device-meta b { display:inline-block; width:6px; height:6px; margin-right:6px; border-radius:50%; background:#3dd68c; box-shadow:0 0 6px rgba(61,214,140,.55); }
+  .screen-glass { position:absolute; inset:12px; pointer-events:none; box-shadow:inset 0 0 12px rgba(0,0,0,.35); }
   .keyboard-helper { display:flex; min-height:52px; align-items:center; justify-content:center; gap:24px; padding:7px 16px; border-top:1px solid var(--border); background:var(--panel); color:var(--muted); overflow:auto; flex-shrink:0; }
   .keyboard-helper>div { display:flex; align-items:center; gap:7px; white-space:nowrap; font-size:.7rem; }
   .key-cluster { display:flex; align-items:center; gap:3px; }
   kbd { display:grid; min-width:22px; height:22px; padding:0 4px; place-items:center; border:1px solid rgba(255,255,255,.17); border-bottom-color:rgba(255,255,255,.3); border-radius:4px; color:#e7e9ec; background:linear-gradient(#292b31,#191a1e); box-shadow:0 2px 0 #070708; font:600 10px/1 var(--mono); }
   i { font:normal 9px/1 var(--mono); color:rgba(255,255,255,.25); }
   @media(max-height:760px){ .device-scene{align-items:flex-start}.keyboard-helper{gap:14px;padding-inline:10px} }
-  @media(max-width:720px){ .device-scene{padding:12px}.operator-device{transform:scale(.82);margin:-45px}.device-meta{display:none}.keyboard-helper{justify-content:flex-start}.keyboard-helper>div>span:last-child{display:none} }
+  @media(max-width:720px){ .device-scene{padding:12px}.operator-device{zoom:.86}.keyboard-helper{justify-content:flex-start}.keyboard-helper>div>span:last-child{display:none} }
 </style>
