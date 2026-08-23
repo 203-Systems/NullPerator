@@ -12,7 +12,7 @@
   let lastAction = -1
   let displayScale = settings?.snapshot?.().displayScale ?? 'fit'
   let detachSettings = () => {}
-  const scaleFor = (value) => value === 'fit' ? 1 : Number(value) || 1
+  const scaleFor = (value) => value === 'fit' ? 1.4 : Number(value) || 1
   const input = createInputStore({
     pressAction: (action) => runtime.input?.pressAction(action),
     releaseAction: (action) => runtime.input?.releaseAction(action),
@@ -82,12 +82,12 @@
   .device-input-host { display:flex; flex-direction:column; width:100%; height:100%; min-height:0; overflow:hidden; }
   .device-scene { position:relative; display:flex; flex:1; min-height:0; align-items:center; justify-content:center; overflow:auto; padding:24px; background:#0e0f12; }
   .operator-device { position:relative; width:320px; flex:0 0 auto; zoom:var(--device-scale,1); }
-  .operator-screen-housing { position:relative; padding:16px; border:1px solid #303239; border-radius:10px; background:#181a1f; }
-  .screen-bezel { position:relative; width:264px; height:264px; margin:auto; padding:12px; border:1px solid #353841; border-radius:5px; background:#050608; }
+  .operator-screen-housing { position:relative; padding:0; }
+  .screen-bezel { position:relative; width:264px; height:264px; margin:auto; padding:11px; border:1px solid #343841; background:#050608; }
   #picotracker-canvas { display:block; width:240px; height:240px; outline:0; background:#06070a; image-rendering:pixelated; image-rendering:crisp-edges; }
-  #picotracker-canvas:focus-visible { box-shadow:0 0 0 1px var(--accent),0 0 14px rgba(76,201,240,.25); }
+  #picotracker-canvas:focus-visible { box-shadow:0 0 0 1px var(--accent); }
   #canvas { display:none; }
-  .screen-glass { position:absolute; inset:12px; pointer-events:none; box-shadow:inset 0 0 12px rgba(0,0,0,.35); }
+  .screen-glass { position:absolute; inset:11px; pointer-events:none; }
   .keyboard-helper { display:flex; min-height:52px; align-items:center; justify-content:center; gap:24px; padding:7px 16px; border-top:1px solid var(--border); background:var(--panel); color:var(--muted); overflow:auto; flex-shrink:0; }
   .keyboard-helper>div { display:flex; align-items:center; gap:7px; white-space:nowrap; font-size:.7rem; }
   .key-cluster { display:flex; align-items:center; gap:3px; }
