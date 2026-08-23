@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { restartWorkbench, stopWorkbench } from './helpers/runtime.js'
 
 const text = new TextEncoder()
 
@@ -125,7 +126,7 @@ test('host-folder mirror mounts an OPFS test handle, synchronizes, and resolves 
   await expect.poll(() => readHostFile(page, 'browser-push.dat')).toEqual(Array.from(text.encode('pushed')))
 
   const ready = page.locator('[data-runtime-state="ready"]')
-  await page.getByRole('button', { name: 'Restart' }).click()
+  await restartWorkbench(page)
   await ready.waitFor({ state: 'hidden', timeout: 10_000 })
   await expect(ready).toBeVisible({ timeout: 20_000 })
   await page.getByRole('button', { name: 'Files', exact: true }).click()
@@ -180,6 +181,6 @@ test('host-folder mirror mounts an OPFS test handle, synchronizes, and resolves 
 
   await page.getByRole('button', { name: 'Unmount folder' }).click()
   await expect(page.locator('[data-host-folder-state="unmounted"]')).toBeVisible()
-  await page.getByRole('button', { name: 'Stop runtime' }).click()
+  await stopWorkbench(page)
   await expect(page.locator('[data-runtime-state="idle"]')).toBeVisible({ timeout: 10_000 })
 })

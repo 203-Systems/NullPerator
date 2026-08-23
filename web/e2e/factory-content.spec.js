@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 
 import { expect, test } from '@playwright/test'
 import { zipSync } from 'fflate'
+import { restartWorkbench, stopWorkbench } from './helpers/runtime.js'
 
 const factoryRoot = process.env.PICOTRACKER_FACTORY_CONTENT
 const workletMode = process.env.PICOTRACKER_AUDIO_E2E === '1'
@@ -95,7 +96,7 @@ async function deleteIdbfsDatabase(page) {
 
 async function restartRuntime(page) {
   const ready = page.locator('[data-runtime-state="ready"]')
-  await page.getByRole('button', { name: 'Restart' }).click()
+  await restartWorkbench(page)
   // Waiting only for "ready" can resolve against the old runtime before its
   // asynchronous shutdown begins. The hidden edge is the restart fence.
   await ready.waitFor({ state: 'hidden', timeout: 10_000 })
@@ -201,7 +202,7 @@ test('real oneCycAc project imports, trims, plays, and survives reload plus runt
   await page.getByRole('button', { name: 'Device', exact: true }).click()
   const audioDiagnostics = page.locator('.audio-diagnostics')
   if (workletMode) {
-    await page.getByRole('button', { name: /unlock audio/i }).click()
+    await page.getByRole('dialog', { name: 'Enable sound' }).getByRole('button', { name: 'Enable sound' }).click()
     await expect(page.locator('[data-audio-state="running"]')).toBeVisible({ timeout: 12_000 })
     await expect(audioDiagnostics).toHaveAttribute('data-audio-capability', 'available')
   } else {
@@ -376,6 +377,6 @@ test('real oneCycAc project imports, trims, plays, and survives reload plus runt
   await tap(page, 's')
   if (workletMode) await tap(page, 'c')
 
-  await page.getByRole('button', { name: 'Stop runtime' }).click()
+  await stopWorkbench(page)
   await expect(page.locator('[data-runtime-state="idle"]')).toBeVisible({ timeout: 10_000 })
 })

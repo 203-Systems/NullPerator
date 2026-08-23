@@ -5,6 +5,7 @@ import { createRuntime } from '../src/handles/runtime.js'
 import { createRuntimeManager } from '../src/stores/runtime.js'
 
 const createRuntimeWithoutMidi = (options) => createRuntime({
+  audioWorkletEnabled: false,
   ...options,
   midiBridgeFactory: null,
 })

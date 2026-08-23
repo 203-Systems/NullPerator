@@ -10,14 +10,14 @@ import {
 describe('versioned workbench settings', () => {
   it('drops legacy remappable key maps while retaining audio settings', () => {
     const migrated = migrateSettings({ version: 1, keyMap: { enter: { bindings: [['Enter']] } }, audioBufferFrames: 1024 })
-    expect(migrated).toMatchObject({ version: 2, audioBufferFrames: 1024 })
+    expect(migrated).toMatchObject({ version: 3, audioBufferFrames: 1024, lowLatencyAudio: true })
     expect(migrated).not.toHaveProperty('keyMap')
   })
 
   it('normalizes unsafe values while retaining explicit disabled trace and mute', () => {
     expect(migrateSettings({
       displayScale: '99', audioBufferFrames: 99999, outputVolume: -4,
-      traceMask: 0, lowLatencyAudio: 1,
+      version: 3, traceMask: 0, lowLatencyAudio: 1,
     })).toMatchObject({
       displayScale: 'fit', audioBufferFrames: 8192, outputVolume: 0,
       traceMask: 0, lowLatencyAudio: true,
@@ -36,7 +36,7 @@ describe('versioned workbench settings', () => {
     const updated = settings.update({ outputVolume: 42, displayScale: '2' })
     expect(() => { updated.outputVolume = 1 }).toThrow()
     expect(settings.snapshot()).toMatchObject({ outputVolume: 42, displayScale: '2' })
-    expect(JSON.parse(written.get(SETTINGS_STORAGE_KEY))).toMatchObject({ version: 2, outputVolume: 42 })
+    expect(JSON.parse(written.get(SETTINGS_STORAGE_KEY))).toMatchObject({ version: 3, outputVolume: 42 })
     settings.reset()
     expect(settings.snapshot()).toMatchObject({
       outputVolume: DEFAULT_SETTINGS.outputVolume,

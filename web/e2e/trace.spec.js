@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
+import { stopWorkbench } from './helpers/runtime.js'
 
 test('captures live native scopes, benchmarks deterministically, and exports Chrome Trace JSON', async ({ page }) => {
   await page.goto('/')
@@ -101,6 +102,6 @@ test('captures live native scopes, benchmarks deterministically, and exports Chr
     })
   }
 
-  await page.getByRole('button', { name: 'Stop runtime' }).click()
+  await stopWorkbench(page)
   await expect(page.locator('[data-runtime-state="idle"]')).toBeVisible({ timeout: 10_000 })
 })

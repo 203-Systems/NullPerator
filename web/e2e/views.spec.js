@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { stopWorkbench } from './helpers/runtime.js'
 
 test('every registered C++ view and modal enters, draws, and processes input on the application pthread', async ({ page }) => {
   test.setTimeout(90_000)
@@ -62,7 +63,7 @@ test('every registered C++ view and modal enters, draws, and processes input on 
   }
 
   await expect(page.locator('#picotracker-canvas')).toHaveAttribute('data-frame-content', 'rendered')
-  await page.getByRole('button', { name: 'Stop runtime' }).click()
+  await stopWorkbench(page)
   await expect(page.locator('[data-runtime-state="idle"]')).toBeVisible({ timeout: 10_000 })
   await expect.poll(() => page.evaluate(() => typeof globalThis.__picoTrackerViewsTest)).toBe('undefined')
 })

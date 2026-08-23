@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
+import { stopWorkbench } from './helpers/runtime.js'
 
 async function installMidiHarness(page, initialPermission = 'granted') {
   await page.addInitScript(({ permission }) => {
@@ -151,7 +152,7 @@ test('Web MIDI crosses the WASM input/output queues and survives stable-id recon
   await expect.poll(() => page.evaluate(() => globalThis.__midiTest.sends().length)).toBe(3)
   expect((await page.evaluate(() => globalThis.__midiTest.sends()))[2].bytes).toEqual([0x80, 64, 0])
 
-  await page.getByRole('button', { name: 'Stop runtime' }).click()
+  await stopWorkbench(page)
   await expect(page.locator('[data-runtime-state="idle"]')).toBeVisible({ timeout: 10_000 })
   await expect.poll(() => page.evaluate(() => typeof globalThis.__picoTrackerMidiTest)).toBe('undefined')
   await expect.poll(() => page.evaluate(() => globalThis.__midiTest.state())).toEqual({
@@ -236,6 +237,6 @@ test('Web MIDI trace correlates input processing and output browser drain', asyn
   expect(outputLatency.args.latencyUs).toBeGreaterThanOrEqual(0)
   expect(outputLatency.args.latencyUs).toBeLessThan(2_000_000)
 
-  await page.getByRole('button', { name: 'Stop runtime' }).click()
+  await stopWorkbench(page)
   await expect(page.locator('[data-runtime-state="idle"]')).toBeVisible({ timeout: 10_000 })
 })

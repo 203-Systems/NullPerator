@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { zipSync, strToU8 } from 'fflate'
+import { restartWorkbench, stopWorkbench } from './helpers/runtime.js'
 
 async function clearDisk(page) {
   await page.goto('/oracle.html')
@@ -69,11 +70,11 @@ test('Files panel uploads, drops, renames, downloads, exports, restores, and per
   await expect.poll(() => page.evaluate(() => globalThis.__picoTrackerStorageTest.read('/data/renamed (2).wav'))).toEqual(Array.from(strToU8('replacement')))
 
   const ready = page.locator('[data-runtime-state="ready"]')
-  await page.getByRole('button', { name: 'Restart' }).click()
+  await restartWorkbench(page)
   await ready.waitFor({ state: 'hidden', timeout: 10_000 })
   await expect(ready).toBeVisible({ timeout: 20_000 })
   await expect.poll(() => page.evaluate(() => globalThis.__picoTrackerStorageTest.read('/data/renamed (2).wav'))).toEqual(Array.from(strToU8('replacement')))
   await expect.poll(() => page.evaluate(() => globalThis.__picoTrackerStorageTest.read('/data/dropped.dat'))).toEqual([4, 5])
-  await page.getByRole('button', { name: 'Stop runtime' }).click()
+  await stopWorkbench(page)
   await expect(page.locator('[data-runtime-state="idle"]')).toBeVisible({ timeout: 10_000 })
 })

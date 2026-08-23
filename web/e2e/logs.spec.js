@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
+import { stopWorkbench } from './helpers/runtime.js'
 
 test('bounded Logs panel filters, pauses, resumes, clears, copies, and downloads JSONL', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'], {
@@ -97,7 +98,7 @@ test('bounded Logs panel filters, pauses, resumes, clears, copies, and downloads
   await expect(panel.getByText('No log records match the current filter.')).toBeVisible()
   await expect(panel.getByText('0 shown / 0 retained / 1000 capacity')).toBeVisible()
   await expect(panel.getByText('0 dropped')).toBeVisible()
-  await page.getByRole('button', { name: 'Stop runtime' }).click()
+  await stopWorkbench(page)
   await expect(page.locator('[data-runtime-state="idle"]')).toBeVisible({ timeout: 10_000 })
   await expect.poll(() => page.evaluate(() => typeof globalThis.__picoTrackerLogsTest)).toBe('undefined')
 })

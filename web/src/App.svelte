@@ -28,12 +28,13 @@
 
   async function restart(){ await runtimeStore.stop(); canvasGeneration+=1; await tick(); await runtimeStore.start() }
   async function stopRuntime(){ await runtimeStore.stop() }
-  function reloadAudioMode(enabled){ settingsStore.update({lowLatencyAudio:enabled}); const url=new URL(location.href); enabled?url.searchParams.set('audio','worklet'):url.searchParams.delete('audio'); location.assign(url) }
   async function applySettingsRestart(){ const enabled=settingsStore.snapshot().lowLatencyAudio; const url=new URL(location.href); const active=url.searchParams.get('audio')==='worklet'; if(active!==enabled){enabled?url.searchParams.set('audio','worklet'):url.searchParams.delete('audio');location.assign(url);return} await restart() }
   function selectSection(section){ activeSection=section }
   function toggleDock(tool){ openTools=toggleTool(openTools,tool) }
 
   onMount(()=>{
+    const workbenchHandle = Object.freeze({ restart, stop: stopRuntime })
+    globalThis.__picoTrackerWorkbench = workbenchHandle
     const unsubscribe=runtimeStore.subscribe((snapshot)=>{
       runtime=snapshot; detachAudio();detachMidi();detachStorage()
       if(snapshot.audio)detachAudio=snapshot.audio.subscribe((next)=>(audio=next));else audio={state:'unavailable',metrics:null,capability:null}
@@ -43,14 +44,14 @@
     })
     detachSettings=settingsStore.subscribe((next)=>{if(runtime.trace?.snapshot?.().state!=='capturing')runtime.trace?.setMask?.(next.traceMask)})
     runtimeStore.start().catch(()=>{})
-    return()=>{unsubscribe();detachAudio();detachMidi();detachStorage();detachSettings();runtimeStore.stop().catch(()=>{})}
+    return()=>{if(globalThis.__picoTrackerWorkbench===workbenchHandle)delete globalThis.__picoTrackerWorkbench;unsubscribe();detachAudio();detachMidi();detachStorage();detachSettings();runtimeStore.stop().catch(()=>{})}
   })
 </script>
 
 <svelte:head><title>Operator · PicoTracker Workbench</title><link rel="icon" href="data:,"/><meta name="description" content="PicoTracker WebAssembly development and performance workbench"/></svelte:head>
 
 <div class="dashboard">
-  <TopBar {runtime} {audio} {storage} {midi} onRestart={()=>restart().catch(()=>{})} onStop={()=>stopRuntime().catch(()=>{})} onAudioMode={reloadAudioMode}/>
+  <TopBar {runtime} {audio} {storage} {midi}/>
   <div class="dashboard-body">
     <LeftNav {sections} active={activeSection} onSelect={selectSection}/>
     <main class="workspace">
@@ -62,7 +63,7 @@
       {/if}
       <ErrorBoundary label={`${activeSection} panel`}>
         <section class="device-stage" aria-label="Operator simulator" hidden={activeSection!=='Device'}>
-          {#key canvasGeneration}<DevicePanel {runtime} settings={settingsStore}/>{/key}
+          {#key canvasGeneration}<DevicePanel {runtime} {audio} settings={settingsStore}/>{/key}
         </section>
         {#if activeSection==='Files'}<div class="page-panel"><FilesPanel files={runtime.files} storage={runtime.storage} hostFolder={runtime.hostFolder} disabled={runtime.state!=='ready'}/></div>
         {:else if activeSection==='MIDI'}<div class="page-panel"><MidiPanel midi={runtime.midi} disabled={runtime.state!=='ready'}/></div>

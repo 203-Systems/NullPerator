@@ -4,6 +4,7 @@
   import { createInputStore } from '../stores/input.js'
 
   export let runtime
+  export let audio = { state: 'unavailable', error: null }
   export let settings = null
 
   let panel
@@ -20,6 +21,7 @@
   })
 
   function focusCanvas() { panel?.querySelector('#picotracker-canvas')?.focus() }
+  function unlockAudio() { runtime.audio?.unlockAudio?.().catch(() => {}) }
   function isTrackerActive(event) {
     if (!panel || panel.getClientRects().length === 0) return false
     const active = document.activeElement
@@ -67,6 +69,16 @@
       </div>
       <VirtualControls {input} disabled={runtime.state !== 'ready'} />
     </div>
+    {#if audio.state === 'locked' || audio.state === 'suspended'}
+      <div class="audio-gate">
+        <div class="audio-unlock" role="dialog" aria-modal="true" aria-labelledby="audio-unlock-title">
+          <p class="eyebrow">Audio</p>
+          <h2 id="audio-unlock-title">Enable sound</h2>
+          <p>Your browser needs one click before PicoTracker can play audio.</p>
+          <button type="button" onclick={unlockAudio}>Enable sound</button>
+        </div>
+      </div>
+    {/if}
   </div>
 
   <footer class="keyboard-helper" aria-label="Keyboard shortcuts">
@@ -88,6 +100,12 @@
   #picotracker-canvas:focus-visible { box-shadow:0 0 0 1px var(--accent); }
   #canvas { display:none; }
   .screen-glass { position:absolute; inset:11px; pointer-events:none; }
+  .audio-gate { position:absolute; inset:0; z-index:4; display:grid; place-items:center; padding:16px; background:rgba(8,9,12,.48); }
+  .audio-unlock { width:min(300px,100%); padding:16px; border:1px solid #454a54; border-radius:8px; color:var(--text); background:rgba(18,20,25,.98); box-shadow:0 18px 50px rgba(0,0,0,.48); }
+  .audio-unlock .eyebrow { margin:0 0 5px; color:var(--accent); font:600 9px/1 var(--mono); letter-spacing:.14em; text-transform:uppercase; }
+  .audio-unlock h2 { margin:0; font-size:15px; }
+  .audio-unlock p:not(.eyebrow) { margin:7px 0 13px; color:var(--muted); font-size:11px; line-height:1.45; }
+  .audio-unlock button { width:100%; padding:8px 12px; border:1px solid rgba(76,201,240,.55); border-radius:5px; color:#071015; background:var(--accent); font-weight:700; cursor:pointer; }
   .keyboard-helper { display:flex; min-height:52px; align-items:center; justify-content:center; gap:24px; padding:7px 16px; border-top:1px solid var(--border); background:var(--panel); color:var(--muted); overflow:auto; flex-shrink:0; }
   .keyboard-helper>div { display:flex; align-items:center; gap:7px; white-space:nowrap; font-size:.7rem; }
   .key-cluster { display:flex; align-items:center; gap:3px; }

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { restartWorkbench } from './helpers/runtime.js'
 
 test('boots the C++ UI at 240x240 logical pixels', async ({ page }) => {
   page.on('console', (message) => console.log(`[browser:${message.type()}] ${message.text()}`))
@@ -9,6 +10,7 @@ test('boots the C++ UI at 240x240 logical pixels', async ({ page }) => {
   await expect(page.locator('#picotracker-canvas')).toHaveAttribute('height', '240')
   await expect(page.locator('#picotracker-canvas')).toHaveAttribute('data-frame-content', 'rendered')
   await page.waitForTimeout(250)
+  await page.locator('.audio-gate').evaluate((element) => { element.style.display = 'none' })
   await expect(page.locator('#picotracker-canvas')).toHaveScreenshot('device-boot.png')
 })
 
@@ -17,7 +19,7 @@ test('stops the application thread before restarting the tracker canvas', async 
   const ready = page.locator('[data-runtime-state="ready"]')
   await expect(ready).toBeVisible()
 
-  await page.getByRole('button', { name: 'Restart' }).click()
+  await restartWorkbench(page)
 
   // A ready-only assertion can resolve against the old runtime before the
   // queued restart has even entered Stop. Prove both lifecycle edges.

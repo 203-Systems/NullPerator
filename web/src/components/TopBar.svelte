@@ -3,10 +3,6 @@
   export let audio
   export let storage
   export let midi
-  export let onRestart = () => {}
-  export let onStop = () => {}
-  export let onAudioMode = () => {}
-
   const status = (value, fallback = 'unavailable') => value?.state ?? fallback
 </script>
 
@@ -30,15 +26,6 @@
     <span class="top-status audio" data-audio-state={audio.state} aria-label={`Audio ${audio.state}`} title={audio.error ?? undefined}>
       <span class="status-dot"></span><span>Audio {audio.state}</span>
     </span>
-    {#if audio.capability?.mode === 'disabled'}
-      <button type="button" aria-label="Enable low-latency audio (reload)" onclick={() => onAudioMode(true)}>Enable audio</button>
-    {:else if audio.state === 'failed'}
-      <button type="button" onclick={() => onAudioMode(false)}>Safe mode</button>
-    {:else if audio.state === 'locked' || audio.state === 'suspended'}
-      <button type="button" onclick={() => runtime.audio?.unlockAudio().catch(() => {})}>Unlock audio</button>
-    {/if}
-    <button type="button" onclick={onRestart}>Restart</button>
-    <button type="button" aria-label="Stop runtime" onclick={onStop}>Stop</button>
   </div>
 </header>
 
@@ -55,8 +42,6 @@
   [data-runtime-state='ready'] .status-dot,[data-storage-state='ready'] .status-dot,[data-midi-state='ready'] .status-dot,[data-audio-state='running'] .status-dot { background:#3dd68c; box-shadow:0 0 6px rgba(61,214,140,.5); }
   [data-storage-dirty='true'] .status-dot { background:#f7c266; box-shadow:0 0 6px rgba(247,194,102,.4); }
   [data-runtime-state='failed'] .status-dot,[data-storage-state='failed'] .status-dot,[data-midi-state='failed'] .status-dot,[data-midi-state='denied'] .status-dot,[data-audio-state='failed'] .status-dot { background:#ff6b6b; box-shadow:0 0 6px rgba(255,107,107,.5); }
-  button { min-height:26px; padding:3px 8px; border:1px solid var(--border); border-radius:4px; color:var(--muted); background:var(--bg-2); font-size:.72rem; cursor:pointer; }
-  button:hover { color:var(--text); border-color:rgba(76,201,240,.38); }
   @media(max-width:1000px){ .compact,.divider,.top-bar-title { display:none; } }
-  @media(max-width:720px){ .top-status:not(.audio),.top-bar-right button:last-child { display:none; } .top-bar { padding:0 10px; } }
+  @media(max-width:720px){ .top-status:not(.audio) { display:none; } .top-bar { padding:0 10px; } }
 </style>

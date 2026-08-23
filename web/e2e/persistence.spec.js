@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { restartWorkbench, stopWorkbench } from './helpers/runtime.js'
 
 const fixturePath = '/data/idbfs-e2e-synthetic.wav'
 const markerPath = '/data/idbfs-e2e-project-marker.dat'
@@ -46,7 +47,7 @@ test('IDBFS population, shutdown flush, restart, and reload retain a synthetic W
   expect(await readFixture(page, markerPath)).toEqual(markerBytes)
 
   const ready = page.locator('[data-runtime-state="ready"]')
-  await page.getByRole('button', { name: 'Restart' }).click()
+  await restartWorkbench(page)
   await ready.waitFor({ state: 'hidden', timeout: 10_000 })
   await expect(ready).toBeVisible({ timeout: 20_000 })
   expect(await readFixture(page)).toEqual(Array.from(fixtureBytes))
@@ -57,6 +58,6 @@ test('IDBFS population, shutdown flush, restart, and reload retain a synthetic W
   expect(await readFixture(page)).toEqual(Array.from(fixtureBytes))
   expect(await readFixture(page, markerPath)).toEqual(markerBytes)
 
-  await page.getByRole('button', { name: 'Stop runtime' }).click()
+  await stopWorkbench(page)
   await expect(page.locator('[data-runtime-state="idle"]')).toBeVisible({ timeout: 10_000 })
 })

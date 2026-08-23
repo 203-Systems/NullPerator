@@ -1,17 +1,18 @@
 import { expect, test } from '@playwright/test'
+import { stopWorkbench } from './helpers/runtime.js'
 
 const setupWatchdogTimeoutMs = 12_000
 const workletMode = process.env.PICOTRACKER_AUDIO_E2E === '1'
 
 async function loadLockedRuntime(page) {
-  await page.goto(workletMode ? '/?audio=worklet' : '/')
+  await page.goto('/')
   await expect(page.locator('.top-bar')).toBeVisible()
   await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible({ timeout: 20_000 })
   const diagnostics = page.locator('.audio-diagnostics')
   return diagnostics
 }
 
-test('audio mode is recoverable by default and proves real callbacks only when explicitly enabled', async ({ page }) => {
+test('AudioWorklet is the default and presents a user-facing sound gate', async ({ page }) => {
   test.setTimeout(45_000)
   const browserDiagnostics = []
   page.on('console', (message) => browserDiagnostics.push(`console ${message.type()}: ${message.text()}`))
@@ -31,19 +32,15 @@ test('audio mode is recoverable by default and proves real callbacks only when e
   }
   try {
     const capability = await diagnostics.getAttribute('data-audio-capability')
-    if (!workletMode) {
-      expect(capability).toBe('unavailable')
-      await expect(page.locator('[data-audio-state="failed"]')).toBeVisible({ timeout: setupWatchdogTimeoutMs })
-      await expect(page.locator('[data-audio-state="failed"]')).toHaveAttribute('title', /Audio disabled; enable low-latency audio and reload/)
-      await expect(page.getByRole('button', { name: /enable low-latency audio/i })).toBeVisible()
-      await expect(diagnostics).toHaveAttribute('data-audio-capability-reason', /Audio disabled/)
-      return
-    }
-
-    expect(page.url()).toContain('?audio=worklet')
     expect(capability).toBe('available')
     await expect(page.locator('[data-audio-state="locked"]')).toBeVisible()
-    await page.getByRole('button', { name: /unlock audio/i }).click()
+    const gate = page.getByRole('dialog', { name: 'Enable sound' })
+    await expect(gate).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Restart' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Stop runtime' })).toHaveCount(0)
+    if (!workletMode) return
+
+    await gate.getByRole('button', { name: 'Enable sound' }).click()
     try {
       await expect(page.locator('[data-audio-state="running"]')).toBeVisible({ timeout: setupWatchdogTimeoutMs })
     } catch (error) {
@@ -64,7 +61,7 @@ test('audio mode is recoverable by default and proves real callbacks only when e
     await expect(underruns).toHaveAttribute('data-audio-underruns', beforeUnderruns ?? '0')
     await expect(diagnostics).toHaveAttribute('data-audio-processing-deadline-misses', beforeProcessingMisses ?? '0')
   } finally {
-    await page.getByRole('button', { name: 'Stop runtime' }).click()
+    await stopWorkbench(page)
     await expect(page.locator('[data-runtime-state="idle"]')).toBeVisible({ timeout: 10_000 })
   }
 })

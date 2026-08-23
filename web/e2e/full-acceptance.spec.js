@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { stopWorkbench } from './helpers/runtime.js'
 
 const sections = [
   ['Device', 'PicoTracker Device'],
@@ -58,7 +59,7 @@ test('verified static bundle exposes the complete isolated workbench and persist
   await expect(canvas).toBeInViewport()
   expect(remoteRuntimeRequests).toEqual([])
 
-  await page.getByRole('button', { name: 'Stop runtime' }).click()
+  await stopWorkbench(page)
   await expect(page.locator('[data-runtime-state]')).toHaveAttribute(
     'data-runtime-state', 'idle', { timeout: 10_000 },
   )

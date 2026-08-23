@@ -1,8 +1,11 @@
 import { TRACE_ALL_MASK } from '../trace/registry.js'
 
-export const SETTINGS_VERSION = 2
-export const SETTINGS_STORAGE_KEY = 'picotracker.wasm.settings.v2'
-export const LEGACY_SETTINGS_STORAGE_KEY = 'picotracker.wasm.settings.v1'
+export const SETTINGS_VERSION = 3
+export const SETTINGS_STORAGE_KEY = 'picotracker.wasm.settings.v3'
+export const LEGACY_SETTINGS_STORAGE_KEYS = Object.freeze([
+  'picotracker.wasm.settings.v2',
+  'picotracker.wasm.settings.v1',
+])
 export const AUDIO_BUFFER_OPTIONS = Object.freeze([512, 1024, 2048, 4096, 8192])
 export const DISPLAY_SCALE_OPTIONS = Object.freeze(['fit', '1', '1.5', '2', '3', '4'])
 
@@ -15,7 +18,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   audioBufferFrames: 4096,
   outputVolume: 100,
   traceMask: TRACE_ALL_MASK,
-  lowLatencyAudio: false,
+  lowLatencyAudio: true,
 })
 
 export function migrateSettings(candidate) {
@@ -33,7 +36,9 @@ export function migrateSettings(candidate) {
     audioBufferFrames,
     outputVolume,
     traceMask,
-    lowLatencyAudio: Boolean(source.lowLatencyAudio),
+    lowLatencyAudio: source.version >= SETTINGS_VERSION
+      ? Boolean(source.lowLatencyAudio)
+      : DEFAULT_SETTINGS.lowLatencyAudio,
   }
 }
 
@@ -42,9 +47,9 @@ function cloneSettings(value) { return { ...value } }
 function load(storage) {
   let candidate = null
   try {
-    candidate = JSON.parse(storage?.getItem?.(SETTINGS_STORAGE_KEY)
-      ?? storage?.getItem?.(LEGACY_SETTINGS_STORAGE_KEY)
-      ?? 'null')
+    const stored = storage?.getItem?.(SETTINGS_STORAGE_KEY)
+      ?? LEGACY_SETTINGS_STORAGE_KEYS.map((key) => storage?.getItem?.(key)).find((value) => value !== null)
+    candidate = JSON.parse(stored ?? 'null')
   } catch { /* use defaults */ }
   return migrateSettings(candidate)
 }
