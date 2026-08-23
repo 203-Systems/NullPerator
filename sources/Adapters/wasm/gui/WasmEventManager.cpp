@@ -9,14 +9,50 @@
 #include "Adapters/wasm/audio/WasmAudioDriver.h"
 #include "Adapters/wasm/filesystem/WasmStorageBridge.h"
 #include "Adapters/wasm/input/InputMap.h"
+#include "Adapters/wasm/platform/WasmApplicationSnapshot.h"
 #include "Adapters/wasm/platform/wasm_bridge.h"
 #include "Adapters/wasm/system/WasmSystem.h"
 #include "Application/Application.h"
+#include "Application/AppWindow.h"
+#include "Application/Instruments/SamplePool.h"
+#include "Application/Model/Project.h"
+#include "Application/Persistency/PersistenceConstants.h"
+#include "Application/Player/Player.h"
 #include "System/System/System.h"
 #include "UIFramework/SimpleBaseClasses/GUIWindow.h"
 
 #include <SDL.h>
 #include <emscripten/emscripten.h>
+
+namespace {
+void PublishApplicationSnapshot(AppWindow &window) noexcept {
+  Project &project = window.ProjectForDiagnostics();
+  char projectName[MAX_PROJECT_NAME_LENGTH + 1U]{};
+  project.GetProjectName(projectName);
+
+  std::uint32_t sampleCount = 0U;
+  if (auto *pool = SamplePool::GetInstance()) {
+    const int loaded = pool->GetNameListSize();
+    if (loaded > 0) {
+      sampleCount = static_cast<std::uint32_t>(loaded);
+    }
+  }
+
+  bool playerRunning = false;
+  std::uint32_t masterLevel = 0U;
+  if (window.PlayerInitializedForDiagnostics()) {
+    Player *player = Player::GetInstance();
+    playerRunning = player->IsRunning();
+    if (playerRunning) {
+      masterLevel = player->GetMasterLevel();
+    }
+  }
+
+  Wasm_ApplicationSnapshot().Publish(
+      projectName, static_cast<std::uint32_t>(project.GetTempo()), sampleCount,
+      playerRunning, masterLevel);
+}
+} // namespace
 
 bool WasmEventManager::Init() {
   if (!EventManager::Init()) {
@@ -86,6 +122,7 @@ void WasmEventManager::PumpFrame() {
     // seqlock. Browser-main setup/teardown and the realtime callback publish
     // source atomics only, so there can be no competing writer.
     WasmAudio::PublishSnapshot();
+    PublishApplicationSnapshot(*static_cast<AppWindow *>(window));
     WasmStorage_FlushMutationNotifications();
     PicoTracker_Wasm_MarkReady();
     booting_ = false;
@@ -151,6 +188,7 @@ void WasmEventManager::PumpFrame() {
     window->ClockTick();
     nextTick_ = now + PICO_CLOCK_INTERVAL;
   }
+  PublishApplicationSnapshot(*static_cast<AppWindow *>(window));
   // DispatchEvent may perform a multi-step atomic file replacement. Only let
   // browser-main start IDBFS after the whole event batch has returned.
   WasmStorage_FlushMutationNotifications();

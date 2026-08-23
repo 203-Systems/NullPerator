@@ -65,6 +65,11 @@ public:
   void UpdateColorsFromConfig();
   void SetSdCardPresent(bool present);
 
+#if defined(__EMSCRIPTEN__)
+  Project &ProjectForDiagnostics() { return project_; }
+  bool PlayerInitializedForDiagnostics() const { return playerInitialized_; }
+#endif
+
   char projectName_[MAX_PROJECT_NAME_LENGTH + 1];
 
 protected: // GUIWindow implementation

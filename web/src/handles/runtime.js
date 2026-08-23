@@ -98,9 +98,14 @@ export async function createRuntime(options = {}) {
         if (!pointer || !this.HEAPU32) return null
         return Array.from(this.HEAPU32.slice(pointer >>> 2, (pointer >>> 2) + count))
       }
-      const descriptorWords = copyWords(this._PicoTracker_Wasm_GetBrowserSnapshots?.() ?? 0, 7)
-      if (descriptorWords && (descriptorWords[0] !== 1 || descriptorWords[1] !== 28)) {
-        throw new Error('WASM browser snapshot descriptor is incompatible')
+      const descriptorPointer = this._PicoTracker_Wasm_GetBrowserSnapshots?.() ?? 0
+      const descriptorHeader = copyWords(descriptorPointer, 2)
+      let descriptorWords = null
+      if (descriptorHeader) {
+        const [version, byteSize] = descriptorHeader
+        if (version === 1 && byteSize === 28) descriptorWords = copyWords(descriptorPointer, 7)
+        else if (version === 2 && byteSize === 32) descriptorWords = copyWords(descriptorPointer, 8)
+        else throw new Error('WASM browser snapshot descriptor is incompatible')
       }
       // Cache every browser-readable audio ABI address/value before
       // PROXY_TO_PTHREAD begins C main. Runtime UI polling must never call a
@@ -117,6 +122,9 @@ export async function createRuntime(options = {}) {
       this.__picoTrackerFrameSnapshot = {
         data: descriptorWords?.[2] ?? 0,
         sequence: descriptorWords?.[3] ?? 0,
+      }
+      this.__picoTrackerApplicationSnapshot = {
+        data: descriptorWords?.[7] ?? 0,
       }
       // C++ mutation notifications are marshalled to browser main by the
       // adapter. They only schedule serialized IDBFS syncs and never block

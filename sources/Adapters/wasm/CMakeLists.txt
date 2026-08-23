@@ -31,6 +31,10 @@ add_library(platform_filesystem
   filesystem/WasmStorageBridge.cpp)
 target_include_directories(platform_filesystem PUBLIC "${PROJECT_SOURCE_DIR}")
 
+add_library(platform_snapshot
+  platform/WasmApplicationSnapshot.cpp)
+target_include_directories(platform_snapshot PUBLIC "${PROJECT_SOURCE_DIR}")
+
 add_library(platform_audio
   audio/AudioRenderOracle.cpp
   audio/AudioWorklet.cpp
@@ -39,6 +43,7 @@ add_library(platform_audio
   audio/WasmAudio.cpp
   audio/WasmAudioDriver.cpp)
 target_include_directories(platform_audio PUBLIC "${PROJECT_SOURCE_DIR}")
+target_link_libraries(platform_audio PUBLIC platform_snapshot)
 
 add_library(platform_midi midi/WasmDisconnectedMidi.cpp)
 target_include_directories(platform_midi PUBLIC "${PROJECT_SOURCE_DIR}")
@@ -66,6 +71,7 @@ add_library(platform_display
   gui/WasmGUIWindowImp.cpp)
 target_include_directories(platform_display PUBLIC "${PROJECT_SOURCE_DIR}")
 target_compile_options(platform_display PRIVATE --use-port=sdl2)
+target_link_libraries(platform_display PUBLIC platform_snapshot)
 
 add_subdirectory("${PROJECT_SOURCE_DIR}/System"
                  "${CMAKE_CURRENT_BINARY_DIR}/core/System")

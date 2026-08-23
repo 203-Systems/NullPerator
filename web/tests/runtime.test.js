@@ -282,7 +282,7 @@ describe('WASM runtime lifecycle', () => {
       _PicoTracker_Wasm_MarkAudioUnavailable: () => calls.push('unavailable'),
       _PicoTracker_Wasm_GetBrowserSnapshots: () => {
         calls.push('snapshot-descriptor')
-        words.set([1, 28, 0, 0, 0, 0, 0], 2)
+        words.set([2, 32, 0, 0, 0, 0, 0, 96], 2)
         return 8
       },
       _PicoTracker_Wasm_GetState: () => 1,
@@ -302,7 +302,7 @@ describe('WASM runtime lifecycle', () => {
     })
 
     expect(calls).toEqual(['snapshot-descriptor', 'unavailable'])
-    expect(calls).toEqual(['snapshot-descriptor', 'unavailable'])
+    expect(runtime.module.__picoTrackerApplicationSnapshot).toEqual({ data: 96 })
   })
 
   it('passes the tracker canvas to Emscripten', async () => {

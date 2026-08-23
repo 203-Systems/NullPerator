@@ -7,6 +7,7 @@
 #include "AudioWorklet.h"
 #include "WasmAudioBridge.h"
 #include "WasmAudioDriver.h"
+#include "Adapters/wasm/platform/WasmApplicationSnapshot.h"
 #include "Adapters/wasm/platform/WasmBrowserSnapshots.h"
 #include "Adapters/picoTracker/audio/record.h"
 #include "Services/Audio/AudioOutDriver.h"
@@ -82,6 +83,8 @@ __attribute__((constructor)) void InitializeBrowserSnapshots() {
   // pthread runtime is wiring up. The browser-facing runtime treats it as an
   // optional offline diagnostic; host coverage exercises it directly.
   browserSnapshots.audioOracles = 0U;
+  browserSnapshots.application = static_cast<std::uint32_t>(
+      reinterpret_cast<std::uintptr_t>(Wasm_ApplicationSnapshotAddress()));
 }
 
 WasmAudio::WasmAudio(AudioSettings &settings) : Audio(settings) {
