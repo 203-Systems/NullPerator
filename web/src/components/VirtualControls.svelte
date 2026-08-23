@@ -77,7 +77,7 @@
 </div>
 
 <style>
-  .operator-controls { position:relative; width:100%; height:206px; margin-top:18px; overflow:visible; touch-action:none; user-select:none; }
+  .operator-controls { position:relative; width:100%; height:220px; margin-top:12px; overflow:visible; touch-action:none; user-select:none; }
   .operator-controls::before { content:'+'; position:absolute; left:50%; top:0; display:grid; width:22px; height:12px; translate:-50% 0; place-items:center; border:1px solid #343841; color:#747983; font:8px/1 var(--mono); pointer-events:none; }
   button { position:absolute; width:48px; height:48px; padding:0; border:1px solid #3a3e47; border-radius:7px; color:#aeb2b7; background:#111318; cursor:pointer; touch-action:none; }
   button:hover:not(:disabled) { border-color:#626975; background:#17191e; }
@@ -91,11 +91,12 @@
   em { position:absolute; left:50%; bottom:8px; translate:-50% 0; color:#777c86; font:500 7px/1 var(--mono); letter-spacing:.07em; font-style:normal; }
   .d-pad .switch,.d-pad kbd,.face kbd,.face em { rotate:-45deg; }
   .face .switch { display:none; }
-  .d-pad { position:absolute; left:23px; top:38px; width:142px; height:126px; }
+  .d-pad { position:absolute; left:23px; top:32px; width:142px; height:126px; }
   .d-pad .up{left:47px;top:0}.d-pad .left{left:8px;top:39px}.d-pad .down{left:47px;top:78px}.d-pad .right{left:86px;top:39px}
-  .face-buttons { position:absolute; right:12px; top:45px; width:126px; height:126px; }
+  .face-buttons { position:absolute; right:12px; top:40px; width:126px; height:126px; }
   .face.enter{left:67px;top:0}.face.edit{left:28px;top:39px}
   .bottom-buttons { position:absolute; left:107px; bottom:0; width:106px; height:48px; }
+  .bottom-buttons .switch { display:none; }
   .bottom-buttons button:active { transform:translateY(1px); background:#0d0f12; }
   .bottom-buttons button:first-child{left:0}.bottom-buttons button:last-child{right:0}
 </style>

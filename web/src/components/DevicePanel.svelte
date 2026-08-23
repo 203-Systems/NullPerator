@@ -80,7 +80,7 @@
 
 <style>
   .device-input-host { display:flex; flex-direction:column; width:100%; height:100%; min-height:0; overflow:hidden; }
-  .device-scene { position:relative; display:flex; flex:1; min-height:0; align-items:center; justify-content:center; overflow:auto; padding:24px; background:#0e0f12; }
+  .device-scene { position:relative; display:flex; flex:1; min-height:0; align-items:safe center; justify-content:safe center; overflow:auto; padding:24px; background:#0e0f12; }
   .operator-device { position:relative; width:320px; flex:0 0 auto; zoom:var(--device-scale,1); }
   .operator-screen-housing { position:relative; padding:0; }
   .screen-bezel { position:relative; width:264px; height:264px; margin:auto; padding:11px; border:1px solid #343841; background:#050608; }
