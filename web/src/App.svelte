@@ -112,7 +112,7 @@
           {/key}
       </section>
       {#if activeSection === 'Files'}
-        <FilesPanel files={runtime.files} storage={runtime.storage} disabled={runtime.state !== 'ready'} />
+        <FilesPanel files={runtime.files} storage={runtime.storage} hostFolder={runtime.hostFolder} disabled={runtime.state !== 'ready'} />
       {:else if activeSection !== 'Device'}
         <section class="tool-placeholder" aria-live="polite">
           <p class="eyebrow">Workbench</p>

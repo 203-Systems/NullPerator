@@ -2,6 +2,7 @@ import { createInputBridge } from './input.js'
 import { createAudioBridge } from './audio.js'
 import { createFilesHandle } from './files.js'
 import { normalizePersistentPath } from './filesystem.js'
+import { createHostFolderManager } from '../storage/hostFolder.js'
 import { createStorageCoordinator, persistentFsPreRun } from '../stores/storage.js'
 
 const defaultModuleUrl = '/wasm/picotracker.js'
@@ -118,6 +119,11 @@ export async function createRuntime(options = {}) {
     storageTestHandle = createStorageAcceptanceHandle(module, storage)
     globalThis.__picoTrackerStorageTest = storageTestHandle
   }
+  const files = module.FS ? createFilesHandle(module, storage) : null
+  const hostFolder = files ? createHostFolderManager({ browser: files.createHostSyncEndpoint() }) : null
+  // Restoration only queries the persisted handle; it never requests browser
+  // permission during automatic startup.
+  void hostFolder?.restoreHostFolderHandle().catch(() => {})
 
   async function waitForShutdown() {
     const deadline = Date.now() + (options.shutdownTimeoutMs ?? 5_000)
@@ -135,7 +141,8 @@ export async function createRuntime(options = {}) {
   return {
     module,
     storage,
-    files: module.FS ? createFilesHandle(module, storage) : null,
+    files,
+    hostFolder,
     input: createInputBridge(module),
     audio: createAudioBridge(module, audioCapability),
     getBuildMetadataJson() {

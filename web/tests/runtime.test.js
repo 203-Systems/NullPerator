@@ -29,6 +29,32 @@ describe('WASM runtime lifecycle', () => {
     expect(runtime.getSnapshot().state).toBe('idle')
   })
 
+  it('waits for an active host-folder mirror before stopping C++ or flushing IDBFS', async () => {
+    const order = []
+    let state = 1
+    let release
+    const runtime = createRuntimeManager({
+      crossOriginIsolated: true,
+      createModule: async () => ({
+        getState: () => state,
+        getBuildMetadataJson: () => '{}',
+        hostFolder: { waitForIdle: () => new Promise((resolve) => { release = () => { order.push('host-idle'); resolve() } }) },
+        storage: { flushNow: async () => order.push('flush') },
+        requestShutdown: async () => { state = 4; order.push('shutdown') },
+        terminate: async () => order.push('terminate'),
+      }),
+    })
+
+    await runtime.start()
+    const stopping = runtime.stop()
+    await Promise.resolve()
+    expect(order).toEqual([])
+    release()
+    await stopping
+
+    expect(order).toEqual(['host-idle', 'shutdown', 'flush', 'terminate'])
+  })
+
   it('surfaces a failed shutdown flush instead of reporting an idle runtime', async () => {
     let flushes = 0
     let state = 1
