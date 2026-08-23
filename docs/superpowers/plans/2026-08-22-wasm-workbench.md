@@ -363,7 +363,8 @@ Expected: FAIL because `createInputStore` does not exist.
 
 - [ ] **Step 3: Implement unified action state and controls**
 
-Restore legacy desktop defaults, support remapping, chords, multi-touch, and
+Use the fixed Node WASD/JK/XC layout, including C's 500 ms START tap/hold
+Play/Nav behavior; support chords, multi-touch, and
 pointer capture. Ignore DOM `KeyboardEvent.repeat`. Release all actions on
 blur, visibility change, pointer cancel, restart, and component destruction.
 
@@ -478,7 +479,10 @@ Expected: FAIL because the audio store and worklet do not exist.
 
 Start the worklet through Emscripten's Wasm Audio Worklets API. Its callback
 reads the shared PCM ring, resamples when required, emits silence on underflow,
-and updates atomic metrics only.
+and instruments processing with only a monotonic clock and fixed lock-free
+atomics. Metrics expose producer render duration, callback current/max duration,
+the actual quantum deadline, and processing-deadline misses; trace records are
+published later from the application snapshot boundary.
 
 - [ ] **Step 4: Verify audio unit, offline, and timed playback tests**
 

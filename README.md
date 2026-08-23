@@ -44,6 +44,14 @@ Head over to the [Picotracker Portable Build Guide](docs/BUILD-portable.md)
 
 Head over to the [Build Guide for the original prototype](docs/BUILD.md)
 
+### Experimental WebAssembly workbench
+
+The static WASM workbench runs the complete C++ PicoTracker UI in a browser and
+provides persistent files, optional host-folder synchronization, Web MIDI,
+logs, and performance tracing. Start with the [WASM build guide](docs/wasm/BUILD.md),
+then read the [deployment](docs/wasm/DEPLOY.md), [storage](docs/wasm/STORAGE.md),
+[tracing](docs/wasm/TRACING.md), and [acceptance](docs/wasm/TESTING.md) guides.
+
 ## Remixes
 
 * @ijnekenamay has created a [custom PCB](https://github.com/ijnekenamay/picotracker_alt-pcb/) for the project using mostly off the shelf components

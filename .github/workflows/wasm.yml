@@ -1,0 +1,139 @@
+name: WASM workbench
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/wasm.yml'
+      - 'cmake/wasm/**'
+      - 'docs/wasm/**'
+      - 'sources/**'
+      - 'tests/**'
+      - 'tools/build-wasm.sh'
+      - 'web/**'
+  pull_request:
+    paths:
+      - '.github/workflows/wasm.yml'
+      - 'cmake/wasm/**'
+      - 'docs/wasm/**'
+      - 'sources/**'
+      - 'tests/**'
+      - 'tools/build-wasm.sh'
+      - 'web/**'
+
+permissions:
+  contents: read
+
+env:
+  EMSDK_VERSION: '6.0.5'
+  NODE_VERSION: '24.19.0'
+  PNPM_VERSION: '11.19.0'
+  CMAKE_BUILD_PARALLEL_LEVEL: '1'
+
+jobs:
+  wasm:
+    name: Host tests and static WASM acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository and submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure host adapter tests
+        run: cmake -S tests -B build-host -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build host adapter tests serially
+        run: cmake --build build-host --parallel 1
+
+      - name: Run host adapter tests
+        run: ./build-host/picoTracker_tests
+
+      - name: Install pinned Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Activate pinned pnpm
+        run: |
+          corepack enable
+          corepack prepare "pnpm@${PNPM_VERSION}" --activate
+
+      - name: Install pinned Emscripten SDK
+        run: |
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
+          "$RUNNER_TEMP/emsdk/emsdk" install "$EMSDK_VERSION"
+          "$RUNNER_TEMP/emsdk/emsdk" activate "$EMSDK_VERSION"
+
+      - name: Build release WebAssembly serially
+        run: |
+          source "$RUNNER_TEMP/emsdk/emsdk_env.sh"
+          tools/build-wasm.sh Release
+
+      - name: Install workbench dependencies
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+
+      - name: Run browser unit tests serially
+        working-directory: web
+        run: pnpm exec vitest run --pool=forks --maxWorkers=1 --fileParallelism=false
+
+      - name: Install Chrome for Playwright
+        working-directory: web
+        run: pnpm exec playwright install --with-deps chrome
+
+      - name: Run browser acceptance serially
+        working-directory: web
+        run: pnpm exec playwright test --workers=1
+
+      - name: Build and verify static distribution
+        working-directory: web
+        run: |
+          pnpm build
+          pnpm verify:dist
+
+      - name: Upload static workbench
+        uses: actions/upload-artifact@v4
+        with:
+          name: picotracker-wasm-dist
+          path: web/dist
+          if-no-files-found: error
+
+      - name: Upload Playwright results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: picotracker-wasm-playwright-results
+          path: |
+            web/playwright-report
+            web/test-results
+          if-no-files-found: ignore
+
+  pico-regression:
+    name: Pico ST7789 compile regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository and submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Arm GNU Toolchain
+        uses: carlosperate/arm-none-eabi-gcc-action@v1
+        id: arm-toolchain
+        with:
+          release: 13.2.Rel1
+
+      - name: Configure Pico target
+        env:
+          PICO_SDK_PATH: ${{ github.workspace }}/sources/Externals/pico-sdk
+          PICO_TOOLCHAIN_PATH: ${{ steps.arm-toolchain.outputs.path }}
+        run: cmake -S sources -B build-pico-ci -DCMAKE_BUILD_TYPE=Release -DUSE_LCD=LCD_ST7789
+
+      - name: Apply existing Pico SDK mbedtls compatibility workaround
+        run: cmake -E remove_directory sources/Externals/pico-sdk/lib/mbedtls
+
+      - name: Build Pico target serially
+        run: cmake --build build-pico-ci --parallel 1

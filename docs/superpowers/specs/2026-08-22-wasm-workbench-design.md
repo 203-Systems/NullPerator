@@ -171,9 +171,10 @@ captured deterministically for regression tests.
 A single Svelte input store owns keyboard, pointer, touch, and virtual-button
 state. Events cross one WASM bridge into the platform event manager.
 
-- Restore the legacy SDL key map as the default desktop layout.
+- Use the Node device layout: WASD directions, J/K Enter/Edit, X for Alt, and
+  C as START (tap under 500 ms emits Play; hold or chord behaves as Nav).
 - Expose every PicoTracker action through keyboard and virtual controls.
-- Allow remapping and persist the map in browser settings.
+- Keep the Node key map fixed; do not expose or persist user remapping.
 - Support chords and multi-touch presses.
 - Do not forward browser key-repeat events; use PicoTracker's own repeat logic.
 - Release all inputs on blur, page hide, pointer cancel, runtime restart, and
@@ -192,7 +193,9 @@ shared WASM memory.
 
 A dedicated WASM AudioWorklet pulls 128-frame blocks and writes float output to
 Web Audio. The real-time callback cannot allocate, log, lock, access the
-filesystem, or wait on the application thread.
+filesystem, perform I/O, or wait on the application thread. Callback timing
+uses only a monotonic clock and fixed lock-free atomics; trace publication stays
+on the application snapshot boundary.
 
 The workbench requests a 44.1 kHz AudioContext. If the actual context uses a
 different rate, the adapter resamples only at the platform boundary so core
@@ -201,8 +204,12 @@ preserve pitch and playback duration and be covered by deterministic tests.
 
 Audio startup requires a user gesture. The UI exposes locked, starting,
 running, suspended, and failed states. It also exposes buffer fill, callback
-duration, render duration, underrun, overrun, and deadline-miss counters. Buffer
-size is configurable within safe bounds and persisted in settings.
+current/maximum duration, processing deadline, producer render duration,
+underrun, overrun, and processing-deadline-miss counters. The producer duration
+covers synchronous mixer render through the PCM ring write. A callback miss
+means its unquantized processing duration exceeded the actual quantum-frame /
+destination-rate budget; it is not callback arrival jitter. Buffer size is
+configurable within safe bounds and persisted in settings.
 
 ## Persistent virtual disk
 
@@ -260,6 +267,12 @@ through the selected `MIDIOutput`, preserving timestamps for clock-sensitive
 messages. Disconnects stop the affected path, release queued state, and show a
 recoverable status without stopping PicoTracker.
 
+Tracing correlates each accepted browser input batch with the first byte
+actually processed by `MidiInDevice`, and each accepted output packet with the
+browser-main drain that precedes `MIDIOutput.send`. The latter measures queue
+handoff only: a future scheduled send timestamp remains semantically separate
+and is never counted as output latency.
+
 The general Log panel records MIDI initialization and errors. There is no
 separate MIDI logging product and no HID or Serial bridge.
 
@@ -285,7 +298,8 @@ Initial categories are:
 - player and mixer render;
 - instrument render;
 - audio producer and AudioWorklet callback;
-- ring-buffer fill, underrun, overrun, and deadline miss;
+- ring-buffer fill, underrun, overrun, callback duration/deadline, and
+  processing-deadline miss;
 - filesystem reads, writes, imports, and synchronization;
 - MIDI input/output latency.
 
@@ -307,7 +321,7 @@ sections:
 - **MIDI**: permission, device selectors, connection state and test action;
 - **Logs**: runtime log viewer;
 - **Trace**: capture, metrics, hotspots and export;
-- **Settings**: display scale, key map, audio buffering, volume and trace level;
+- **Settings**: display scale, audio buffering, volume and trace level;
 - **About**: commit, build time, Emscripten version and licenses.
 
 The top bar shows runtime, audio, storage and MIDI status plus restart. HID and

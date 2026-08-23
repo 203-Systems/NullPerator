@@ -2,12 +2,16 @@ build**
 !tools/build-wasm.sh
 !web/src/buildMetadata.js
 !web/tests/buildMetadata.test.js
+!docs/wasm/BUILD.md
 ref/**
 doxygen/html/**
 projects/buildOSX/**
 projects/lgpt
 lgpt.log
 .*
+!.github/
+!.github/workflows/
+!.github/workflows/wasm.yml
 
 # OSX
 ## General
