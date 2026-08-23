@@ -15,6 +15,7 @@ function createMemoryFs() {
   let failSecondUnlink = false
   let unlinkCalls = 0
   let failRollbackWrite = false
+  let statCalls = 0
   const parent = (path) => path.slice(0, path.lastIndexOf('/')) || '/'
   const ensureParent = (path) => {
     if (!directories.has(parent(path))) throw new Error(`missing parent ${parent(path)}`)
@@ -27,10 +28,12 @@ function createMemoryFs() {
     files,
     sizes,
     reads,
+    get statCalls() { return statCalls },
     FS: {
       isDir: (mode) => mode === 0o040000,
       readdir,
       stat(path) {
+        statCalls += 1
         if (directories.has(path)) return { mode: 0o040000, size: 0 }
         if (files.has(path)) return { mode: 0o100000, size: sizes.get(path) ?? files.get(path).length }
         throw new Error('ENOENT')
@@ -38,6 +41,28 @@ function createMemoryFs() {
       mkdir(path) { ensureParent(path); if (failMkdir && path.endsWith('/bad')) throw new Error('simulated mkdir failure'); directories.add(path) },
       writeFile(path, bytes) { ensureParent(path); if ((failWrites && path.endsWith('/second.dat')) || (failRollbackWrite && path.endsWith('/one.dat'))) throw new Error('simulated write failure'); files.set(path, new Uint8Array(bytes)); sizes.delete(path) },
       readFile(path) { if (!files.has(path)) throw new Error('ENOENT'); reads.push(path); return files.get(path) },
+      open(path, flags) {
+        ensureParent(path)
+        if (flags === 'w') files.set(path, new Uint8Array())
+        if (!files.has(path)) throw new Error('ENOENT')
+        return { path }
+      },
+      read(descriptor, buffer, offset, length, position) {
+        const source = files.get(descriptor.path)
+        const count = Math.min(length, Math.max(0, source.byteLength - position))
+        buffer.set(source.subarray(position, position + count), offset)
+        return count
+      },
+      write(descriptor, buffer, offset, length, position) {
+        if (failWrites && descriptor.path.endsWith('/second.dat')) throw new Error('simulated write failure')
+        const current = files.get(descriptor.path) ?? new Uint8Array()
+        const next = new Uint8Array(Math.max(current.byteLength, position + length))
+        next.set(current)
+        next.set(buffer.subarray(offset, offset + length), position)
+        files.set(descriptor.path, next)
+        return length
+      },
+      close() {},
       rename(from, to) {
         ensureParent(to)
         if (failRename) throw new Error('simulated rename failure')
@@ -250,5 +275,48 @@ describe('virtual disk file handle', () => {
     expect(new TextDecoder().decode(memory.files.get('/data/projects/demo.dat'))).toBe('new')
     await handle.restoreZip(archive, 'keep-both')
     expect(new TextDecoder().decode(memory.files.get('/data/projects/demo (2).dat'))).toBe('new')
+  })
+
+  it('bounds the iterative browser mirror walk before inspecting entry 16,385', async () => {
+    const memory = createMemoryFs()
+    for (let index = 0; index < 16_385; index += 1) memory.directories.add(`/data/d${String(index).padStart(5, '0')}`)
+    const endpoint = createFilesHandle(memory, {}).createHostSyncEndpoint()
+
+    await expect(endpoint.manifest()).rejects.toThrow(/entry limit/i)
+    expect(memory.statCalls).toBe(16_384)
+  })
+
+  it('rolls back every affected browser path when a host-folder apply fails midway', async () => {
+    const memory = createMemoryFs()
+    memory.files.set('/data/one.dat', strToU8('old-one'))
+    memory.files.set('/data/second.dat', strToU8('old-two'))
+    const storage = { runMutation: async (_reason, work) => work(), failClosed: vi.fn() }
+    const endpoint = createFilesHandle(memory, storage).createHostSyncEndpoint()
+    const source = {
+      async copyFile(path, sink) {
+        if (path === 'second.dat') throw new Error('source disappeared')
+        await sink.write(strToU8(path === 'one.dat' ? 'new-one' : 'new-two'))
+      },
+    }
+
+    await expect(endpoint.apply([
+      { type: 'write', path: 'one.dat', source: { path: 'one.dat', kind: 'file', size: 7, hash: 'one' } },
+      { type: 'write', path: 'second.dat', source: { path: 'second.dat', kind: 'file', size: 7, hash: 'two' } },
+    ], source)).rejects.toThrow('source disappeared')
+
+    expect(new TextDecoder().decode(memory.files.get('/data/one.dat'))).toBe('old-one')
+    expect(new TextDecoder().decode(memory.files.get('/data/second.dat'))).toBe('old-two')
+    expect(storage.failClosed).not.toHaveBeenCalled()
+  })
+
+  it('removes parent directories created by a failed browser mirror apply', async () => {
+    const memory = createMemoryFs()
+    const endpoint = createFilesHandle(memory, { runMutation: async (_reason, work) => work() }).createHostSyncEndpoint()
+
+    await expect(endpoint.apply([
+      { type: 'write', path: 'new/nested.dat', source: { path: 'new/nested.dat', kind: 'file', size: 1, hash: 'x' } },
+    ], { copyFile: async () => { throw new Error('source failed') } })).rejects.toThrow('source failed')
+
+    expect(memory.directories.has('/data/new')).toBe(false)
   })
 })

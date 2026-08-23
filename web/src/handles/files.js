@@ -1,5 +1,6 @@
 import { normalizePersistentPath } from './filesystem.js'
 import { createDiskZip, planZipRestore, previewZipRestore, ZIP_LIMITS } from '../storage/zip.js'
+import { createIncrementalHasher, createManifest, SYNC_LIMITS, validateHostRelativePath } from '../storage/syncManifest.js'
 
 const dataRoot = '/data'
 const nameOf = (path) => path.slice(path.lastIndexOf('/') + 1)
@@ -115,6 +116,131 @@ export function createFilesHandle(module, storage, options = {}) {
     }
     return entries.map((entry) => entry.kind === 'file' ? { ...entry, bytes: new Uint8Array(FS.readFile(entry.path)) } : entry)
   }
+  const mirrorPath = (relative) => pathFor(`${dataRoot}/${validateHostRelativePath(relative)}`)
+  const scanMirror = async (onProgress) => {
+    let total = 0
+    const manifestEntries = []
+    let hashedBytes = 0
+    const pending = [dataRoot]
+    while (pending.length) {
+      const current = pending.pop()
+      const names = FS.readdir(current).filter((name) => name !== '.' && name !== '..').sort((left, right) => left.localeCompare(right))
+      const childDirectories = []
+      for (const name of names) {
+        if (manifestEntries.length >= SYNC_LIMITS.maxEntries) throw new Error('Browser disk exceeds host-sync entry limit')
+        const absolute = `${current}/${name}`
+        const stat = FS.stat(absolute)
+        const path = absolute.slice(`${dataRoot}/`.length)
+        validateHostRelativePath(path)
+        if (FS.isDir(stat.mode)) {
+          manifestEntries.push({ path, kind: 'directory', size: 0 })
+          childDirectories.push(absolute)
+          onProgress?.({ entries: manifestEntries.length, bytes: hashedBytes })
+          continue
+        }
+        const entry = { path: absolute, size: stat.size }
+        if (entry.size > SYNC_LIMITS.maxFileBytes) throw new Error(`Browser file exceeds host-sync size limit: ${path}`)
+        total += entry.size
+        if (total > SYNC_LIMITS.maxTotalBytes) throw new Error('Browser disk exceeds host-sync total size limit')
+        const hasher = createIncrementalHasher()
+        const descriptor = FS.open(entry.path, 'r')
+        try {
+          for (let offset = 0; offset < entry.size; offset += SYNC_LIMITS.chunkBytes) {
+            const buffer = new Uint8Array(Math.min(SYNC_LIMITS.chunkBytes, entry.size - offset))
+            const read = FS.read(descriptor, buffer, 0, buffer.byteLength, offset)
+            hasher.update(buffer.subarray(0, read))
+            hashedBytes += read
+            onProgress?.({ entries: manifestEntries.length + 1, bytes: hashedBytes })
+            await Promise.resolve()
+          }
+        } finally { FS.close(descriptor) }
+        manifestEntries.push({ path, kind: 'file', size: entry.size, hash: hasher.digest() })
+        if (entry.size === 0) onProgress?.({ entries: manifestEntries.length, bytes: hashedBytes })
+      }
+      for (let index = childDirectories.length - 1; index >= 0; index -= 1) pending.push(childDirectories[index])
+    }
+    return createManifest(manifestEntries)
+  }
+  const copyMirrorFile = async (relative, sink) => {
+    const path = mirrorPath(relative)
+    const size = FS.stat(path).size
+    if (size > SYNC_LIMITS.maxFileBytes) throw new Error(`Browser file exceeds host-sync size limit: ${relative}`)
+    const descriptor = FS.open(path, 'r')
+    try {
+      for (let offset = 0; offset < size; offset += SYNC_LIMITS.chunkBytes) {
+        const buffer = new Uint8Array(Math.min(SYNC_LIMITS.chunkBytes, size - offset))
+        const read = FS.read(descriptor, buffer, 0, buffer.byteLength, offset)
+        await sink.write(buffer.subarray(0, read))
+      }
+    } finally { FS.close(descriptor) }
+  }
+  const mirrorRoots = (operations) => {
+    const paths = [...new Set(operations.map(({ path }) => {
+      let root = mirrorPath(path)
+      while (parentOf(root) !== dataRoot && !exists(FS, parentOf(root))) root = parentOf(root)
+      return root
+    }))]
+      .sort((left, right) => left.length - right.length || left.localeCompare(right))
+    return paths.filter((path, index) => !paths.slice(0, index).some((root) => path.startsWith(`${root}/`)))
+  }
+  const backupMirrorRoots = (roots) => {
+    const entries = []
+    let totalBytes = 0
+    const visit = (path) => {
+      const stat = FS.stat(path)
+      const kind = FS.isDir(stat.mode) ? 'directory' : 'file'
+      if (entries.length >= SYNC_LIMITS.maxEntries) throw new Error('Host-sync rollback exceeds entry limit')
+      if (kind === 'directory') {
+        entries.push({ path, kind })
+        for (const name of FS.readdir(path).filter((name) => name !== '.' && name !== '..')) visit(`${path}/${name}`)
+        return
+      }
+      if (stat.size > SYNC_LIMITS.maxFileBytes) throw new Error(`Host-sync rollback file exceeds size limit: ${path}`)
+      totalBytes += stat.size
+      if (totalBytes > SYNC_LIMITS.maxTotalBytes) throw new Error('Host-sync rollback exceeds total size limit')
+      entries.push({ path, kind, bytes: new Uint8Array(FS.readFile(path)) })
+    }
+    for (const path of roots) if (exists(FS, path)) visit(path)
+    return entries
+  }
+  const rollbackMirror = (roots, backup) => {
+    const failures = []
+    for (const path of [...roots].reverse()) {
+      try { if (exists(FS, path)) remove(path) } catch (error) { failures.push(error) }
+    }
+    failures.push(...restoreSubtree(backup))
+    return failures
+  }
+  const applyMirror = async (operations, source, onProgress = () => {}) => mutate('host-folder-sync', async () => {
+    const roots = mirrorRoots(operations)
+    const backup = backupMirrorRoots(roots)
+    let completed = 0
+    try {
+      for (const operation of operations) {
+        const path = mirrorPath(operation.path)
+        if (operation.type === 'delete') { if (exists(FS, path)) remove(path) }
+        else if (operation.source?.kind === 'directory') {
+          if (exists(FS, path) && !directory(FS, path)) remove(path)
+          ensureDirectory(path)
+        }
+        else if (operation.source?.kind === 'file') {
+          if (exists(FS, path) && directory(FS, path)) remove(path)
+          ensureDirectory(parentOf(path))
+          const descriptor = FS.open(path, 'w')
+          let offset = 0
+          try {
+            await source.copyFile(operation.source.path, {
+              write: async (chunk) => { offset += FS.write(descriptor, chunk, 0, chunk.byteLength, offset) },
+            })
+          } finally { FS.close(descriptor) }
+        } else throw new Error(`Invalid browser sync operation: ${operation.path}`)
+        onProgress(++completed)
+      }
+    } catch (error) {
+      const failures = rollbackMirror(roots, backup)
+      throw failures.length ? failClosed(error, failures) : error
+    }
+  })
   const handle = {
     listDirectory,
     async mkdir(path) {
@@ -215,6 +341,9 @@ export function createFilesHandle(module, storage, options = {}) {
         }
         return plan
       })
+    },
+    createHostSyncEndpoint() {
+      return Object.freeze({ manifest: scanMirror, copyFile: copyMirrorFile, apply: applyMirror })
     },
   }
   // Names intentionally match the Task 9 boundary while the short aliases
