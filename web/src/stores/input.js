@@ -12,75 +12,51 @@ export const ACTIONS = Object.freeze({
   power: 10,
 })
 
-const KEY_MAP_STORAGE_KEY = 'picotracker.wasm.key-map.v1'
+export const START_HOLD_MS = 500
 
 function entry(action, ...bindings) {
   return Object.freeze({ action, bindings: Object.freeze(bindings.map((binding) => Object.freeze(binding))) })
 }
 
-// Restored from the historical SDL desktop mapping. Select and Power were
-// added after that adapter, so their unclaimed browser defaults are explicit.
+// Operator's primary eight-key layout keeps every common PicoTracker chord
+// under one hand pair: WASD navigation, J/K face buttons, and X/C modifiers.
+// Arrow keys remain aliases for users coming from the historical SDL build.
 export const DEFAULT_KEY_MAP = Object.freeze({
-  left: entry(ACTIONS.left, ['ArrowLeft']),
-  down: entry(ACTIONS.down, ['ArrowDown']),
-  right: entry(ACTIONS.right, ['ArrowRight']),
-  up: entry(ACTIONS.up, ['ArrowUp']),
-  alt: entry(ACTIONS.alt, ['ControlRight']),
-  edit: entry(ACTIONS.edit, ['KeyS']),
-  enter: entry(ACTIONS.enter, ['KeyA']),
-  nav: entry(ACTIONS.nav, ['ControlLeft']),
-  play: entry(ACTIONS.play, ['Space']),
-  select: entry(ACTIONS.select, ['KeyX']),
-  power: entry(ACTIONS.power, ['KeyP']),
+  left: entry(ACTIONS.left, ['KeyA'], ['ArrowLeft']),
+  down: entry(ACTIONS.down, ['KeyS'], ['ArrowDown']),
+  right: entry(ACTIONS.right, ['KeyD'], ['ArrowRight']),
+  up: entry(ACTIONS.up, ['KeyW'], ['ArrowUp']),
+  alt: entry(ACTIONS.alt, ['KeyX']),
+  edit: entry(ACTIONS.edit, ['KeyK']),
+  enter: entry(ACTIONS.enter, ['KeyJ']),
+  // NAV is not a standalone Node control. START provisionally holds it so
+  // chords are ordered correctly, then converts a short standalone tap to
+  // PLAY on release. No firmware view assigns an action to NAV by itself.
+  nav: entry(ACTIONS.nav),
+  // C is handled as Node's dual-purpose START button below: tap emits PLAY,
+  // hold (or a chord with another key) behaves as NAV.
+  play: entry(ACTIONS.play),
+  select: entry(ACTIONS.select),
+  power: entry(ACTIONS.power),
 })
 
-// The default persisted schema; createInputStore owns the live, remappable copy.
+// Node's fixed browser layout. It deliberately is not user-remappable.
 export const KeyMap = DEFAULT_KEY_MAP
-
-function cloneMap(map) {
-  return Object.fromEntries(
-    Object.entries(map).map(([name, value]) => [
-      name,
-      { action: value.action, bindings: value.bindings.map((binding) => [...binding]) },
-    ]),
-  )
-}
-
-function normalizeMap(candidate) {
-  const map = cloneMap(DEFAULT_KEY_MAP)
-  if (!candidate || typeof candidate !== 'object') return map
-  for (const [name, fallback] of Object.entries(DEFAULT_KEY_MAP)) {
-    const value = candidate[name]
-    if (!value || value.action !== fallback.action || !Array.isArray(value.bindings)) continue
-    const bindings = value.bindings
-      .filter((binding) => Array.isArray(binding) && binding.length > 0)
-      .map((binding) => binding.filter((code) => typeof code === 'string' && code.length > 0))
-      .filter((binding) => binding.length > 0)
-    if (bindings.length > 0) map[name] = { action: fallback.action, bindings }
-  }
-  return map
-}
-
-function loadMap(storage) {
-  try {
-    return normalizeMap(JSON.parse(storage?.getItem?.(KEY_MAP_STORAGE_KEY) ?? 'null'))
-  } catch {
-    return cloneMap(DEFAULT_KEY_MAP)
-  }
-}
 
 function actionName(action) {
   if (typeof action === 'string' && Object.hasOwn(ACTIONS, action)) return action
   return Object.entries(ACTIONS).find(([, value]) => value === action)?.[0] ?? null
 }
 
-export function createInputStore(bridge, options = {}) {
-  const storage = options.localStorage ?? globalThis.localStorage
-  let keyMap = normalizeMap(options.keyMap ?? loadMap(storage))
+export function createInputStore(bridge) {
+  const keyMap = DEFAULT_KEY_MAP
   const heldSources = new Map()
   const heldKeys = new Set()
   const activeBindings = new Set()
+  let startState = null
   let detach = null
+
+  const now = () => globalThis.performance?.now?.() ?? Date.now()
 
   function actionId(action) {
     const name = actionName(action)
@@ -90,6 +66,14 @@ export function createInputStore(bridge, options = {}) {
   function press(action, source = 'direct') {
     const name = actionName(action)
     if (name === null) return false
+    if (startState && name !== 'nav' && name !== 'play') {
+      if (startState.altPlay && name !== 'alt') {
+        startState.chordTriggered = true
+        release('play', startState.playSource)
+      } else if (!startState.altPlay) {
+        startState.chordTriggered = true
+      }
+    }
     const sources = heldSources.get(name) ?? new Set()
     if (sources.has(source)) return true
     const wasHeld = sources.size > 0
@@ -103,7 +87,12 @@ export function createInputStore(bridge, options = {}) {
     const name = actionName(action)
     if (name === null) return false
     const sources = heldSources.get(name)
-    if (!sources?.delete(source)) return false
+    if (!sources?.has(source)) return false
+    if (name === 'alt' && sources.size === 1 && startState?.altPlay) {
+      startState.chordTriggered = true
+      release('play', startState.playSource)
+    }
+    sources.delete(source)
     if (sources.size === 0) {
       heldSources.delete(name)
       bridge?.releaseAction?.(actionId(name))
@@ -112,10 +101,47 @@ export function createInputStore(bridge, options = {}) {
   }
 
   function releaseAll() {
+    startState = null
     heldSources.clear()
     heldKeys.clear()
     activeBindings.clear()
     bridge?.releaseAllActions?.()
+  }
+
+  function pressStart(source = 'start') {
+    if (startState) return startState.source === source
+    const companionActions = [...heldSources.keys()].filter((name) => name !== 'nav' && name !== 'play')
+    const altPlay = companionActions.length === 1 && companionActions[0] === 'alt'
+    startState = {
+      source,
+      pressedAt: now(),
+      chordTriggered: companionActions.length > 0 && !altPlay,
+      altPlay,
+      navSource: `start-nav:${source}`,
+      playSource: `start-play:${source}`,
+    }
+    if (altPlay) press('play', startState.playSource)
+    else press('nav', startState.navSource)
+    return true
+  }
+
+  function releaseStart(source = 'start') {
+    if (startState?.source !== source) return false
+    const state = startState
+    const elapsed = now() - state.pressedAt
+    const isShortTap = !state.chordTriggered && elapsed < START_HOLD_MS
+    startState = null
+    if (state.altPlay) {
+      release('play', state.playSource)
+      return true
+    }
+    release('nav', state.navSource)
+    if (isShortTap) {
+      const pulseSource = `start-play:${source}`
+      press('play', pulseSource)
+      release('play', pulseSource)
+    }
+    return true
   }
 
   function bindingsForCode(code) {
@@ -142,17 +168,21 @@ export function createInputStore(bridge, options = {}) {
   }
 
   function handleKeyDown(event) {
-    const consumed = bindingsForCode(event.code).length > 0
+    const isStart = event.code === 'KeyC'
+    const consumed = isStart || bindingsForCode(event.code).length > 0
     if (consumed) event.preventDefault?.()
     if (event.repeat || !consumed) return consumed
+    if (isStart) return pressStart('keyboard:KeyC')
     heldKeys.add(event.code)
     synchronizeBindings()
     return true
   }
 
   function handleKeyUp(event) {
-    const consumed = bindingsForCode(event.code).length > 0
+    const isStart = event.code === 'KeyC'
+    const consumed = isStart || bindingsForCode(event.code).length > 0
     if (consumed) event.preventDefault?.()
+    if (isStart) return releaseStart('keyboard:KeyC')
     heldKeys.delete(event.code)
     synchronizeBindings()
     return consumed
@@ -160,8 +190,8 @@ export function createInputStore(bridge, options = {}) {
 
   function attach({ target = globalThis.window, document = globalThis.document, isActive = () => true } = {}) {
     detach?.()
-    const onKeyDown = (event) => isActive() && handleKeyDown(event)
-    const onKeyUp = (event) => isActive() && handleKeyUp(event)
+    const onKeyDown = (event) => isActive(event) && handleKeyDown(event)
+    const onKeyUp = (event) => isActive(event) && handleKeyUp(event)
     const onBlur = () => releaseAll()
     const onVisibilityChange = () => {
       if (document?.visibilityState !== 'visible') releaseAll()
@@ -184,20 +214,12 @@ export function createInputStore(bridge, options = {}) {
   return Object.freeze({
     press,
     release,
+    pressStart,
+    releaseStart,
     releaseAll,
     handleKeyDown,
     handleKeyUp,
     attach,
     getHeldActions: () => [...heldSources.keys()],
-    getKeyMap: () => cloneMap(keyMap),
-    setKeyMap(nextMap) {
-      releaseAll()
-      keyMap = normalizeMap(nextMap)
-      try {
-        storage?.setItem?.(KEY_MAP_STORAGE_KEY, JSON.stringify(keyMap))
-      } catch {
-        // Storage can be unavailable in private or embedded browsing contexts.
-      }
-    },
   })
 }
