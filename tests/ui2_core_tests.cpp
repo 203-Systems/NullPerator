@@ -379,3 +379,106 @@ TEST_CASE("UI2 VU mapping is bounded monotonic and integer only") {
     previous = top;
   }
 }
+
+TEST_CASE("UI2 region rendering restores exact pixels without a backbuffer") {
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiSongView::Build(ui2::test::ApprovedSongFixture(), palette,
+                                 scene) == ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage expectedStorage;
+  ui2::UiIndexedSurface expected(expectedStorage);
+  ui2::UiFrameRenderer::RenderStatic(scene, expected, palette);
+
+  ui2::UiSurfaceStorage actualStorage;
+  ui2::UiIndexedSurface actual(actualStorage);
+  ui2::UiFrameRenderer::RenderStatic(scene, actual, palette);
+  actual.FillRect({0, 0, 30, 240},
+                  palette.Index(ui2::UiColorToken::BatteryLow));
+  ui2::UiFrameRenderer::RenderRegion(scene, actual, palette, {0, 0, 30, 240});
+
+  CHECK(std::equal(actual.Pixels().begin(), actual.Pixels().end(),
+                   expected.Pixels().begin(), expected.Pixels().end()));
+}
+
+TEST_CASE("UI2 Song damage geometry keeps stereo VU channels separate") {
+  CHECK(ui2::UiSongView::VuDamageRect(0) == ui2::RectI16{219, 47, 7, 153});
+  CHECK(ui2::UiSongView::VuDamageRect(1) == ui2::RectI16{228, 47, 7, 153});
+  CHECK(ui2::UiSongView::VuDamageRect(0).Right() <
+        ui2::UiSongView::VuDamageRect(1).x);
+  CHECK(ui2::Intersect(ui2::UiSongView::RowDamageRect(15),
+                      ui2::RectI16::Screen()) ==
+        ui2::UiSongView::RowDamageRect(15));
+}
+
+TEST_CASE("UI2 Song delta rendering is pixel-identical to a full redraw") {
+  ui2::UiPalette deltaPalette;
+  ui2::UiSongViewData previous = ui2::test::ApprovedSongFixture();
+  ui2::UiFrameScene previousScene;
+  REQUIRE(ui2::UiSongView::Build(previous, deltaPalette, previousScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage deltaStorage;
+  ui2::UiIndexedSurface deltaSurface(deltaStorage);
+  ui2::UiFrameRenderer::RenderStatic(previousScene, deltaSurface,
+                                     deltaPalette);
+  deltaSurface.ClearDirty();
+
+  ui2::UiSongViewData current = previous;
+  current.name = "NEXTSONG";
+  current.elapsed = "00:09";
+  current.editRow = 9;
+  current.editTrack = 3;
+  current.rows[4][2] = 0x7A;
+  current.notes[5] = "A#4";
+  current.playbackRows[1] = 12;
+  current.vuLevelTop = {41, 9};
+  ui2::UiFrameScene currentScene;
+  REQUIRE(ui2::UiSongView::Build(current, deltaPalette, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSongView::RenderDelta(previous, current, currentScene, deltaSurface,
+                               deltaPalette);
+
+  ui2::UiPalette fullPalette;
+  ui2::UiFrameScene fullScene;
+  REQUIRE(ui2::UiSongView::Build(current, fullPalette, fullScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage fullStorage;
+  ui2::UiIndexedSurface fullSurface(fullStorage);
+  ui2::UiFrameRenderer::RenderStatic(fullScene, fullSurface, fullPalette);
+
+  CHECK(std::equal(deltaSurface.Pixels().begin(), deltaSurface.Pixels().end(),
+                   fullSurface.Pixels().begin(), fullSurface.Pixels().end()));
+  CHECK(deltaSurface.DirtyTiles().Any());
+}
+
+TEST_CASE("UI2 Song idle is clean and a cursor move stays locally dirty") {
+  ui2::UiPalette palette;
+  ui2::UiSongViewData previous = ui2::test::ApprovedSongFixture();
+  ui2::UiFrameScene previousScene;
+  REQUIRE(ui2::UiSongView::Build(previous, palette, previousScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(previousScene, surface, palette);
+  surface.ClearDirty();
+
+  ui2::UiSongView::RenderDelta(previous, previous, previousScene, surface,
+                               palette);
+  CHECK_FALSE(surface.DirtyTiles().Any());
+
+  ui2::UiSongViewData current = previous;
+  current.editTrack = 1;
+  ui2::UiFrameScene currentScene;
+  REQUIRE(ui2::UiSongView::Build(current, palette, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSongView::RenderDelta(previous, current, currentScene, surface,
+                               palette);
+  ui2::DirtyStripList strips;
+  REQUIRE(surface.DirtyTiles().Collect(strips));
+  std::uint32_t transferredPixels = 0;
+  for (const ui2::DirtyStrip strip : strips.Strips()) {
+    transferredPixels +=
+        static_cast<std::uint32_t>(strip.width) * strip.height;
+  }
+  CHECK(transferredPixels < 5'000);
+  CHECK(transferredPixels < 240U * 240U / 10U);
+}

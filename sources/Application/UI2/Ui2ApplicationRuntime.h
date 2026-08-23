@@ -27,6 +27,7 @@ public:
 
   [[nodiscard]] bool Supports(const AppWindow &window) const;
   [[nodiscard]] PresentResult Present(AppWindow &window);
+  void Invalidate() { previousValid_ = false; }
 
   // Integer-only approximation of the legacy -60 dB..0 dB meter mapping.
   // VU fill is deliberately not part of the pixel-exact golden contract.
@@ -49,15 +50,32 @@ public:
   }
 
 private:
-  void CaptureSong(AppWindow &window, UiSongViewData &data);
+  struct SongFrameState {
+    std::array<char, 17> name{};
+    std::array<char, 6> elapsed{};
+    std::array<std::array<std::uint8_t, 8>, 16> rows{};
+    std::array<std::array<char, 5>, 8> notes{};
+    std::array<std::int8_t, 8> playbackRows{-1, -1, -1, -1,
+                                            -1, -1, -1, -1};
+    std::array<std::uint8_t, 2> vuLevelTop{153, 153};
+    std::uint8_t rowOffset = 0;
+    std::uint8_t editRow = 0;
+    std::uint8_t editTrack = 0;
+    bool playing = false;
+    UiPowerState power = UiPowerState::BatteryNormal;
+
+    bool operator==(const SongFrameState &) const = default;
+  };
+
+  static UiSongViewData ViewDataFor(const SongFrameState &state);
+  void CaptureSong(AppWindow &window, SongFrameState &state);
 
   UiEngineStorage engineStorage_{};
   UiEngine engine_;
   UiFrameScene scene_{};
-  std::array<char, 17> songName_{};
-  std::array<char, 6> elapsed_{};
-  std::array<std::array<char, 5>, 8> notes_{};
+  SongFrameState previousSong_{};
+  SongFrameState currentSong_{};
+  bool previousValid_ = false;
 };
 
 } // namespace ui2
-

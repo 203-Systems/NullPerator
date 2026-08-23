@@ -51,4 +51,5 @@ private:
   std::uint32_t diagnosticModalAwaitingDraw_ = NoDiagnosticModal;
   std::atomic<bool> ui2Enabled_{false};
   std::optional<ui2::UiApplicationRuntime> ui2Runtime_;
+  bool ui2Active_ = false;
 };

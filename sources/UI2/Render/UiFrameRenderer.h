@@ -17,6 +17,9 @@ public:
   static void RenderStatic(const UiFrameScene &scene,
                            UiIndexedSurface &surface,
                            const UiPalette &palette);
+  static void RenderRegion(const UiFrameScene &scene,
+                           UiIndexedSurface &surface,
+                           const UiPalette &palette, RectI16 region);
 };
 
 } // namespace ui2

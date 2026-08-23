@@ -79,6 +79,7 @@ bool WasmEventManager::Init() {
   diagnosticModalAwaitingDraw_ = NoDiagnosticModal;
   ui2Enabled_.store(false, std::memory_order_release);
   ui2Runtime_.reset();
+  ui2Active_ = false;
   if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_TIMER) != 0) {
     return false;
   }
@@ -130,14 +131,22 @@ void WasmEventManager::PumpFrame() {
     ui2Runtime_.emplace(*wasmWindow);
   }
   const auto presentUi2 = [&]() {
-    if (!ui2Enabled_.load(std::memory_order_acquire) ||
-        !ui2Runtime_->Supports(*static_cast<AppWindow *>(window))) {
+    const bool supported =
+        ui2Enabled_.load(std::memory_order_acquire) &&
+        ui2Runtime_->Supports(*static_cast<AppWindow *>(window));
+    if (!supported) {
+      ui2Active_ = false;
       return;
     }
+    const bool entering = !ui2Active_;
+    if (entering) ui2Runtime_->Invalidate();
     const ui2::PresentResult result =
         ui2Runtime_->Present(*static_cast<AppWindow *>(window));
     if (result == ui2::PresentResult::Failed) {
       ui2Enabled_.store(false, std::memory_order_release);
+      ui2Active_ = false;
+    } else if (result == ui2::PresentResult::Presented) {
+      ui2Active_ = true;
     }
   };
   if (booting_) {

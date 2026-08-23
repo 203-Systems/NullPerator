@@ -13,28 +13,42 @@ namespace ui2 {
 void UiFrameRenderer::RenderStatic(const UiFrameScene &scene,
                                    UiIndexedSurface &surface,
                                    const UiPalette &palette) {
-  surface.Clear(palette.Index(UiColorToken::SurfaceBlack));
+  RenderRegion(scene, surface, palette, RectI16::Screen());
+}
+
+void UiFrameRenderer::RenderRegion(const UiFrameScene &scene,
+                                   UiIndexedSurface &surface,
+                                   const UiPalette &palette,
+                                   RectI16 region) {
+  region = Intersect(region, RectI16::Screen());
+  if (region.Empty()) return;
+
+  surface.FillRect(region, palette.Index(UiColorToken::SurfaceBlack));
   surface.FillRect({5, 5, 230, 230},
-                   palette.Index(UiColorToken::SurfaceField));
+                   palette.Index(UiColorToken::SurfaceField), region);
   surface.FillRect({0, 0, kScreenWidth, scene.topHeight},
-                   palette.Index(scene.topBackground));
+                   palette.Index(scene.topBackground), region);
   const std::int16_t contentBottom =
       scene.bottomVisible ? scene.bottomTop : kScreenHeight;
   UiRasterizer::Render(scene.content.Stream(), surface, &palette, {},
-                       {0, scene.topHeight, kScreenWidth,
-                        static_cast<std::int16_t>(contentBottom -
-                                                  scene.topHeight)});
+                       Intersect(region,
+                                 {0, scene.topHeight, kScreenWidth,
+                                  static_cast<std::int16_t>(
+                                      contentBottom - scene.topHeight)}));
   UiRasterizer::Render(scene.top.Stream(), surface, &palette, {},
-                       {0, 0, kScreenWidth, scene.topHeight});
+                       Intersect(region,
+                                 {0, 0, kScreenWidth, scene.topHeight}));
   if (scene.bottomVisible) {
     surface.FillRect(
         {0, scene.bottomTop, kScreenWidth,
          static_cast<std::int16_t>(kScreenHeight - scene.bottomTop)},
-        palette.Index(scene.bottomBackground));
+        palette.Index(scene.bottomBackground), region);
     UiRasterizer::Render(
         scene.bottom.Stream(), surface, &palette, {},
-        {0, scene.bottomTop, kScreenWidth,
-         static_cast<std::int16_t>(kScreenHeight - scene.bottomTop)});
+        Intersect(region,
+                  {0, scene.bottomTop, kScreenWidth,
+                   static_cast<std::int16_t>(kScreenHeight -
+                                             scene.bottomTop)}));
   }
 }
 

@@ -7,6 +7,7 @@
 #pragma once
 
 #include "UI2/Chrome/UiChromeRenderer.h"
+#include "UI2/Render/UiIndexedSurface.h"
 #include "UI2/Scene/UiFrameScene.h"
 #include "UI2/Theme/UiPalette.h"
 
@@ -24,6 +25,7 @@ struct UiSongViewData {
   std::array<std::int8_t, 8> playbackRows{-1, -1, -1, -1,
                                           -1, -1, -1, -1};
   std::array<std::uint8_t, 2> vuLevelTop{14, 34};
+  std::uint8_t rowOffset = 0;
   std::uint8_t editRow = 8;
   std::uint8_t editTrack = 0;
   bool playing = true;
@@ -35,6 +37,21 @@ public:
   [[nodiscard]] static UiBuildStatus Build(const UiSongViewData &data,
                                            UiPalette &palette,
                                            UiFrameScene &scene);
+  static void RenderDelta(const UiSongViewData &previous,
+                          const UiSongViewData &current,
+                          const UiFrameScene &currentScene,
+                          UiIndexedSurface &surface,
+                          const UiPalette &palette);
+  [[nodiscard]] static RectI16 CellDamageRect(std::uint8_t track,
+                                              std::uint8_t row);
+  [[nodiscard]] static RectI16 RowDamageRect(std::uint8_t row);
+  [[nodiscard]] static RectI16 TrackHeaderDamageRect(std::uint8_t track);
+  [[nodiscard]] static RectI16 BottomTrackDamageRect(std::uint8_t track);
+  [[nodiscard]] static RectI16 VuDamageRect(std::uint8_t channel);
+
+private:
+  [[nodiscard]] static bool RequiresFullInvalidation(
+      const UiSongViewData &previous, const UiSongViewData &current);
 };
 
 } // namespace ui2

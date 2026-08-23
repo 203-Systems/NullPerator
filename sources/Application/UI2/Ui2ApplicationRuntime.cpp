@@ -38,90 +38,125 @@ bool UiApplicationRuntime::Supports(const AppWindow &window) const {
 PresentResult UiApplicationRuntime::Present(AppWindow &window) {
   if (!Supports(window)) return PresentResult::Deferred;
 
-  UiSongViewData data;
-  CaptureSong(window, data);
+  CaptureSong(window, currentSong_);
+  if (previousValid_ && currentSong_ == previousSong_) {
+    return engine_.PresentDirty();
+  }
+
+  const UiSongViewData data = ViewDataFor(currentSong_);
   if (UiSongView::Build(data, engine_.Palette(), scene_) !=
       UiBuildStatus::Built) {
     return PresentResult::Failed;
   }
-  UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
-  return engine_.PresentDirty();
+  if (!previousValid_) {
+    UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
+  } else {
+    const UiSongViewData previousData = ViewDataFor(previousSong_);
+    UiSongView::RenderDelta(previousData, data, scene_, engine_.Surface(),
+                            engine_.Palette());
+  }
+
+  const PresentResult result = engine_.PresentDirty();
+  if (result == PresentResult::Presented) {
+    previousSong_ = currentSong_;
+    previousValid_ = true;
+  }
+  return result;
+}
+
+UiSongViewData
+UiApplicationRuntime::ViewDataFor(const SongFrameState &state) {
+  UiSongViewData data;
+  data.name = state.name.data();
+  data.elapsed = state.elapsed.data();
+  data.rows = state.rows;
+  for (std::size_t track = 0; track < data.notes.size(); ++track) {
+    data.notes[track] = state.notes[track].data();
+  }
+  data.playbackRows = state.playbackRows;
+  data.vuLevelTop = state.vuLevelTop;
+  data.rowOffset = state.rowOffset;
+  data.editRow = state.editRow;
+  data.editTrack = state.editTrack;
+  data.playing = state.playing;
+  data.power = state.power;
+  return data;
 }
 
 void UiApplicationRuntime::CaptureSong(AppWindow &window,
-                                       UiSongViewData &data) {
+                                       SongFrameState &state) {
+  state = SongFrameState{};
   ViewData &viewData = window.ViewDataForUi2();
   Project &project = *viewData.project_;
   Player *player = Player::GetInstance();
 
-  project.GetProjectName(songName_.data());
-  data.name = songName_.data();
-  data.editTrack = static_cast<std::uint8_t>(
+  project.GetProjectName(state.name.data());
+  state.editTrack = static_cast<std::uint8_t>(
       std::clamp(viewData.songX_, 0, SONG_CHANNEL_COUNT - 1));
-  data.editRow =
+  state.editRow =
       static_cast<std::uint8_t>(std::clamp(viewData.songY_, 0, 15));
 
   const int firstRow =
       std::clamp(viewData.songOffset_, 0, SONG_ROW_COUNT - 16);
+  state.rowOffset = static_cast<std::uint8_t>(firstRow);
   for (std::uint8_t row = 0; row < 16U; ++row) {
     const int sourceRow = firstRow + row;
     for (std::uint8_t track = 0; track < SONG_CHANNEL_COUNT; ++track) {
-      data.rows[row][track] =
+      state.rows[row][track] =
           viewData.song_->data_[sourceRow * SONG_CHANNEL_COUNT + track];
     }
   }
 
-  data.playing = player != nullptr && player->IsRunning();
-  data.power = CurrentPowerState(data.playing);
+  state.playing = player != nullptr && player->IsRunning();
+  state.power = CurrentPowerState(state.playing);
   const int elapsed =
-      data.playing ? std::max(0, static_cast<int>(player->GetPlayTime())) : 0;
-  std::snprintf(elapsed_.data(), elapsed_.size(), "%02d:%02d",
+      state.playing ? std::max(0, static_cast<int>(player->GetPlayTime())) : 0;
+  std::snprintf(state.elapsed.data(), state.elapsed.size(), "%02d:%02d",
                 (elapsed / 60) % 100, elapsed % 60);
-  data.elapsed = elapsed_.data();
 
   for (std::uint8_t track = 0; track < SONG_CHANNEL_COUNT; ++track) {
-    data.playbackRows[track] = -1;
-    if (data.playing && player->IsChannelPlaying(track) &&
+    state.playbackRows[track] = -1;
+    if (state.playing && player->IsChannelPlaying(track) &&
         viewData.currentPlayChain_[track] != 0xFFU &&
         viewData.playMode_ != PM_AUDITION) {
       const int visibleRow = viewData.songPlayPos_[track] - firstRow;
       if (visibleRow >= 0 && visibleRow < 16) {
-        data.playbackRows[track] = static_cast<std::int8_t>(visibleRow);
+        state.playbackRows[track] = static_cast<std::int8_t>(visibleRow);
       }
     }
 
-    if (data.playing) {
+    if (state.playing) {
       const char *playedNote = player->GetPlayedNote(track);
       const std::array<char, 2> pitch{playedNote[0], playedNote[1]};
       const char *playedOctave = player->GetPlayedOctive(track);
       if (pitch[0] == ' ' || playedOctave[1] == '-') {
-        std::snprintf(notes_[track].data(), notes_[track].size(), "--");
+        std::snprintf(state.notes[track].data(), state.notes[track].size(),
+                      "--");
       } else if (pitch[1] == ' ') {
         if (playedOctave[0] == '-') {
-          std::snprintf(notes_[track].data(), notes_[track].size(), "%c-%c",
-                        pitch[0], playedOctave[1]);
+          std::snprintf(state.notes[track].data(), state.notes[track].size(),
+                        "%c-%c", pitch[0], playedOctave[1]);
         } else {
-          std::snprintf(notes_[track].data(), notes_[track].size(), "%c%c",
-                        pitch[0], playedOctave[1]);
+          std::snprintf(state.notes[track].data(), state.notes[track].size(),
+                        "%c%c", pitch[0], playedOctave[1]);
         }
       } else if (playedOctave[0] == '-') {
-        std::snprintf(notes_[track].data(), notes_[track].size(), "%c%c-%c",
-                      pitch[0], pitch[1], playedOctave[1]);
+        std::snprintf(state.notes[track].data(), state.notes[track].size(),
+                      "%c%c-%c", pitch[0], pitch[1], playedOctave[1]);
       } else {
-        std::snprintf(notes_[track].data(), notes_[track].size(), "%c%c%c",
-                      pitch[0], pitch[1], playedOctave[1]);
+        std::snprintf(state.notes[track].data(), state.notes[track].size(),
+                      "%c%c%c", pitch[0], pitch[1], playedOctave[1]);
       }
     } else {
-      std::snprintf(notes_[track].data(), notes_[track].size(), "--");
+      std::snprintf(state.notes[track].data(), state.notes[track].size(), "--");
     }
-    data.notes[track] = notes_[track].data();
   }
 
   const std::uint32_t level =
-      data.playing ? static_cast<std::uint32_t>(player->GetMasterLevel()) : 0U;
-  data.vuLevelTop[0] =
+      state.playing ? static_cast<std::uint32_t>(player->GetMasterLevel()) : 0U;
+  state.vuLevelTop[0] =
       VuTopFromAmplitude(static_cast<std::uint16_t>(level >> 16U));
-  data.vuLevelTop[1] =
+  state.vuLevelTop[1] =
       VuTopFromAmplitude(static_cast<std::uint16_t>(level & 0xFFFFU));
 }
 
