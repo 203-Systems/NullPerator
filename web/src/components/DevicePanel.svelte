@@ -75,7 +75,6 @@
     <div><kbd>K</kbd><span>Edit</span></div>
     <div><kbd>X</kbd><span>Alt / chord</span></div>
     <div><kbd>C</kbd><span>Tap Play · Hold Nav</span></div>
-    <div class="combo"><span class="key-cluster"><kbd>X</kbd><i>+</i><kbd>C</kbd></span><span>X then C: Hold Alt + Play</span></div>
   </footer>
 </div>
 
@@ -93,7 +92,6 @@
   .keyboard-helper>div { display:flex; align-items:center; gap:7px; white-space:nowrap; font-size:.7rem; }
   .key-cluster { display:flex; align-items:center; gap:3px; }
   kbd { display:grid; min-width:22px; height:22px; padding:0 4px; place-items:center; border:1px solid rgba(255,255,255,.17); border-bottom-color:rgba(255,255,255,.3); border-radius:4px; color:#e7e9ec; background:linear-gradient(#292b31,#191a1e); box-shadow:0 2px 0 #070708; font:600 10px/1 var(--mono); }
-  i { font:normal 9px/1 var(--mono); color:rgba(255,255,255,.25); }
   @media(max-height:760px){ .device-scene{align-items:flex-start}.keyboard-helper{gap:14px;padding-inline:10px} }
   @media(max-width:720px){ .device-scene{padding:12px}.operator-device{zoom:.86}.keyboard-helper{justify-content:flex-start}.keyboard-helper>div>span:last-child{display:none} }
 </style>
