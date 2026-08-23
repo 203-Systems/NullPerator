@@ -11,6 +11,7 @@
   let actionMask = 0
   let actionGeneration = 0
   let lastAction = -1
+  let heldActions = []
   let displayScale = settings?.snapshot?.().displayScale ?? 'fit'
   let detachSettings = () => {}
   const scaleFor = (value) => value === 'fit' ? 1.4 : Number(value) || 1
@@ -19,6 +20,7 @@
     releaseAction: (action) => runtime.input?.releaseAction(action),
     releaseAllActions: () => runtime.input?.releaseAllActions(),
   })
+  const detachInput = input.subscribe((next) => { heldActions = next })
 
   function focusCanvas() { panel?.querySelector('#picotracker-canvas')?.focus() }
   function unlockAudio() { runtime.audio?.unlockAudio?.().catch(() => {}) }
@@ -50,7 +52,7 @@
     requestAnimationFrame(focusCanvas)
     return () => { if (timer !== null) window.clearInterval(timer); detach(); detachSettings() }
   })
-  onDestroy(() => input.releaseAll())
+  onDestroy(() => { detachInput(); input.releaseAll() })
 </script>
 
 <div class="device-input-host" bind:this={panel} onfocusout={(event) => { if (!panel?.contains(event.relatedTarget)) input.releaseAll() }}>
@@ -67,7 +69,7 @@
           <div class="screen-glass" aria-hidden="true"></div>
         </div>
       </div>
-      <VirtualControls {input} disabled={runtime.state !== 'ready'} />
+      <VirtualControls {input} {heldActions} disabled={runtime.state !== 'ready'} />
     </div>
     {#if audio.state === 'locked' || audio.state === 'suspended'}
       <div class="audio-gate">
@@ -106,7 +108,7 @@
   .audio-unlock h2 { margin:0; font-size:15px; }
   .audio-unlock p:not(.eyebrow) { margin:7px 0 13px; color:var(--muted); font-size:11px; line-height:1.45; }
   .audio-unlock button { width:100%; padding:8px 12px; border:1px solid rgba(76,201,240,.55); border-radius:5px; color:#071015; background:var(--accent); font-weight:700; cursor:pointer; }
-  .keyboard-helper { display:flex; min-height:52px; align-items:center; justify-content:center; gap:24px; padding:7px 16px; border-top:1px solid var(--border); background:var(--panel); color:var(--muted); overflow:auto; flex-shrink:0; }
+  .keyboard-helper { display:flex; min-height:52px; align-items:center; justify-content:center; gap:24px; padding:7px 16px; border-top:1px solid var(--border); background:transparent; color:var(--muted); overflow:auto; flex-shrink:0; }
   .keyboard-helper>div { display:flex; align-items:center; gap:7px; white-space:nowrap; font-size:.7rem; }
   .key-cluster { display:flex; align-items:center; gap:3px; }
   kbd { display:grid; min-width:22px; height:22px; padding:0 4px; place-items:center; border:1px solid rgba(255,255,255,.17); border-bottom-color:rgba(255,255,255,.3); border-radius:4px; color:#e7e9ec; background:linear-gradient(#292b31,#191a1e); box-shadow:0 2px 0 #070708; font:600 10px/1 var(--mono); }

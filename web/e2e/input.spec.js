@@ -105,17 +105,22 @@ test('Operator fixed WASD, JK, and XC controls reach C++ and preserve Node START
   await expect(page.getByRole('button', { name: 'POWER', exact: true })).toHaveCount(0)
 
   for (const [key, action] of [['w', 3], ['a', 0], ['s', 1], ['d', 2], ['j', 6], ['k', 5]]) {
+    const control = page.locator(`[data-action="${({ w:'up', a:'left', s:'down', d:'right', j:'enter', k:'edit' })[key]}"]`)
     await page.keyboard.down(key)
     await expect.poll(() => actionMask(canvas)).toBe(String(1 << action))
+    await expect(control).toHaveAttribute('aria-pressed', 'true')
     await page.keyboard.up(key)
     await expect.poll(() => actionMask(canvas)).toBe('0')
+    await expect(control).toHaveAttribute('aria-pressed', 'false')
   }
 
 
   const tapGeneration = Number(await actionGeneration(canvas))
   await page.keyboard.down('c')
   await expect.poll(() => actionMask(canvas)).toBe(String(1 << 7))
+  await expect(page.locator('[data-action="start"]')).toHaveAttribute('aria-pressed', 'true')
   await page.keyboard.up('c')
+  await expect(page.locator('[data-action="start"]')).toHaveAttribute('aria-pressed', 'false')
   await expect.poll(() => actionGeneration(canvas)).toBe(String(tapGeneration + 4))
   await expect(canvas).toHaveAttribute('data-last-action', '8')
   await expect(canvas).toHaveAttribute('data-action-mask', '0')

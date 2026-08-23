@@ -1,6 +1,7 @@
 <script>
   export let input
   export let disabled = false
+  export let heldActions = []
 
   const pointerClickSuppression = new WeakSet()
   const source = (event) => `pointer:${event.pointerId}`
@@ -45,7 +46,7 @@
 <div class="operator-controls" aria-label="PicoTracker virtual controls">
   <div class="d-pad" aria-label="Directional controls">
     {#each [['up','Up','W','▲'],['left','Left','A','◀'],['down','Down','S','▼'],['right','Right','D','▶']] as [action,label,key,glyph]}
-      <button type="button" class={action} aria-label={label} data-action={action} {disabled}
+      <button type="button" class={action} class:pressed={heldActions.includes(action)} aria-label={label} aria-pressed={heldActions.includes(action)} data-action={action} {disabled}
         onpointerdown={(event) => press(event, action)} onpointerup={(event) => release(event, action, true)}
         onpointercancel={cancel} onlostpointercapture={(event) => release(event, action)} onclick={(event) => activate(event, action)}>
         <span class="switch"><span>{glyph}</span></span><kbd>{key}</kbd>
@@ -54,22 +55,22 @@
   </div>
 
   <div class="face-buttons">
-    <button type="button" class="face enter" aria-label="ENTER" data-action="enter" {disabled}
+    <button type="button" class="face enter" class:pressed={heldActions.includes('enter')} aria-label="ENTER" aria-pressed={heldActions.includes('enter')} data-action="enter" {disabled}
       onpointerdown={(e)=>press(e,'enter')} onpointerup={(e)=>release(e,'enter',true)} onpointercancel={cancel} onlostpointercapture={(e)=>release(e,'enter')} onclick={(e)=>activate(e,'enter')}>
       <span class="switch"><span>↵</span></span><kbd>J</kbd><em>ENTER</em>
     </button>
-    <button type="button" class="face edit" aria-label="EDIT" data-action="edit" {disabled}
+    <button type="button" class="face edit" class:pressed={heldActions.includes('edit')} aria-label="EDIT" aria-pressed={heldActions.includes('edit')} data-action="edit" {disabled}
       onpointerdown={(e)=>press(e,'edit')} onpointerup={(e)=>release(e,'edit',true)} onpointercancel={cancel} onlostpointercapture={(e)=>release(e,'edit')} onclick={(e)=>activate(e,'edit')}>
       <span class="switch"><span>✦</span></span><kbd>K</kbd><em>EDIT</em>
     </button>
   </div>
 
   <div class="bottom-buttons">
-    <button type="button" aria-label="ALT" data-action="alt" {disabled}
+    <button type="button" class:pressed={heldActions.includes('alt')} aria-label="ALT" aria-pressed={heldActions.includes('alt')} data-action="alt" {disabled}
       onpointerdown={(e)=>press(e,'alt')} onpointerup={(e)=>release(e,'alt',true)} onpointercancel={cancel} onlostpointercapture={(e)=>release(e,'alt')} onclick={(e)=>activate(e,'alt')}>
       <span class="switch"></span><kbd>X</kbd><em>ALT</em>
     </button>
-    <button type="button" aria-label="PLAY" data-action="start" title="Tap: PLAY · Hold: NAV · Hold ALT first: hold ALT+PLAY" {disabled}
+    <button type="button" class:pressed={heldActions.includes('nav') || heldActions.includes('play')} aria-label="PLAY" aria-pressed={heldActions.includes('nav') || heldActions.includes('play')} data-action="start" title="Tap: PLAY · Hold: NAV · Hold ALT first: hold ALT+PLAY" {disabled}
       onpointerdown={pressStart} onpointerup={(e)=>releaseStart(e,true)} onpointercancel={cancel} onlostpointercapture={releaseStart} onclick={activateStart}>
       <span class="switch"><span>▶</span></span><kbd>C</kbd><em>START</em>
     </button>
@@ -83,7 +84,7 @@
   button:hover:not(:disabled) { border-color:#626975; background:#17191e; }
   button:disabled { cursor:not-allowed; opacity:.45; }
   .d-pad button,.face { transform:rotate(45deg); }
-  .d-pad button:active,.face:active { transform:rotate(45deg) translate(1px,1px); background:#0d0f12; }
+  .d-pad button:active,.d-pad button.pressed,.face:active,.face.pressed { transform:rotate(45deg) translate(1px,1px); border-color:#4cc9f0; background:#0d0f12; box-shadow:inset 0 0 0 1px rgba(76,201,240,.18); }
   .switch { position:absolute; left:50%; top:27px; display:grid; width:18px; height:14px; translate:-50% 0; place-items:center; color:#858b95; background:transparent; }
   .switch::before { display:none; }
   .switch > span { color:#858b95; font:700 9px/1 var(--mono); }
@@ -97,6 +98,6 @@
   .face.enter{left:67px;top:0}.face.edit{left:28px;top:39px}
   .bottom-buttons { position:absolute; left:107px; bottom:0; width:106px; height:48px; }
   .bottom-buttons .switch { display:none; }
-  .bottom-buttons button:active { transform:translateY(1px); background:#0d0f12; }
+  .bottom-buttons button:active,.bottom-buttons button.pressed { transform:translateY(1px); border-color:#4cc9f0; background:#0d0f12; box-shadow:inset 0 0 0 1px rgba(76,201,240,.18); }
   .bottom-buttons button:first-child{left:0}.bottom-buttons button:last-child{right:0}
 </style>

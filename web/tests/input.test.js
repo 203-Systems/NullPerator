@@ -82,6 +82,20 @@ describe('tracker input state', () => {
     expect(bridge.releaseAction).toHaveBeenCalledWith(DEFAULT_KEY_MAP.enter.action)
   })
 
+  it('publishes held actions for virtual control feedback', () => {
+    const input = createInputStore(createBridge())
+    const snapshots = []
+    const unsubscribe = input.subscribe((held) => snapshots.push([...held]))
+
+    input.handleKeyDown({ code: 'KeyW', repeat: false, preventDefault() {} })
+    input.handleKeyDown({ code: 'KeyJ', repeat: false, preventDefault() {} })
+    input.handleKeyUp({ code: 'KeyW', preventDefault() {} })
+    input.releaseAll()
+    unsubscribe()
+
+    expect(snapshots).toEqual([[], ['up'], ['up', 'enter'], ['enter'], []])
+  })
+
   it('matches Node START semantics: tap PLAY, hold or chord NAV', () => {
     vi.useFakeTimers()
     try {

@@ -50,6 +50,7 @@ function actionName(action) {
 
 export function createInputStore(bridge) {
   const keyMap = DEFAULT_KEY_MAP
+  const listeners = new Set()
   const heldSources = new Map()
   const heldKeys = new Set()
   const activeBindings = new Set()
@@ -57,6 +58,10 @@ export function createInputStore(bridge) {
   let detach = null
 
   const now = () => globalThis.performance?.now?.() ?? Date.now()
+  const publish = () => {
+    const snapshot = Object.freeze([...heldSources.keys()])
+    for (const listener of listeners) listener(snapshot)
+  }
 
   function actionId(action) {
     const name = actionName(action)
@@ -79,7 +84,7 @@ export function createInputStore(bridge) {
     const wasHeld = sources.size > 0
     sources.add(source)
     heldSources.set(name, sources)
-    if (!wasHeld) bridge?.pressAction?.(actionId(name))
+    if (!wasHeld) { bridge?.pressAction?.(actionId(name)); publish() }
     return true
   }
 
@@ -96,6 +101,7 @@ export function createInputStore(bridge) {
     if (sources.size === 0) {
       heldSources.delete(name)
       bridge?.releaseAction?.(actionId(name))
+      publish()
     }
     return true
   }
@@ -106,6 +112,7 @@ export function createInputStore(bridge) {
     heldKeys.clear()
     activeBindings.clear()
     bridge?.releaseAllActions?.()
+    publish()
   }
 
   function pressStart(source = 'start') {
@@ -218,6 +225,7 @@ export function createInputStore(bridge) {
   }
 
   return Object.freeze({
+    subscribe(listener) { listeners.add(listener); listener(Object.freeze([...heldSources.keys()])); return () => listeners.delete(listener) },
     press,
     release,
     pressStart,

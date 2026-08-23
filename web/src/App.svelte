@@ -48,7 +48,7 @@
   })
 </script>
 
-<svelte:head><title>Operator · PicoTracker Workbench</title><link rel="icon" href="data:,"/><meta name="description" content="PicoTracker WebAssembly development and performance workbench"/></svelte:head>
+<svelte:head><title>NullPerator</title><link rel="icon" href="data:,"/><meta name="description" content="PicoTracker WebAssembly development and performance workbench"/></svelte:head>
 
 <div class="dashboard">
   <TopBar {runtime} {audio} {storage} {midi}/>
