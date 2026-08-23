@@ -4,6 +4,8 @@
 
 #include "WasmStorageBridge.h"
 
+#include <atomic>
+
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #include <emscripten/threading.h>
@@ -14,9 +16,18 @@ EM_JS(void, NotifyStorageCoordinatorOnBrowserMain, (), {
 });
 
 void NotifyStorageCoordinator() { NotifyStorageCoordinatorOnBrowserMain(); }
+
+std::atomic<bool> pendingMutation{false};
 } // namespace
 
 void WasmStorage_NotifyMutation() noexcept {
+  pendingMutation.store(true, std::memory_order_release);
+}
+
+void WasmStorage_FlushMutationNotifications() noexcept {
+  if (!pendingMutation.exchange(false, std::memory_order_acq_rel)) {
+    return;
+  }
   if (emscripten_is_main_runtime_thread()) {
     NotifyStorageCoordinator();
     return;
@@ -25,8 +36,6 @@ void WasmStorage_NotifyMutation() noexcept {
                                               NotifyStorageCoordinator);
 }
 #else
-#include <atomic>
-
 namespace {
 std::atomic<WasmStorageMutationNotifier> notifier{nullptr};
 }
@@ -36,6 +45,8 @@ void WasmStorage_NotifyMutation() noexcept {
     callback();
   }
 }
+
+void WasmStorage_FlushMutationNotifications() noexcept {}
 
 void WasmStorage_SetMutationNotifierForTesting(
     WasmStorageMutationNotifier callback) noexcept {

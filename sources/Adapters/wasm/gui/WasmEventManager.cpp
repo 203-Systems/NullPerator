@@ -7,6 +7,7 @@
 #include "Adapters/wasm/gui/WasmGUIWindowImp.h"
 #include "Adapters/wasm/audio/WasmAudio.h"
 #include "Adapters/wasm/audio/WasmAudioDriver.h"
+#include "Adapters/wasm/filesystem/WasmStorageBridge.h"
 #include "Adapters/wasm/input/InputMap.h"
 #include "Adapters/wasm/platform/wasm_bridge.h"
 #include "Adapters/wasm/system/WasmSystem.h"
@@ -85,6 +86,7 @@ void WasmEventManager::PumpFrame() {
     // seqlock. Browser-main setup/teardown and the realtime callback publish
     // source atomics only, so there can be no competing writer.
     WasmAudio::PublishSnapshot();
+    WasmStorage_FlushMutationNotifications();
     PicoTracker_Wasm_MarkReady();
     booting_ = false;
     nextTick_ = SDL_GetTicks64() + PICO_CLOCK_INTERVAL;
@@ -149,6 +151,9 @@ void WasmEventManager::PumpFrame() {
     window->ClockTick();
     nextTick_ = now + PICO_CLOCK_INTERVAL;
   }
+  // DispatchEvent may perform a multi-step atomic file replacement. Only let
+  // browser-main start IDBFS after the whole event batch has returned.
+  WasmStorage_FlushMutationNotifications();
 }
 
 void WasmEventManager::StopRuntime() {
@@ -168,6 +173,7 @@ void WasmEventManager::StopRuntime() {
   // before stopping this loop. It is intentionally after the browser-main
   // teardown acknowledgement above.
   WasmAudio::PublishSnapshot();
+  WasmStorage_FlushMutationNotifications();
   PicoTracker_Wasm_ReleaseAllActions();
   emscripten_cancel_main_loop();
   if (PicoTracker_Wasm_GetState() ==
