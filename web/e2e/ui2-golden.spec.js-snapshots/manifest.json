@@ -1,0 +1,386 @@
+{
+  "format": 1,
+  "source": "picotracker-240-code-layout.html",
+  "sourceSha256": "cf0fb4de28cf3a353fa39b6b70393870ae8e55c3dc8c2c4d88e428ea1ab9ec97",
+  "frameCount": 42,
+  "frames": [
+    {
+      "view": "song",
+      "group": "song",
+      "label": "",
+      "file": "song.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "265160fd76a65303dd2ecb11310960d59151b5a84a925b2b626c4453fdd1255d"
+    },
+    {
+      "view": "topbar-playing",
+      "group": "topbar",
+      "label": "",
+      "file": "topbar-playing.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "265160fd76a65303dd2ecb11310960d59151b5a84a925b2b626c4453fdd1255d"
+    },
+    {
+      "view": "topbar-low",
+      "group": "topbar",
+      "label": "",
+      "file": "topbar-low.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "54da10f2ab3f7de44f8997b3eb04e7b2a2c428f44f2f85df19d05e2e13272767"
+    },
+    {
+      "view": "topbar-high",
+      "group": "topbar",
+      "label": "",
+      "file": "topbar-high.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "c551c4deb4e0c02d3e2b86d8486af6b68d9eb824723e4d542127a0ef5b8815cf"
+    },
+    {
+      "view": "topbar-charging",
+      "group": "topbar",
+      "label": "",
+      "file": "topbar-charging.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "571516df98be420ba814d5dba9d3353f3fe4c97318228d6c80e974461b9fedb7"
+    },
+    {
+      "view": "topbar-nav",
+      "group": "topbar",
+      "label": "",
+      "file": "topbar-nav.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "00a48fb1d66e5a323f531307ed850b95d7fc091fdfcc2c099591f1f2b5c1450d"
+    },
+    {
+      "view": "chain",
+      "group": "chain",
+      "label": "",
+      "file": "chain.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "35b64bac6c748f96881f0f92d23e06ce76309636328d77f332a4a01248d4a8bd"
+    },
+    {
+      "view": "phrase-note",
+      "group": "phrase",
+      "label": "",
+      "file": "phrase-note.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "3b342ca9cfb9cdad8b456cdd9150d38b6a0a2bfe5028bc2f55dd5a950cfc6782"
+    },
+    {
+      "view": "phrase-empty",
+      "group": "phrase",
+      "label": "",
+      "file": "phrase-empty.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "326998053e9ddf5c22f2a74d1f134940ad16691df005a9d1a4d23631febae456"
+    },
+    {
+      "view": "phrase-fx",
+      "group": "phrase",
+      "label": "",
+      "file": "phrase-fx.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "cb22bc81d7ac6d5bf6c6e82b2c7fcf9f548a6e0523b135930b91e5d352808caa"
+    },
+    {
+      "view": "phrase-number",
+      "group": "phrase",
+      "label": "",
+      "file": "phrase-number.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "3d7bb870363fe2facc6e9670816f90e35717b78098ad47d35e230b12592624e1"
+    },
+    {
+      "view": "phrase-table",
+      "group": "table",
+      "label": "",
+      "file": "phrase-table.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "4767d8527e1584d565fe88c03b46979882d6f363054c1c48e6f56085dd4f7c24"
+    },
+    {
+      "view": "instrument-table",
+      "group": "table",
+      "label": "",
+      "file": "instrument-table.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "d9c65efb8f79501f3d63d5cf55c0d31bc7eac306ccafc3690ca493d51bf7a1f8"
+    },
+    {
+      "view": "phrase-table-number",
+      "group": "table",
+      "label": "",
+      "file": "phrase-table-number.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "8c6dd8be10ddfada3862a454c4873c661d85663ca859d4c96816fe49de5aa4f1"
+    },
+    {
+      "view": "instrument-table-number",
+      "group": "table",
+      "label": "",
+      "file": "instrument-table-number.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "f0614a12105129f27092d6688fad389354de73c91ff7c5b96ecaa80e557584e9"
+    },
+    {
+      "view": "groove",
+      "group": "groove",
+      "label": "",
+      "file": "groove.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "2c76b44fbc43b63076b9f624eccd10882948c5b5d5ec695514349f9d576d4f65"
+    },
+    {
+      "view": "mixer",
+      "group": "mixer",
+      "label": "",
+      "file": "mixer.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "44f8b35565ee9c10bb789c29e628dfc614304c1a58f648e64df6812d10bff23f"
+    },
+    {
+      "view": "instrument-none",
+      "group": "instrument",
+      "label": "",
+      "file": "instrument-none.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "b8a0d4adab3910276a03bf32e5ea58db862451650e98f373a6e48017127f8734"
+    },
+    {
+      "view": "instrument-name",
+      "group": "instrument",
+      "label": "",
+      "file": "instrument-name.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "0f114382ed2489af1292f23ec0b07f597433ceaa9ef5f178633bfbb1ddff1815"
+    },
+    {
+      "view": "instrument-number",
+      "group": "instrument",
+      "label": "",
+      "file": "instrument-number.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "c6d58f2fdd1fe727963549b894300ff26d3facf328c61c55fef25c1b54f0110e"
+    },
+    {
+      "view": "instrument-sample",
+      "group": "instrument",
+      "label": "",
+      "file": "instrument-sample.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "1ee053ae8609bfd1d97720317c39e7711ffd921b388f589451bf9a89c875c504"
+    },
+    {
+      "view": "instrument-midi",
+      "group": "instrument",
+      "label": "",
+      "file": "instrument-midi.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "a3d9fdc0e460cd73528e329d6c2febcb78beb022cd269d3974ea9b84b700dbde"
+    },
+    {
+      "view": "instrument-sid",
+      "group": "instrument",
+      "label": "",
+      "file": "instrument-sid.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "5d809567965995a6cb552e3d2229630f0de487ee6645ad4f9ee94569eeddddfc"
+    },
+    {
+      "view": "instrument-opal",
+      "group": "instrument",
+      "label": "",
+      "file": "instrument-opal.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "f6feb018f4582a22c86642fdc218e101ec5f7dee67895638d6747fbbb5e47bce"
+    },
+    {
+      "view": "project-name",
+      "group": "project",
+      "label": "",
+      "file": "project-name.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "cc6d0142ff829cca1e73ed3183081c1c668a6c66a590426d1702794eefbbf879"
+    },
+    {
+      "view": "project",
+      "group": "project",
+      "label": "",
+      "file": "project.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "5ddcf8c9be38b3509db94d3ba9c49e0a0b9f2c20dd9828bd4b55b5a6805978a9"
+    },
+    {
+      "view": "project-cleanup",
+      "group": "project",
+      "label": "",
+      "file": "project-cleanup.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "9c9383377943d7eca67b9066e63bd0387ff84b8c6f956d64784e35d1b0bcaebf"
+    },
+    {
+      "view": "project-render",
+      "group": "project",
+      "label": "",
+      "file": "project-render.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "0eb5a7dce4d69bb96ab266f25148e7eda91be76b7cbcb15e588cb911c70094dd"
+    },
+    {
+      "view": "device",
+      "group": "device",
+      "label": "",
+      "file": "device.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "c898316864401c02f7790f1dacf10fc340e159df4faff915fd312649e35787cd"
+    },
+    {
+      "view": "theme",
+      "group": "theme",
+      "label": "",
+      "file": "theme.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "37a4eb16d4936911115e49af1485a7e7425b5c7b9edbe0b50507da4a4b618421"
+    },
+    {
+      "view": "font",
+      "group": "font",
+      "label": "",
+      "file": "font.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "b9efb1e59905231827fbfeb02000f9f16260381b4a14b2c76b283fc51530d692"
+    },
+    {
+      "view": "sample-pool",
+      "group": "sample",
+      "label": "",
+      "file": "sample-pool.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "860f70224c84505675788b1e439750e57f6fcedca66b0181905ad4b32254d970"
+    },
+    {
+      "view": "instrument-import",
+      "group": "instrument",
+      "label": "",
+      "file": "instrument-import.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "9c2bf058a6347274ca28afe7886048ea4c9108879dea48c077dbfe0133b76711"
+    },
+    {
+      "view": "projects",
+      "group": "project",
+      "label": "",
+      "file": "projects.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "7052179c56e20a46261e202889b1fc4b5e755439562bc3a736e89d1461ebe59b"
+    },
+    {
+      "view": "theme-import",
+      "group": "theme",
+      "label": "",
+      "file": "theme-import.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "1dcc17ca5f43a81b2ab1139938b9d361be612d8bfd9fe5ac7d27fcf0a11d3fbc"
+    },
+    {
+      "view": "sample-editor",
+      "group": "sample",
+      "label": "",
+      "file": "sample-editor.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "48bca4e4509e27875c90b41d66d7178d94dde4b32e1d5ac769ab39ae145d8524"
+    },
+    {
+      "view": "sample-slices",
+      "group": "sample",
+      "label": "",
+      "file": "sample-slices.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "07b0e776c5c3198fbe94243bea7572488586f74c125472883d507201cc2c2d2b"
+    },
+    {
+      "view": "record",
+      "group": "record",
+      "label": "",
+      "file": "record.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "d50ec8abb7552832ef873ebacf5411b2a6827728520438ff9620000c49144d6e"
+    },
+    {
+      "view": "dialog-message",
+      "group": "dialogs",
+      "label": "",
+      "file": "dialog-message.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "1bc487051b43b66b2ecc9b5f7a0cfab3c9a493fc3b9016e3fd22ad7c4f0f5665"
+    },
+    {
+      "view": "dialog-input",
+      "group": "dialogs",
+      "label": "",
+      "file": "dialog-input.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "c6df329a59ebb505ee02780553be2b95c9d259fe52e63572b7f6657e0d898185"
+    },
+    {
+      "view": "dialog-render",
+      "group": "dialogs",
+      "label": "",
+      "file": "dialog-render.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "427aa678465e6c229b1d8c19ca64a3baeeb6954b3da0e029d5e889b994f3c952"
+    },
+    {
+      "view": "dialog-full",
+      "group": "dialogs",
+      "label": "",
+      "file": "dialog-full.png",
+      "width": 240,
+      "height": 240,
+      "sha256": "dee746bd401abbbb5d2b96ae6c60d81b83eff554cabda8cba7a37df039126539"
+    }
+  ]
+}

@@ -7,6 +7,7 @@
   "scripts": {
     "test": "vitest",
     "test:e2e": "playwright test",
+    "golden:capture": "node tools/capture-ui2-goldens.mjs",
     "test:e2e:audio-worklet": "CI=1 PICOTRACKER_AUDIO_E2E=1 playwright test e2e/audio.spec.js --reporter=line",
     "dev": "vite",
     "build": "vite build",
