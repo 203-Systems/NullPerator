@@ -1,5 +1,6 @@
 import { createInputBridge } from './input.js'
 import { createAudioBridge } from './audio.js'
+import { createFilesHandle } from './files.js'
 import { normalizePersistentPath } from './filesystem.js'
 import { createStorageCoordinator, persistentFsPreRun } from '../stores/storage.js'
 
@@ -134,6 +135,7 @@ export async function createRuntime(options = {}) {
   return {
     module,
     storage,
+    files: module.FS ? createFilesHandle(module, storage) : null,
     input: createInputBridge(module),
     audio: createAudioBridge(module, audioCapability),
     getBuildMetadataJson() {

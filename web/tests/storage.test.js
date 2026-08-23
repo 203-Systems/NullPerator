@@ -102,6 +102,115 @@ describe('IDBFS storage coordinator', () => {
     expect(storage.snapshot()).toMatchObject({ state: StorageState.Failed, dirty: true })
   })
 
+  it('fails closed after an unrecoverable filesystem rollback and rejects every later sync', async () => {
+    const module = makeModule((populate, callback) => callback(null))
+    const storage = createStorageCoordinator()
+    await initializePersistentFs(module, storage)
+    const failure = storage.failClosed(new Error('rollback could not restore backup'))
+    expect(storage.snapshot()).toMatchObject({ state: StorageState.Failed, error: failure.message })
+    await expect(storage.requestSync('later mutation')).rejects.toBe(failure)
+    await expect(storage.flushNow('later flush')).rejects.toBe(failure)
+  })
+
+  it('does not start another IDBFS sync when storage is failed closed during an active drain', async () => {
+    const syncs = []
+    const module = makeModule((populate, callback) => {
+      if (populate) callback(null)
+      else syncs.push(callback)
+    })
+    const storage = createStorageCoordinator()
+    await initializePersistentFs(module, storage)
+    const first = storage.requestSync('first')
+    expect(syncs).toHaveLength(1)
+    const closed = storage.failClosed(new Error('rollback unsafe'))
+    syncs.shift()(null)
+    await expect(first).rejects.toBe(closed)
+    await Promise.resolve()
+    expect(syncs).toHaveLength(0)
+    await expect(storage.requestSync('later')).rejects.toBe(closed)
+    await expect(storage.flushNow('later')).rejects.toBe(closed)
+  })
+
+  it('waits for an existing sync before entering an exclusive file mutation, then persists it once', async () => {
+    const syncs = []
+    const module = makeModule((populate, callback) => populate ? callback(null) : syncs.push(callback))
+    const storage = createStorageCoordinator()
+    await initializePersistentFs(module, storage)
+    const existing = storage.requestSync('C++ mutation')
+    expect(syncs).toHaveLength(1)
+    let entered = false
+    const mutation = storage.runMutation('files-upload', async () => { entered = true })
+    await Promise.resolve()
+    expect(entered).toBe(false)
+    syncs.shift()(null)
+    await existing
+    await Promise.resolve()
+    expect(entered).toBe(true)
+    expect(syncs).toHaveLength(1)
+    syncs.shift()(null)
+    await mutation
+  })
+
+  it('serializes file mutations and folds a request arriving inside one mutation into its release sync', async () => {
+    const syncs = []
+    const module = makeModule((populate, callback) => populate ? callback(null) : syncs.push(callback))
+    const storage = createStorageCoordinator()
+    await initializePersistentFs(module, storage)
+    const events = []
+    let queuedRequest
+    const first = storage.runMutation('first', async () => {
+      events.push('first-enter')
+      queuedRequest = storage.requestSync('during-first')
+      events.push('first-exit')
+    })
+    const second = storage.runMutation('second', async () => { events.push('second-enter') })
+    await Promise.resolve(); await Promise.resolve()
+    expect(events).toEqual(['first-enter', 'first-exit'])
+    expect(syncs).toHaveLength(1)
+    expect(events).not.toContain('second-enter')
+    syncs.shift()(null)
+    await first
+    await queuedRequest
+    await Promise.resolve()
+    expect(events).toEqual(['first-enter', 'first-exit', 'second-enter'])
+    expect(syncs).toHaveLength(1)
+    syncs.shift()(null)
+    await second
+  })
+
+  it('does not start a follow-up sync when a mutation fails storage closed during rollback', async () => {
+    const syncs = []
+    const module = makeModule((populate, callback) => populate ? callback(null) : syncs.push(callback))
+    const storage = createStorageCoordinator()
+    await initializePersistentFs(module, storage)
+    const rollbackFailure = new Error('rollback could not restore backup')
+
+    const mutation = storage.runMutation('files-delete', async () => {
+      storage.failClosed(rollbackFailure)
+      throw rollbackFailure
+    })
+
+    await expect(mutation).rejects.toBe(rollbackFailure)
+    expect(syncs).toHaveLength(0)
+    await expect(storage.requestSync('later')).rejects.toBe(rollbackFailure)
+  })
+
+  it('does not retry a failed mutation release sync until a later explicit request', async () => {
+    const syncs = []
+    const module = makeModule((populate, callback) => populate ? callback(null) : syncs.push(callback))
+    const storage = createStorageCoordinator()
+    await initializePersistentFs(module, storage)
+
+    const mutation = storage.runMutation('files-upload', async () => {})
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(syncs).toHaveLength(1)
+    syncs.shift()(new Error('quota exceeded'))
+
+    await expect(mutation).rejects.toThrow('quota exceeded')
+    expect(syncs).toHaveLength(0)
+  })
+
   it('drains a listener-reentrant save before resolving the original request', async () => {
     const syncs = []
     const module = makeModule((populate, callback) => {

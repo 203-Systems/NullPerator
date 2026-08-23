@@ -9,6 +9,7 @@ const initialSnapshot = Object.freeze({
   input: null,
   audio: null,
   storage: null,
+  files: null,
 })
 
 function classifyFrame(frame) {
@@ -91,7 +92,7 @@ export function createRuntimeManager(options = {}) {
       throw new Error(message)
     }
 
-    publish({ state: 'booting', error: null, input: null, storage: null })
+    publish({ state: 'booting', error: null, input: null, storage: null, files: null })
     try {
       module = await createModule()
       await waitForCppReady(module)
@@ -104,7 +105,7 @@ export function createRuntimeManager(options = {}) {
         await audio.initialize()
         module.audioStore = audio
       }
-      publish({ state: 'ready', buildMetadata, frameContent, input: module.input ?? null, audio, storage: module.storage ?? null })
+      publish({ state: 'ready', buildMetadata, frameContent, input: module.input ?? null, audio, storage: module.storage ?? null, files: module.files ?? null })
       return module
     } catch (error) {
       const failedModule = module
@@ -119,7 +120,7 @@ export function createRuntimeManager(options = {}) {
       const message = cleanupError
         ? `${primaryMessage}; cleanup failed: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`
         : primaryMessage
-      publish({ state: 'failed', error: message, frameContent: 'unavailable', input: null, audio: null, storage: null })
+      publish({ state: 'failed', error: message, frameContent: 'unavailable', input: null, audio: null, storage: null, files: null })
       throw error
     }
   }
@@ -135,14 +136,14 @@ export function createRuntimeManager(options = {}) {
       flushed: false,
     }
     const stoppingModule = stage.module
-    publish({ state: 'stopping', input: null, audio: null, storage: stoppingModule.storage ?? null })
+    publish({ state: 'stopping', input: null, audio: null, storage: stoppingModule.storage ?? null, files: null })
     if (!stage.inputReleased) {
       try {
         stoppingModule.input?.releaseAllActions?.()
         stage.inputReleased = true
       } catch (error) {
         stopStage = stage
-        publish({ state: 'failed', error: error instanceof Error ? error.message : String(error), buildMetadata: null, input: null, audio: null, storage: stoppingModule.storage ?? null })
+        publish({ state: 'failed', error: error instanceof Error ? error.message : String(error), buildMetadata: null, input: null, audio: null, storage: stoppingModule.storage ?? null, files: null })
         throw error
       }
     }
@@ -152,7 +153,7 @@ export function createRuntimeManager(options = {}) {
         stage.audioStopped = true
       } catch (error) {
         stopStage = stage
-        publish({ state: 'failed', error: error instanceof Error ? error.message : String(error), buildMetadata: null, input: null, audio: null, storage: stoppingModule.storage ?? null })
+        publish({ state: 'failed', error: error instanceof Error ? error.message : String(error), buildMetadata: null, input: null, audio: null, storage: stoppingModule.storage ?? null, files: null })
         throw error
       }
     } else if (!stage.audioStopped) {
@@ -182,7 +183,7 @@ export function createRuntimeManager(options = {}) {
         stage.cppStopped = true
       } catch (error) {
         stopStage = stage
-        publish({ state: 'failed', error: error instanceof Error ? error.message : String(error), buildMetadata: null, input: null, audio: null, storage: stoppingModule.storage ?? null })
+        publish({ state: 'failed', error: error instanceof Error ? error.message : String(error), buildMetadata: null, input: null, audio: null, storage: stoppingModule.storage ?? null, files: null })
         throw error
       }
     }
@@ -194,7 +195,7 @@ export function createRuntimeManager(options = {}) {
         // Keep the stopped WASM module alive: its MEMFS is the only durable
         // source until a later Stop retries this flush.
         stopStage = stage
-        publish({ state: 'failed', error: error instanceof Error ? error.message : String(error), buildMetadata: null, input: null, audio: null, storage: stoppingModule.storage ?? null })
+        publish({ state: 'failed', error: error instanceof Error ? error.message : String(error), buildMetadata: null, input: null, audio: null, storage: stoppingModule.storage ?? null, files: null })
         throw error
       }
     }
@@ -206,12 +207,12 @@ export function createRuntimeManager(options = {}) {
       // but do not retain a stale module as a future start candidate.
       stopStage = null
       module = null
-      publish({ state: 'failed', error: error instanceof Error ? error.message : String(error), buildMetadata: null, input: null, audio: null, storage: stoppingModule.storage ?? null })
+      publish({ state: 'failed', error: error instanceof Error ? error.message : String(error), buildMetadata: null, input: null, audio: null, storage: stoppingModule.storage ?? null, files: null })
       throw error
     }
     stopStage = null
     module = null
-    publish({ state: 'idle', error: null, buildMetadata: null, frameContent: 'unavailable', input: null, audio: null, storage: null })
+    publish({ state: 'idle', error: null, buildMetadata: null, frameContent: 'unavailable', input: null, audio: null, storage: null, files: null })
   }
 
   return {

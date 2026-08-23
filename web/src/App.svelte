@@ -2,6 +2,7 @@
   import { onMount, tick } from 'svelte'
 
   import DevicePanel from './components/DevicePanel.svelte'
+  import FilesPanel from './components/FilesPanel.svelte'
   import { runtimeStore } from './stores/runtime.js'
 
   const sections = ['Device', 'Files', 'MIDI', 'Logs', 'Trace', 'Settings', 'About']
@@ -97,8 +98,7 @@
     </nav>
 
     <main class="workspace">
-      {#if activeSection === 'Device'}
-        <section class="device-stage" aria-labelledby="device-heading">
+      <section class="device-stage" aria-labelledby="device-heading" hidden={activeSection !== 'Device'}>
           <div class="section-heading">
             <div>
               <p class="eyebrow">Simulator</p>
@@ -110,8 +110,10 @@
           {#key canvasGeneration}
             <DevicePanel {runtime} />
           {/key}
-        </section>
-      {:else}
+      </section>
+      {#if activeSection === 'Files'}
+        <FilesPanel files={runtime.files} storage={runtime.storage} disabled={runtime.state !== 'ready'} />
+      {:else if activeSection !== 'Device'}
         <section class="tool-placeholder" aria-live="polite">
           <p class="eyebrow">Workbench</p>
           <h1>{activeSection}</h1>

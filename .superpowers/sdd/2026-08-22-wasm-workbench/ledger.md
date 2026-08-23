@@ -75,3 +75,4 @@
 | 6 | complete | `7919e185` | `4418c875` | clean after 1 fix round | Alias-safe SPSC transport; deterministic resampler; normal/ASan+UBSan/TSan/stress/WASM pass. |
 | 7 | implemented; strict acceptance pending | `4418c875` | `5a2b5e47` | clean after 2 fix rounds | Browser audio adapter, realtime-safe callback, shared diagnostics and deterministic oracle; strict local Chrome gate remains RED at setup phase 4/callback 0 and is not skipped. |
 | 8 | complete | `5a2b5e47` | Task 8 commit | clean after 3 fix rounds | IDBFS startup, serialized persistence, recoverable shutdown flush, contained mutation notifications, and restart/reload byte acceptance. |
+| 9 | complete | `25c16320` | Task 9 commit | clean after 2 fix rounds | Matrix-style Files panel, serialized virtual-disk operations, bounded local-record/CRC ZIP parsing, transactional rollback, and persistent browser acceptance. |

@@ -23,6 +23,9 @@ export function createStorageCoordinator() {
   let drain = null
   let dirty = false
   let initialError = null
+  let closedError = null
+  let activeMutation = null
+  let mutationQueue = Promise.resolve()
   let snapshot = Object.freeze({
     state: StorageState.Initializing,
     dirty: false,
@@ -48,10 +51,12 @@ export function createStorageCoordinator() {
     try {
       do {
         while (dirty) {
+          if (closedError) throw closedError
           dirty = false
           publish({ state: StorageState.Syncing, syncing: true, error: null })
           await sync(false)
         }
+        if (closedError) throw closedError
         publish({ state: StorageState.Ready, syncing: false, error: null })
         // Synchronously invoked observers may ask for another save while the
         // final Ready state is being published. Let their microtasks enqueue
@@ -65,13 +70,56 @@ export function createStorageCoordinator() {
     }
   }
 
-  function enqueueSync(reason) {
-    if (!module) return Promise.reject(new Error('Persistent storage is not initialized'))
-    dirty = true
-    publish({ state: drain ? StorageState.Syncing : StorageState.Ready, reason, error: null })
+  function startDrain() {
     if (drain) return drain
     drain = drainDirty().finally(() => { drain = null })
     return drain
+  }
+
+  function enqueueSync(reason) {
+    if (closedError) return Promise.reject(closedError)
+    if (!module) return Promise.reject(new Error('Persistent storage is not initialized'))
+    dirty = true
+    publish({ state: drain || activeMutation ? StorageState.Syncing : StorageState.Ready, reason, error: null })
+    if (activeMutation) return activeMutation.promise
+    return startDrain()
+  }
+
+  function runMutation(reason, callback) {
+    const action = mutationQueue.then(async () => {
+      if (closedError) throw closedError
+      if (drain) await drain
+      if (closedError) throw closedError
+      let resolveBarrier
+      let rejectBarrier
+      const barrier = new Promise((resolve, reject) => { resolveBarrier = resolve; rejectBarrier = reject })
+      barrier.catch(() => {})
+      activeMutation = { promise: barrier }
+      let callbackCompleted = false
+      try {
+        const result = await callback()
+        callbackCompleted = true
+        if (closedError) throw closedError
+        dirty = true
+        publish({ state: StorageState.Syncing, syncing: true, reason, error: null })
+        await startDrain()
+        resolveBarrier(result)
+        return result
+      } catch (error) {
+        // A request arriving while a callback rolls back still deserves one
+        // serialized drain, unless the disk has explicitly been failed closed.
+        if (!closedError && !callbackCompleted && dirty) {
+          try { await startDrain() } catch { /* The original error wins. */ }
+        }
+        const failure = closedError ?? error
+        rejectBarrier(failure)
+        throw failure
+      } finally {
+        activeMutation = null
+      }
+    }, async () => { throw closedError ?? new Error('Storage mutation queue failed') })
+    mutationQueue = action.catch(() => {})
+    return action
   }
 
   function initialize(nextModule) {
@@ -123,9 +171,16 @@ export function createStorageCoordinator() {
     snapshot: () => snapshot,
     ready: () => initialized ?? Promise.reject(new Error('Persistent storage is not initialized')),
     initializationError: () => initialError,
+    failClosed(error) {
+      closedError = error instanceof Error ? error : new Error(errorMessage(error))
+      dirty = true
+      publish({ state: StorageState.Failed, syncing: false, error: closedError.message })
+      return closedError
+    },
     initializePersistentFs: initialize,
     requestSync(reason = 'mutation') { return enqueueSync(reason) },
     flushNow(reason = 'flush') { return enqueueSync(reason) },
+    runMutation,
   }
 }
 
