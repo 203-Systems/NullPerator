@@ -30,9 +30,10 @@ public:
   UiPalette &Palette() { return palette_; }
   UiIndexedSurface &Surface() { return surface_; }
 
-  template <std::size_t Capacity>
-  PresentResult RenderAndPresent(const UiCommandList<Capacity> &commands) {
-    UiRasterizer::Render(commands.Commands(), surface_);
+  template <std::size_t Capacity, std::size_t TextCapacity>
+  PresentResult
+  RenderAndPresent(const UiCommandList<Capacity, TextCapacity> &commands) {
+    UiRasterizer::Render(commands.Stream(), surface_, &palette_);
     return PresentDirty();
   }
 

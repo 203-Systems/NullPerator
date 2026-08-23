@@ -117,6 +117,61 @@ TEST_CASE("UI2 command lists fail closed instead of allocating") {
   CHECK(commands.Overflowed());
 }
 
+TEST_CASE("UI2 text commands copy strings into fixed scene storage") {
+  ui2::UiCommandList<2, 5> commands;
+  CHECK(commands.Text({3, 4}, "ABC", 7));
+  CHECK_FALSE(commands.Text({3, 4}, "DEF", 7));
+  CHECK(commands.Size() == 1);
+  CHECK(commands.Overflowed());
+  CHECK(commands.Stream().text.size() == 3);
+}
+
+TEST_CASE("UI2 approved font renders exact 5 by 7 glyphs and clips") {
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  surface.Clear(0);
+  surface.ClearDirty();
+  ui2::UiCommandList<2, 4> commands;
+  REQUIRE(commands.Text({-1, 2}, "A", 9));
+  ui2::UiRasterizer::Render(commands.Stream(), surface);
+
+  CHECK(surface.Pixel(0, 2) == 9);
+  CHECK(surface.Pixel(1, 2) == 9);
+  CHECK(surface.Pixel(2, 2) == 9);
+  CHECK(surface.Pixel(3, 2) == 0);
+  CHECK(surface.Pixel(0, 3) == 0);
+  CHECK(surface.Pixel(3, 3) == 9);
+  CHECK(surface.Pixel(0, 5) == 9);
+  CHECK(surface.Pixel(3, 5) == 9);
+}
+
+TEST_CASE("UI2 rasterizer preserves original corners through layer clips") {
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  surface.Clear(0);
+  surface.ClearDirty();
+  ui2::UiCommandList<2> commands;
+  REQUIRE(commands.FillRoundedRect({2, 2, 5, 5}, 2, 3));
+  ui2::UiRasterizer::Render(commands.Stream(), surface, nullptr, {2, 0},
+                            {5, 0, 4, 10});
+  CHECK(surface.Pixel(5, 2) == 2);
+  CHECK(surface.Pixel(8, 2) == 3);
+}
+
+TEST_CASE("UI2 semantic palette reproduces approved coverage composites") {
+  ui2::UiPalette palette;
+  CHECK(palette.Get(palette.Index(ui2::UiColorToken::SurfaceField)) ==
+        ui2::Rgb888{0x03, 0x07, 0x07});
+  CHECK(palette.Get(palette.CoverageIndex(
+            ui2::UiCoverage::Playback,
+            palette.Index(ui2::UiColorToken::SurfaceField))) ==
+        ui2::Rgb888{0x2D, 0x65, 0x45});
+  CHECK(palette.Get(palette.CoverageIndex(
+            ui2::UiCoverage::Playback,
+            palette.Index(ui2::UiColorToken::CursorRow))) ==
+        ui2::Rgb888{0x38, 0x6E, 0x50});
+}
+
 TEST_CASE("UI2 fixed-point easing is nonlinear and lands exactly") {
   ui2::UiMotionTrack track;
   track.Start(0, 240, 1'000, 180);

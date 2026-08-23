@@ -15,8 +15,10 @@ namespace ui2 {
 
 class UiRasterizer {
 public:
-  static void Render(std::span<const UiCommand> commands,
-                     UiIndexedSurface &surface);
+  static void Render(UiCommandStream stream, UiIndexedSurface &surface,
+                     const UiPalette *palette = nullptr,
+                     PointI16 origin = {},
+                     RectI16 clip = RectI16::Screen());
 };
 
 } // namespace ui2

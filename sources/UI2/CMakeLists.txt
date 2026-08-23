@@ -2,6 +2,7 @@ add_library(ui2
   Render/UiDirtyTiles.cpp
   Render/UiIndexedSurface.cpp
   Render/UiRasterizer.cpp
+  Text/UiFont5x7.cpp
   Theme/UiPalette.cpp
   UiEngine.cpp)
 

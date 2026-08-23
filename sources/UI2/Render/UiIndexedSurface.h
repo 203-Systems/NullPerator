@@ -8,6 +8,7 @@
 
 #include "UI2/Core/UiTypes.h"
 #include "UI2/Render/UiDirtyTiles.h"
+#include "UI2/Theme/UiPalette.h"
 
 #include <array>
 #include <cstddef>
@@ -29,8 +30,16 @@ public:
 
   void Clear(PaletteIndex color);
   void FillRect(RectI16 rect, PaletteIndex color);
+  void FillRect(RectI16 rect, PaletteIndex color, RectI16 clip);
   void FillRoundedRect(RectI16 rect, PaletteIndex fill,
                        PaletteIndex corner, std::uint8_t radius = 1);
+  void FillRoundedRect(RectI16 rect, PaletteIndex fill, PaletteIndex corner,
+                       std::uint8_t radius, RectI16 clip);
+  void FillCoverageRoundedRect(RectI16 rect, PaletteIndex fill,
+                               const UiPalette &palette, UiCoverage coverage,
+                               std::uint8_t radius, RectI16 clip);
+  void DrawGlyph5x7(PointI16 origin, const std::array<std::uint8_t, 7> &rows,
+                    PaletteIndex color, std::uint8_t scale, RectI16 clip);
   void SetPixel(std::int16_t x, std::int16_t y, PaletteIndex color);
 
   [[nodiscard]] PaletteIndex Pixel(std::int16_t x, std::int16_t y) const;

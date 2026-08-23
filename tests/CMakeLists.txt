@@ -45,6 +45,7 @@ add_executable(picoTracker_tests
   ../sources/UI2/Render/UiDirtyTiles.cpp
   ../sources/UI2/Render/UiIndexedSurface.cpp
   ../sources/UI2/Render/UiRasterizer.cpp
+  ../sources/UI2/Text/UiFont5x7.cpp
   ../sources/UI2/Theme/UiPalette.cpp
   ../sources/UI2/UiEngine.cpp
 )
