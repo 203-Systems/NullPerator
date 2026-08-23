@@ -68,6 +68,13 @@ OutputResampler::Flush(std::span<StereoF32> output) noexcept {
       if (!DrainSegment(output, result.outputFramesProduced)) {
         break;
       }
+      // Draining the synthetic final segment marks the finite stream as
+      // complete.  Its phase can already be beyond that segment's end on a
+      // subsequent iteration, which would otherwise recreate a zero-length
+      // tail forever without advancing the output cursor.
+      if (finished_) {
+        break;
+      }
       continue;
     }
     if (!hasPrevious_) {

@@ -1,6 +1,8 @@
 #include "Adapters/wasm/platform/wasm_bridge.h"
 
 #include "Adapters/wasm/input/InputMap.h"
+#include "Adapters/wasm/audio/WasmAudioBridge.h"
+#include "Adapters/wasm/platform/WasmBrowserSnapshots.h"
 
 #include <atomic>
 #include <cstring>
@@ -27,8 +29,19 @@ extern "C" std::uint32_t PicoTracker_Wasm_GetState() {
   return runtimeState.load(std::memory_order_acquire);
 }
 
+extern "C" void PicoTracker_Wasm_BootstrapAudio() {
+  WasmAudio_BootstrapBrowserMain();
+}
+
+extern "C" void PicoTracker_Wasm_MarkAudioUnavailable() {
+  WasmAudio_MarkUnavailable();
+}
+
 extern "C" void PicoTracker_Wasm_RequestShutdown() {
   PicoTracker_Wasm_ReleaseAllActions();
+  // Detach the graph and stop the callback producer before the application
+  // thread closes AudioDriver and is allowed to publish Stopped.
+  WasmAudio_Stop();
   runtimeState.store(static_cast<std::uint32_t>(WasmRuntimeState::Stopping),
                      std::memory_order_release);
 }
@@ -53,6 +66,36 @@ extern "C" std::uint32_t PicoTracker_Wasm_GetActionGeneration() {
 
 extern "C" std::uint16_t PicoTracker_Wasm_GetLastAction() {
   return InputMap::GetLastDispatchedAction();
+}
+
+extern "C" int PicoTracker_Wasm_UnlockAudio() {
+  return WasmAudio_Unlock() ? 1 : 0;
+}
+
+extern "C" void PicoTracker_Wasm_StopAudio() { WasmAudio_Stop(); }
+
+extern "C" std::uint32_t PicoTracker_Wasm_GetAudioState() {
+  return static_cast<std::uint32_t>(WasmAudio_GetState());
+}
+
+extern "C" const char *PicoTracker_Wasm_GetAudioError() {
+  return WasmAudio_GetError();
+}
+
+extern "C" const void *PicoTracker_Wasm_GetAudioMetrics() {
+  return WasmAudio_CopyMetrics();
+}
+
+extern "C" const std::uint32_t *PicoTracker_Wasm_GetAudioMetricsSnapshot() {
+  return WasmAudio_MetricsSnapshotAddress();
+}
+
+extern "C" const std::uint32_t *PicoTracker_Wasm_GetAudioErrorSnapshot() {
+  return WasmAudio_ErrorSnapshotAddress();
+}
+
+extern "C" const void *PicoTracker_Wasm_GetBrowserSnapshots() {
+  return Wasm_BrowserSnapshots();
 }
 
 void PicoTracker_Wasm_MarkReady() {

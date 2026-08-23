@@ -45,6 +45,7 @@ public:
   void ProcessQuit();
   bool HasPresentedFrame() const;
   static const std::uint8_t *CaptureFrameRgba();
+  static const std::uint32_t *FrameSnapshotSequence();
 
 private:
   static SDL_Rect TransformRect(const GUIRect &rect);
@@ -65,7 +66,6 @@ private:
   int positionLocation_ = -1;
   int textureLocation_ = -1;
   std::array<std::uint8_t, CanvasWidth * CanvasHeight * 4> frame_{};
-  std::array<std::uint8_t, CanvasWidth * CanvasHeight * 4> capture_{};
   std::recursive_mutex mutex_;
   std::uint32_t currentColor_ = 0xADADADFFu;
   std::uint32_t backgroundColor_ = 0x0F0F0FFFu;
@@ -77,3 +77,4 @@ private:
 };
 
 extern "C" const std::uint8_t *PicoTracker_Wasm_CaptureFrameRgba();
+extern "C" const std::uint32_t *PicoTracker_Wasm_GetFrameSnapshotSequence();

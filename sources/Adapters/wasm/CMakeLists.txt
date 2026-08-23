@@ -4,6 +4,14 @@ include_directories(
   "${PROJECT_SOURCE_DIR}"
   "${PROJECT_SOURCE_DIR}/config"
   "${CMAKE_CURRENT_SOURCE_DIR}/platform")
+
+set(PICOTRACKER_WEB_WASM_DIR
+  "${CMAKE_CURRENT_SOURCE_DIR}/../../../web/public/wasm"
+  CACHE PATH "Output directory consumed by the Vite workbench")
+# Enter before the product's directory-wide pthread option so this isolated
+# numeric fixture is a genuine no-pthread Emscripten module.
+add_subdirectory(audio/oracle)
+
 add_compile_options(-pthread)
 
 add_library(platform_mutex mutex/WasmMutex.cpp)
@@ -18,9 +26,12 @@ add_library(platform_filesystem
 target_include_directories(platform_filesystem PUBLIC "${PROJECT_SOURCE_DIR}")
 
 add_library(platform_audio
+  audio/AudioRenderOracle.cpp
+  audio/AudioWorklet.cpp
   audio/OutputResampler.cpp
   audio/PcmRingBuffer.cpp
-  audio/WasmSilentAudio.cpp)
+  audio/WasmAudio.cpp
+  audio/WasmAudioDriver.cpp)
 target_include_directories(platform_audio PUBLIC "${PROJECT_SOURCE_DIR}")
 
 add_library(platform_midi midi/WasmDisconnectedMidi.cpp)
@@ -143,21 +154,21 @@ target_link_options(picotracker_wasm PRIVATE
   -sOFFSCREENCANVAS_SUPPORT=1
   "-sOFFSCREENCANVASES_TO_PTHREAD=#picotracker-canvas"
   -sPTHREAD_POOL_SIZE=4
+  -sWASM_WORKERS=1
+  -sAUDIO_WORKLET=1
   -sMODULARIZE=1
   -sEXPORT_ES6=1
   -sEXPORT_NAME=createPicoTrackerModule
   -sINITIAL_MEMORY=268435456
-  -sENVIRONMENT=web,worker
-  "-sEXPORTED_FUNCTIONS=['_main','_PicoTracker_Wasm_GetBuildMetadataJson','_PicoTracker_Wasm_GetState','_PicoTracker_Wasm_RequestShutdown','_PicoTracker_Wasm_GetLastError','_PicoTracker_Wasm_SetAction','_PicoTracker_Wasm_ReleaseAllActions','_PicoTracker_Wasm_GetActionMask','_PicoTracker_Wasm_GetActionGeneration','_PicoTracker_Wasm_GetLastAction','_PicoTracker_Wasm_CaptureFrameRgba','_PicoTracker_Wasm_CoreApplicationAnchor','_PicoTracker_Wasm_CoreAppWindowAnchor','_PicoTracker_Wasm_CorePlayerAnchor','_PicoTracker_Wasm_CoreViewAnchor']"
-  "-sEXPORTED_RUNTIME_METHODS=['UTF8ToString','HEAPU8','PThread']")
+  -sENVIRONMENT=web,worker,worklet
+  "-sEXPORTED_FUNCTIONS=['_main','_PicoTracker_Wasm_GetBuildMetadataJson','_PicoTracker_Wasm_GetState','_PicoTracker_Wasm_BootstrapAudio','_PicoTracker_Wasm_MarkAudioUnavailable','_PicoTracker_Wasm_RequestShutdown','_PicoTracker_Wasm_GetLastError','_PicoTracker_Wasm_SetAction','_PicoTracker_Wasm_ReleaseAllActions','_PicoTracker_Wasm_GetActionMask','_PicoTracker_Wasm_GetActionGeneration','_PicoTracker_Wasm_GetLastAction','_PicoTracker_Wasm_CaptureFrameRgba','_PicoTracker_Wasm_GetFrameSnapshotSequence','_PicoTracker_Wasm_UnlockAudio','_PicoTracker_Wasm_StopAudio','_PicoTracker_Wasm_GetAudioState','_PicoTracker_Wasm_GetAudioError','_PicoTracker_Wasm_GetAudioMetrics','_PicoTracker_Wasm_GetAudioMetricsSnapshot','_PicoTracker_Wasm_GetAudioErrorSnapshot','_PicoTracker_Wasm_GetBrowserSnapshots','_PicoTracker_Wasm_CoreApplicationAnchor','_PicoTracker_Wasm_CoreAppWindowAnchor','_PicoTracker_Wasm_CorePlayerAnchor','_PicoTracker_Wasm_CoreViewAnchor']"
+  "-sEXPORTED_RUNTIME_METHODS=['UTF8ToString','HEAPU8','HEAPU32','PThread']")
 
-set(PICOTRACKER_WEB_WASM_DIR
-  "${CMAKE_CURRENT_SOURCE_DIR}/../../../web/public/wasm"
-  CACHE PATH "Output directory consumed by the Vite workbench")
 set_target_properties(picotracker_wasm PROPERTIES
   OUTPUT_NAME picotracker
   SUFFIX ".js"
   RUNTIME_OUTPUT_DIRECTORY "${PICOTRACKER_WEB_WASM_DIR}")
+
 
 add_custom_command(TARGET picotracker_wasm POST_BUILD
   COMMAND "${CMAKE_COMMAND}"

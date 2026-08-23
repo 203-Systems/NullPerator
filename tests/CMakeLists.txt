@@ -12,8 +12,12 @@ add_executable(picoTracker_tests
   wavheader_tests.cpp
   wasm_audio_tests.cpp
   wasm_platform_tests.cpp
+  ../sources/Adapters/wasm/audio/AudioRenderOracle.cpp
+  ../sources/Adapters/wasm/audio/AudioWorklet.cpp
+  ../sources/Adapters/wasm/audio/WasmAudioDriver.cpp
   ../sources/Adapters/wasm/audio/PcmRingBuffer.cpp
   ../sources/Adapters/wasm/audio/OutputResampler.cpp
+  ../sources/Services/Audio/AudioDriver.cpp
   ../sources/Adapters/wasm/input/InputMap.cpp
   ../sources/Application/Instruments/WavHeader.cpp
   ../sources/Adapters/wasm/system/WasmSystem.cpp

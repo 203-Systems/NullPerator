@@ -1,9 +1,154 @@
 import { describe, expect, it, vi } from 'vitest'
+import { readFile } from 'node:fs/promises'
 
 import { createRuntime } from '../src/handles/runtime.js'
 import { createRuntimeManager } from '../src/stores/runtime.js'
 
 describe('WASM runtime lifecycle', () => {
+  it('requires browser-main teardown acknowledgement before an application shutdown can stop', async () => {
+    const source = await readFile(
+      new URL('../../sources/Adapters/wasm/audio/WasmAudio.cpp', import.meta.url),
+      'utf8',
+    )
+    const eventManager = await readFile(
+      new URL('../../sources/Adapters/wasm/gui/WasmEventManager.cpp', import.meta.url),
+      'utf8',
+    )
+
+    expect(source).toContain('emscripten_async_run_in_main_runtime_thread')
+    expect(source).toContain('teardownComplete_')
+    expect(eventManager).toContain('BrowserTeardownComplete')
+    expect(eventManager).toContain('PicoTracker_Wasm_RequestShutdown()')
+  })
+
+  it('does not restart until a delayed C++ teardown acknowledgement precedes thread termination', async () => {
+    const events = []
+    let generation = 0
+    const runtime = createRuntimeManager({
+      crossOriginIsolated: true,
+      createModule: async () => {
+        const id = ++generation
+        let state = 1
+        return {
+          getState: () => state,
+          getBuildMetadataJson: () => '{}',
+          input: { releaseAllActions() {} },
+          requestShutdown() {
+            events.push(`request-${id}`)
+            state = 2
+            setTimeout(() => {
+              state = 4
+              events.push(`ack-${id}`)
+            }, 0)
+          },
+          terminate() {
+            expect(state).toBe(4)
+            events.push(`terminate-${id}`)
+          },
+        }
+      },
+    })
+
+    await runtime.start()
+    await runtime.restart()
+
+    expect(events).toEqual(['request-1', 'ack-1', 'terminate-1'])
+    expect(runtime.getSnapshot().state).toBe('ready')
+  })
+
+  it('boots browser-owned audio exactly once from the private Module only when explicitly enabled', async () => {
+    let moduleArgument
+    const calls = []
+    const privateModule = {
+      _PicoTracker_Wasm_BootstrapAudio: () => calls.push('bootstrap'),
+      _PicoTracker_Wasm_GetState: () => 1,
+      _PicoTracker_Wasm_SetAction() {},
+      _PicoTracker_Wasm_ReleaseAllActions() {},
+      _PicoTracker_Wasm_GetActionMask() {},
+      _PicoTracker_Wasm_GetActionGeneration() {},
+      _PicoTracker_Wasm_GetLastAction() {},
+      PThread: { terminateAllThreads() {} },
+    }
+
+    const runtime = await createRuntime({
+      audioWorkletEnabled: true,
+      moduleFactory: async (options) => {
+        moduleArgument = options
+        expect(options).not.toBe(privateModule)
+        options.onRuntimeInitialized.call(privateModule)
+        calls.push('resolved')
+        return privateModule
+      },
+    })
+
+    expect(calls).toEqual(['bootstrap', 'resolved'])
+    expect(moduleArgument).not.toBe(privateModule)
+    expect(runtime.audio.capability).toEqual({ available: true, mode: 'worklet', reason: null })
+  })
+
+  it('marks audio unavailable instead of entering Emscripten worklet bootstrap by default', async () => {
+    const calls = []
+    const privateModule = {
+      _PicoTracker_Wasm_BootstrapAudio: () => calls.push('bootstrap'),
+      _PicoTracker_Wasm_MarkAudioUnavailable: () => calls.push('unavailable'),
+      _PicoTracker_Wasm_GetState: () => 1,
+      _PicoTracker_Wasm_SetAction() {},
+      _PicoTracker_Wasm_ReleaseAllActions() {},
+      _PicoTracker_Wasm_GetActionMask() {},
+      _PicoTracker_Wasm_GetActionGeneration() {},
+      _PicoTracker_Wasm_GetLastAction() {},
+      PThread: { terminateAllThreads() {} },
+    }
+
+    const runtime = await createRuntime({
+      audioWorkletEnabled: false,
+      moduleFactory: async (options) => {
+        options.onRuntimeInitialized.call(privateModule)
+        calls.push('resolved')
+        return privateModule
+      },
+    })
+
+    expect(calls).toEqual(['unavailable', 'resolved'])
+    expect(runtime.audio.capability).toEqual({
+      available: false,
+      mode: 'disabled',
+      reason: 'Audio disabled; enable low-latency audio and reload.',
+    })
+  })
+
+  it('uses the single pre-main browser snapshot descriptor and never re-enters an oracle export', async () => {
+    const calls = []
+    const memory = new SharedArrayBuffer(128)
+    const words = new Uint32Array(memory)
+    const privateModule = {
+      HEAPU32: words,
+      _PicoTracker_Wasm_MarkAudioUnavailable: () => calls.push('unavailable'),
+      _PicoTracker_Wasm_GetBrowserSnapshots: () => {
+        calls.push('snapshot-descriptor')
+        words.set([1, 28, 0, 0, 0, 0, 0], 2)
+        return 8
+      },
+      _PicoTracker_Wasm_GetState: () => 1,
+      _PicoTracker_Wasm_SetAction() {},
+      _PicoTracker_Wasm_ReleaseAllActions() {},
+      _PicoTracker_Wasm_GetActionMask() {},
+      _PicoTracker_Wasm_GetActionGeneration() {},
+      _PicoTracker_Wasm_GetLastAction() {},
+      PThread: { terminateAllThreads() {} },
+    }
+    const runtime = await createRuntime({
+      audioWorkletEnabled: false,
+      moduleFactory: async (options) => {
+        options.onRuntimeInitialized.call(privateModule)
+        return privateModule
+      },
+    })
+
+    expect(calls).toEqual(['snapshot-descriptor', 'unavailable'])
+    expect(calls).toEqual(['snapshot-descriptor', 'unavailable'])
+  })
+
   it('passes the tracker canvas to Emscripten', async () => {
     const canvas = {}
     let moduleOptions
@@ -29,24 +174,86 @@ describe('WASM runtime lifecycle', () => {
   })
 
   it('exports an immutable 240x240 RGBA frame copy', async () => {
+    const frameBytes = 240 * 240 * 4
+    const descriptorPointer = 8 + frameBytes
+    const memory = new SharedArrayBuffer(frameBytes + 64)
+    const heap = new Uint8Array(memory)
+    const words = new Uint32Array(memory)
     const module = {
-      _PicoTracker_Wasm_CaptureFrameRgba: () => 4,
+      _PicoTracker_Wasm_CaptureFrameRgba: () => 8,
+      _PicoTracker_Wasm_GetFrameSnapshotSequence: () => 4,
+      _PicoTracker_Wasm_GetBrowserSnapshots: () => descriptorPointer,
+      _PicoTracker_Wasm_MarkAudioUnavailable() {},
       _PicoTracker_Wasm_SetAction() {},
       _PicoTracker_Wasm_ReleaseAllActions() {},
       _PicoTracker_Wasm_GetActionMask() {},
       _PicoTracker_Wasm_GetActionGeneration() {},
       _PicoTracker_Wasm_GetLastAction() {},
-      HEAPU8: new Uint8Array([9, 8, 7, 6, 5, 4, 3, 2]),
+      HEAPU8: heap,
+      HEAPU32: words,
     }
-    const runtime = await createRuntime({ moduleFactory: async () => module })
+    heap.set([9, 8, 7, 6, 5, 4, 3, 2], 4)
+    words[1] = 2
+    words.set([1, 28, 8, 4, 0, 0, 0], descriptorPointer >>> 2)
+    const runtime = await createRuntime({
+      moduleFactory: async (options) => {
+        options.onRuntimeInitialized.call(module)
+        return module
+      },
+    })
 
     const frame = runtime.captureFrameRgba()
 
     expect(frame).toBeInstanceOf(Uint8Array)
     expect(frame).not.toBe(module.HEAPU8)
-    expect(frame).toEqual(new Uint8Array([5, 4, 3, 2]))
-    module.HEAPU8[4] = 0
+    expect(frame.slice(0, 4)).toEqual(new Uint8Array([5, 4, 3, 2]))
+    module.HEAPU8[8] = 0
     expect(frame[0]).toBe(5)
+  })
+
+  it('retries a frame read when the producer publishes during the copy', async () => {
+    const frameBytes = 240 * 240 * 4
+    const descriptorPointer = 8 + frameBytes
+    const memory = new SharedArrayBuffer(frameBytes + 64)
+    const heap = new Uint8Array(memory)
+    const words = new Uint32Array(memory)
+    const module = {
+      _PicoTracker_Wasm_CaptureFrameRgba: () => 8,
+      _PicoTracker_Wasm_GetFrameSnapshotSequence: () => 4,
+      _PicoTracker_Wasm_GetBrowserSnapshots: () => descriptorPointer,
+      _PicoTracker_Wasm_MarkAudioUnavailable() {},
+      _PicoTracker_Wasm_SetAction() {},
+      _PicoTracker_Wasm_ReleaseAllActions() {},
+      _PicoTracker_Wasm_GetActionMask() {},
+      _PicoTracker_Wasm_GetActionGeneration() {},
+      _PicoTracker_Wasm_GetLastAction() {},
+      HEAPU8: heap,
+      HEAPU32: words,
+    }
+    heap.fill(1, 8, 8 + 240 * 240 * 4)
+    words[1] = 2
+    words.set([1, 28, 8, 4, 0, 0, 0], descriptorPointer >>> 2)
+    const slice = heap.slice.bind(heap)
+    let copies = 0
+    heap.slice = (...args) => {
+      copies += 1
+      if (copies === 1) {
+        heap.fill(2, 8, 8 + 240 * 240 * 4)
+        Atomics.store(words, 1, 4)
+      }
+      return slice(...args)
+    }
+    const runtime = await createRuntime({
+      moduleFactory: async (options) => {
+        options.onRuntimeInitialized.call(module)
+        return module
+      },
+    })
+
+    const frame = runtime.captureFrameRgba()
+
+    expect(copies).toBe(2)
+    expect(frame[0]).toBe(2)
   })
 
   it('terminates the old module before creating a replacement', async () => {

@@ -1,4 +1,5 @@
 import { createRuntime } from '../handles/runtime.js'
+import { createAudioStore } from './audio.js'
 
 const initialSnapshot = Object.freeze({
   state: 'idle',
@@ -6,6 +7,7 @@ const initialSnapshot = Object.freeze({
   buildMetadata: null,
   frameContent: 'unavailable',
   input: null,
+  audio: null,
 })
 
 function classifyFrame(frame) {
@@ -51,6 +53,20 @@ export function createRuntimeManager(options = {}) {
     }
   }
 
+  async function waitForCppStopped(runtimeModule) {
+    if (typeof runtimeModule.getState !== 'function') return
+    const deadline = Date.now() + (options.shutdownTimeoutMs ?? 5_000)
+    while (true) {
+      const state = runtimeModule.getState()
+      if (state === 4) return
+      if (state === 3) {
+        throw new Error(runtimeModule.getLastError?.() || 'C++ shutdown failed')
+      }
+      if (Date.now() >= deadline) throw new Error('Timed out waiting for C++ shutdown')
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+  }
+
   function publish(next) {
     snapshot = Object.freeze({ ...snapshot, ...next })
     for (const listener of listeners) listener(snapshot)
@@ -78,7 +94,12 @@ export function createRuntimeManager(options = {}) {
         ? JSON.parse(module.getBuildMetadataJson())
         : null
       const frameContent = classifyFrame(module.captureFrameRgba?.())
-      publish({ state: 'ready', buildMetadata, frameContent, input: module.input ?? null })
+      const audio = module.audio ? createAudioStore(module.audio) : null
+      if (audio) {
+        await audio.initialize()
+        module.audioStore = audio
+      }
+      publish({ state: 'ready', buildMetadata, frameContent, input: module.input ?? null, audio })
       return module
     } catch (error) {
       const failedModule = module
@@ -93,7 +114,7 @@ export function createRuntimeManager(options = {}) {
       const message = cleanupError
         ? `${primaryMessage}; cleanup failed: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`
         : primaryMessage
-      publish({ state: 'failed', error: message, frameContent: 'unavailable', input: null })
+      publish({ state: 'failed', error: message, frameContent: 'unavailable', input: null, audio: null })
       throw error
     }
   }
@@ -102,15 +123,31 @@ export function createRuntimeManager(options = {}) {
     if (!module) return
     const stoppingModule = module
     module = null
-    publish({ state: 'stopping', input: null })
+    publish({ state: 'stopping', input: null, audio: null })
     let cleanupError = null
     try {
       stoppingModule.input?.releaseAllActions?.()
     } catch (error) {
       cleanupError = error
     }
+    if (stoppingModule.audioStore) {
+      try {
+        await stoppingModule.audioStore.stop()
+      } catch (error) {
+        cleanupError ??= error
+      }
+    }
     try {
-      await stoppingModule.requestShutdown?.()
+      if (typeof stoppingModule.requestShutdown === 'function') {
+        await stoppingModule.requestShutdown()
+        // Native handles move to Stopping before their browser-main teardown
+        // acknowledgement. Lightweight test/custom handles may instead make
+        // their requestShutdown promise itself the acknowledgement and remain
+        // in Ready, in which case there is no native state transition to poll.
+        if (stoppingModule.getState?.() === 2) {
+          await waitForCppStopped(stoppingModule)
+        }
+      }
     } catch (error) {
       cleanupError = error
     }
@@ -122,10 +159,10 @@ export function createRuntimeManager(options = {}) {
 
     if (cleanupError) {
       const message = cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
-      publish({ state: 'failed', error: message, buildMetadata: null, input: null })
+      publish({ state: 'failed', error: message, buildMetadata: null, input: null, audio: null })
       throw cleanupError
     }
-    publish({ state: 'idle', error: null, buildMetadata: null, frameContent: 'unavailable', input: null })
+    publish({ state: 'idle', error: null, buildMetadata: null, frameContent: 'unavailable', input: null, audio: null })
   }
 
   return {

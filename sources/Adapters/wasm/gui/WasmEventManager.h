@@ -24,5 +24,6 @@ private:
 
   std::atomic<bool> finished_{false};
   bool runtimeStopped_ = false;
+  bool booting_ = true;
   double nextTick_ = 0.0;
 };

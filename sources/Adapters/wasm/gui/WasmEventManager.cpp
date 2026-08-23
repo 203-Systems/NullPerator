@@ -5,6 +5,8 @@
 #include "Adapters/wasm/gui/WasmEventManager.h"
 
 #include "Adapters/wasm/gui/WasmGUIWindowImp.h"
+#include "Adapters/wasm/audio/WasmAudio.h"
+#include "Adapters/wasm/audio/WasmAudioDriver.h"
 #include "Adapters/wasm/input/InputMap.h"
 #include "Adapters/wasm/platform/wasm_bridge.h"
 #include "Adapters/wasm/system/WasmSystem.h"
@@ -21,6 +23,7 @@ bool WasmEventManager::Init() {
   }
   finished_.store(false, std::memory_order_release);
   runtimeStopped_ = false;
+  booting_ = true;
   if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_TIMER) != 0) {
     return false;
   }
@@ -46,9 +49,48 @@ void WasmEventManager::PumpFrame() {
   if (runtimeStopped_) {
     return;
   }
+  const auto runtimeState = PicoTracker_Wasm_GetState();
   if (finished_.load(std::memory_order_acquire) ||
-      PicoTracker_Wasm_GetState() !=
-          static_cast<std::uint32_t>(WasmRuntimeState::Ready)) {
+      runtimeState == static_cast<std::uint32_t>(WasmRuntimeState::Stopping) ||
+      runtimeState == static_cast<std::uint32_t>(WasmRuntimeState::Stopped) ||
+      runtimeState == static_cast<std::uint32_t>(WasmRuntimeState::Failed)) {
+    StopRuntime();
+    return;
+  }
+
+  GUIWindow *window = Application::GetInstance()->GetWindow();
+  if (window == nullptr) {
+    PicoTracker_Wasm_Fail("PicoTracker application did not create a window");
+    StopRuntime();
+    return;
+  }
+  auto *wasmWindow = static_cast<WasmGUIWindowImp *>(window->GetImpWindow());
+  if (wasmWindow == nullptr) {
+    PicoTracker_Wasm_Fail("PicoTracker did not create a browser window");
+    StopRuntime();
+    return;
+  }
+  if (booting_) {
+    // The browser main and application pthread both get a scheduling turn
+    // before the first expensive UI clock tick. This avoids startup races in
+    // SDL/OffscreenCanvas while preserving the normal frame lifecycle.
+    window->Update(true);
+    window->ClockTick();
+    if (!wasmWindow->HasPresentedFrame()) {
+      PicoTracker_Wasm_Fail("PicoTracker did not present an initial browser frame");
+      StopRuntime();
+      return;
+    }
+    // This application rAF is the only writer of the browser metrics
+    // seqlock. Browser-main setup/teardown and the realtime callback publish
+    // source atomics only, so there can be no competing writer.
+    WasmAudio::PublishSnapshot();
+    PicoTracker_Wasm_MarkReady();
+    booting_ = false;
+    nextTick_ = SDL_GetTicks64() + PICO_CLOCK_INTERVAL;
+    return;
+  }
+  if (runtimeState != static_cast<std::uint32_t>(WasmRuntimeState::Ready)) {
     StopRuntime();
     return;
   }
@@ -56,9 +98,13 @@ void WasmEventManager::PumpFrame() {
   // SDL can temporarily reject an event when its queue is full. InputMap keeps
   // the browser's latest desired state and retries it here in frame order.
   InputMap::RetryPendingTransitions();
+  if (auto *audio = WasmAudioDriver::Instance()) {
+    audio->PumpProducer();
+  }
+  // The browser reads audio diagnostics from shared atomic words. Publish on
+  // the application frame rather than from the realtime worklet callback.
+  WasmAudio::PublishSnapshot();
 
-  GUIWindow *window = Application::GetInstance()->GetWindow();
-  auto *wasmWindow = static_cast<WasmGUIWindowImp *>(window->GetImpWindow());
   SDL_Event event{};
   while (SDL_PollEvent(&event) != 0) {
     switch (event.type) {
@@ -109,7 +155,19 @@ void WasmEventManager::StopRuntime() {
   if (runtimeStopped_) {
     return;
   }
+  if (PicoTracker_Wasm_GetState() ==
+          static_cast<std::uint32_t>(WasmRuntimeState::Stopping) &&
+      !WasmAudio::BrowserTeardownComplete()) {
+    // Keep the application rAF alive until browser main has detached the
+    // WebAudio graph. JavaScript only terminates the pthread after the
+    // subsequent Stopped acknowledgement.
+    return;
+  }
   runtimeStopped_ = true;
+  // Publish the terminal audio source atomics from the same rAF-owned writer
+  // before stopping this loop. It is intentionally after the browser-main
+  // teardown acknowledgement above.
+  WasmAudio::PublishSnapshot();
   PicoTracker_Wasm_ReleaseAllActions();
   emscripten_cancel_main_loop();
   if (PicoTracker_Wasm_GetState() ==

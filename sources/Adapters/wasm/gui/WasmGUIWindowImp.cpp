@@ -5,6 +5,7 @@
  */
 
 #include "Adapters/wasm/gui/WasmGUIWindowImp.h"
+#include "Adapters/wasm/gui/WasmFrameSnapshot.h"
 
 #include <emscripten/emscripten.h>
 
@@ -20,6 +21,9 @@ namespace {
 constexpr int CellSourceWidth = 10;
 constexpr int CellSourceHeight = 10;
 constexpr int FrameworkCellStep = 8;
+constexpr std::size_t FrameBytes =
+    WasmGUIWindowImp::CanvasWidth * WasmGUIWindowImp::CanvasHeight * 4U;
+WasmFrameSnapshot<FrameBytes> frameSnapshot;
 
 int ScaleXFloor(int x) {
   return (x * WasmGUIWindowImp::CanvasWidth) /
@@ -259,6 +263,7 @@ void WasmGUIWindowImp::Flush() {
     return;
   }
   if (PresentFrame()) {
+    frameSnapshot.Publish(frame_);
     dirty_ = false;
     dirtyRect_ = {0, 0, 0, 0};
     hasPresentedFrame_ = true;
@@ -412,15 +417,27 @@ bool WasmGUIWindowImp::PresentFrame() {
 }
 
 const std::uint8_t *WasmGUIWindowImp::CaptureFrameRgba() {
-  if (instance_ == nullptr) {
-    return nullptr;
-  }
-  std::lock_guard<std::recursive_mutex> lock(instance_->mutex_);
-  instance_->capture_ = instance_->frame_;
-  return instance_->capture_.data();
+  return frameSnapshot.Data();
+}
+
+const std::uint32_t *WasmGUIWindowImp::FrameSnapshotSequence() {
+  return frameSnapshot.SequenceAddress();
+}
+
+const std::uint8_t *Wasm_FrameSnapshotAddress() noexcept {
+  return WasmGUIWindowImp::CaptureFrameRgba();
+}
+
+const std::uint32_t *Wasm_FrameSequenceAddress() noexcept {
+  return WasmGUIWindowImp::FrameSnapshotSequence();
 }
 
 extern "C" EMSCRIPTEN_KEEPALIVE const std::uint8_t *
 PicoTracker_Wasm_CaptureFrameRgba() {
   return WasmGUIWindowImp::CaptureFrameRgba();
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE const std::uint32_t *
+PicoTracker_Wasm_GetFrameSnapshotSequence() {
+  return WasmGUIWindowImp::FrameSnapshotSequence();
 }

@@ -5,7 +5,7 @@
 #include "WasmSystem.h"
 
 #ifndef HOST_TEST
-#include "Adapters/wasm/audio/WasmSilentAudio.h"
+#include "Adapters/wasm/audio/WasmAudio.h"
 #include "Adapters/wasm/filesystem/WasmFileSystem.h"
 #include "Adapters/wasm/midi/WasmDisconnectedMidi.h"
 #include "Adapters/wasm/platform/wasm_bridge.h"
@@ -96,13 +96,12 @@ bool WasmSystem::InstallPlatformServices() {
   MidiService::Install(new (midiStorage) WasmDisconnectedMidi());
 
   AudioSettings settings{};
-  settings.audioAPI_ = "silent";
-  settings.audioDevice_ = "disconnected";
+  settings.audioAPI_ = "wasm-audio-worklet";
+  settings.audioDevice_ = "browser-default";
   settings.bufferSize_ = 1024;
   settings.preBufferCount_ = 4;
-  alignas(WasmSilentAudio)
-      static unsigned char audioStorage[sizeof(WasmSilentAudio)];
-  Audio::Install(new (audioStorage) WasmSilentAudio(settings));
+  alignas(WasmAudio) static unsigned char audioStorage[sizeof(WasmAudio)];
+  Audio::Install(new (audioStorage) WasmAudio(settings));
 
   alignas(WasmSamplePool)
       static unsigned char samplePoolStorage[sizeof(WasmSamplePool)];

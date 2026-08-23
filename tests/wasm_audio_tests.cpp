@@ -1,5 +1,8 @@
 #include "Adapters/wasm/audio/OutputResampler.h"
 #include "Adapters/wasm/audio/PcmRingBuffer.h"
+#include "Adapters/wasm/audio/AudioWorklet.h"
+#include "Adapters/wasm/audio/WasmAudioDriver.h"
+#include "Adapters/wasm/gui/WasmFrameSnapshot.h"
 
 #include "doctest/doctest.h"
 
@@ -23,6 +26,16 @@ void CheckFrame(const StereoF32 &frame, float left, float right) {
   CHECK(frame.right == doctest::Approx(right));
 }
 } // namespace
+
+TEST_CASE("WASM frame snapshot publishes only complete even-sequence frames") {
+  WasmFrameSnapshot<8> snapshot;
+  const std::array<std::uint8_t, 8> source{4, 8, 15, 16, 23, 42, 0, 255};
+
+  snapshot.Publish(source);
+
+  CHECK((snapshot.Sequence() & 1U) == 0U);
+  CHECK(std::equal(source.begin(), source.end(), snapshot.Data()));
+}
 
 TEST_CASE("PCM ring preserves frame ordering across wrap and distinguishes full from empty") {
   PcmRingBuffer<8> ring;
@@ -137,12 +150,14 @@ TEST_CASE("PCM ring uses wide monotonic positions and remains ordered under SPSC
   PcmRingBuffer<64> ring;
   std::atomic<bool> producerDone{false};
   std::atomic<bool> ordered{true};
+  std::atomic<std::uint64_t> rejectedFrames{0U};
 
   std::thread producer([&] {
     for (std::size_t index = 0; index < frameCount; ++index) {
       const StereoI16 frame = Frame(static_cast<std::int16_t>(index),
                                     static_cast<std::int16_t>(~index));
       while (ring.Write({&frame, 1}) == 0U) {
+        rejectedFrames.fetch_add(1U, std::memory_order_relaxed);
         std::this_thread::yield();
       }
     }
@@ -169,7 +184,9 @@ TEST_CASE("PCM ring uses wide monotonic positions and remains ordered under SPSC
   CHECK(ordered.load(std::memory_order_relaxed));
   CHECK(ring.FillFrames() == 0U);
   CHECK(ring.Underruns() == 0U);
-  CHECK(ring.Overruns() == 0U);
+  // Retrying a rejected full-ring write is intentionally counted as an
+  // overrun by the queue contract; every retry must be represented exactly.
+  CHECK(ring.Overruns() == rejectedFrames.load(std::memory_order_relaxed));
 }
 
 TEST_CASE("PCM ring retains full empty and ordering semantics across position wrap") {
@@ -389,4 +406,76 @@ TEST_CASE("output resampler converts one second from 44.1 kHz to 48 kHz across a
   CHECK(output.back().left == doctest::Approx(
             std::sin(twoPi * frequency * (destinationRate - 1) / destinationRate))
             .epsilon(0.0012));
+}
+
+TEST_CASE("WASM audio driver writes interleaved engine frames and fixed worklet helper pulls planar stereo") {
+  AudioSettings settings{};
+  WasmAudioDriver driver(settings);
+  REQUIRE(driver.Init());
+  REQUIRE(driver.Start());
+  driver.OnAudioActive(true);
+  driver.SetWorkletRunning(true);
+  std::array<short, 8> input{0, 16384, 8192, -8192, -16384, 0, 32767, -32768};
+  driver.AddBuffer(input.data(), 4);
+  WasmAudioWorkletRenderer renderer(driver, 44100U);
+  std::array<float, 4> left{};
+  std::array<float, 4> right{};
+  static_assert(noexcept(renderer.Render(left.data(), right.data(), left.size())));
+  REQUIRE(renderer.Render(left.data(), right.data(), left.size()));
+  CHECK(left[0] == doctest::Approx(0.0F));
+  CHECK(right[0] == doctest::Approx(0.5F));
+  CHECK(left[1] == doctest::Approx(0.25F));
+  CHECK(right[1] == doctest::Approx(-0.25F));
+  CHECK(left[2] == doctest::Approx(-0.5F));
+  CHECK(right[2] == doctest::Approx(0.0F));
+  CHECK(left[3] == doctest::Approx(32767.0F / 32768.0F));
+  CHECK(right[3] == doctest::Approx(-1.0F));
+  CHECK(driver.Metrics().ringFillFrames == 0U);
+  driver.Stop();
+}
+
+TEST_CASE("WASM audio worklet helper resamples a 44.1k source at a 48k boundary") {
+  AudioSettings settings{};
+  WasmAudioDriver driver(settings);
+  REQUIRE(driver.Init());
+  REQUIRE(driver.Start());
+  driver.OnAudioActive(true);
+  driver.SetWorkletRunning(true);
+  std::array<short, 512 * 2> input{};
+  for (std::size_t frame = 0; frame < 512; ++frame) {
+    input[frame * 2] = static_cast<short>(frame * 32);
+    input[frame * 2 + 1] = static_cast<short>(-static_cast<int>(frame) * 32);
+  }
+  driver.AddBuffer(input.data(), 512);
+  WasmAudioWorkletRenderer renderer(driver, 48000U);
+  std::array<float, 128> left{};
+  std::array<float, 128> right{};
+  REQUIRE(renderer.Render(left.data(), right.data(), left.size()));
+  for (std::size_t frame = 0; frame < left.size(); ++frame) {
+    CHECK(left[frame] == doctest::Approx(-right[frame]));
+  }
+  CHECK(driver.Metrics().sourceRate == 44100U);
+  driver.Stop();
+}
+
+TEST_CASE("WASM browser render oracle is deterministic at 44.1 and 48 kHz") {
+  const auto nativeA = WasmAudioWorkletRenderer::RenderOracle(44100U);
+  const auto nativeB = WasmAudioWorkletRenderer::RenderOracle(44100U);
+  CHECK(nativeA.version == WasmAudioRenderOracle::Version);
+  CHECK(nativeA.size == sizeof(WasmAudioRenderOracle));
+  CHECK(nativeA.destinationRate == 44100U);
+  CHECK(nativeA.producedFrames == 128U);
+  CHECK(nativeA.sampleHash == 799941061U);
+  CHECK(nativeA.peakQ15 == 16384U);
+  CHECK(nativeA.sampleHash == nativeB.sampleHash);
+  CHECK(nativeA.peakQ15 == nativeB.peakQ15);
+
+  const auto boundaryA = WasmAudioWorkletRenderer::RenderOracle(48000U);
+  const auto boundaryB = WasmAudioWorkletRenderer::RenderOracle(48000U);
+  CHECK(boundaryA.destinationRate == 48000U);
+  CHECK(boundaryA.producedFrames == 140U);
+  CHECK(boundaryA.sampleHash == 2233655419U);
+  CHECK(boundaryA.peakQ15 == 16384U);
+  CHECK(boundaryA.sampleHash == boundaryB.sampleHash);
+  CHECK(boundaryA.peakQ15 == boundaryB.peakQ15);
 }
