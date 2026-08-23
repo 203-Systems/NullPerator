@@ -7,7 +7,8 @@
 #ifndef HOST_TEST
 #include "Adapters/wasm/audio/WasmAudio.h"
 #include "Adapters/wasm/filesystem/WasmFileSystem.h"
-#include "Adapters/wasm/midi/WasmDisconnectedMidi.h"
+#include "Adapters/wasm/logging/WasmTrace.h"
+#include "Adapters/wasm/midi/WasmMidiService.h"
 #include "Adapters/wasm/platform/wasm_bridge.h"
 #include "Adapters/wasm/process/WasmProcess.h"
 #include "Adapters/wasm/system/WasmSamplePool.h"
@@ -79,6 +80,10 @@ bool WasmSystem::InstallPlatformServices() {
   alignas(WasmSystem) static unsigned char systemStorage[sizeof(WasmSystem)];
   System::Install(new (systemStorage) WasmSystem());
 
+  // Construct before any platform service can emit Trace output. The sink is
+  // fixed-storage and remains valid until the WASM module is terminated.
+  static WasmTrace trace;
+
   alignas(WasmTimerService)
       static unsigned char timerStorage[sizeof(WasmTimerService)];
   TimerService::Install(new (timerStorage) WasmTimerService());
@@ -91,9 +96,9 @@ bool WasmSystem::InstallPlatformServices() {
     return false;
   }
 
-  alignas(WasmDisconnectedMidi)
-      static unsigned char midiStorage[sizeof(WasmDisconnectedMidi)];
-  MidiService::Install(new (midiStorage) WasmDisconnectedMidi());
+  alignas(WasmMidiService)
+      static unsigned char midiStorage[sizeof(WasmMidiService)];
+  MidiService::Install(new (midiStorage) WasmMidiService());
 
   AudioSettings settings{};
   settings.audioAPI_ = "wasm-audio-worklet";
@@ -118,6 +123,7 @@ void WasmSystem::ShutdownPlatformServices() {
   if (midi != nullptr) {
     midi->Close();
   }
+  if (WasmTrace *trace = WasmTrace::Instance()) trace->FlushLine();
 }
 
 unsigned long WasmSystem::GetClock() { return Millis(); }
@@ -140,7 +146,10 @@ unsigned int WasmSystem::GetMemoryUsage() { return 0; }
 
 void WasmSystem::PowerDown() { (void)WasmProcess::PowerDown(); }
 
-void WasmSystem::SystemPutChar(int c) { std::putchar(c); }
+void WasmSystem::SystemPutChar(int c) {
+  if (WasmTrace *trace = WasmTrace::Instance()) trace->PutChar(c);
+  else std::putchar(c);
+}
 
 void WasmSystem::SystemBootloader() {
   (void)WasmProcess::EnterBootloader();

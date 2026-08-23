@@ -6,6 +6,7 @@
 
 #include "WasmFile.h"
 #include "WasmStorageBridge.h"
+#include "Adapters/wasm/tracing/WasmProfiler.h"
 #include "System/Console/Trace.h"
 
 #include <algorithm>
@@ -139,6 +140,7 @@ bool WasmFileSystem::RollbackCreatedDirectories(
  * Copy, or Move. A subsequent failed operation must leave no phantom tree.
  */
 FileHandle WasmFileSystem::Open(const char *name, const char *mode) {
+  WASM_TRACE_SCOPE(WasmTraceCategory::Files, WasmTraceName::FileOpen);
   std::lock_guard<std::recursive_mutex> lock(mutex_);
   if (mode == nullptr) {
     return FileHandle();
@@ -193,6 +195,7 @@ bool WasmFileSystem::chdir(const char *path) {
 
 void WasmFileSystem::RefreshDirectory(const char *filter, bool subDirOnly,
                                       bool includeHidden) {
+  WASM_TRACE_SCOPE(WasmTraceCategory::Files, WasmTraceName::FileScan);
   entries_.clear();
   if (cwd_ != root_) {
     entries_.push_back({"..", PFT_DIR, 0});

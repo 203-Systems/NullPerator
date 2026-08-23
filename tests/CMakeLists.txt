@@ -12,7 +12,19 @@ add_executable(picoTracker_tests
   wavheader_tests.cpp
   wasm_audio_tests.cpp
   wasm_application_snapshot_tests.cpp
+  wasm_midi_tests.cpp
+  wasm_logging_tests.cpp
+  wasm_trace_tests.cpp
   wasm_platform_tests.cpp
+  ../sources/Adapters/wasm/midi/MidiByteQueue.cpp
+  ../sources/Adapters/wasm/midi/MidiLatencyTrace.cpp
+  ../sources/Adapters/wasm/midi/WasmMidiOutDevice.cpp
+  ../sources/Adapters/wasm/logging/WasmTrace.cpp
+  ../sources/Adapters/wasm/tracing/InputFrameLatencyTracker.cpp
+  ../sources/Adapters/wasm/tracing/TraceRingBuffer.cpp
+  ../sources/Adapters/wasm/tracing/WasmProfiler.cpp
+  ../sources/Adapters/wasm/tracing/Benchmark.cpp
+  ../sources/Services/Midi/MidiOutDevice.cpp
   ../sources/Adapters/wasm/audio/AudioRenderOracle.cpp
   ../sources/Adapters/wasm/audio/AudioWorklet.cpp
   ../sources/Adapters/wasm/audio/WasmAudioDriver.cpp

@@ -12,6 +12,10 @@
 #include "Application/Model/Mixer.h"
 #include "Application/Player/SyncMaster.h"
 
+#ifdef __EMSCRIPTEN__
+#include "Adapters/wasm/tracing/WasmProfiler.h"
+#endif
+
 PlayerChannel::PlayerChannel(int index) {
   index_ = index;
   instr_ = 0;
@@ -45,6 +49,10 @@ void PlayerChannel::StopInstrument() {
 
 bool PlayerChannel::Render(fixed *buffer, int samplecount) {
   if (instr_) {
+#ifdef __EMSCRIPTEN__
+    WASM_TRACE_SCOPE(WasmTraceCategory::Instrument,
+                     WasmTraceName::InstrumentRender);
+#endif
     bool tableSlice = SyncMaster::GetInstance()->TableSlice();
     bool status = instr_->Render(index_, buffer, samplecount, tableSlice);
     return ((status) && (!muted_));

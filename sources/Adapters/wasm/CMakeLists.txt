@@ -45,8 +45,23 @@ add_library(platform_audio
 target_include_directories(platform_audio PUBLIC "${PROJECT_SOURCE_DIR}")
 target_link_libraries(platform_audio PUBLIC platform_snapshot)
 
-add_library(platform_midi midi/WasmDisconnectedMidi.cpp)
+add_library(platform_midi
+  midi/MidiByteQueue.cpp
+  midi/MidiLatencyTrace.cpp
+  midi/WasmMidiInDevice.cpp
+  midi/WasmMidiOutDevice.cpp
+  midi/WasmMidiService.cpp)
 target_include_directories(platform_midi PUBLIC "${PROJECT_SOURCE_DIR}")
+
+add_library(platform_logging logging/WasmTrace.cpp)
+target_include_directories(platform_logging PUBLIC "${PROJECT_SOURCE_DIR}")
+
+add_library(platform_tracing
+  tracing/InputFrameLatencyTracker.cpp
+  tracing/TraceRingBuffer.cpp
+  tracing/WasmProfiler.cpp
+  tracing/Benchmark.cpp)
+target_include_directories(platform_tracing PUBLIC "${PROJECT_SOURCE_DIR}")
 
 add_library(platform process/WasmProcess.cpp)
 target_include_directories(platform PUBLIC
@@ -61,6 +76,8 @@ target_include_directories(platform_system PUBLIC "${PROJECT_SOURCE_DIR}")
 target_link_libraries(platform_system PUBLIC
   platform_audio
   platform_filesystem
+  platform_logging
+  platform_tracing
   platform_midi
   platform_timer
   platform)
@@ -71,10 +88,14 @@ add_library(platform_display
   gui/WasmGUIWindowImp.cpp)
 target_include_directories(platform_display PUBLIC "${PROJECT_SOURCE_DIR}")
 target_compile_options(platform_display PRIVATE --use-port=sdl2)
-target_link_libraries(platform_display PUBLIC platform_snapshot)
+target_link_libraries(platform_display PUBLIC platform_snapshot platform_tracing)
 
 add_subdirectory("${PROJECT_SOURCE_DIR}/System"
                  "${CMAKE_CURRENT_BINARY_DIR}/core/System")
+# The workbench's Logs panel is a production feature. Keep only Trace.cpp's
+# existing log calls active in Release WASM builds without changing the rest
+# of the firmware's NDEBUG/assertion policy.
+target_compile_options(system_console PRIVATE -UNDEBUG)
 add_subdirectory("${PROJECT_SOURCE_DIR}/Foundation"
                  "${CMAKE_CURRENT_BINARY_DIR}/core/Foundation")
 add_subdirectory("${PROJECT_SOURCE_DIR}/Externals"
@@ -172,12 +193,13 @@ target_link_options(picotracker_wasm PRIVATE
   -sPTHREAD_POOL_SIZE=4
   -sWASM_WORKERS=1
   -sAUDIO_WORKLET=1
+  $<$<CONFIG:Debug>:-sWEBAUDIO_DEBUG=1>
   -sMODULARIZE=1
   -sEXPORT_ES6=1
   -sEXPORT_NAME=createPicoTrackerModule
   -sINITIAL_MEMORY=268435456
   -sENVIRONMENT=web,worker,worklet
-  "-sEXPORTED_FUNCTIONS=['_main','_PicoTracker_Wasm_GetBuildMetadataJson','_PicoTracker_Wasm_GetState','_PicoTracker_Wasm_BootstrapAudio','_PicoTracker_Wasm_MarkAudioUnavailable','_PicoTracker_Wasm_RequestShutdown','_PicoTracker_Wasm_GetLastError','_PicoTracker_Wasm_SetAction','_PicoTracker_Wasm_ReleaseAllActions','_PicoTracker_Wasm_GetActionMask','_PicoTracker_Wasm_GetActionGeneration','_PicoTracker_Wasm_GetLastAction','_PicoTracker_Wasm_CaptureFrameRgba','_PicoTracker_Wasm_GetFrameSnapshotSequence','_PicoTracker_Wasm_UnlockAudio','_PicoTracker_Wasm_StopAudio','_PicoTracker_Wasm_GetAudioState','_PicoTracker_Wasm_GetAudioError','_PicoTracker_Wasm_GetAudioMetrics','_PicoTracker_Wasm_GetAudioMetricsSnapshot','_PicoTracker_Wasm_GetAudioErrorSnapshot','_PicoTracker_Wasm_GetBrowserSnapshots','_PicoTracker_Wasm_CoreApplicationAnchor','_PicoTracker_Wasm_CoreAppWindowAnchor','_PicoTracker_Wasm_CorePlayerAnchor','_PicoTracker_Wasm_CoreViewAnchor']"
+  "-sEXPORTED_FUNCTIONS=['_main','_PicoTracker_Wasm_GetBuildMetadataJson','_PicoTracker_Wasm_GetState','_PicoTracker_Wasm_BootstrapAudio','_PicoTracker_Wasm_MarkAudioUnavailable','_PicoTracker_Wasm_ConfigureAudio','_PicoTracker_Wasm_RequestShutdown','_PicoTracker_Wasm_GetLastError','_PicoTracker_Wasm_DiagnosticFail','_PicoTracker_Wasm_SetAction','_PicoTracker_Wasm_ReleaseAllActions','_PicoTracker_Wasm_GetActionMask','_PicoTracker_Wasm_GetActionGeneration','_PicoTracker_Wasm_GetLastAction','_PicoTracker_Wasm_RequestDiagnosticView','_PicoTracker_Wasm_GetDiagnosticView','_PicoTracker_Wasm_GetDiagnosticViewGeneration','_PicoTracker_Wasm_GetDiagnosticInputGeneration','_PicoTracker_Wasm_RequestDiagnosticModal','_PicoTracker_Wasm_GetDiagnosticModal','_PicoTracker_Wasm_GetDiagnosticModalGeneration','_PicoTracker_Wasm_CaptureFrameRgba','_PicoTracker_Wasm_GetFrameSnapshotSequence','_PicoTracker_Wasm_UnlockAudio','_PicoTracker_Wasm_StopAudio','_PicoTracker_Wasm_GetAudioState','_PicoTracker_Wasm_GetAudioError','_PicoTracker_Wasm_GetAudioMetrics','_PicoTracker_Wasm_GetAudioMetricsSnapshot','_PicoTracker_Wasm_GetAudioErrorSnapshot','_PicoTracker_Wasm_GetBrowserSnapshots','_PicoTracker_Wasm_MidiInputBuffer','_PicoTracker_Wasm_MidiInputCapacity','_PicoTracker_Wasm_MidiInput','_PicoTracker_Wasm_MidiDrainOutput','_PicoTracker_Wasm_MidiDisconnect','_PicoTracker_Wasm_MidiSetOutputConnected','_PicoTracker_Wasm_MidiDiagnosticSnapshot','_PicoTracker_Wasm_MidiDiagnosticOutput','_PicoTracker_Wasm_LogDrain','_PicoTracker_Wasm_TraceStart','_PicoTracker_Wasm_TraceStop','_PicoTracker_Wasm_TraceDrain','_PicoTracker_Wasm_TraceStorageSync','_PicoTracker_Wasm_RunBenchmark','_PicoTracker_Wasm_CoreApplicationAnchor','_PicoTracker_Wasm_CoreAppWindowAnchor','_PicoTracker_Wasm_CorePlayerAnchor','_PicoTracker_Wasm_CoreViewAnchor']"
   "-sEXPORTED_RUNTIME_METHODS=['UTF8ToString','HEAPU8','HEAPU32','PThread','FS','IDBFS','addRunDependency','removeRunDependency']")
 
 set_target_properties(picotracker_wasm PROPERTIES

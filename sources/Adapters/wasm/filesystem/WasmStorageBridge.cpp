@@ -4,6 +4,8 @@
 
 #include "WasmStorageBridge.h"
 
+#include "Adapters/wasm/tracing/WasmProfiler.h"
+
 #include <atomic>
 
 #ifdef __EMSCRIPTEN__
@@ -21,6 +23,9 @@ std::atomic<bool> pendingMutation{false};
 } // namespace
 
 void WasmStorage_NotifyMutation() noexcept {
+  WasmProfiler::Emit(WasmTraceCategory::Storage,
+                     WasmTraceName::StorageMutation,
+                     WasmTracePhase::Instant);
   pendingMutation.store(true, std::memory_order_release);
 }
 

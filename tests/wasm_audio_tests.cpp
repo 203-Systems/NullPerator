@@ -431,6 +431,18 @@ TEST_CASE("WASM audio driver writes interleaved engine frames and fixed worklet 
   CHECK(left[3] == doctest::Approx(32767.0F / 32768.0F));
   CHECK(right[3] == doctest::Approx(-1.0F));
   CHECK(driver.Metrics().ringFillFrames == 0U);
+  driver.Configure(1U, WasmAudioDriver::UnityGainQ16 / 2U);
+  CHECK(driver.TargetFillFramesConfigured() ==
+        WasmAudioDriver::MinimumTargetFillFrames);
+  CHECK(driver.OutputGainQ16() == WasmAudioDriver::UnityGainQ16 / 2U);
+  std::array<short, 2> halfInput{16384, -16384};
+  driver.AddBuffer(halfInput.data(), 1);
+  WasmAudioWorkletRenderer halfRenderer(driver, 44100U);
+  std::array<float, 1> halfLeft{};
+  std::array<float, 1> halfRight{};
+  REQUIRE(halfRenderer.Render(halfLeft.data(), halfRight.data(), 1));
+  CHECK(halfLeft[0] == doctest::Approx(0.25F));
+  CHECK(halfRight[0] == doctest::Approx(-0.25F));
   driver.Stop();
 }
 
@@ -456,6 +468,86 @@ TEST_CASE("WASM audio worklet helper resamples a 44.1k source at a 48k boundary"
   }
   CHECK(driver.Metrics().sourceRate == 44100U);
   driver.Stop();
+}
+
+TEST_CASE("WASM AudioWorklet callback metrics use the exact quantum deadline") {
+  AudioSettings settings{};
+  WasmAudioDriver driver(settings);
+
+  // A callback observed before the browser publishes a valid sample rate has
+  // no computable deadline and must never be reported as a miss.
+  driver.SetDestinationRate(0U);
+  driver.RecordCallback(0.1, 128U);
+  auto metrics = driver.Metrics();
+  CHECK(metrics.version == WasmAudioMetrics::Version);
+  CHECK(metrics.size == sizeof(WasmAudioMetrics));
+  CHECK(metrics.callbackCount == 1U);
+  CHECK(metrics.callbackMicros == 100U);
+  CHECK(metrics.callbackMaxMicros == 100U);
+  CHECK(metrics.callbackDeadlineMicros == 0U);
+  CHECK(metrics.callbackDeadlineMisses == 0U);
+
+  driver.SetDestinationRate(48000U);
+  const double deadline48kMilliseconds = 128000.0 / 48000.0;
+  driver.RecordCallback(deadline48kMilliseconds, 128U);
+  metrics = driver.Metrics();
+  CHECK(metrics.callbackDeadlineMicros == 2667U);
+  CHECK(metrics.callbackDeadlineMisses == 0U);
+
+  // Display quantization rounds both duration and deadline to 2667 us, but an
+  // actual 0.1 us processing overrun must still increment the miss counter.
+  driver.RecordCallback(deadline48kMilliseconds + 0.0001, 128U);
+  metrics = driver.Metrics();
+  CHECK(metrics.callbackDeadlineMisses == 1U);
+  CHECK(metrics.callbackMicros == 2667U);
+  CHECK(metrics.callbackMaxMicros == 2667U);
+
+  driver.RecordCallback(1.2, 64U);
+  metrics = driver.Metrics();
+  CHECK(metrics.callbackDeadlineMicros == 1334U);
+  CHECK(metrics.callbackDeadlineMisses == 1U);
+  CHECK(metrics.callbackMicros == 1200U);
+  CHECK(metrics.callbackMaxMicros == 2667U);
+
+  driver.SetDestinationRate(44100U);
+  const double deadline44kMilliseconds = 128000.0 / 44100.0;
+  driver.RecordCallback(deadline44kMilliseconds, 128U);
+  CHECK(driver.Metrics().callbackDeadlineMisses == 1U);
+  driver.RecordCallback(deadline44kMilliseconds + 0.0001, 128U);
+  metrics = driver.Metrics();
+  CHECK(metrics.callbackCount == 6U);
+  CHECK(metrics.callbackDeadlineMicros == 2903U);
+  CHECK(metrics.callbackDeadlineMisses == 2U);
+  CHECK(metrics.callbackMicros == 2903U);
+  CHECK(metrics.callbackMaxMicros == 2903U);
+}
+
+TEST_CASE("WASM AudioWorklet callback maximum uses a contention-safe atomic peak") {
+  AudioSettings settings{};
+  WasmAudioDriver driver(settings);
+  driver.SetDestinationRate(0U);
+
+  constexpr std::size_t callbacksPerProducer = 512U;
+  std::array<std::thread, 4U> producers{};
+  for (std::size_t producer = 0U; producer < producers.size(); ++producer) {
+    producers[producer] = std::thread([&driver, producer] {
+      const double durationMilliseconds =
+          static_cast<double>(producer + 1U) * 0.5;
+      for (std::size_t callback = 0U; callback < callbacksPerProducer;
+           ++callback) {
+        driver.RecordCallback(durationMilliseconds, 128U);
+      }
+    });
+  }
+  for (auto &producer : producers) {
+    producer.join();
+  }
+
+  const WasmAudioMetrics metrics = driver.Metrics();
+  CHECK(metrics.callbackCount == callbacksPerProducer * producers.size());
+  CHECK(metrics.callbackMaxMicros == 2000U);
+  CHECK(metrics.callbackDeadlineMicros == 0U);
+  CHECK(metrics.callbackDeadlineMisses == 0U);
 }
 
 TEST_CASE("WASM browser render oracle is deterministic at 44.1 and 48 kHz") {

@@ -47,6 +47,8 @@ public:
   // the AudioWorklet only update their source atomics; they must never begin
   // a competing seqlock publication.
   static void PublishSnapshot() noexcept;
+  static void Configure(std::uint32_t targetFillFrames,
+                        std::uint32_t outputGainQ16) noexcept;
 
   // Called only by asynchronous Emscripten setup callbacks or the worklet.
   static void MarkRunning() noexcept;
@@ -58,6 +60,7 @@ public:
 private:
   static void SetState(WasmAudioState state) noexcept;
   static void SetError(const char *message) noexcept;
+  static void AdvanceSetupPhase(std::uint32_t phase) noexcept;
   static void PumpBrowserMainSetup(void *) noexcept;
   static void BrowserMainTeardown() noexcept;
   bool initialized_ = false;
@@ -77,6 +80,8 @@ private:
   static std::atomic<int> workletNode_;
   static std::atomic<std::uint32_t> setupPhase_;
   static std::atomic<std::uint32_t> unlockOnBrowserMainThread_;
+  static std::atomic<std::uint32_t> configuredTargetFillFrames_;
+  static std::atomic<std::uint32_t> configuredOutputGainQ16_;
   static_assert(std::atomic<std::uint32_t>::is_always_lock_free,
                 "Wasm audio snapshots require lock-free 32-bit atomics");
   static constexpr std::size_t MetricsWords = sizeof(WasmAudioMetrics) / sizeof(std::uint32_t);

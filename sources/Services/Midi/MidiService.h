@@ -65,9 +65,12 @@ protected:
   // stop the selected midi device
   void stopDevice();
 
+  // Platform services may normalize the firmware's physical-device bitmask
+  // to their own topology (for example one selected Web MIDI output).
+  virtual void updateActiveDevicesList(unsigned short config);
+
 private:
   void flushOutQueue();
-  void updateActiveDevicesList(unsigned short config);
 
 private:
   uint16_t activeMidiChannelMask_;
@@ -80,5 +83,7 @@ private:
   int currentOutQueue_;
 
   bool sendSync_;
+  WatchedVariable *midiDeviceVariable_;
+  WatchedVariable *midiSyncVariable_;
 };
 #endif

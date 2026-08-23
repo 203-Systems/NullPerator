@@ -9,6 +9,9 @@
 
 #include "Player.h"
 #include "Application/Instruments/CommandList.h"
+#ifdef __EMSCRIPTEN__
+#include "Adapters/wasm/tracing/WasmProfiler.h"
+#endif
 #include "Application/Instruments/I_Instrument.h"
 #include "Application/Instruments/SampleInstrument.h"
 #include "Application/Mixer/MixerService.h"
@@ -518,6 +521,9 @@ void Player::QueueChannel(int i, QueueingMode mode, unsigned char position,
  ************************************************************/
 
 void Player::Update(Observable &o, I_ObservableData *d) {
+#ifdef __EMSCRIPTEN__
+  WASM_TRACE_SCOPE(WasmTraceCategory::Player, WasmTraceName::PlayerTick);
+#endif
 
   // Make sure sync's ok
 

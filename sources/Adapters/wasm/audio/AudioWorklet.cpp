@@ -11,19 +11,29 @@
 #include <array>
 #include <span>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten/emscripten.h>
+#endif
+
 WasmAudioWorkletRenderer::WasmAudioWorkletRenderer(
     WasmAudioDriver &driver, std::uint32_t destinationRate) noexcept
-    : driver_(&driver), resampler_(44100U, destinationRate) {}
+    : driver_(&driver), resampler_(44100U, destinationRate) {
+  driver_->SetDestinationRate(destinationRate);
+}
 
 void WasmAudioWorkletRenderer::SetDestinationRate(
     std::uint32_t destinationRate) noexcept {
   resampler_ = OutputResampler(44100U, destinationRate);
+  if (driver_ != nullptr) {
+    driver_->SetDestinationRate(destinationRate);
+  }
   sourceOffset_ = 0U;
   sourceCount_ = 0U;
 }
 
-void WasmAudioWorkletRenderer::RecordCallback() noexcept {
-  driver_->RecordCallback();
+void WasmAudioWorkletRenderer::RecordCallback(
+    double callbackMilliseconds, std::size_t frames) noexcept {
+  driver_->RecordCallback(callbackMilliseconds, frames);
 }
 
 bool WasmAudioWorkletRenderer::Render(float *left, float *right,
@@ -54,10 +64,12 @@ bool WasmAudioWorkletRenderer::Render(float *left, float *right,
       break;
     }
   }
+  const float gain = static_cast<float>(driver_->OutputGainQ16()) /
+                     static_cast<float>(WasmAudioDriver::UnityGainQ16);
   for (std::size_t frame = 0U; frame < frames; ++frame) {
     const StereoF32 value = frame < produced ? rendered[frame] : StereoF32{};
-    left[frame] = value.left;
-    right[frame] = value.right;
+    left[frame] = value.left * gain;
+    right[frame] = value.right * gain;
   }
   return true;
 }
@@ -89,12 +101,16 @@ extern "C" bool PicoTracker_Wasm_AudioWorkletProcess(
   }
   const std::size_t frames = static_cast<std::size_t>(outputs[0].samplesPerChannel);
   float *const planar = outputs[0].data;
-  if (planar == nullptr ||
-      !renderer->Render(planar, planar + frames, frames)) {
+  if (planar == nullptr) {
     return false;
   }
-  renderer->RecordCallback();
+  const double callbackStart = emscripten_get_now();
+  if (!renderer->Render(planar, planar + frames, frames)) {
+    return false;
+  }
   WasmAudio_MarkRunning();
+  const double callbackEnd = emscripten_get_now();
+  renderer->RecordCallback(callbackEnd - callbackStart, frames);
   return true;
 }
 #endif

@@ -11,6 +11,10 @@
 #include "System/Console/Trace.h"
 #include "System/System/System.h"
 
+#ifdef __EMSCRIPTEN__
+#include "Adapters/wasm/tracing/WasmProfiler.h"
+#endif
+
 fixed AudioMixer::renderBuffer_[MAX_SAMPLE_COUNT * 2];
 
 AudioMixer::AudioMixer(const char *name)
@@ -43,6 +47,9 @@ void AudioMixer::EnableRendering(bool enable) {
 };
 
 bool AudioMixer::Render(fixed *buffer, int samplecount) {
+#ifdef __EMSCRIPTEN__
+  WASM_TRACE_SCOPE(WasmTraceCategory::Mixer, WasmTraceName::MixerRender);
+#endif
   bool gotData = false;
   fixed peakL = 0;
   fixed peakR = 0;

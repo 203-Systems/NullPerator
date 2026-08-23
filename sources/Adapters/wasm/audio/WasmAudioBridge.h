@@ -10,6 +10,8 @@
 
 void WasmAudio_BootstrapBrowserMain() noexcept;
 void WasmAudio_MarkUnavailable() noexcept;
+void WasmAudio_Configure(std::uint32_t targetFillFrames,
+                         std::uint32_t outputGainQ16) noexcept;
 bool WasmAudio_Unlock() noexcept;
 void WasmAudio_Stop() noexcept;
 void WasmAudio_MarkRunning() noexcept;

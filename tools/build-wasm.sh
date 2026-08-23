@@ -24,4 +24,6 @@ emcmake cmake \
   -B "$build_dir" \
   -DWASM=ON \
   -DCMAKE_BUILD_TYPE="$build_type"
-cmake --build "$build_dir" --parallel
+# Keep local workbench builds predictable on developer machines. Callers that
+# explicitly want more workers can opt in with CMAKE_BUILD_PARALLEL_LEVEL.
+cmake --build "$build_dir" --parallel "${CMAKE_BUILD_PARALLEL_LEVEL:-1}"

@@ -4,6 +4,8 @@
 
 #include "WasmAudio.h"
 
+#include "Adapters/wasm/tracing/WasmProfiler.h"
+
 #include "AudioWorklet.h"
 #include "WasmAudioBridge.h"
 #include "WasmAudioDriver.h"
@@ -36,6 +38,10 @@ std::atomic<int> WasmAudio::context_{0};
 std::atomic<int> WasmAudio::workletNode_{0};
 std::atomic<std::uint32_t> WasmAudio::setupPhase_{0U};
 std::atomic<std::uint32_t> WasmAudio::unlockOnBrowserMainThread_{0U};
+std::atomic<std::uint32_t> WasmAudio::configuredTargetFillFrames_{
+    WasmAudioDriver::TargetFillFrames};
+std::atomic<std::uint32_t> WasmAudio::configuredOutputGainQ16_{
+    WasmAudioDriver::UnityGainQ16};
 std::array<std::atomic<std::uint32_t>, WasmAudio::MetricsSnapshotWords>
     WasmAudio::metricsSnapshot_{};
 std::array<std::atomic<std::uint32_t>, WasmAudio::ErrorWords>
@@ -101,6 +107,9 @@ void WasmAudio::Init() {
   settings.bufferSize_ = 1024;
   settings.preBufferCount_ = 4;
   auto *driver = new (driverStorage) WasmAudioDriver(settings);
+  driver->Configure(
+      configuredTargetFillFrames_.load(std::memory_order_acquire),
+      configuredOutputGainQ16_.load(std::memory_order_acquire));
   auto *output = new (outputStorage) AudioOutDriver(*driver);
   AddOutput(*output);
   initialized_ = true;
@@ -122,6 +131,20 @@ int WasmAudio::GetMixerVolume() { return volume_; }
 
 void WasmAudio::SetMixerVolume(int volume) {
   volume_ = std::clamp(volume, 0, 100);
+}
+
+void WasmAudio::Configure(std::uint32_t targetFillFrames,
+                          std::uint32_t outputGainQ16) noexcept {
+  const std::uint32_t target = std::clamp(
+      targetFillFrames, WasmAudioDriver::MinimumTargetFillFrames,
+      WasmAudioDriver::MaximumTargetFillFrames);
+  const std::uint32_t gain =
+      std::min(outputGainQ16, WasmAudioDriver::UnityGainQ16);
+  configuredTargetFillFrames_.store(target, std::memory_order_release);
+  configuredOutputGainQ16_.store(gain, std::memory_order_release);
+  if (auto *driver = WasmAudioDriver::Instance()) {
+    driver->Configure(target, gain);
+  }
 }
 
 bool WasmAudio::Unlock() noexcept {
@@ -262,6 +285,37 @@ void WasmAudio::PublishSnapshot() noexcept {
   metrics.setupPhase = setupPhase_.load(std::memory_order_acquire);
   metrics.unlockOnBrowserMainThread =
       unlockOnBrowserMainThread_.load(std::memory_order_acquire);
+  // Publish audio diagnostics from the application snapshot boundary. The
+  // realtime AudioWorklet callback only samples its monotonic clock and
+  // updates fixed lock-free source atomics; it never writes trace records.
+  WasmProfiler::Emit(WasmTraceCategory::Audio, WasmTraceName::AudioSnapshot,
+                     WasmTracePhase::Counter, metrics.ringFillFrames);
+  WasmProfiler::Emit(WasmTraceCategory::Audio,
+                     WasmTraceName::AudioCallbackCount,
+                     WasmTracePhase::Counter, metrics.callbackCount);
+  WasmProfiler::Emit(WasmTraceCategory::Audio,
+                     WasmTraceName::AudioUnderrunFrames,
+                     WasmTracePhase::Counter, metrics.underrunFrames);
+  WasmProfiler::Emit(WasmTraceCategory::Audio,
+                     WasmTraceName::AudioOverrunFrames,
+                     WasmTracePhase::Counter, metrics.overrunFrames);
+  WasmProfiler::Emit(WasmTraceCategory::Audio,
+                     WasmTraceName::AudioRenderDurationUs,
+                     WasmTracePhase::Counter, metrics.renderMicros);
+  WasmProfiler::Emit(WasmTraceCategory::Audio,
+                     WasmTraceName::AudioCallbackDurationUs,
+                     WasmTracePhase::Counter, metrics.callbackMicros);
+  WasmProfiler::Emit(WasmTraceCategory::Audio,
+                     WasmTraceName::AudioCallbackMaxDurationUs,
+                     WasmTracePhase::Counter, metrics.callbackMaxMicros);
+  WasmProfiler::Emit(WasmTraceCategory::Audio,
+                     WasmTraceName::AudioCallbackDeadlineUs,
+                     WasmTracePhase::Counter,
+                     metrics.callbackDeadlineMicros);
+  WasmProfiler::Emit(WasmTraceCategory::Audio,
+                     WasmTraceName::AudioCallbackProcessingDeadlineMisses,
+                     WasmTracePhase::Counter,
+                     metrics.callbackDeadlineMisses);
   const std::uint32_t writing =
       metricsSnapshot_[0].fetch_add(1U, std::memory_order_acq_rel) + 1U;
   const auto *words = reinterpret_cast<const std::uint32_t *>(&metrics);
@@ -291,6 +345,15 @@ void WasmAudio::MarkFailed(const char *message) noexcept {
 
 void WasmAudio::SetState(WasmAudioState state) noexcept {
   state_.store(state, std::memory_order_release);
+}
+
+void WasmAudio::AdvanceSetupPhase(std::uint32_t phase) noexcept {
+  std::uint32_t current = setupPhase_.load(std::memory_order_acquire);
+  while (current < phase &&
+         !setupPhase_.compare_exchange_weak(current, phase,
+                                            std::memory_order_acq_rel,
+                                            std::memory_order_acquire)) {
+  }
 }
 
 void WasmAudio::SetError(const char *message) noexcept {
@@ -423,7 +486,12 @@ void WasmAudio::OnContextResumed(int state) noexcept {
              state == AUDIO_CONTEXT_STATE_INTERRUPTED) {
     SetState(WasmAudioState::Suspended);
   } else {
-    setupPhase_.store(4U, std::memory_order_release);
+    AdvanceSetupPhase(4U);
+    // Timers scheduled before PROXY_TO_PTHREAD transfers C main are not a
+    // reliable late-unlock wakeup in every Chrome/Emscripten combination.
+    // The resume callback is guaranteed to run on browser main after the user
+    // gesture, so drive the same idempotent setup pump directly here.
+    PumpBrowserMainSetup(nullptr);
   }
 #else
   (void)state;
@@ -442,6 +510,10 @@ void WasmAudio::OnWorkletThreadStarted(bool success) noexcept {
   }
   setupPhase_.store(5U, std::memory_order_release);
   scopeReady_.store(true, std::memory_order_release);
+  // Whichever asynchronous prerequisite completes last must wake processor
+  // creation. processorRequested_'s CAS keeps this safe when both callbacks
+  // arrive close together.
+  PumpBrowserMainSetup(nullptr);
 #else
   (void)success;
 #endif
@@ -514,6 +586,10 @@ void WasmAudio_BootstrapBrowserMain() noexcept {
   WasmAudio::BootstrapBrowserMain();
 }
 void WasmAudio_MarkUnavailable() noexcept { WasmAudio::MarkUnavailable(); }
+void WasmAudio_Configure(std::uint32_t targetFillFrames,
+                         std::uint32_t outputGainQ16) noexcept {
+  WasmAudio::Configure(targetFillFrames, outputGainQ16);
+}
 bool WasmAudio_Unlock() noexcept { return WasmAudio::Unlock(); }
 void WasmAudio_Stop() noexcept { WasmAudio::StopBrowserAudio(); }
 void WasmAudio_MarkRunning() noexcept { WasmAudio::MarkRunning(); }

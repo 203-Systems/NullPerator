@@ -1,17 +1,47 @@
 #include "Adapters/wasm/platform/wasm_bridge.h"
+#include "Adapters/wasm/audio/WasmAudio.h"
 #include "Adapters/wasm/gui/GUIFactory.h"
 #include "Adapters/wasm/system/WasmSystem.h"
 #include "Application/Application.h"
 #include "UIFramework/Interfaces/I_GUIWindowFactory.h"
 
 #include <emscripten/emscripten.h>
+#include <SDL.h>
 #include <new>
+
+namespace {
+void CompleteFailedStartupShutdown(void *) {
+  // Browser audio is created before PROXY_TO_PTHREAD enters C main. A failure
+  // anywhere below therefore owns the same browser-main teardown handshake as
+  // a running application fatal, even when EventManager never reached its
+  // normal rAF loop.
+  WasmAudio::StopBrowserAudio();
+  if (!WasmAudio::BrowserTeardownComplete()) {
+    return;
+  }
+
+  WasmSystem::ShutdownPlatformServices();
+  SDL_Quit();
+  // Stopped is the final acknowledgement: every native/platform resource
+  // above has been released before JavaScript may terminate the pthread.
+  PicoTracker_Wasm_MarkStopped();
+  emscripten_cancel_main_loop();
+}
+
+int FailStartup(const char *message) {
+  PicoTracker_Wasm_Fail(message);
+  WasmAudio::StopBrowserAudio();
+  // Keep the application pthread alive until browser main acknowledges that
+  // its AudioContext/worklet graph is gone. simulate_infinite_loop mirrors the
+  // normal EventManager lifecycle and prevents main from returning early.
+  emscripten_set_main_loop_arg(CompleteFailedStartupShutdown, nullptr, 0, 1);
+  return 1;
+}
+} // namespace
 
 int main() {
   if (!WasmSystem::InstallPlatformServices()) {
-    PicoTracker_Wasm_Fail("Failed to install browser platform services");
-    emscripten_exit_with_live_runtime();
-    return 1;
+    return FailStartup("Failed to install browser platform services");
   }
 
   alignas(GUIFactory) static unsigned char factoryStorage[sizeof(GUIFactory)];
@@ -19,30 +49,23 @@ int main() {
   I_GUIWindowFactory::Install(factory);
   EventManager *eventManager = factory->GetEventManager();
   if (eventManager == nullptr || !eventManager->Init()) {
-    PicoTracker_Wasm_Fail("Failed to initialize SDL2 browser UI");
-    emscripten_exit_with_live_runtime();
-    return 1;
+    return FailStartup("Failed to initialize SDL2 browser UI");
   }
 
   GUICreateWindowParams params{};
   params.title = "PicoTracker";
   if (!Application::GetInstance()->Init(params)) {
-    PicoTracker_Wasm_Fail("Failed to initialize PicoTracker application");
-    emscripten_exit_with_live_runtime();
-    return 1;
+    return FailStartup("Failed to initialize PicoTracker application");
   }
   GUIWindow *window = Application::GetInstance()->GetWindow();
   if (window == nullptr) {
-    PicoTracker_Wasm_Fail("PicoTracker application did not create a window");
-    emscripten_exit_with_live_runtime();
-    return 1;
+    return FailStartup("PicoTracker application did not create a window");
   }
+  // MainLoop installs an Emscripten loop with simulate_infinite_loop=true, so
+  // it does not return while the application pthread is alive. Teardown and
+  // the final Stopped acknowledgement are owned by WasmEventManager; keeping
+  // a second cleanup path here risks publishing Stopped before SDL/browser
+  // resources have actually been released.
   eventManager->MainLoop();
-  if (PicoTracker_Wasm_GetState() ==
-      static_cast<std::uint32_t>(WasmRuntimeState::Stopping)) {
-    WasmSystem::ShutdownPlatformServices();
-    PicoTracker_Wasm_MarkStopped();
-  }
-  emscripten_exit_with_live_runtime();
   return 0;
 }

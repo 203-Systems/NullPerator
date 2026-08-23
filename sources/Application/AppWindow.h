@@ -66,6 +66,13 @@ public:
   void SetSdCardPresent(bool present);
 
 #if defined(__EMSCRIPTEN__)
+  // Acceptance diagnostics are requested from browser main but executed by
+  // WasmEventManager on the application pthread. They deliberately reuse the
+  // normal ViewEvent path instead of constructing a second UI controller.
+  bool SwitchViewForDiagnostics(unsigned int viewType);
+  unsigned int CurrentViewForDiagnostics() const;
+  bool SwitchModalForDiagnostics(unsigned int modalType);
+  unsigned int CurrentModalForDiagnostics() const;
   Project &ProjectForDiagnostics() { return project_; }
   bool PlayerInitializedForDiagnostics() const { return playerInitialized_; }
 #endif
@@ -151,6 +158,10 @@ private:
   bool projectLoadAckReady_ = false;
   bool createProjectOnLoad_ = false;
   bool playerInitialized_ = false;
+
+#if defined(__EMSCRIPTEN__)
+  unsigned int diagnosticModalType_ = 0xFFFFFFFFu;
+#endif
 
   uint32_t lastAutoSave = 0;
 

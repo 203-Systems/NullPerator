@@ -26,6 +26,8 @@
 #include "Application/Views/MixerView.h"
 #include "Application/Views/ModalDialogs/FullScreenBox.h"
 #include "Application/Views/ModalDialogs/MessageBox.h"
+#include "Application/Views/ModalDialogs/RenderProgressModal.h"
+#include "Application/Views/ModalDialogs/TextInputModalView.h"
 #include "Application/Views/NullView.h"
 #include "Application/Views/PhraseView.h"
 #include "Application/Views/ProjectView.h"
@@ -221,6 +223,81 @@ void AppWindow::SetSdCardPresent(bool present) {
   }
   SetDirty();
 }
+
+#if defined(__EMSCRIPTEN__)
+bool AppWindow::SwitchViewForDiagnostics(unsigned int viewType) {
+  if (_currentView == nullptr ||
+      viewType > static_cast<unsigned int>(VT_RECORD)) {
+    return false;
+  }
+  ViewType requested = static_cast<ViewType>(viewType);
+  ViewEvent event(VET_SWITCH_VIEW, &requested);
+  Update(*_currentView, &event);
+  return _currentView != nullptr && _currentView->viewType_ == requested;
+}
+
+unsigned int AppWindow::CurrentViewForDiagnostics() const {
+  return _currentView == nullptr ? 0xFFFFFFFFu
+                                 : static_cast<unsigned int>(_currentView->viewType_);
+}
+
+bool AppWindow::SwitchModalForDiagnostics(unsigned int modalType) {
+  constexpr unsigned int ModalCount = 4;
+  if (_currentView == nullptr || modalType > ModalCount) {
+    return false;
+  }
+  if (modalType == ModalCount) {
+    ModalView *modal = _currentView->GetModalView();
+    if (modal != nullptr) {
+      modal->EndModal(0);
+      _currentView->DismissModal();
+    }
+    diagnosticModalType_ = 0xFFFFFFFFu;
+    SetDirty();
+    return !_currentView->HasModalView();
+  }
+  if (_currentView->HasModalView()) {
+    return false;
+  }
+
+  ModalView *modal = nullptr;
+  switch (modalType) {
+  case 0:
+    modal = MessageBox::Create(*_currentView, "Diagnostic message",
+                               MBBF_OK | MBBF_CANCEL);
+    break;
+  case 1:
+    modal = new TextInputModalView(
+        *_currentView, "Diagnostic text", "Name", MBBF_OK | MBBF_CANCEL,
+        etl::string<MAX_TEXT_INPUT_LENGTH>("value"));
+    break;
+  case 2:
+    modal = RenderProgressModal::Create(
+        *_currentView, "Diagnostic", "Rendering",
+        RenderProgressModal::ProgressDisplayMode::ElapsedTime);
+    break;
+  case 3:
+    modal = FullScreenBox::Create(*_currentView, "Diagnostic full screen",
+                                  MBBF_OK);
+    break;
+  default:
+    return false;
+  }
+  if (modal == nullptr) {
+    return false;
+  }
+  _currentView->DoModal(modal);
+  diagnosticModalType_ = modalType;
+  SetDirty();
+  return true;
+}
+
+unsigned int AppWindow::CurrentModalForDiagnostics() const {
+  return _currentView != nullptr && _currentView->HasModalView()
+             ? diagnosticModalType_
+             : 0xFFFFFFFFu;
+}
+#endif
 
 void appwindow_set_sdcard_present(bool present) {
   if (instance) {

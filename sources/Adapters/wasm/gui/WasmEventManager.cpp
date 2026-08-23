@@ -3,15 +3,18 @@
  */
 
 #include "Adapters/wasm/gui/WasmEventManager.h"
+#include "Adapters/wasm/gui/WasmViewDiagnostics.h"
 
 #include "Adapters/wasm/gui/WasmGUIWindowImp.h"
 #include "Adapters/wasm/audio/WasmAudio.h"
 #include "Adapters/wasm/audio/WasmAudioDriver.h"
 #include "Adapters/wasm/filesystem/WasmStorageBridge.h"
 #include "Adapters/wasm/input/InputMap.h"
+#include "Adapters/wasm/midi/WasmMidiService.h"
 #include "Adapters/wasm/platform/WasmApplicationSnapshot.h"
 #include "Adapters/wasm/platform/wasm_bridge.h"
 #include "Adapters/wasm/system/WasmSystem.h"
+#include "Adapters/wasm/tracing/WasmProfiler.h"
 #include "Application/Application.h"
 #include "Application/AppWindow.h"
 #include "Application/Instruments/SamplePool.h"
@@ -43,6 +46,8 @@ void PublishApplicationSnapshot(AppWindow &window) noexcept {
   if (window.PlayerInitializedForDiagnostics()) {
     Player *player = Player::GetInstance();
     playerRunning = player->IsRunning();
+    // Mixer levels are produced and sampled on this same application pthread.
+    // Do not query Player or MixerService from browser main.
     if (playerRunning) {
       masterLevel = player->GetMasterLevel();
     }
@@ -61,6 +66,16 @@ bool WasmEventManager::Init() {
   finished_.store(false, std::memory_order_release);
   runtimeStopped_ = false;
   booting_ = true;
+  requestedDiagnosticView_.store(NoDiagnosticView, std::memory_order_release);
+  diagnosticView_.store(NoDiagnosticView, std::memory_order_release);
+  diagnosticViewGeneration_.store(0, std::memory_order_release);
+  requestedDiagnosticModal_.store(NoDiagnosticModal,
+                                  std::memory_order_release);
+  diagnosticModal_.store(NoDiagnosticModal, std::memory_order_release);
+  diagnosticModalGeneration_.store(0, std::memory_order_release);
+  diagnosticInputGeneration_.store(0, std::memory_order_release);
+  diagnosticViewAwaitingDraw_ = NoDiagnosticView;
+  diagnosticModalAwaitingDraw_ = NoDiagnosticModal;
   if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_TIMER) != 0) {
     return false;
   }
@@ -94,6 +109,7 @@ void WasmEventManager::PumpFrame() {
     StopRuntime();
     return;
   }
+  WASM_TRACE_SCOPE(WasmTraceCategory::Ui, WasmTraceName::Frame);
 
   GUIWindow *window = Application::GetInstance()->GetWindow();
   if (window == nullptr) {
@@ -111,8 +127,14 @@ void WasmEventManager::PumpFrame() {
     // The browser main and application pthread both get a scheduling turn
     // before the first expensive UI clock tick. This avoids startup races in
     // SDL/OffscreenCanvas while preserving the normal frame lifecycle.
-    window->Update(true);
-    window->ClockTick();
+    {
+      WASM_TRACE_SCOPE(WasmTraceCategory::Ui, WasmTraceName::UiUpdate);
+      window->Update(true);
+    }
+    {
+      WASM_TRACE_SCOPE(WasmTraceCategory::Ui, WasmTraceName::ClockTick);
+      window->ClockTick();
+    }
     if (!wasmWindow->HasPresentedFrame()) {
       PicoTracker_Wasm_Fail("PicoTracker did not present an initial browser frame");
       StopRuntime();
@@ -134,9 +156,42 @@ void WasmEventManager::PumpFrame() {
     return;
   }
 
+  auto *appWindow = static_cast<AppWindow *>(window);
+  const std::uint32_t requestedView = requestedDiagnosticView_.exchange(
+      NoDiagnosticView, std::memory_order_acq_rel);
+  if (requestedView != NoDiagnosticView) {
+    if (appWindow->SwitchViewForDiagnostics(requestedView)) {
+      // Publish only after the next normal ClockTick has returned, proving the
+      // selected view's DrawView path ran on the application pthread.
+      diagnosticViewAwaitingDraw_ = requestedView;
+    } else {
+      diagnosticView_.store(NoDiagnosticView, std::memory_order_release);
+      diagnosticViewGeneration_.fetch_add(1, std::memory_order_acq_rel);
+    }
+  }
+
+  const std::uint32_t requestedModal = requestedDiagnosticModal_.exchange(
+      NoDiagnosticModal, std::memory_order_acq_rel);
+  if (requestedModal != NoDiagnosticModal) {
+    if (appWindow->SwitchModalForDiagnostics(requestedModal)) {
+      // The modal-count sentinel is the close request. Open and close are
+      // published only after the regular ClockTick redraw path returns.
+      diagnosticModalAwaitingDraw_ = requestedModal;
+    } else {
+      diagnosticModal_.store(NoDiagnosticModal, std::memory_order_release);
+      diagnosticModalGeneration_.fetch_add(1, std::memory_order_acq_rel);
+    }
+  }
+
   // SDL can temporarily reject an event when its queue is full. InputMap keeps
   // the browser's latest desired state and retries it here in frame order.
-  InputMap::RetryPendingTransitions();
+  {
+    WASM_TRACE_SCOPE(WasmTraceCategory::Input, WasmTraceName::InputRetry);
+    InputMap::RetryPendingTransitions();
+  }
+  if (auto *midi = WasmMidiService::Instance()) {
+    midi->Poll();
+  }
   if (auto *audio = WasmAudioDriver::Instance()) {
     audio->PumpProducer();
   }
@@ -166,13 +221,27 @@ void WasmEventManager::PumpFrame() {
                             pressed ? ET_PADBUTTONDOWN : ET_PADBUTTONUP,
                             System::GetInstance()->GetClock(), false, false,
                             false);
-          window->DispatchEvent(guiEvent);
+          {
+            WASM_TRACE_SCOPE(WasmTraceCategory::Input,
+                             WasmTraceName::InputDispatch);
+            window->DispatchEvent(guiEvent);
+          }
+          if (diagnosticView_.load(std::memory_order_acquire) !=
+              NoDiagnosticView) {
+            // DispatchEvent returning proves the active C++ view processed the
+            // input; InputMap's generation alone only proves queue delivery.
+            diagnosticInputGeneration_.fetch_add(1, std::memory_order_acq_rel);
+          }
           InputMap::AcknowledgeAction(action, pressed);
         }
       } else {
         auto *guiEvent = static_cast<GUIEvent *>(event.user.data1);
         if (guiEvent != nullptr) {
-          window->DispatchEvent(*guiEvent);
+          {
+            WASM_TRACE_SCOPE(WasmTraceCategory::Input,
+                             WasmTraceName::InputDispatch);
+            window->DispatchEvent(*guiEvent);
+          }
           delete guiEvent;
         }
       }
@@ -185,21 +254,78 @@ void WasmEventManager::PumpFrame() {
 
   const double now = SDL_GetTicks64();
   if (now >= nextTick_) {
+    WASM_TRACE_SCOPE(WasmTraceCategory::Ui, WasmTraceName::ClockTick);
     window->ClockTick();
+    if (diagnosticViewAwaitingDraw_ != NoDiagnosticView) {
+      diagnosticView_.store(appWindow->CurrentViewForDiagnostics(),
+                            std::memory_order_release);
+      diagnosticViewGeneration_.fetch_add(1, std::memory_order_acq_rel);
+      diagnosticViewAwaitingDraw_ = NoDiagnosticView;
+    } else if (diagnosticView_.load(std::memory_order_acquire) !=
+               NoDiagnosticView) {
+      diagnosticView_.store(appWindow->CurrentViewForDiagnostics(),
+                            std::memory_order_release);
+    }
+    if (diagnosticModalAwaitingDraw_ != NoDiagnosticModal) {
+      diagnosticModal_.store(appWindow->CurrentModalForDiagnostics(),
+                             std::memory_order_release);
+      diagnosticModalGeneration_.fetch_add(1, std::memory_order_acq_rel);
+      diagnosticModalAwaitingDraw_ = NoDiagnosticModal;
+    } else if (diagnosticModal_.load(std::memory_order_acquire) !=
+               NoDiagnosticModal) {
+      diagnosticModal_.store(appWindow->CurrentModalForDiagnostics(),
+                             std::memory_order_release);
+    }
     nextTick_ = now + PICO_CLOCK_INTERVAL;
   }
-  PublishApplicationSnapshot(*static_cast<AppWindow *>(window));
+  PublishApplicationSnapshot(*appWindow);
   // DispatchEvent may perform a multi-step atomic file replacement. Only let
   // browser-main start IDBFS after the whole event batch has returned.
   WasmStorage_FlushMutationNotifications();
+}
+
+void WasmEventManager::RequestDiagnosticView(std::uint32_t viewType) {
+  requestedDiagnosticView_.store(viewType, std::memory_order_release);
+}
+
+void WasmEventManager::RequestDiagnosticModal(std::uint32_t modalType) {
+  requestedDiagnosticModal_.store(modalType, std::memory_order_release);
+}
+
+std::uint32_t WasmEventManager::DiagnosticView() const {
+  return diagnosticView_.load(std::memory_order_acquire);
+}
+
+std::uint32_t WasmEventManager::DiagnosticViewGeneration() const {
+  return diagnosticViewGeneration_.load(std::memory_order_acquire);
+}
+
+std::uint32_t WasmEventManager::DiagnosticModal() const {
+  return diagnosticModal_.load(std::memory_order_acquire);
+}
+
+std::uint32_t WasmEventManager::DiagnosticModalGeneration() const {
+  return diagnosticModalGeneration_.load(std::memory_order_acquire);
+}
+
+std::uint32_t WasmEventManager::DiagnosticInputGeneration() const {
+  return diagnosticInputGeneration_.load(std::memory_order_acquire);
 }
 
 void WasmEventManager::StopRuntime() {
   if (runtimeStopped_) {
     return;
   }
-  if (PicoTracker_Wasm_GetState() ==
-          static_cast<std::uint32_t>(WasmRuntimeState::Stopping) &&
+  const auto runtimeState =
+      static_cast<WasmRuntimeState>(PicoTracker_Wasm_GetState());
+  if (runtimeState == WasmRuntimeState::Failed) {
+    // Fatal shutdown follows the same browser-main audio teardown handshake as
+    // an explicit Stop. Keep the rAF alive until that callback acknowledges;
+    // otherwise a later Restart can terminate a live AudioWorklet.
+    WasmAudio::StopBrowserAudio();
+  }
+  if ((runtimeState == WasmRuntimeState::Stopping ||
+       runtimeState == WasmRuntimeState::Failed) &&
       !WasmAudio::BrowserTeardownComplete()) {
     // Keep the application rAF alive until browser main has detached the
     // WebAudio graph. JavaScript only terminates the pthread after the
@@ -214,12 +340,17 @@ void WasmEventManager::StopRuntime() {
   WasmStorage_FlushMutationNotifications();
   PicoTracker_Wasm_ReleaseAllActions();
   emscripten_cancel_main_loop();
-  if (PicoTracker_Wasm_GetState() ==
-      static_cast<std::uint32_t>(WasmRuntimeState::Stopping)) {
+  const bool publishStopped = runtimeState == WasmRuntimeState::Stopping ||
+                              runtimeState == WasmRuntimeState::Failed;
+  if (publishStopped) {
     WasmSystem::ShutdownPlatformServices();
-    PicoTracker_Wasm_MarkStopped();
   }
   SDL_Quit();
+  if (publishStopped) {
+    // Stopped is published last so JavaScript can never terminate the pthread
+    // while SDL or platform teardown is still executing.
+    PicoTracker_Wasm_MarkStopped();
+  }
 }
 
 void WasmEventManager::PostQuitMessage() {
@@ -234,4 +365,32 @@ int WasmEventManager::GetKeyCode(const char *name) {
   }
   const SDL_Scancode scanCode = SDL_GetScancodeFromName(name);
   return scanCode == SDL_SCANCODE_UNKNOWN ? -1 : static_cast<int>(scanCode);
+}
+
+void WasmViewDiagnostics_Request(std::uint32_t viewType) noexcept {
+  WasmEventManager::GetInstance()->RequestDiagnosticView(viewType);
+}
+
+std::uint32_t WasmViewDiagnostics_Current() noexcept {
+  return WasmEventManager::GetInstance()->DiagnosticView();
+}
+
+std::uint32_t WasmViewDiagnostics_ViewGeneration() noexcept {
+  return WasmEventManager::GetInstance()->DiagnosticViewGeneration();
+}
+
+std::uint32_t WasmViewDiagnostics_InputGeneration() noexcept {
+  return WasmEventManager::GetInstance()->DiagnosticInputGeneration();
+}
+
+void WasmViewDiagnostics_RequestModal(std::uint32_t modalType) noexcept {
+  WasmEventManager::GetInstance()->RequestDiagnosticModal(modalType);
+}
+
+std::uint32_t WasmViewDiagnostics_CurrentModal() noexcept {
+  return WasmEventManager::GetInstance()->DiagnosticModal();
+}
+
+std::uint32_t WasmViewDiagnostics_ModalGeneration() noexcept {
+  return WasmEventManager::GetInstance()->DiagnosticModalGeneration();
 }

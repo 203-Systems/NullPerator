@@ -19,14 +19,31 @@ EMSCRIPTEN_KEEPALIVE std::uint32_t PicoTracker_Wasm_GetState();
 // before PROXY_TO_PTHREAD enters the tracker application main.
 EMSCRIPTEN_KEEPALIVE void PicoTracker_Wasm_BootstrapAudio();
 EMSCRIPTEN_KEEPALIVE void PicoTracker_Wasm_MarkAudioUnavailable();
+EMSCRIPTEN_KEEPALIVE void PicoTracker_Wasm_ConfigureAudio(
+    std::uint32_t targetFillFrames, std::uint32_t outputGainQ16);
 EMSCRIPTEN_KEEPALIVE void PicoTracker_Wasm_RequestShutdown();
 EMSCRIPTEN_KEEPALIVE const char *PicoTracker_Wasm_GetLastError();
+// Acceptance diagnostic used to prove the runtime-fatal recovery lifecycle.
+// It is never called during normal application operation.
+EMSCRIPTEN_KEEPALIVE void PicoTracker_Wasm_DiagnosticFail();
 EMSCRIPTEN_KEEPALIVE void PicoTracker_Wasm_SetAction(std::uint16_t action,
                                                      bool pressed);
 EMSCRIPTEN_KEEPALIVE void PicoTracker_Wasm_ReleaseAllActions();
 EMSCRIPTEN_KEEPALIVE std::uint16_t PicoTracker_Wasm_GetActionMask();
 EMSCRIPTEN_KEEPALIVE std::uint32_t PicoTracker_Wasm_GetActionGeneration();
 EMSCRIPTEN_KEEPALIVE std::uint16_t PicoTracker_Wasm_GetLastAction();
+EMSCRIPTEN_KEEPALIVE void PicoTracker_Wasm_RequestDiagnosticView(
+    std::uint32_t viewType);
+EMSCRIPTEN_KEEPALIVE std::uint32_t PicoTracker_Wasm_GetDiagnosticView();
+EMSCRIPTEN_KEEPALIVE std::uint32_t
+PicoTracker_Wasm_GetDiagnosticViewGeneration();
+EMSCRIPTEN_KEEPALIVE std::uint32_t
+PicoTracker_Wasm_GetDiagnosticInputGeneration();
+EMSCRIPTEN_KEEPALIVE void PicoTracker_Wasm_RequestDiagnosticModal(
+    std::uint32_t modalType);
+EMSCRIPTEN_KEEPALIVE std::uint32_t PicoTracker_Wasm_GetDiagnosticModal();
+EMSCRIPTEN_KEEPALIVE std::uint32_t
+PicoTracker_Wasm_GetDiagnosticModalGeneration();
 EMSCRIPTEN_KEEPALIVE int PicoTracker_Wasm_UnlockAudio();
 EMSCRIPTEN_KEEPALIVE void PicoTracker_Wasm_StopAudio();
 EMSCRIPTEN_KEEPALIVE std::uint32_t PicoTracker_Wasm_GetAudioState();

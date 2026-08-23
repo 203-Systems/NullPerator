@@ -6,6 +6,7 @@
 
 #include "Adapters/wasm/gui/WasmGUIWindowImp.h"
 #include "Adapters/wasm/gui/WasmFrameSnapshot.h"
+#include "Adapters/wasm/tracing/InputFrameLatencyTracker.h"
 
 #include <emscripten/emscripten.h>
 
@@ -280,13 +281,19 @@ void WasmGUIWindowImp::Invalidate() {
 void WasmGUIWindowImp::Flush() {
   std::lock_guard<std::recursive_mutex> lock(mutex_);
   if (!dirty_ || context_ <= 0) {
+    InputFrameLatencyTracker::ObserveNoPresentation();
     return;
   }
   if (PresentFrame()) {
+    // PresentFrame returns true only after explicit WebGL swap control commits
+    // successfully. This is the presentation boundary, not DispatchEvent.
+    InputFrameLatencyTracker::PresentedFrame();
     frameSnapshot.Publish(frame_);
     dirty_ = false;
     dirtyRect_ = {0, 0, 0, 0};
     hasPresentedFrame_ = true;
+  } else {
+    InputFrameLatencyTracker::ObserveNoPresentation();
   }
 }
 

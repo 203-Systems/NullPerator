@@ -22,7 +22,9 @@
 #undef SendMessage
 #endif
 
-MidiService::MidiService() : activeMidiChannelMask_(0), sendSync_(true) {
+MidiService::MidiService()
+    : activeMidiChannelMask_(0), sendSync_(true), midiDeviceVariable_(nullptr),
+      midiSyncVariable_(nullptr) {
   for (int i = 0; i < MIDI_MAX_BUFFERS; i++) {
     queues_[i].clear();
   }
@@ -53,6 +55,7 @@ bool MidiService::Init() {
   auto config = Config::GetInstance();
   auto midiDevVar =
       (WatchedVariable *)config->FindVariable(FourCC::VarMidiDevice);
+  midiDeviceVariable_ = midiDevVar;
   midiDevVar->AddObserver(*this);
 
   auto activeDeviceConfig = midiDevVar->GetInt();
@@ -60,6 +63,7 @@ bool MidiService::Init() {
 
   auto midiSyncVar =
       (WatchedVariable *)config->FindVariable(FourCC::VarMidiSync);
+  midiSyncVariable_ = midiSyncVar;
   midiSyncVar->AddObserver(*this);
   auto sync = midiSyncVar->GetInt();
   sendSync_ = sync != 0;
@@ -104,11 +108,19 @@ void MidiService::AdvancePlayQueue() {
 }
 
 void MidiService::Update(Observable &o, I_ObservableData *d) {
-  AudioDriver::Event *event = (AudioDriver::Event *)d;
-  if (event->type_ == AudioDriver::Event::ADET_DRIVERTICK) {
-    onAudioTick();
+  // Variable notifications carry a FourCC-as-pointer token, whereas audio
+  // notifications carry a real Event. Identify the two watched variables by
+  // their observable identity before interpreting the payload.
+  if (&o != midiDeviceVariable_ && &o != midiSyncVariable_) {
+    const auto *event = static_cast<AudioDriver::Event *>(d);
+    if (event != nullptr &&
+        event->type_ == AudioDriver::Event::ADET_DRIVERTICK) {
+      onAudioTick();
+    }
+    return;
   }
-  WatchedVariable &v = (WatchedVariable &)o;
+
+  WatchedVariable &v = static_cast<WatchedVariable &>(o);
   switch (v.GetID()) {
     // need braces inside case statements due to:
     // https://stackoverflow.com/a/11578973/85472

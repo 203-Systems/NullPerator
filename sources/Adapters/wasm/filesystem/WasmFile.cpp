@@ -4,6 +4,7 @@
 
 #include "WasmFile.h"
 #include "WasmStorageBridge.h"
+#include "Adapters/wasm/tracing/WasmProfiler.h"
 
 #include <utility>
 
@@ -13,6 +14,7 @@ WasmFile::WasmFile(std::FILE *file, bool initiallyDirty)
 WasmFile::~WasmFile() { Close(); }
 
 int WasmFile::Read(void *ptr, int size) {
+  WASM_TRACE_SCOPE(WasmTraceCategory::Files, WasmTraceName::FileRead);
   if (file_ == nullptr || ptr == nullptr || size < 0) {
     return 0;
   }
@@ -23,6 +25,7 @@ int WasmFile::Read(void *ptr, int size) {
 int WasmFile::GetC() { return file_ == nullptr ? EOF : std::fgetc(file_); }
 
 int WasmFile::Write(const void *ptr, int size, int nmemb) {
+  WASM_TRACE_SCOPE(WasmTraceCategory::Files, WasmTraceName::FileWrite);
   if (file_ == nullptr || ptr == nullptr || size < 0 || nmemb < 0) {
     return 0;
   }

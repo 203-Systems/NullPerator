@@ -2,6 +2,7 @@
 
 #include "Adapters/wasm/input/InputMap.h"
 #include "Adapters/wasm/audio/WasmAudioBridge.h"
+#include "Adapters/wasm/gui/WasmViewDiagnostics.h"
 #include "Adapters/wasm/platform/WasmBrowserSnapshots.h"
 
 #include <atomic>
@@ -18,7 +19,11 @@ char lastError[256] = {};
 constexpr char buildMetadata[] =
     "{\"commit\":\"" PICOTRACKER_WASM_BUILD_COMMIT
     "\",\"dirty\":" PICOTRACKER_STRINGIFY(PICOTRACKER_WASM_BUILD_DIRTY)
-    ",\"builtAt\":\"" PICOTRACKER_WASM_BUILD_TIME "\"}";
+    ",\"builtAt\":\"" PICOTRACKER_WASM_BUILD_TIME
+    "\",\"emscripten\":\""
+    PICOTRACKER_STRINGIFY(__EMSCRIPTEN_MAJOR__) "."
+    PICOTRACKER_STRINGIFY(__EMSCRIPTEN_MINOR__) "."
+    PICOTRACKER_STRINGIFY(__EMSCRIPTEN_TINY__) "\"}";
 } // namespace
 
 extern "C" const char *PicoTracker_Wasm_GetBuildMetadataJson() {
@@ -37,16 +42,34 @@ extern "C" void PicoTracker_Wasm_MarkAudioUnavailable() {
   WasmAudio_MarkUnavailable();
 }
 
+extern "C" void PicoTracker_Wasm_ConfigureAudio(
+    std::uint32_t targetFillFrames, std::uint32_t outputGainQ16) {
+  WasmAudio_Configure(targetFillFrames, outputGainQ16);
+}
+
 extern "C" void PicoTracker_Wasm_RequestShutdown() {
   PicoTracker_Wasm_ReleaseAllActions();
   // Detach the graph and stop the callback producer before the application
   // thread closes AudioDriver and is allowed to publish Stopped.
   WasmAudio_Stop();
+  const auto current = static_cast<WasmRuntimeState>(
+      runtimeState.load(std::memory_order_acquire));
+  // A fatal application frame owns its cleanup and preserves Failed until the
+  // normal application pthread has released platform services. Likewise, a
+  // fully stopped runtime must not be moved back to Stopping by a late retry.
+  if (current == WasmRuntimeState::Failed ||
+      current == WasmRuntimeState::Stopped) {
+    return;
+  }
   runtimeState.store(static_cast<std::uint32_t>(WasmRuntimeState::Stopping),
                      std::memory_order_release);
 }
 
 extern "C" const char *PicoTracker_Wasm_GetLastError() { return lastError; }
+
+extern "C" void PicoTracker_Wasm_DiagnosticFail() {
+  PicoTracker_Wasm_Fail("Injected C++ fatal error");
+}
 
 extern "C" void PicoTracker_Wasm_SetAction(std::uint16_t action, bool pressed) {
   InputMap::SetAction(action, pressed);
@@ -66,6 +89,35 @@ extern "C" std::uint32_t PicoTracker_Wasm_GetActionGeneration() {
 
 extern "C" std::uint16_t PicoTracker_Wasm_GetLastAction() {
   return InputMap::GetLastDispatchedAction();
+}
+
+extern "C" void PicoTracker_Wasm_RequestDiagnosticView(std::uint32_t viewType) {
+  WasmViewDiagnostics_Request(viewType);
+}
+
+extern "C" std::uint32_t PicoTracker_Wasm_GetDiagnosticView() {
+  return WasmViewDiagnostics_Current();
+}
+
+extern "C" std::uint32_t PicoTracker_Wasm_GetDiagnosticViewGeneration() {
+  return WasmViewDiagnostics_ViewGeneration();
+}
+
+extern "C" std::uint32_t PicoTracker_Wasm_GetDiagnosticInputGeneration() {
+  return WasmViewDiagnostics_InputGeneration();
+}
+
+extern "C" void PicoTracker_Wasm_RequestDiagnosticModal(
+    std::uint32_t modalType) {
+  WasmViewDiagnostics_RequestModal(modalType);
+}
+
+extern "C" std::uint32_t PicoTracker_Wasm_GetDiagnosticModal() {
+  return WasmViewDiagnostics_CurrentModal();
+}
+
+extern "C" std::uint32_t PicoTracker_Wasm_GetDiagnosticModalGeneration() {
+  return WasmViewDiagnostics_ModalGeneration();
 }
 
 extern "C" int PicoTracker_Wasm_UnlockAudio() {

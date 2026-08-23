@@ -3,11 +3,13 @@
  */
 
 #include "Adapters/wasm/input/InputMap.h"
+#include "Adapters/wasm/tracing/InputFrameLatencyTracker.h"
 
 #ifndef HOST_TEST
 #include <SDL.h>
 #endif
 
+#include <array>
 #include <mutex>
 
 namespace {
@@ -24,6 +26,7 @@ std::uint16_t desiredActions = 0;
 std::uint16_t dispatchedActions = 0;
 std::uint32_t dispatchGeneration = 0;
 std::uint16_t lastDispatchedAction = ActionCount;
+std::array<std::uint16_t, ActionCount> pendingTraceCorrelations{};
 
 bool IsValidAction(std::uint16_t action) { return action < ActionCount; }
 
@@ -52,11 +55,25 @@ void RetryPendingTransitionsLocked() {
     const std::uint16_t bit = static_cast<std::uint16_t>(1u << action);
     const bool isHeld = (heldActions & bit) != 0;
     const bool shouldBeHeld = (desiredActions & bit) != 0;
-    if (isHeld == shouldBeHeld || !queueAction(action, shouldBeHeld)) {
+    if (isHeld == shouldBeHeld) {
+      // A desired press can disappear before SDL sees it: either its pending
+      // queue attempt was released, or a failed release was pressed again
+      // while the application still considered the action held. Retire only
+      // that exact browser correlation instead of letting a later SDL DOWN
+      // inherit its older timestamp.
+      if (pendingTraceCorrelations[action] != 0U) {
+        InputFrameLatencyTracker::CancelAccepted(
+            pendingTraceCorrelations[action]);
+        pendingTraceCorrelations[action] = 0U;
+      }
+      continue;
+    }
+    if (!queueAction(action, shouldBeHeld)) {
       continue;
     }
     if (shouldBeHeld) {
       heldActions |= bit;
+      pendingTraceCorrelations[action] = 0U;
     } else {
       heldActions &= static_cast<std::uint16_t>(~bit);
     }
@@ -71,6 +88,14 @@ bool InputMap::SetAction(std::uint16_t action, bool pressed) {
 
   const std::uint16_t bit = static_cast<std::uint16_t>(1u << action);
   std::lock_guard<std::mutex> lock(actionMutex);
+  const bool wasDesired = (desiredActions & bit) != 0;
+  if (pressed && !wasDesired) {
+    // Acceptance into desiredActions is the browser-side boundary. SDL queue
+    // retries remain inside the end-to-end latency instead of disappearing
+    // into the much narrower InputDispatch scope.
+    pendingTraceCorrelations[action] =
+        InputFrameLatencyTracker::AcceptPress(action);
+  }
   if (pressed) {
     desiredActions |= bit;
   } else {
@@ -130,7 +155,14 @@ bool InputMap::DecodeActionEvent(std::uintptr_t encoded, std::uint16_t &action,
                                  bool &pressed) {
   action = static_cast<std::uint16_t>(encoded >> 1u);
   pressed = (encoded & 1u) != 0;
-  return IsValidAction(action);
+  if (!IsValidAction(action)) {
+    return false;
+  }
+  // DecodeActionEvent runs on the application pthread immediately before
+  // WasmEventManager invokes DispatchEvent. A view may Flush synchronously
+  // from that call, so this is the last correct point to arm presentation.
+  InputFrameLatencyTracker::MarkDispatching(action, pressed);
+  return true;
 }
 
 void InputMap::SetQueueForTesting(QueueActionFunction queue) {
