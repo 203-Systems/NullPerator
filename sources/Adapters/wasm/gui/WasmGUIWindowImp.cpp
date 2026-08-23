@@ -18,11 +18,22 @@
 #include <cstring>
 
 namespace {
-constexpr int CellSourceWidth = 10;
+constexpr int CellSourceWidth = 8;
 constexpr int CellSourceHeight = 10;
 constexpr int FrameworkCellStep = 8;
+constexpr int TextColumns = WasmGUIWindowImp::SourceWidth / CellSourceWidth;
 constexpr std::size_t FrameBytes =
     WasmGUIWindowImp::CanvasWidth * WasmGUIWindowImp::CanvasHeight * 4U;
+
+constexpr bool IsGlyphPixelSet(std::uint16_t row, int sourceX) {
+  return (row & (1u << sourceX)) != 0;
+}
+
+// The vertical stroke in the font's 'F' glyph is encoded as 0x02. It belongs
+// near the left edge (x=1), not the right edge (x=8).
+static_assert(IsGlyphPixelSet(0x02, 1));
+static_assert(!IsGlyphPixelSet(0x02, 8));
+
 WasmFrameSnapshot<FrameBytes> frameSnapshot;
 
 int ScaleXFloor(int x) {
@@ -172,7 +183,7 @@ void WasmGUIWindowImp::DrawRect(GUIRect &rect) {
 
 void WasmGUIWindowImp::DrawGlyph(std::uint8_t character, int cellX,
                                  int cellY, bool inverted) {
-  if (cellX < 0 || cellX >= 32 || cellY < 0 || cellY >= 24) {
+  if (cellX < 0 || cellX >= TextColumns || cellY < 0 || cellY >= 24) {
     return;
   }
   const int left = ScaleXFloor(cellX * CellSourceWidth);
@@ -182,28 +193,37 @@ void WasmGUIWindowImp::DrawGlyph(std::uint8_t character, int cellX,
   const std::uint32_t foreground = inverted ? backgroundColor_ : currentColor_;
   const std::uint32_t background = inverted ? currentColor_ : backgroundColor_;
 
-  const std::uint16_t *rows = nullptr;
+  const std::uint16_t *regularRows = nullptr;
+  const std::uint8_t *specialRows = nullptr;
   if (character >= 32 && character < 128) {
     int fontIndex = 0;
     Config *config = Config::GetInstance();
     if (config != nullptr) {
       Variable *fontVariable = config->FindVariable(FourCC::VarUIFont);
       if (fontVariable != nullptr) {
-        fontIndex = std::clamp<int>(fontVariable->GetInt(), 0, 2);
+        fontIndex = fontVariable->GetInt();
       }
     }
-    rows = (*fonts[fontIndex])[character - 32];
+    const std::size_t glyphIndex = character - 32;
+    regularRows = fontIndex == 0 ? FONT_STEALTH57_BITMAP[glyphIndex]
+                                 : FONT_YOU_SQUARED_BITMAP[glyphIndex];
   } else if (character >= 128) {
-    rows = FONT_SPECIAL_CHARACTERS_BITMAP[character - 128];
+    specialRows = FONT_SPECIAL_CHARACTERS_BITMAP[character - 128];
   }
 
   for (int y = top; y < bottom; ++y) {
     const int sourceY = y - top;
-    const std::uint16_t row = rows == nullptr ? 0 : rows[sourceY];
+    const std::uint16_t row = regularRows != nullptr
+                                  ? regularRows[sourceY]
+                              : specialRows != nullptr
+                                  ? specialRows[sourceY]
+                                  : 0;
     for (int x = left; x < right; ++x) {
       const int sourceX = ((x - left) * CellSourceWidth) /
                           std::max(1, right - left);
-      const bool set = (row & (1u << (CellSourceWidth - 1 - sourceX))) != 0;
+      // Match the Node display writer: pixel x uses mask (1 << x), so bit 0
+      // is the leftmost pixel in an ordinary browser framebuffer.
+      const bool set = IsGlyphPixelSet(row, sourceX);
       StorePixel(frame_.data() + (y * CanvasWidth + x) * 4,
                  set ? foreground : background);
     }
@@ -231,7 +251,7 @@ void WasmGUIWindowImp::DrawString(const char *string,
   std::lock_guard<std::recursive_mutex> lock(mutex_);
   int cellX = static_cast<int>(position._x / FrameworkCellStep);
   const int cellY = static_cast<int>(position._y / FrameworkCellStep);
-  while (*string != '\0' && cellX < 32) {
+  while (*string != '\0' && cellX < TextColumns) {
     DrawGlyph(static_cast<std::uint8_t>(*string), cellX, cellY,
               properties.invert_);
     ++string;

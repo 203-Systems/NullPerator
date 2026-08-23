@@ -5,6 +5,11 @@ include_directories(
   "${PROJECT_SOURCE_DIR}/config"
   "${CMAKE_CURRENT_SOURCE_DIR}/platform")
 
+# The browser simulator models the 240x240 Node/Operator target.  Keep the
+# application-side 30-column layout identical to the firmware instead of
+# compiling the legacy 320x240 picoTracker layout and squeezing it later.
+add_compile_definitions(NODE)
+
 set(PICOTRACKER_WEB_WASM_DIR
   "${CMAKE_CURRENT_SOURCE_DIR}/../../../web/public/wasm"
   CACHE PATH "Output directory consumed by the Vite workbench")

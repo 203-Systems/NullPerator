@@ -19,7 +19,7 @@ class WasmGUIWindowImp final : public I_GUIWindowImp {
 public:
   static constexpr int CanvasWidth = 240;
   static constexpr int CanvasHeight = 240;
-  static constexpr int SourceWidth = 320;
+  static constexpr int SourceWidth = 240;
   static constexpr int SourceHeight = 240;
 
   explicit WasmGUIWindowImp(GUICreateWindowParams &params);
