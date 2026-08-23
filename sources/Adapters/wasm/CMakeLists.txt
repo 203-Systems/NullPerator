@@ -86,7 +86,10 @@ foreach(target application_model application_views)
   target_compile_options(${target} PRIVATE
     -include "${CMAKE_CURRENT_SOURCE_DIR}/platform/wasm_compat.h")
 endforeach()
-target_compile_options(application_instruments PRIVATE -Wno-non-pod-varargs)
+# Passing an ETL string object through a printf-style ellipsis compiles to a
+# runtime trap in Clang/WASM. Keep this fatal so a future call cannot silently
+# become `RuntimeError: unreachable` in the browser.
+target_compile_options(application_instruments PRIVATE -Werror=non-pod-varargs)
 target_compile_options(application_views PRIVATE -Wno-c++11-narrowing)
 target_compile_options(application_views_modaldialogs PRIVATE
   -Wno-c++11-narrowing)
