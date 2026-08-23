@@ -8,6 +8,7 @@
 
 <header class="top-bar">
   <div class="top-bar-left">
+    <img class="top-bar-logo" src="/203dark.svg" alt="203 Systems" />
     <span class="top-bar-title">NullPerator</span>
   </div>
   <div class="top-bar-right">
@@ -29,8 +30,9 @@
 <style>
   .top-bar { display:flex; align-items:center; justify-content:space-between; height:50px; padding:0 16px; flex-shrink:0; gap:14px; border-bottom:1px solid var(--border); background:var(--panel); font-size:.88rem; z-index:10; }
   .top-bar-left,.top-bar-right,.top-status { display:flex; align-items:center; }
-  .top-bar-left { min-width:0; }
+  .top-bar-left { gap:12px; min-width:0; }
   .top-bar-right { gap:12px; }
+  .top-bar-logo { display:block; width:59px; height:24px; object-fit:contain; }
   .top-bar-title { font-weight:600; font-size:.96rem; letter-spacing:.03em; white-space:nowrap; }
   .top-status { gap:7px; color:var(--muted); font-size:.78rem; white-space:nowrap; }
   .status-dot { width:8px; height:8px; flex-shrink:0; border-radius:50%; background:#f7c266; box-shadow:0 0 6px rgba(247,194,102,.4); }
