@@ -37,8 +37,7 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data,
       .meta = data.name,
       .elapsed = data.elapsed,
       .metaX = 61,
-      .power = data.playing ? UiPowerState::Playing
-                            : UiPowerState::BatteryNormal,
+      .power = data.power,
   };
   const UiBuildStatus topStatus = UiChromeRenderer::BuildTop(top, scene.top);
   if (topStatus != UiBuildStatus::Built) return topStatus;
@@ -53,8 +52,8 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data,
   for (std::uint8_t track = 0; track < 8; ++track) {
     std::array<char, 3> label{'T', static_cast<char>('1' + track), 0};
     builder.Text(label.data(), kTrackX[track], 38,
-                 track == 0 ? UiColorToken::CursorPrimary
-                            : UiColorToken::TextMuted);
+                 track == data.editTrack ? UiColorToken::CursorPrimary
+                                         : UiColorToken::TextMuted);
   }
 
   const std::int16_t editY = static_cast<std::int16_t>(47 + data.editRow * 10);
@@ -67,19 +66,24 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data,
                                      : UiColorToken::TextDim);
     for (std::uint8_t track = 0; track < 8; ++track) {
       const auto value = HexByte(data.rows[row][track]);
+      const char *displayValue =
+          data.rows[row][track] == 0xFFU ? "--" : value.data();
       const bool selected = row == data.editRow && track == data.editTrack;
-      const bool playback = data.playing && data.playbackRows[track] == row;
+      const bool playback = data.playing &&
+                            data.playbackRows[track] ==
+                                static_cast<std::int8_t>(row);
       if (selected) {
         builder.Selection(
             {static_cast<std::int16_t>(kTrackX[track] - 2),
              static_cast<std::int16_t>(y - 1), 15, 9},
             playback);
-        builder.Text(value.data(), kTrackX[track], y,
-                     UiColorToken::CursorInk);
+        builder.Text(displayValue, kTrackX[track], y, UiColorToken::CursorInk);
       } else {
-        builder.Text(value.data(), kTrackX[track], y,
-                     data.rows[row][track] == 0 ? UiColorToken::TextDim
-                                                : UiColorToken::TextPrimary);
+        builder.Text(displayValue, kTrackX[track], y,
+                     data.rows[row][track] == 0 ||
+                             data.rows[row][track] == 0xFFU
+                         ? UiColorToken::TextDim
+                         : UiColorToken::TextPrimary);
       }
       if (playback && !selected) {
         builder.Fill({static_cast<std::int16_t>(kTrackX[track] - 3),

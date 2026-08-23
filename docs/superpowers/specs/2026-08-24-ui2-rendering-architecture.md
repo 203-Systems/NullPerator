@@ -95,6 +95,9 @@ change these shared chrome bounds.
 - Song playback position is shown by one small edge tick per track/value cell,
   not by a synchronized row highlight. When a playback tick overlaps the edit
   cursor, the tick changes to the active playback color.
+- VU meters are exempt from literal per-pixel equality. Their bounds, stereo
+  separation, levels, and semantic color-band structure remain acceptance
+  requirements; small raster/dither differences are allowed.
 - Phrase keeps NOTE, INS, FX1/value, and FX2/value columns.
 - Table keeps three FX/value pairs. Phrase Table is identified as `P##` and
   Instrument Table as `I##` in the Top Bar.
@@ -550,6 +553,9 @@ sources/UI2/
   Theme/
     UiPalette.h
     UiThemeAdapter.h
+
+sources/Application/UI2/
+  Ui2ApplicationRuntime.h/.cpp
 
 sources/Adapters/wasm/gui/
   WasmUiPresenter.h/.cpp

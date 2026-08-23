@@ -6,8 +6,10 @@
 
 #include "Foundation/T_Singleton.h"
 #include "UIFramework/SimpleBaseClasses/EventManager.h"
+#include "Application/UI2/Ui2ApplicationRuntime.h"
 
 #include <atomic>
+#include <optional>
 
 class WasmEventManager final : public T_Singleton<WasmEventManager>,
                                public EventManager {
@@ -24,6 +26,8 @@ public:
   std::uint32_t DiagnosticModal() const;
   std::uint32_t DiagnosticModalGeneration() const;
   std::uint32_t DiagnosticInputGeneration() const;
+  void SetUi2Enabled(bool enabled);
+  bool Ui2Enabled() const;
 
 private:
   static constexpr std::uint32_t NoDiagnosticView = 0xFFFFFFFFu;
@@ -45,4 +49,6 @@ private:
   std::atomic<std::uint32_t> diagnosticInputGeneration_{0};
   std::uint32_t diagnosticViewAwaitingDraw_ = NoDiagnosticView;
   std::uint32_t diagnosticModalAwaitingDraw_ = NoDiagnosticModal;
+  std::atomic<bool> ui2Enabled_{false};
+  std::optional<ui2::UiApplicationRuntime> ui2Runtime_;
 };

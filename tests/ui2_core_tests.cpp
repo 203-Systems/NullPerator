@@ -12,6 +12,7 @@
 #include "UI2/Render/UiFrameRenderer.h"
 #include "UI2/Views/Song/UiSongView.h"
 #include "Adapters/wasm/gui/WasmUiPresenter.h"
+#include "Application/UI2/Ui2ApplicationRuntime.h"
 
 #include "ui2_song_fixture.h"
 
@@ -363,4 +364,18 @@ TEST_CASE("UI2 WASM presenter converts only dirty strips and commits once") {
   CHECK(presenter.Present(surface, palette, strips.Strips()) ==
         ui2::PresentResult::Deferred);
   CHECK(probe.calls == 2);
+}
+
+TEST_CASE("UI2 VU mapping is bounded monotonic and integer only") {
+  CHECK(ui2::UiApplicationRuntime::VuTopFromAmplitude(0) == 153);
+  CHECK(ui2::UiApplicationRuntime::VuTopFromAmplitude(32) == 153);
+  CHECK(ui2::UiApplicationRuntime::VuTopFromAmplitude(32700) == 0);
+  std::uint8_t previous = 153;
+  for (std::uint32_t amplitude = 33; amplitude <= 32767; amplitude += 37) {
+    const std::uint8_t top = ui2::UiApplicationRuntime::VuTopFromAmplitude(
+        static_cast<std::uint16_t>(amplitude));
+    CHECK(top <= previous);
+    CHECK(top <= 153);
+    previous = top;
+  }
 }

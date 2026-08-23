@@ -137,6 +137,7 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif()
 
 
+add_subdirectory(UI2)
 add_subdirectory(UIFramework)
 add_subdirectory(System)
 add_subdirectory(Application)

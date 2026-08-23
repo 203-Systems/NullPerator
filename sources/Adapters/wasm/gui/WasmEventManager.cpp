@@ -6,6 +6,7 @@
 #include "Adapters/wasm/gui/WasmViewDiagnostics.h"
 
 #include "Adapters/wasm/gui/WasmGUIWindowImp.h"
+#include "Adapters/wasm/gui/WasmUi2Control.h"
 #include "Adapters/wasm/audio/WasmAudio.h"
 #include "Adapters/wasm/audio/WasmAudioDriver.h"
 #include "Adapters/wasm/filesystem/WasmStorageBridge.h"
@@ -76,6 +77,8 @@ bool WasmEventManager::Init() {
   diagnosticInputGeneration_.store(0, std::memory_order_release);
   diagnosticViewAwaitingDraw_ = NoDiagnosticView;
   diagnosticModalAwaitingDraw_ = NoDiagnosticModal;
+  ui2Enabled_.store(false, std::memory_order_release);
+  ui2Runtime_.reset();
   if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_TIMER) != 0) {
     return false;
   }
@@ -123,6 +126,20 @@ void WasmEventManager::PumpFrame() {
     StopRuntime();
     return;
   }
+  if (!ui2Runtime_.has_value()) {
+    ui2Runtime_.emplace(*wasmWindow);
+  }
+  const auto presentUi2 = [&]() {
+    if (!ui2Enabled_.load(std::memory_order_acquire) ||
+        !ui2Runtime_->Supports(*static_cast<AppWindow *>(window))) {
+      return;
+    }
+    const ui2::PresentResult result =
+        ui2Runtime_->Present(*static_cast<AppWindow *>(window));
+    if (result == ui2::PresentResult::Failed) {
+      ui2Enabled_.store(false, std::memory_order_release);
+    }
+  };
   if (booting_) {
     // The browser main and application pthread both get a scheduling turn
     // before the first expensive UI clock tick. This avoids startup races in
@@ -135,6 +152,7 @@ void WasmEventManager::PumpFrame() {
       WASM_TRACE_SCOPE(WasmTraceCategory::Ui, WasmTraceName::ClockTick);
       window->ClockTick();
     }
+    presentUi2();
     if (!wasmWindow->HasPresentedFrame()) {
       PicoTracker_Wasm_Fail("PicoTracker did not present an initial browser frame");
       StopRuntime();
@@ -256,6 +274,7 @@ void WasmEventManager::PumpFrame() {
   if (now >= nextTick_) {
     WASM_TRACE_SCOPE(WasmTraceCategory::Ui, WasmTraceName::ClockTick);
     window->ClockTick();
+    presentUi2();
     if (diagnosticViewAwaitingDraw_ != NoDiagnosticView) {
       diagnosticView_.store(appWindow->CurrentViewForDiagnostics(),
                             std::memory_order_release);
@@ -310,6 +329,14 @@ std::uint32_t WasmEventManager::DiagnosticModalGeneration() const {
 
 std::uint32_t WasmEventManager::DiagnosticInputGeneration() const {
   return diagnosticInputGeneration_.load(std::memory_order_acquire);
+}
+
+void WasmEventManager::SetUi2Enabled(bool enabled) {
+  ui2Enabled_.store(enabled, std::memory_order_release);
+}
+
+bool WasmEventManager::Ui2Enabled() const {
+  return ui2Enabled_.load(std::memory_order_acquire);
 }
 
 void WasmEventManager::StopRuntime() {
@@ -393,4 +420,12 @@ std::uint32_t WasmViewDiagnostics_CurrentModal() noexcept {
 
 std::uint32_t WasmViewDiagnostics_ModalGeneration() noexcept {
   return WasmEventManager::GetInstance()->DiagnosticModalGeneration();
+}
+
+void WasmUi2_SetEnabled(bool enabled) noexcept {
+  WasmEventManager::GetInstance()->SetUi2Enabled(enabled);
+}
+
+bool WasmUi2_IsEnabled() noexcept {
+  return WasmEventManager::GetInstance()->Ui2Enabled();
 }

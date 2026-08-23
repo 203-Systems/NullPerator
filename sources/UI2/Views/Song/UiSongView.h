@@ -21,11 +21,13 @@ struct UiSongViewData {
   std::string_view elapsed = "00:08";
   std::array<std::array<std::uint8_t, 8>, 16> rows{};
   std::array<std::string_view, 8> notes{};
-  std::array<std::uint8_t, 8> playbackRows{};
+  std::array<std::int8_t, 8> playbackRows{-1, -1, -1, -1,
+                                          -1, -1, -1, -1};
   std::array<std::uint8_t, 2> vuLevelTop{14, 34};
   std::uint8_t editRow = 8;
   std::uint8_t editTrack = 0;
   bool playing = true;
+  UiPowerState power = UiPowerState::Playing;
 };
 
 class UiSongView {

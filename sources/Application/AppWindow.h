@@ -65,6 +65,17 @@ public:
   void UpdateColorsFromConfig();
   void SetSdCardPresent(bool present);
 
+  // UI2 reads a frame snapshot on the application thread. These accessors do
+  // not transfer ownership and must never be called from a display or audio
+  // worker.
+  ViewData &ViewDataForUi2() { return viewData_; }
+  bool IsCurrentViewForUi2(ViewType type) const {
+    return _currentView != nullptr && _currentView->viewType_ == type;
+  }
+  bool HasModalForUi2() const {
+    return _currentView != nullptr && _currentView->HasModalView();
+  }
+
 #if defined(__EMSCRIPTEN__)
   // Acceptance diagnostics are requested from browser main but executed by
   // WasmEventManager on the application pthread. They deliberately reuse the

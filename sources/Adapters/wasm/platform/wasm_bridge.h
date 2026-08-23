@@ -32,6 +32,8 @@ EMSCRIPTEN_KEEPALIVE void PicoTracker_Wasm_ReleaseAllActions();
 EMSCRIPTEN_KEEPALIVE std::uint16_t PicoTracker_Wasm_GetActionMask();
 EMSCRIPTEN_KEEPALIVE std::uint32_t PicoTracker_Wasm_GetActionGeneration();
 EMSCRIPTEN_KEEPALIVE std::uint16_t PicoTracker_Wasm_GetLastAction();
+EMSCRIPTEN_KEEPALIVE void PicoTracker_Wasm_SetUi2Enabled(bool enabled);
+EMSCRIPTEN_KEEPALIVE bool PicoTracker_Wasm_GetUi2Enabled();
 EMSCRIPTEN_KEEPALIVE void PicoTracker_Wasm_RequestDiagnosticView(
     std::uint32_t viewType);
 EMSCRIPTEN_KEEPALIVE std::uint32_t PicoTracker_Wasm_GetDiagnosticView();

@@ -1,6 +1,7 @@
 add_library(application
   AppWindow.cpp
   Application.cpp
+  UI2/Ui2ApplicationRuntime.cpp
 )
 
 target_link_libraries(application PUBLIC
@@ -18,6 +19,7 @@ target_link_libraries(application PUBLIC
   application_views_modaldialogs
   uiframework_basicdatas
   foundation_variables
+  ui2
 )
 
 target_include_directories(application PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

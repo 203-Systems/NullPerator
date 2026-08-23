@@ -48,6 +48,7 @@ macro(adapter_node_setup)
   )
 
   add_subdirectory(Adapters/node)
+  add_subdirectory(UI2)
   add_subdirectory(UIFramework)
   add_subdirectory(System)
   add_subdirectory(Application)
