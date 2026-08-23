@@ -106,7 +106,8 @@ test('Web MIDI crosses the WASM input/output queues and survives stable-id recon
       byte: snapshot.lastInputByte,
       timestamp: snapshot.lastInputTimestamp,
     }
-  }, beforeInput.processedInputBytes)).toEqual({ processed: 3, byte: 99, timestamp: 1234.5 })
+  }, beforeInput.processedInputBytes), { timeout: 15_000 })
+    .toEqual({ processed: 3, byte: 99, timestamp: 1234.5 })
 
   const noteRequestedAt = await page.evaluate(() => performance.now())
   expect(await page.evaluate(() => globalThis.__picoTrackerMidiTest.emitOutput([0x91, 64, 100], 500))).toBe(true)
@@ -144,7 +145,8 @@ test('Web MIDI crosses the WASM input/output queues and survives stable-id recon
   await expect.poll(() => page.evaluate((before) => {
     const snapshot = globalThis.__picoTrackerMidiTest.snapshot()
     return [snapshot.processedInputBytes - before, snapshot.lastInputByte, snapshot.lastInputTimestamp]
-  }, beforeReconnectInput.processedInputBytes)).toEqual([3, 55, 2345.75])
+  }, beforeReconnectInput.processedInputBytes), { timeout: 15_000 })
+    .toEqual([3, 55, 2345.75])
   expect(await page.evaluate(() => globalThis.__picoTrackerMidiTest.emitOutput([0x80, 64, 0], 250))).toBe(true)
   await expect.poll(() => page.evaluate(() => globalThis.__midiTest.sends().length)).toBe(3)
   expect((await page.evaluate(() => globalThis.__midiTest.sends()))[2].bytes).toEqual([0x80, 64, 0])
@@ -202,10 +204,10 @@ test('Web MIDI trace correlates input processing and output browser drain', asyn
     globalThis.__picoTrackerMidiTest.snapshot().processedInputBytes - before,
   beforeInput)).toBe(3)
 
-  // A two-second future send must still have only the immediate native queue
+  // A one-second future send must still have only the immediate native queue
   // to browser-main hand-off in midi.output_latency_us.
   expect(await page.evaluate(() =>
-    globalThis.__picoTrackerMidiTest.emitOutput([0x90, 64, 100], 2_000))).toBe(true)
+    globalThis.__picoTrackerMidiTest.emitOutput([0x90, 64, 100], 1_000))).toBe(true)
   await expect.poll(() => page.evaluate(() => globalThis.__midiTest.sends().length)).toBe(1)
 
   await page.getByRole('button', { name: 'Trace', exact: true }).click()

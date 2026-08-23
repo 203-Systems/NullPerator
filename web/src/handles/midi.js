@@ -5,6 +5,7 @@ const requiredExports = [
   '_PicoTracker_Wasm_MidiDrainOutput',
   '_PicoTracker_Wasm_MidiDisconnect',
   '_PicoTracker_Wasm_MidiSetOutputConnected',
+  '_PicoTracker_Wasm_MidiDiagnosticSnapshot',
 ]
 
 function checkedModule(module) {
@@ -27,6 +28,16 @@ export function createMidiBridge(module, options = {}) {
   const timeOrigin = Number.isFinite(candidateTimeOrigin) && candidateTimeOrigin >= 0
     ? candidateTimeOrigin
     : null
+
+  const inputResetGeneration = () => {
+    const pointer = module._PicoTracker_Wasm_MidiDiagnosticSnapshot() >>> 0
+    checkedRange(module.HEAPU8, pointer, 32, 'diagnostic snapshot')
+    const view = new DataView(module.HEAPU8.buffer, pointer, 32)
+    if (view.getUint32(0, true) !== 1 || view.getUint32(4, true) !== 32) {
+      throw new Error('WASM MIDI diagnostic snapshot is incompatible')
+    }
+    return view.getUint32(28, true)
+  }
 
   return Object.freeze({
     submitInput(input, timestamp) {
@@ -84,8 +95,13 @@ export function createMidiBridge(module, options = {}) {
     },
     disconnect(directions) {
       if (!Number.isInteger(directions) || directions < 1 || directions > 3) throw new Error('MIDI disconnect direction is invalid')
+      const resetGeneration = (directions & 1) !== 0
+        ? (inputResetGeneration() + 1) >>> 0
+        : null
       module._PicoTracker_Wasm_MidiDisconnect(directions)
+      return resetGeneration
     },
+    inputResetGeneration,
     setOutputConnected(connected) {
       module._PicoTracker_Wasm_MidiSetOutputConnected(connected ? 1 : 0)
     },

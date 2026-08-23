@@ -21,6 +21,7 @@ export function createMidiStore(bridge, options = {}) {
   const requestFrame = options.requestAnimationFrame ?? globalThis.requestAnimationFrame?.bind(globalThis)
   const cancelFrame = options.cancelAnimationFrame ?? globalThis.cancelAnimationFrame?.bind(globalThis)
   const now = options.now ?? (() => globalThis.performance?.now?.() ?? 0)
+  const delay = options.delay ?? ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)))
   const supported = typeof navigator?.requestMIDIAccess === 'function'
   const listeners = new Set()
   let access = null
@@ -48,12 +49,21 @@ export function createMidiStore(bridge, options = {}) {
   }
   const selectedId = (key) => storage?.getItem?.(key) || null
 
+  async function waitForInputReset(generation) {
+    if (!Number.isInteger(generation) || typeof bridge.inputResetGeneration !== 'function') return
+    const deadline = now() + (options.disconnectTimeoutMs ?? 2_000)
+    while (bridge.inputResetGeneration() !== generation) {
+      if (now() >= deadline) throw new Error('Timed out waiting for WASM MIDI input reset')
+      await delay(10)
+    }
+  }
+
   async function bindInput(id, disconnect = true) {
     if (selectedInput) {
       selectedInput.onmidimessage = null
       if (selectedInput.id !== id) await selectedInput.close?.()
     }
-    if (disconnect) bridge.disconnect(1)
+    if (disconnect) await waitForInputReset(bridge.disconnect(1))
     selectedInput = null
     const candidate = id ? access?.inputs?.get?.(id) : null
     if (candidate?.state === 'connected') {

@@ -5,6 +5,9 @@ import { createMidiStore } from '../src/stores/midi.js'
 
 function moduleFixture() {
   const heap = new Uint8Array(new ArrayBuffer(4096))
+  const view = new DataView(heap.buffer)
+  view.setUint32(1024, 1, true)
+  view.setUint32(1028, 32, true)
   const calls = { input: [], disconnect: [], connected: [] }
   const module = {
     HEAPU8: heap,
@@ -17,6 +20,7 @@ function moduleFixture() {
     _PicoTracker_Wasm_MidiDrainOutput: () => 512,
     _PicoTracker_Wasm_MidiDisconnect: (directions) => calls.disconnect.push(directions),
     _PicoTracker_Wasm_MidiSetOutputConnected: (connected) => calls.connected.push(connected),
+    _PicoTracker_Wasm_MidiDiagnosticSnapshot: () => 1024,
   }
   return { module, heap, calls }
 }
@@ -136,11 +140,19 @@ describe('Web MIDI bridge and store', () => {
   it('keeps disconnected stable ids, rebinds on statechange, and tears down handlers', async () => {
     const firstInput = port('input', 'in-1')
     const access = { inputs: new Map([[firstInput.id, firstInput]]), outputs: new Map(), onstatechange: null }
-    const bridge = { submitInput: vi.fn(() => true), drainOutput: vi.fn(() => ({ packets: [], droppedNormal: 0, droppedRealtime: 0 })), disconnect: vi.fn(), setOutputConnected: vi.fn() }
+    let resetGeneration = 0
+    const bridge = {
+      submitInput: vi.fn(() => true),
+      drainOutput: vi.fn(() => ({ packets: [], droppedNormal: 0, droppedRealtime: 0 })),
+      disconnect: vi.fn((directions) => (directions & 1) ? resetGeneration + 1 : null),
+      inputResetGeneration: () => resetGeneration,
+      setOutputConnected: vi.fn(),
+    }
     const cancelAnimationFrame = vi.fn()
     const store = createMidiStore(bridge, {
       navigator: { requestMIDIAccess: async () => access }, storage: memoryStorage(),
       requestAnimationFrame: () => 7, cancelAnimationFrame, now: () => 0,
+      delay: async () => { resetGeneration += 1 },
     })
     await store.requestMidiAccess()
     await store.selectMidiInput('in-1')
