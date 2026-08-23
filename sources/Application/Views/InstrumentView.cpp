@@ -1007,15 +1007,24 @@ void InstrumentView::ProcessButtonMask(unsigned short mask, bool pressed) {
       NotifyObservers(&ve);
     }
 
+#if !defined(NODE)
     if (mask & EPBM_PLAY) {
       player->OnStartButton(PM_PHRASE, viewData_->songX_, true,
                             viewData_->chainRow_);
     }
+#endif
+
   } else {
     // No modifier
     if (mask & EPBM_PLAY) {
+#if defined(NODE)
+      player->OnStartButton(PM_PHRASE, viewData_->songX_,
+                            (mask & EPBM_ALT) != 0,
+                            viewData_->chainRow_);
+#else
       player->OnStartButton(PM_PHRASE, viewData_->songX_, false,
                             viewData_->chainRow_);
+#endif
     }
   }
 

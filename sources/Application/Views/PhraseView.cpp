@@ -1123,15 +1123,24 @@ void PhraseView::processNormalButtonMask(unsigned short mask) {
       NotifyObservers(&ve);
     }
 
+#if !defined(NODE)
     if (mask & EPBM_PLAY) {
       player->OnStartButton(PM_PHRASE, viewData_->songX_, true,
                             viewData_->chainRow_);
     }
+#endif
+
     if (mask & EPBM_ALT)
       unMuteAll();
 
   } else if (mask & EPBM_ALT) {
     // ALT Modifier
+#if defined(NODE)
+    if (mask & EPBM_PLAY) {
+      player->OnStartButton(PM_PHRASE, viewData_->songX_, true,
+                            viewData_->chainRow_);
+    }
+#endif
   } else {
     // No modifier
     if (mask & EPBM_DOWN)
@@ -1204,17 +1213,24 @@ void PhraseView::processSelectionButtonMask(unsigned short mask) {
           SetChanged();
           NotifyObservers(&ve);
         }
+#if !defined(NODE)
         if (mask & EPBM_PLAY) {
           player->OnStartButton(PM_PHRASE, viewData_->songX_, true,
                                 viewData_->chainRow_);
         }
+#endif
         if (mask & EPBM_ALT)
           unMuteAll();
 
       } else {
         // L Modifier
         if (mask & EPBM_ALT) {
-
+#if defined(NODE)
+          if (mask & EPBM_PLAY) {
+            player->OnStartButton(PM_PHRASE, viewData_->songX_, true,
+                                  viewData_->chainRow_);
+          }
+#endif
         } else {
           // No modifier
 

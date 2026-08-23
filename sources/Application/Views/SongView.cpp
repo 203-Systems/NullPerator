@@ -679,9 +679,11 @@ void SongView::processNormalButtonMask(unsigned int mask) {
       NotifyObservers(&ve);
     }
 
+#if !defined(NODE)
     if (mask & EPBM_PLAY) {
       onStop();
     }
+#endif
 
   } else if (mask & EPBM_ALT) {
     // ALT Modifier
@@ -692,7 +694,15 @@ void SongView::processNormalButtonMask(unsigned int mask) {
       jumpToNextSection(-1);
     }
     if (mask & EPBM_PLAY) {
+#if defined(NODE)
+      if (Player::GetInstance()->IsRunning()) {
+        onStop();
+      } else {
+        startCurrentRow();
+      }
+#else
       startCurrentRow();
+#endif
     }
     if (mask & EPBM_LEFT) {
       nudgeTempo(-1);
@@ -786,9 +796,12 @@ void SongView::processSelectionButtonMask(unsigned int mask) {
       NotifyObservers(&ve);
     }
 
+#if !defined(NODE)
     if (mask & EPBM_PLAY) {
       onStop();
     }
+#endif
+
   } else {
     // No modifier
 
@@ -801,7 +814,15 @@ void SongView::processSelectionButtonMask(unsigned int mask) {
     if (mask & EPBM_RIGHT)
       updateCursor(1, 0);
     if (mask & EPBM_PLAY) {
+#if defined(NODE)
+      if ((mask & EPBM_ALT) && Player::GetInstance()->IsRunning()) {
+        onStop();
+      } else {
+        onStart();
+      }
+#else
       onStart();
+#endif
     }
   }
 }

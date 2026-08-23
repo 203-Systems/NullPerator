@@ -527,13 +527,13 @@ void ChainView::processNormalButtonMask(unsigned short mask) {
       }
     }
 
-    // We toggle full chain start only if we"re not in live mode
-    // or if the player ain't playing yet
-
+#if !defined(NODE)
     if (mask & EPBM_PLAY) {
       player->OnStartButton(PM_CHAIN, viewData_->songX_, true,
                             viewData_->chainRow_);
     }
+#endif
+
     if (mask & EPBM_ALT)
       unMuteAll();
   } else {
@@ -547,8 +547,14 @@ void ChainView::processNormalButtonMask(unsigned short mask) {
     if (mask & EPBM_RIGHT)
       updateCursor(1, 0);
     if (mask & EPBM_PLAY) {
+#if defined(NODE)
+      player->OnStartButton(PM_CHAIN, viewData_->songX_,
+                            (mask & EPBM_ALT) != 0,
+                            viewData_->chainRow_);
+#else
       player->OnStartButton(PM_CHAIN, viewData_->songX_, false,
                             viewData_->chainRow_);
+#endif
     }
   }
 
@@ -617,10 +623,12 @@ void ChainView::processSelectionButtonMask(unsigned short mask) {
           }
         }
 
+#if !defined(NODE)
         if (mask & EPBM_PLAY) {
           player->OnStartButton(PM_CHAIN, viewData_->songX_, true,
                                 viewData_->chainRow_);
         }
+#endif
 
         if (mask & EPBM_ALT)
           unMuteAll();
@@ -639,8 +647,14 @@ void ChainView::processSelectionButtonMask(unsigned short mask) {
           updateCursor(1, 0);
 
         if (mask & EPBM_PLAY) {
+#if defined(NODE)
+          player->OnStartButton(PM_CHAIN, viewData_->songX_,
+                                (mask & EPBM_ALT) != 0,
+                                viewData_->chainRow_);
+#else
           player->OnStartButton(PM_CHAIN, viewData_->songX_, false,
                                 viewData_->chainRow_);
+#endif
         }
       }
     }
