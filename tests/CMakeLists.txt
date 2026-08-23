@@ -16,6 +16,7 @@ add_executable(picoTracker_tests
   wasm_logging_tests.cpp
   wasm_trace_tests.cpp
   wasm_platform_tests.cpp
+  ui2_core_tests.cpp
   ../sources/Adapters/wasm/midi/MidiByteQueue.cpp
   ../sources/Adapters/wasm/midi/MidiLatencyTrace.cpp
   ../sources/Adapters/wasm/midi/WasmMidiOutDevice.cpp
@@ -41,6 +42,11 @@ add_executable(picoTracker_tests
   ../sources/Adapters/wasm/filesystem/WasmStorageBridge.cpp
   ../sources/Foundation/Observable.cpp
   ../sources/System/Timer/Timer.cpp
+  ../sources/UI2/Render/UiDirtyTiles.cpp
+  ../sources/UI2/Render/UiIndexedSurface.cpp
+  ../sources/UI2/Render/UiRasterizer.cpp
+  ../sources/UI2/Theme/UiPalette.cpp
+  ../sources/UI2/UiEngine.cpp
 )
 
 target_include_directories(picoTracker_tests PRIVATE
