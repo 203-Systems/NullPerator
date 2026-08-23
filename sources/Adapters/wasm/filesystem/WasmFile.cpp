@@ -3,10 +3,12 @@
  */
 
 #include "WasmFile.h"
+#include "WasmStorageBridge.h"
 
 #include <utility>
 
-WasmFile::WasmFile(std::FILE *file) : file_(file) {}
+WasmFile::WasmFile(std::FILE *file, bool initiallyDirty)
+    : file_(file), dirty_(initiallyDirty) {}
 
 WasmFile::~WasmFile() { Close(); }
 
@@ -24,8 +26,10 @@ int WasmFile::Write(const void *ptr, int size, int nmemb) {
   if (file_ == nullptr || ptr == nullptr || size < 0 || nmemb < 0) {
     return 0;
   }
-  return static_cast<int>(std::fwrite(ptr, static_cast<std::size_t>(size),
-                                      static_cast<std::size_t>(nmemb), file_));
+  const int written = static_cast<int>(std::fwrite(
+      ptr, static_cast<std::size_t>(size), static_cast<std::size_t>(nmemb), file_));
+  dirty_ = dirty_ || written > 0;
+  return written;
 }
 
 void WasmFile::Seek(long offset, int whence) {
@@ -38,14 +42,26 @@ long WasmFile::Tell() { return file_ == nullptr ? -1L : std::ftell(file_); }
 
 int WasmFile::Error() { return file_ == nullptr ? -1 : std::ferror(file_); }
 
-bool WasmFile::Sync() { return file_ != nullptr && std::fflush(file_) == 0; }
+bool WasmFile::Sync() {
+  const bool synced = file_ != nullptr && std::fflush(file_) == 0;
+  if (synced && dirty_) {
+    dirty_ = false;
+    WasmStorage_NotifyMutation();
+  }
+  return synced;
+}
 
 bool WasmFile::Close() {
   if (file_ == nullptr) {
     return true;
   }
   std::FILE *file = std::exchange(file_, nullptr);
-  return std::fclose(file) == 0;
+  const bool closed = std::fclose(file) == 0;
+  if (closed && dirty_) {
+    dirty_ = false;
+    WasmStorage_NotifyMutation();
+  }
+  return closed;
 }
 
 void WasmFile::Dispose() { delete this; }

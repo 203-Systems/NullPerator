@@ -1,5 +1,7 @@
 import { createInputBridge } from './input.js'
 import { createAudioBridge } from './audio.js'
+import { normalizePersistentPath } from './filesystem.js'
+import { createStorageCoordinator, persistentFsPreRun } from '../stores/storage.js'
 
 const defaultModuleUrl = '/wasm/picotracker.js'
 const frameRgbaLength = 240 * 240 * 4
@@ -7,6 +9,29 @@ const frameRgbaLength = 240 * 240 * 4
 function toMessage(module, pointer) {
   if (!pointer) return ''
   return module.UTF8ToString(pointer)
+}
+
+function createStorageAcceptanceHandle(module, storage) {
+  const pathFor = (path) => normalizePersistentPath(path)
+  return Object.freeze({
+    write(path, bytes) {
+      module.FS.writeFile(pathFor(path), new Uint8Array(bytes))
+    },
+    read(path) {
+      return Array.from(module.FS.readFile(pathFor(path)))
+    },
+    exists(path) {
+      try {
+        module.FS.stat(pathFor(path))
+        return true
+      } catch {
+        return false
+      }
+    },
+    flush() {
+      return storage.flushNow('e2e-fixture')
+    },
+  })
 }
 
 export async function createRuntime(options = {}) {
@@ -18,16 +43,28 @@ export async function createRuntime(options = {}) {
   } = options
 
   const factory = moduleFactory ?? (await import(/* @vite-ignore */ moduleUrl)).default
+  // This is deliberately an acceptance-only escape hatch. It is not a file
+  // browser or a production filesystem API (those belong to later tasks).
+  const exposeStorageForTesting = new URLSearchParams(globalThis.location?.search ?? '').get('storage-test') === '1'
+  if (!exposeStorageForTesting) delete globalThis.__picoTrackerStorageTest
   const audioWorkletEnabled = options.audioWorkletEnabled ??
     new URLSearchParams(globalThis.location?.search ?? '').get('audio') === 'worklet'
   const audioCapability = audioWorkletEnabled
     ? { available: true, mode: 'worklet', reason: null }
     : { available: false, mode: 'disabled', reason: 'Audio disabled; enable low-latency audio and reload.' }
   let audioBootstrapped = false
+  const storage = options.storage ?? createStorageCoordinator()
   const moduleOptions = {
     canvas,
     locateFile,
+    preRun: [persistentFsPreRun(storage)],
     onRuntimeInitialized() {
+      const initialStorageError = storage.initializationError()
+      if (initialStorageError) {
+        // This hook runs after the balanced preRun dependency is released and
+        // before Emscripten invokes proxied C main.
+        throw initialStorageError
+      }
       // Emscripten 6 modularized builds invoke this as a method of their
       // private Module rather than the caller-supplied options object.  This
       // is the last browser-main hook before PROXY_TO_PTHREAD starts C main.
@@ -64,11 +101,22 @@ export async function createRuntime(options = {}) {
         data: descriptorWords?.[2] ?? 0,
         sequence: descriptorWords?.[3] ?? 0,
       }
+      // C++ mutation notifications are marshalled to browser main by the
+      // adapter. They only schedule serialized IDBFS syncs and never block
+      // the synchronous tracker filesystem API.
+      this.picoTrackerStorageMutation = () => {
+        void storage.requestSync('mutation').catch(() => {})
+      }
       bootstrap.call(this)
       audioBootstrapped = true
     },
   }
   const module = await factory(moduleOptions)
+  let storageTestHandle = null
+  if (exposeStorageForTesting) {
+    storageTestHandle = createStorageAcceptanceHandle(module, storage)
+    globalThis.__picoTrackerStorageTest = storageTestHandle
+  }
 
   async function waitForShutdown() {
     const deadline = Date.now() + (options.shutdownTimeoutMs ?? 5_000)
@@ -85,6 +133,7 @@ export async function createRuntime(options = {}) {
 
   return {
     module,
+    storage,
     input: createInputBridge(module),
     audio: createAudioBridge(module, audioCapability),
     getBuildMetadataJson() {
@@ -114,9 +163,15 @@ export async function createRuntime(options = {}) {
       await waitForShutdown()
     },
     async terminate() {
-      if (!module.PThread) throw new Error('Emscripten PThread runtime API is unavailable')
-      module.PThread.terminateAllThreads()
-      await new Promise((resolve) => setTimeout(resolve, 0))
+      try {
+        if (!module.PThread) throw new Error('Emscripten PThread runtime API is unavailable')
+        module.PThread.terminateAllThreads()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      } finally {
+        if (globalThis.__picoTrackerStorageTest === storageTestHandle) {
+          delete globalThis.__picoTrackerStorageTest
+        }
+      }
     },
   }
 }

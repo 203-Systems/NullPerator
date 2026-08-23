@@ -22,7 +22,8 @@ target_include_directories(platform_timer PUBLIC "${PROJECT_SOURCE_DIR}")
 
 add_library(platform_filesystem
   filesystem/WasmFile.cpp
-  filesystem/WasmFileSystem.cpp)
+  filesystem/WasmFileSystem.cpp
+  filesystem/WasmStorageBridge.cpp)
 target_include_directories(platform_filesystem PUBLIC "${PROJECT_SOURCE_DIR}")
 
 add_library(platform_audio
@@ -147,6 +148,7 @@ target_compile_options(picotracker_wasm PRIVATE
   -Werror)
 target_link_options(picotracker_wasm PRIVATE
   -pthread
+  -lidbfs.js
   --use-port=sdl2
   "-Wl,-Map,${CMAKE_CURRENT_BINARY_DIR}/picotracker-core-link.map"
   -sERROR_ON_UNDEFINED_SYMBOLS=1
@@ -162,7 +164,7 @@ target_link_options(picotracker_wasm PRIVATE
   -sINITIAL_MEMORY=268435456
   -sENVIRONMENT=web,worker,worklet
   "-sEXPORTED_FUNCTIONS=['_main','_PicoTracker_Wasm_GetBuildMetadataJson','_PicoTracker_Wasm_GetState','_PicoTracker_Wasm_BootstrapAudio','_PicoTracker_Wasm_MarkAudioUnavailable','_PicoTracker_Wasm_RequestShutdown','_PicoTracker_Wasm_GetLastError','_PicoTracker_Wasm_SetAction','_PicoTracker_Wasm_ReleaseAllActions','_PicoTracker_Wasm_GetActionMask','_PicoTracker_Wasm_GetActionGeneration','_PicoTracker_Wasm_GetLastAction','_PicoTracker_Wasm_CaptureFrameRgba','_PicoTracker_Wasm_GetFrameSnapshotSequence','_PicoTracker_Wasm_UnlockAudio','_PicoTracker_Wasm_StopAudio','_PicoTracker_Wasm_GetAudioState','_PicoTracker_Wasm_GetAudioError','_PicoTracker_Wasm_GetAudioMetrics','_PicoTracker_Wasm_GetAudioMetricsSnapshot','_PicoTracker_Wasm_GetAudioErrorSnapshot','_PicoTracker_Wasm_GetBrowserSnapshots','_PicoTracker_Wasm_CoreApplicationAnchor','_PicoTracker_Wasm_CoreAppWindowAnchor','_PicoTracker_Wasm_CorePlayerAnchor','_PicoTracker_Wasm_CoreViewAnchor']"
-  "-sEXPORTED_RUNTIME_METHODS=['UTF8ToString','HEAPU8','HEAPU32','PThread']")
+  "-sEXPORTED_RUNTIME_METHODS=['UTF8ToString','HEAPU8','HEAPU32','PThread','FS','IDBFS','addRunDependency','removeRunDependency']")
 
 set_target_properties(picotracker_wasm PROPERTIES
   OUTPUT_NAME picotracker

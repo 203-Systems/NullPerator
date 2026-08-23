@@ -43,7 +43,9 @@ private:
   };
 
   bool Resolve(const char *path, std::string &resolved) const;
-  static bool EnsureParentDirectories(const std::string &path);
+  static bool EnsureParentDirectories(const std::string &path,
+                                      std::vector<std::string> &created);
+  static bool RollbackCreatedDirectories(const std::vector<std::string> &created);
   void RefreshDirectory(const char *filter, bool subDirOnly,
                         bool includeHidden);
 

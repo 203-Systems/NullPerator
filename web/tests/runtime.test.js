@@ -5,6 +5,136 @@ import { createRuntime } from '../src/handles/runtime.js'
 import { createRuntimeManager } from '../src/stores/runtime.js'
 
 describe('WASM runtime lifecycle', () => {
+  it('flushes persistent storage after C++ stop and before terminating workers', async () => {
+    const order = []
+    let state = 1
+    const runtime = createRuntimeManager({
+      crossOriginIsolated: true,
+      createModule: async () => ({
+        getState: () => state,
+        getBuildMetadataJson: () => '{}',
+        input: { releaseAllActions() {} },
+        storage: {
+          flushNow: async (reason) => { order.push(`flush-${reason}`) },
+        },
+        requestShutdown: async () => { state = 4; order.push('cpp-stopped') },
+        terminate: async () => { order.push('terminated') },
+      }),
+    })
+
+    await runtime.start()
+    await runtime.stop()
+
+    expect(order).toEqual(['cpp-stopped', 'flush-shutdown', 'terminated'])
+    expect(runtime.getSnapshot().state).toBe('idle')
+  })
+
+  it('surfaces a failed shutdown flush instead of reporting an idle runtime', async () => {
+    let flushes = 0
+    let state = 1
+    const terminate = vi.fn()
+    const runtime = createRuntimeManager({
+      crossOriginIsolated: true,
+      createModule: async () => ({
+        getState: () => state,
+        getBuildMetadataJson: () => '{}',
+        storage: { flushNow: async () => {
+          flushes += 1
+          if (flushes === 1) throw new Error('quota exceeded')
+        } },
+        requestShutdown: async () => { state = 4 },
+        terminate,
+      }),
+    })
+
+    await runtime.start()
+    await expect(runtime.stop()).rejects.toThrow('quota exceeded')
+    expect(runtime.getSnapshot()).toMatchObject({ state: 'failed', error: 'quota exceeded' })
+    expect(terminate).not.toHaveBeenCalled()
+    await expect(runtime.start()).rejects.toThrow(/retry Stop/i)
+    await runtime.stop()
+    expect(terminate).toHaveBeenCalledOnce()
+    expect(runtime.getSnapshot().state).toBe('idle')
+  })
+
+  it('does not construct a replacement runtime when restart cannot flush stopped storage', async () => {
+    const createModule = vi.fn(async () => {
+      let state = 1
+      return {
+        getState: () => state,
+        getBuildMetadataJson: () => '{}',
+        storage: { flushNow: async () => { throw new Error('quota exceeded') } },
+        requestShutdown: async () => { state = 4 },
+        terminate: vi.fn(),
+      }
+    })
+    const runtime = createRuntimeManager({ crossOriginIsolated: true, createModule })
+
+    await runtime.start()
+    await expect(runtime.restart()).rejects.toThrow('quota exceeded')
+
+    expect(createModule).toHaveBeenCalledTimes(1)
+    expect(runtime.getSnapshot()).toMatchObject({ state: 'failed', error: 'quota exceeded' })
+  })
+
+  it('does not flush or terminate until a timed-out C++ stopped acknowledgement is later confirmed', async () => {
+    const events = []
+    let cppState = 1
+    const runtime = createRuntimeManager({
+      crossOriginIsolated: true,
+      shutdownTimeoutMs: 0,
+      createModule: async () => ({
+        getState: () => cppState,
+        getBuildMetadataJson: () => '{}',
+        storage: { flushNow: async () => events.push('flush') },
+        requestShutdown: async () => events.push('shutdown'),
+        terminate: async () => events.push('terminate'),
+      }),
+    })
+
+    await runtime.start()
+    cppState = 2
+    await expect(runtime.stop()).rejects.toThrow(/timed out waiting for C\+\+ shutdown/i)
+    expect(events).toEqual(['shutdown'])
+    await expect(runtime.restart()).rejects.toThrow(/timed out waiting for C\+\+ shutdown/i)
+    expect(events).toEqual(['shutdown'])
+
+    cppState = 4
+    await runtime.stop()
+
+    expect(events).toEqual(['shutdown', 'flush', 'terminate'])
+    expect(runtime.getSnapshot().state).toBe('idle')
+  })
+
+  it('reissues a shutdown request only when the prior call threw before C++ left Ready', async () => {
+    const events = []
+    let state = 1
+    let requests = 0
+    const runtime = createRuntimeManager({
+      crossOriginIsolated: true,
+      createModule: async () => ({
+        getState: () => state,
+        getBuildMetadataJson: () => '{}',
+        storage: { flushNow: async () => events.push('flush') },
+        requestShutdown: async () => {
+          requests += 1
+          events.push(`request-${requests}`)
+          if (requests === 1) throw new Error('dispatch failed')
+          state = 4
+        },
+        terminate: async () => events.push('terminate'),
+      }),
+    })
+
+    await runtime.start()
+    await expect(runtime.stop()).rejects.toThrow('dispatch failed')
+    expect(events).toEqual(['request-1'])
+
+    await runtime.stop()
+    expect(events).toEqual(['request-1', 'request-2', 'flush', 'terminate'])
+    expect(runtime.getSnapshot().state).toBe('idle')
+  })
+
   it('requires browser-main teardown acknowledgement before an application shutdown can stop', async () => {
     const source = await readFile(
       new URL('../../sources/Adapters/wasm/audio/WasmAudio.cpp', import.meta.url),
@@ -173,6 +303,75 @@ describe('WASM runtime lifecycle', () => {
     expect(moduleOptions.canvas).toBe(canvas)
   })
 
+  it('exposes only path-contained storage test operations for the explicit persistence acceptance URL', async () => {
+    vi.stubGlobal('location', { search: '?storage-test=1' })
+    const writes = []
+    const module = {
+      FS: {
+        writeFile: (path, bytes) => writes.push([path, Array.from(bytes)]),
+        readFile: () => new Uint8Array([8, 7]),
+        stat: () => ({}),
+      },
+      _PicoTracker_Wasm_GetState: () => 1,
+      _PicoTracker_Wasm_SetAction() {},
+      _PicoTracker_Wasm_ReleaseAllActions() {},
+      _PicoTracker_Wasm_GetActionMask() {},
+      _PicoTracker_Wasm_GetActionGeneration() {},
+      _PicoTracker_Wasm_GetLastAction() {},
+      PThread: { terminateAllThreads() {} },
+    }
+
+    const runtime = await createRuntime({ moduleFactory: async () => module })
+
+    expect(globalThis.__picoTrackerStorageTest.read('/data/sample')).toEqual([8, 7])
+    globalThis.__picoTrackerStorageTest.write('/data/sample', [1, 2])
+    expect(writes).toEqual([['/data/sample', [1, 2]]])
+    expect(() => globalThis.__picoTrackerStorageTest.read('/data/../escape')).toThrow(/outside \/data/)
+    expect(globalThis.__picoTrackerStorageTest.module).toBeUndefined()
+    await runtime.terminate()
+    expect(globalThis.__picoTrackerStorageTest).toBeUndefined()
+    vi.unstubAllGlobals()
+  })
+
+  it('does not expose the persistence acceptance handle on normal URLs', async () => {
+    vi.stubGlobal('location', { search: '' })
+    globalThis.__picoTrackerStorageTest = { stale: true }
+    const module = {
+      _PicoTracker_Wasm_GetState: () => 1,
+      _PicoTracker_Wasm_SetAction() {},
+      _PicoTracker_Wasm_ReleaseAllActions() {},
+      _PicoTracker_Wasm_GetActionMask() {},
+      _PicoTracker_Wasm_GetActionGeneration() {},
+      _PicoTracker_Wasm_GetLastAction() {},
+      PThread: { terminateAllThreads() {} },
+    }
+
+    await createRuntime({ moduleFactory: async () => module })
+
+    expect(globalThis.__picoTrackerStorageTest).toBeUndefined()
+    vi.unstubAllGlobals()
+  })
+
+  it('rejects initial IDBFS population before bootstrap or C++ main can run', async () => {
+    const calls = []
+    const storage = {
+      initializationError: () => new Error('IDB unavailable'),
+    }
+    await expect(createRuntime({
+      storage,
+      moduleFactory: async (options) => {
+        const module = {
+          _PicoTracker_Wasm_BootstrapAudio: () => calls.push('bootstrap'),
+          _PicoTracker_Wasm_MarkAudioUnavailable: () => calls.push('unavailable'),
+        }
+        options.onRuntimeInitialized.call(module)
+        calls.push('main')
+        return module
+      },
+    })).rejects.toThrow('IDB unavailable')
+    expect(calls).toEqual([])
+  })
+
   it('exports an immutable 240x240 RGBA frame copy', async () => {
     const frameBytes = 240 * 240 * 4
     const descriptorPointer = 8 + frameBytes
@@ -260,19 +459,23 @@ describe('WASM runtime lifecycle', () => {
     const calls = []
     let acknowledgeShutdown
     const shutdownAcknowledged = new Promise((resolve) => (acknowledgeShutdown = resolve))
-    const createModule = vi.fn(async () => ({
-      getState: () => 1,
-      requestShutdown: async () => {
-        calls.push('shutdown')
-        await shutdownAcknowledged
-        calls.push('stopped')
-      },
-      terminate: async () => {
-        calls.push('terminate')
-        await Promise.resolve()
-        calls.push('terminated')
-      },
-    }))
+    const createModule = vi.fn(async () => {
+      let state = 1
+      return {
+        getState: () => state,
+        requestShutdown: async () => {
+          calls.push('shutdown')
+          await shutdownAcknowledged
+          state = 4
+          calls.push('stopped')
+        },
+        terminate: async () => {
+          calls.push('terminate')
+          await Promise.resolve()
+          calls.push('terminated')
+        },
+      }
+    })
     const runtime = createRuntimeManager({
       createModule: async () => {
         calls.push('start')
@@ -317,7 +520,12 @@ describe('WASM runtime lifecycle', () => {
         peak = Math.max(peak, active)
         await Promise.resolve()
         active -= 1
-        return { getState: () => 1, terminate() {} }
+        let state = 1
+        return {
+          getState: () => state,
+          requestShutdown() { state = 4 },
+          terminate() {},
+        }
       },
     })
 
@@ -380,12 +588,13 @@ describe('WASM runtime lifecycle', () => {
   it('clears a stale module and reports cleanup failures', async () => {
     const createModule = vi
       .fn()
-      .mockResolvedValueOnce({
-        getState: () => 1,
-        requestShutdown() {},
-        terminate() {
-          throw new Error('worker cleanup failed')
-        },
+      .mockImplementationOnce(async () => {
+        let state = 1
+        return {
+          getState: () => state,
+          requestShutdown() { state = 4 },
+          terminate() { throw new Error('worker cleanup failed') },
+        }
       })
       .mockResolvedValueOnce({ getState: () => 1, terminate() {} })
     const runtime = createRuntimeManager({ crossOriginIsolated: true, createModule })
@@ -404,12 +613,13 @@ describe('WASM runtime lifecycle', () => {
 
   it('never publishes an input bridge outside the ready state', async () => {
     const input = { releaseAllActions: vi.fn() }
+    let state = 1
     const runtime = createRuntimeManager({
       crossOriginIsolated: true,
       createModule: async () => ({
-        getState: () => 1,
+        getState: () => state,
         input,
-        requestShutdown() {},
+        requestShutdown() { state = 4 },
         terminate() {
           throw new Error('terminate failed')
         },

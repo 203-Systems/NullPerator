@@ -11,7 +11,7 @@
 
 class WasmFile final : public I_File {
 public:
-  explicit WasmFile(std::FILE *file);
+  explicit WasmFile(std::FILE *file, bool initiallyDirty = false);
   ~WasmFile() override;
 
   int Read(void *ptr, int size) override;
@@ -28,6 +28,7 @@ protected:
 
 private:
   std::FILE *file_;
+  bool dirty_ = false;
 };
 
 #endif

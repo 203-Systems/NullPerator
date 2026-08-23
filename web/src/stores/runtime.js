@@ -8,6 +8,7 @@ const initialSnapshot = Object.freeze({
   frameContent: 'unavailable',
   input: null,
   audio: null,
+  storage: null,
 })
 
 function classifyFrame(frame) {
@@ -34,6 +35,7 @@ export function createRuntimeManager(options = {}) {
   const listeners = new Set()
   let snapshot = initialSnapshot
   let module = null
+  let stopStage = null
   let operation = Promise.resolve()
 
   async function waitForCppReady(runtimeModule) {
@@ -79,6 +81,9 @@ export function createRuntimeManager(options = {}) {
   }
 
   async function startNow() {
+    if (stopStage) {
+      throw new Error('Runtime shutdown is incomplete; retry Stop before starting again')
+    }
     if (!isolated) {
       const message =
         'Cross-origin isolation is required. Serve with Cross-Origin-Opener-Policy (COOP): same-origin and Cross-Origin-Embedder-Policy (COEP): require-corp.'
@@ -86,7 +91,7 @@ export function createRuntimeManager(options = {}) {
       throw new Error(message)
     }
 
-    publish({ state: 'booting', error: null, input: null })
+    publish({ state: 'booting', error: null, input: null, storage: null })
     try {
       module = await createModule()
       await waitForCppReady(module)
@@ -99,7 +104,7 @@ export function createRuntimeManager(options = {}) {
         await audio.initialize()
         module.audioStore = audio
       }
-      publish({ state: 'ready', buildMetadata, frameContent, input: module.input ?? null, audio })
+      publish({ state: 'ready', buildMetadata, frameContent, input: module.input ?? null, audio, storage: module.storage ?? null })
       return module
     } catch (error) {
       const failedModule = module
@@ -114,55 +119,99 @@ export function createRuntimeManager(options = {}) {
       const message = cleanupError
         ? `${primaryMessage}; cleanup failed: ${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}`
         : primaryMessage
-      publish({ state: 'failed', error: message, frameContent: 'unavailable', input: null, audio: null })
+      publish({ state: 'failed', error: message, frameContent: 'unavailable', input: null, audio: null, storage: null })
       throw error
     }
   }
 
   async function stopNow() {
-    if (!module) return
-    const stoppingModule = module
-    module = null
-    publish({ state: 'stopping', input: null, audio: null })
-    let cleanupError = null
-    try {
-      stoppingModule.input?.releaseAllActions?.()
-    } catch (error) {
-      cleanupError = error
+    if (!module && !stopStage) return
+    const stage = stopStage ?? {
+      module,
+      inputReleased: false,
+      audioStopped: false,
+      shutdownRequested: false,
+      cppStopped: false,
+      flushed: false,
     }
-    if (stoppingModule.audioStore) {
+    const stoppingModule = stage.module
+    publish({ state: 'stopping', input: null, audio: null, storage: stoppingModule.storage ?? null })
+    if (!stage.inputReleased) {
+      try {
+        stoppingModule.input?.releaseAllActions?.()
+        stage.inputReleased = true
+      } catch (error) {
+        stopStage = stage
+        publish({ state: 'failed', error: error instanceof Error ? error.message : String(error), buildMetadata: null, input: null, audio: null, storage: stoppingModule.storage ?? null })
+        throw error
+      }
+    }
+    if (!stage.audioStopped && stoppingModule.audioStore) {
       try {
         await stoppingModule.audioStore.stop()
+        stage.audioStopped = true
       } catch (error) {
-        cleanupError ??= error
+        stopStage = stage
+        publish({ state: 'failed', error: error instanceof Error ? error.message : String(error), buildMetadata: null, input: null, audio: null, storage: stoppingModule.storage ?? null })
+        throw error
       }
+    } else if (!stage.audioStopped) {
+      stage.audioStopped = true
     }
-    try {
-      if (typeof stoppingModule.requestShutdown === 'function') {
-        await stoppingModule.requestShutdown()
+    if (!stage.cppStopped) {
+      try {
+        if (!stage.shutdownRequested && typeof stoppingModule.requestShutdown === 'function') {
+          try {
+            await stoppingModule.requestShutdown()
+            stage.shutdownRequested = true
+          } catch (error) {
+            // A throwing bridge call may still have reached C++. Keep the
+            // request marked only when the native lifecycle confirms it has
+            // moved beyond Ready; otherwise a later Stop may safely resend.
+            const state = stoppingModule.getState?.()
+            stage.shutdownRequested = state === 2 || state === 4
+            throw error
+          }
+        }
         // Native handles move to Stopping before their browser-main teardown
-        // acknowledgement. Lightweight test/custom handles may instead make
-        // their requestShutdown promise itself the acknowledgement and remain
-        // in Ready, in which case there is no native state transition to poll.
-        if (stoppingModule.getState?.() === 2) {
+        // acknowledgement. Once RequestShutdown was issued, every retry only
+        // confirms that acknowledgement; it never issues a second shutdown.
+        if (typeof stoppingModule.getState === 'function' && stoppingModule.getState() !== 4) {
           await waitForCppStopped(stoppingModule)
         }
+        stage.cppStopped = true
+      } catch (error) {
+        stopStage = stage
+        publish({ state: 'failed', error: error instanceof Error ? error.message : String(error), buildMetadata: null, input: null, audio: null, storage: stoppingModule.storage ?? null })
+        throw error
       }
-    } catch (error) {
-      cleanupError = error
+    }
+    if (!stage.flushed) {
+      try {
+        await stoppingModule.storage?.flushNow?.('shutdown')
+        stage.flushed = true
+      } catch (error) {
+        // Keep the stopped WASM module alive: its MEMFS is the only durable
+        // source until a later Stop retries this flush.
+        stopStage = stage
+        publish({ state: 'failed', error: error instanceof Error ? error.message : String(error), buildMetadata: null, input: null, audio: null, storage: stoppingModule.storage ?? null })
+        throw error
+      }
     }
     try {
       await stoppingModule.terminate?.()
     } catch (error) {
-      cleanupError ??= error
+      // The filesystem is already durably flushed. Preserve the established
+      // lifecycle recovery behaviour for a worker-cleanup failure: report it,
+      // but do not retain a stale module as a future start candidate.
+      stopStage = null
+      module = null
+      publish({ state: 'failed', error: error instanceof Error ? error.message : String(error), buildMetadata: null, input: null, audio: null, storage: stoppingModule.storage ?? null })
+      throw error
     }
-
-    if (cleanupError) {
-      const message = cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
-      publish({ state: 'failed', error: message, buildMetadata: null, input: null, audio: null })
-      throw cleanupError
-    }
-    publish({ state: 'idle', error: null, buildMetadata: null, frameContent: 'unavailable', input: null, audio: null })
+    stopStage = null
+    module = null
+    publish({ state: 'idle', error: null, buildMetadata: null, frameContent: 'unavailable', input: null, audio: null, storage: null })
   }
 
   return {
@@ -175,7 +224,10 @@ export function createRuntimeManager(options = {}) {
       return snapshot
     },
     start() {
-      return enqueue(async () => module ?? startNow())
+      return enqueue(async () => {
+        if (stopStage) return startNow()
+        return module ?? startNow()
+      })
     },
     stop() {
       return enqueue(stopNow)

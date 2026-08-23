@@ -1,4 +1,5 @@
 #include "Adapters/wasm/filesystem/WasmFileSystem.h"
+#include "Adapters/wasm/filesystem/WasmStorageBridge.h"
 #include "Adapters/wasm/input/InputMap.h"
 #include "Adapters/wasm/system/WasmSystem.h"
 #include "Adapters/wasm/timer/WasmTimer.h"
@@ -7,6 +8,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
 #include <functional>
 #include <mutex>
 #include <string>
@@ -84,6 +86,9 @@ struct InputQueueFixture {
 std::mutex InputQueueFixture::mutex;
 bool InputQueueFixture::fail = false;
 std::vector<std::pair<std::uint16_t, bool>> InputQueueFixture::events;
+
+std::uint32_t storageMutationNotifications = 0;
+void CountStorageMutation() { ++storageMutationNotifications; }
 } // namespace
 
 TEST_CASE("WASM monotonic clock converts milliseconds without moving backwards") {
@@ -191,6 +196,91 @@ TEST_CASE("WASM filesystem rejects symlinks that leave its root") {
   CHECK_FALSE(filesystem.chdir("/outside-link"));
   CHECK_FALSE(filesystem.Open("/outside-link/escaped.txt", "wb"));
   CHECK_FALSE(std::filesystem::exists(fixture.outside / "escaped.txt"));
+}
+
+TEST_CASE("WASM filesystem contains absolute copy and move destinations") {
+  ScopedFilesystemFixture fixture;
+  WasmFileSystem filesystem(fixture.root.string());
+  CHECK_FALSE(filesystem.DeleteDir("/"));
+  {
+    auto source = filesystem.Open("/project/source.dat", "wb");
+    REQUIRE(source);
+    REQUIRE(source->Write("x", 1, 1) == 1);
+  }
+  const auto outsideLink = fixture.root / "outside-link";
+  std::filesystem::create_directory_symlink(fixture.outside, outsideLink);
+
+  CHECK_FALSE(filesystem.CopyFile("/project/source.dat", "/../escaped.dat"));
+  CHECK_FALSE(filesystem.CopyFile("/project/source.dat", "/outside-link/copied.dat"));
+  CHECK_FALSE(filesystem.MoveFile("/project/source.dat", "/outside-link/moved.dat"));
+  CHECK(std::filesystem::exists(fixture.root / "project" / "source.dat"));
+}
+
+TEST_CASE("WASM filesystem only notifies persistence after successful mutations") {
+  ScopedFilesystemFixture fixture;
+  WasmFileSystem filesystem(fixture.root.string());
+  storageMutationNotifications = 0;
+  WasmStorage_SetMutationNotifierForTesting(&CountStorageMutation);
+
+  CHECK_FALSE(filesystem.DeleteFile("/missing.dat"));
+  CHECK(filesystem.makeDir("/project", true));
+  CHECK(storageMutationNotifications == 1);
+  CHECK(filesystem.makeDir("/project", true));
+  CHECK(storageMutationNotifications == 1);
+  {
+    auto file = filesystem.Open("/project/save.dat", "wb");
+    REQUIRE(file);
+    CHECK(file->Write("ok", 1, 2) == 2);
+    CHECK(storageMutationNotifications == 1);
+    CHECK(file->Sync());
+    CHECK(storageMutationNotifications == 2);
+  }
+  CHECK(storageMutationNotifications == 2);
+  CHECK(filesystem.CopyFile("/project/save.dat", "/project/copy.dat"));
+  CHECK(storageMutationNotifications == 3);
+  CHECK(filesystem.MoveFile("/project/copy.dat", "/project/moved.dat"));
+  CHECK(storageMutationNotifications == 4);
+  CHECK(filesystem.DeleteFile("/project/moved.dat"));
+  CHECK(storageMutationNotifications == 5);
+  {
+    auto empty = filesystem.Open("/project/empty.dat", "wb");
+    REQUIRE(empty);
+  }
+  CHECK(storageMutationNotifications == 6);
+
+  WasmStorage_SetMutationNotifierForTesting(nullptr);
+}
+
+TEST_CASE("WASM filesystem rolls back failed parent creation without persistence noise") {
+  ScopedFilesystemFixture fixture;
+  WasmFileSystem filesystem(fixture.root.string());
+  storageMutationNotifications = 0;
+  WasmStorage_SetMutationNotifierForTesting(&CountStorageMutation);
+
+  CHECK_FALSE(filesystem.Open("/read-plus-parent/missing.dat", "r+"));
+  CHECK_FALSE(std::filesystem::exists(fixture.root / "read-plus-parent"));
+
+  std::filesystem::create_directory(fixture.root / "invalid-open-target");
+  CHECK_FALSE(filesystem.Open("/invalid-open-target", "wb"));
+  CHECK(std::filesystem::is_directory(fixture.root / "invalid-open-target"));
+  CHECK(storageMutationNotifications == 0);
+
+  CHECK_FALSE(filesystem.CopyFile("/missing.dat", "/copy-parent/out.dat"));
+  CHECK_FALSE(filesystem.MoveFile("/missing.dat", "/move-parent/out.dat"));
+  CHECK_FALSE(std::filesystem::exists(fixture.root / "copy-parent"));
+  CHECK_FALSE(std::filesystem::exists(fixture.root / "move-parent"));
+
+  {
+    std::ofstream source(fixture.root / "source.dat", std::ios::binary);
+    source << "x";
+  }
+  std::filesystem::create_directory(fixture.root / "invalid-destination");
+  CHECK_FALSE(filesystem.CopyFile("/source.dat", "/invalid-destination"));
+  CHECK_FALSE(filesystem.MoveFile("/source.dat", "/invalid-destination"));
+  CHECK(std::filesystem::exists(fixture.root / "source.dat"));
+  CHECK(storageMutationNotifications == 0);
+
+  WasmStorage_SetMutationNotifierForTesting(nullptr);
 }
 
 TEST_CASE("WASM action queue orders concurrent releases after accepted presses") {
