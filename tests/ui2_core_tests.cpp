@@ -1,10 +1,18 @@
 #include "UI2/Animation/UiMotionTrack.h"
+#include "UI2/Animation/UiTransitionTimeline.h"
+#include "UI2/Chrome/UiBarResolver.h"
+#include "UI2/Chrome/UiChromeRenderer.h"
 #include "UI2/Render/IUiPresenter.h"
 #include "UI2/Render/UiDirtyTiles.h"
 #include "UI2/Render/UiIndexedSurface.h"
+#include "UI2/Render/UiVuGradient.h"
 #include "UI2/Scene/UiCommandList.h"
 #include "UI2/Theme/UiPalette.h"
 #include "UI2/UiEngine.h"
+#include "UI2/Render/UiFrameRenderer.h"
+#include "UI2/Views/Song/UiSongView.h"
+
+#include "ui2_song_fixture.h"
 
 #include "doctest/doctest.h"
 
@@ -172,6 +180,61 @@ TEST_CASE("UI2 semantic palette reproduces approved coverage composites") {
         ui2::Rgb888{0x38, 0x6E, 0x50});
 }
 
+TEST_CASE("UI2 VU gradient uses fixed palette slots without RGB framebuffer") {
+  ui2::UiPalette palette;
+  REQUIRE(ui2::UiVuGradient::Configure(palette, 153));
+  CHECK(palette.Get(ui2::UiVuGradient::IndexAt(0)) ==
+        ui2::Rgb888{0xF0, 0x2E, 0x75});
+  CHECK(palette.Get(ui2::UiVuGradient::IndexAt(30)).red > 0);
+  CHECK(palette.Get(ui2::UiVuGradient::IndexAt(60)) ==
+        ui2::Rgb888{0x00, 0xDC, 0x74});
+  CHECK(palette.Get(ui2::UiVuGradient::IndexAt(152)).green >= 0xA9);
+  CHECK_FALSE(ui2::UiVuGradient::Configure(palette, 154));
+}
+
+TEST_CASE("UI2 bar resolver applies the documented central priority") {
+  ui2::UiBottomBarModel page{.kind = ui2::UiBottomBarKind::Hidden};
+  ui2::UiBottomBarModel cursor{.kind = ui2::UiBottomBarKind::Context};
+  ui2::UiBottomBarModel modal{.kind = ui2::UiBottomBarKind::Actions};
+  ui2::UiTrackNotesModel tracks{};
+  tracks.selectedTrack = 2;
+  ui2::UiBarInputs inputs{
+      .pageTop = {.title = "PHRASE", .meta = "3A"},
+      .pageDefault = page,
+      .cursorContext = &cursor,
+      .criticalModal = &modal,
+      .enterHeldTracks = &tracks,
+      .enterHeldNumber = true,
+      .navHeld = true,
+  };
+  const ui2::UiResolvedChrome resolved = ui2::UiBarResolver::Resolve(inputs);
+  CHECK(resolved.top.metaSelected);
+  CHECK(resolved.top.power == ui2::UiPowerState::Navigation);
+  CHECK(resolved.bottom.kind == ui2::UiBottomBarKind::Actions);
+}
+
+TEST_CASE("UI2 NAV targets share one movable seven by nine bubble") {
+  ui2::UiBarScene scene;
+  CHECK(ui2::UiChromeRenderer::BuildTop(
+            {.title = "SONG",
+             .meta = "ONECYCAC",
+             .power = ui2::UiPowerState::Navigation,
+             .navTarget = ui2::UiNavTarget::Song},
+            scene) == ui2::UiBuildStatus::Built);
+  CHECK(ui2::UiChromeRenderer::BuildTop(
+            {.title = "SONG",
+             .meta = "ONECYCAC",
+             .power = ui2::UiPowerState::Navigation,
+             .navTarget = ui2::UiNavTarget::Mixer},
+            scene) == ui2::UiBuildStatus::Built);
+  CHECK(ui2::UiChromeRenderer::NavTargetRect(ui2::UiNavTarget::Project) ==
+        ui2::RectI16{201, 2, 7, 9});
+  CHECK(ui2::UiChromeRenderer::NavTargetRect(ui2::UiNavTarget::Instrument) ==
+        ui2::RectI16{225, 12, 7, 9});
+  CHECK(ui2::UiChromeRenderer::NavTargetRect(ui2::UiNavTarget::Mixer) ==
+        ui2::RectI16{201, 23, 7, 9});
+}
+
 TEST_CASE("UI2 fixed-point easing is nonlinear and lands exactly") {
   ui2::UiMotionTrack track;
   track.Start(0, 240, 1'000, 180);
@@ -180,6 +243,58 @@ TEST_CASE("UI2 fixed-point easing is nonlinear and lands exactly") {
   CHECK(track.Sample(1'090) > 120);
   CHECK(track.Sample(1'180) == 240);
   CHECK_FALSE(track.Active(1'180));
+}
+
+TEST_CASE("UI2 cursor roles animate independently for dual-cursor input") {
+  ui2::UiCursorAnimatorSet cursors;
+  cursors.Snap(ui2::UiCursorRole::TopMeta, {83, 9, 15, 9}, 100);
+  cursors.Snap(ui2::UiCursorRole::BottomTrack, {68, 211, 15, 9}, 100);
+  cursors.Retarget(ui2::UiCursorRole::TopMeta, {95, 9, 15, 9}, 100);
+  cursors.Retarget(ui2::UiCursorRole::BottomTrack, {98, 211, 15, 9}, 100);
+
+  CHECK(cursors.Sample(ui2::UiCursorRole::TopMeta, 130).x > 86);
+  CHECK(cursors.Sample(ui2::UiCursorRole::BottomTrack, 130).x > 75);
+  CHECK(cursors.Sample(ui2::UiCursorRole::TopMeta, 220) ==
+        ui2::RectI16{95, 9, 15, 9});
+  CHECK(cursors.Sample(ui2::UiCursorRole::BottomTrack, 220) ==
+        ui2::RectI16{98, 211, 15, 9});
+}
+
+TEST_CASE("UI2 content slides as whole layers while bars crossfade") {
+  ui2::UiTransitionTimeline timeline;
+  timeline.StartContent(ui2::UiSlideDirection::Left, 1'000);
+  timeline.StartBarFade(1'000);
+  const ui2::UiLayerOffsets quarter = timeline.Content(1'045);
+  CHECK(quarter.outgoing.x < -60);
+  CHECK(quarter.incoming.x < 180);
+  CHECK(quarter.outgoing.y == 0);
+  const ui2::UiCrossfadeOpacity fade = timeline.BarFade(1'030);
+  CHECK(fade.incoming > 16'383);
+  CHECK(fade.outgoing < 49'152);
+  CHECK(timeline.Content(1'180).incoming == ui2::PointI16{0, 0});
+}
+
+TEST_CASE("UI2 approved Song fixture fits fixed scene buffers") {
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiSongView::Build(ui2::test::ApprovedSongFixture(), palette,
+                                scene) == ui2::UiBuildStatus::Built);
+  CHECK_FALSE(scene.top.Overflowed());
+  CHECK_FALSE(scene.content.Overflowed());
+  CHECK_FALSE(scene.bottom.Overflowed());
+  CHECK(scene.content.Size() < 200);
+
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+  CHECK(surface.Pixel(0, 0) ==
+        palette.Index(ui2::UiColorToken::SurfaceBarDeep));
+  CHECK(surface.Pixel(5, 34) ==
+        palette.Index(ui2::UiColorToken::SurfaceField));
+  CHECK(surface.Pixel(5, 127) ==
+        palette.Index(ui2::UiColorToken::CursorRow));
+  CHECK(surface.Pixel(219, 47) ==
+        palette.Index(ui2::UiColorToken::VuTrack));
 }
 
 TEST_CASE("UI2 engine calls one presenter and clears dirt only after success") {

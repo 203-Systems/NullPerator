@@ -43,7 +43,8 @@ public:
   }
 
   [[nodiscard]] bool Active(std::uint32_t nowMs) const {
-    return active_ && nowMs > startMs_ && nowMs - startMs_ < durationMs_;
+    if (!active_ || nowMs < startMs_) return false;
+    return nowMs - startMs_ < durationMs_;
   }
 
 private:

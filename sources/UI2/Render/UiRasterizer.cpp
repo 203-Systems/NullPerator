@@ -36,6 +36,14 @@ void UiRasterizer::Render(UiCommandStream stream, UiIndexedSurface &surface,
                                 command.parameter, clip);
       }
       break;
+    case UiCommandKind::FillVerticalPaletteRamp:
+      for (std::int16_t row = 0; row < bounds.height; ++row) {
+        surface.FillRect(
+            {bounds.x, static_cast<std::int16_t>(bounds.y + row), bounds.width,
+             1},
+            static_cast<PaletteIndex>(command.color + row), clip);
+      }
+      break;
     case UiCommandKind::Text: {
       const std::size_t length = command.auxiliaryColor;
       if (command.payload > stream.text.size() ||

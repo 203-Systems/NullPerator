@@ -21,6 +21,7 @@ enum class UiCommandKind : std::uint8_t {
   FillRect,
   FillRoundedRect,
   FillCoverageRoundedRect,
+  FillVerticalPaletteRamp,
   Text,
 };
 
@@ -59,6 +60,12 @@ public:
                                    std::uint8_t radius = 1) {
     return Push({bounds, 0, UiCommandKind::FillCoverageRoundedRect, color,
                  static_cast<PaletteIndex>(coverage), radius});
+  }
+
+  [[nodiscard]] bool FillVerticalPaletteRamp(RectI16 bounds,
+                                             PaletteIndex firstColor) {
+    return Push({bounds, 0, UiCommandKind::FillVerticalPaletteRamp,
+                 firstColor, firstColor, 0});
   }
 
   [[nodiscard]] bool Text(PointI16 origin, std::string_view text,
