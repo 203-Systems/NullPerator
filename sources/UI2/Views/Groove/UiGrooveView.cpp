@@ -59,7 +59,8 @@ void UiGrooveView::RenderDelta(const UiGrooveViewData &previous,
   };
   if (previous.number != current.number)
     render({80, 0, 40, 34});
-  if (previous.power != current.power)
+  if (previous.power != current.power ||
+      previous.navCursor != current.navCursor)
     render({184, 0, 56, 34});
 
   const RectI16 oldCursor = ResolvedCursorRect(previous);
@@ -87,6 +88,8 @@ UiBuildStatus UiGrooveView::Build(const UiGrooveViewData &data, UiPalette &,
       .title = "GROOVE",
       .meta = data.number,
       .power = data.power,
+      .navTarget = UiNavTarget::Groove,
+      .navCursor = data.navCursor,
   };
   const UiBuildStatus topStatus = UiChromeRenderer::BuildTop(top, scene.top);
   if (topStatus != UiBuildStatus::Built)

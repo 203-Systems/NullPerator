@@ -49,6 +49,7 @@ struct UiProjectViewData {
   bool cursorVisualOverride = false;
   bool cursorInkVisible = true;
   std::int16_t scrollOffset = 0;
+  UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
 };
 

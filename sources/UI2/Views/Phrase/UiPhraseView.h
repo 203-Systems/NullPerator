@@ -50,6 +50,7 @@ struct UiPhraseViewData {
   bool enterDigitFocus = false;
   bool numberFocus = false;
   bool adjustmentFocus = false;
+  UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
 };
 

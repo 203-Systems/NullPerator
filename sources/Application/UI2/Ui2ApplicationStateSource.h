@@ -80,6 +80,7 @@ struct UiSongFrameState {
   bool navHeld = false;
   bool playing = false;
   bool liveMode = false;
+  UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
 
   bool operator==(const UiSongFrameState &) const = default;
@@ -118,6 +119,7 @@ struct UiChainFrameState {
   bool numberFocus = false;
   bool adjustmentFocus = false;
   bool navHeld = false;
+  UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
 
   bool operator==(const UiChainFrameState &) const = default;
@@ -153,6 +155,7 @@ struct UiPhraseFrameState {
   bool numberFocus = false;
   bool adjustmentFocus = false;
   bool navHeld = false;
+  UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
 
   bool operator==(const UiPhraseFrameState &) const = default;
@@ -196,6 +199,7 @@ struct UiTableFrameState {
   bool numberFocus = false;
   bool adjustmentFocus = false;
   bool navHeld = false;
+  UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
 
   bool operator==(const UiTableFrameState &) const = default;
@@ -208,6 +212,7 @@ struct UiGrooveFrameState {
   RectI16 cursorVisualRect{};
   bool cursorVisualOverride = false;
   bool cursorInkVisible = true;
+  UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
 
   bool operator==(const UiGrooveFrameState &) const = default;
@@ -253,6 +258,7 @@ struct UiInstrumentFrameState {
   bool bottomTrackInkVisible = true;
   bool numberFocus = false;
   std::int16_t scrollOffset = 0;
+  UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
 
   bool operator==(const UiInstrumentFrameState &) const = default;
@@ -262,6 +268,7 @@ struct UiMixerFrameState {
   std::array<std::array<std::uint8_t, 2>, 9> vuLevelTop{};
   std::array<std::array<char, 4>, 9> volumes{};
   std::int8_t selectedChannel = 0;
+  UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
 
   bool operator==(const UiMixerFrameState &) const = default;
@@ -286,6 +293,7 @@ struct UiProjectFrameState {
   bool cursorVisualOverride = false;
   bool cursorInkVisible = true;
   std::int16_t scrollOffset = 0;
+  UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
 
   bool operator==(const UiProjectFrameState &) const = default;

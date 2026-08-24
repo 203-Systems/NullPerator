@@ -40,6 +40,7 @@ struct UiChainViewData {
   bool bottomTrackInkVisible = true;
   bool numberFocus = false;
   bool adjustmentFocus = false;
+  UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
 };
 

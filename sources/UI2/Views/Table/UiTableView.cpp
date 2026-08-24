@@ -146,7 +146,8 @@ void UiTableView::RenderDelta(const UiTableViewData &previous,
       previous.topMetaInkVisible != current.topMetaInkVisible) {
     render({64, 0, 48, 34});
   }
-  if (previous.power != current.power || previous.elapsed != current.elapsed) {
+  if (previous.power != current.power || previous.elapsed != current.elapsed ||
+      previous.navCursor != current.navCursor) {
     render({184, 0, 56, 34});
   }
   if (previous.activeHeader != current.activeHeader) {
@@ -214,8 +215,9 @@ UiBuildStatus UiTableView::Build(const UiTableViewData &data, UiPalette &,
       .elapsed = data.elapsed,
       .power = data.power,
       .navTarget = !data.number.empty() && data.number.front() == 'I'
-                       ? UiNavTarget::Instrument
-                       : UiNavTarget::Phrase,
+                       ? UiNavTarget::InstrumentTable
+                       : UiNavTarget::PhraseTable,
+      .navCursor = data.navCursor,
       .metaSelectionRect = data.topMetaVisualRect,
       .metaSelectionOverride = data.topMetaVisualOverride,
       .metaInkVisible = data.topMetaInkVisible,

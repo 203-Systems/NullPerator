@@ -24,6 +24,7 @@ struct UiGrooveViewData {
   RectI16 cursorVisualRect{};
   bool cursorVisualOverride = false;
   bool cursorInkVisible = true;
+  UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
 };
 

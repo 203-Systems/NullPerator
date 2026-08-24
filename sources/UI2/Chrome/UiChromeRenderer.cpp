@@ -114,32 +114,44 @@ UiBuildStatus UiChromeRenderer::BuildTop(const UiTopBarModel &model,
     builder.Text(">", 193, 14, UiColorToken::PlaybackActive);
     builder.Text(model.elapsed, 206, 14, UiColorToken::TextNormal);
   } else if (model.power == UiPowerState::Navigation) {
-    builder.CenteredText("P", 204, 3, UiColorToken::TextNormal);
-    builder.Selection(navHighlight.value_or(NavTargetRect(model.navTarget)));
-    builder.Text("S", 202, 13,
-                 model.navTarget == UiNavTarget::Song
-                     ? UiColorToken::TextHighlighted
-                     : UiColorToken::TextNormal);
-    builder.Text("C", 210, 13,
-                 model.navTarget == UiNavTarget::Chain
-                     ? UiColorToken::TextHighlighted
-                     : UiColorToken::TextNormal);
-    builder.Text("P", 218, 13,
-                 model.navTarget == UiNavTarget::Phrase
-                     ? UiColorToken::TextHighlighted
-                     : UiColorToken::TextNormal);
-    builder.Text("I", 226, 13,
-                 model.navTarget == UiNavTarget::Instrument
-                     ? UiColorToken::TextHighlighted
-                     : UiColorToken::TextNormal);
-    builder.CenteredText("M", 204, 24,
-                         model.navTarget == UiNavTarget::Mixer
-                             ? UiColorToken::TextHighlighted
-                             : UiColorToken::TextNormal);
-    if (model.navTarget == UiNavTarget::Project) {
-      // Redraw selected glyph after the bubble so it uses cursor ink.
-      builder.CenteredText("P", 204, 3, UiColorToken::TextHighlighted);
+    const bool songBranch = model.navTarget == UiNavTarget::Song ||
+                            model.navTarget == UiNavTarget::Project ||
+                            model.navTarget == UiNavTarget::Mixer;
+    const bool phraseBranch = model.navTarget == UiNavTarget::Phrase ||
+                              model.navTarget == UiNavTarget::Groove ||
+                              model.navTarget == UiNavTarget::PhraseTable;
+    const bool instrumentBranch =
+        model.navTarget == UiNavTarget::Instrument ||
+        model.navTarget == UiNavTarget::InstrumentTable;
+    const std::optional<RectI16> animatedHighlight =
+        model.navCursor.selectionOverride
+            ? std::optional<RectI16>{model.navCursor.selectionRect}
+            : std::nullopt;
+    builder.Selection(navHighlight.value_or(
+        animatedHighlight.value_or(NavTargetRect(model.navTarget))));
+    const auto navColor = [&](UiNavTarget target) {
+      return model.navTarget == target && model.navCursor.inkVisible
+                 ? UiColorToken::TextHighlighted
+                 : UiColorToken::TextNormal;
+    };
+    if (songBranch) {
+      builder.CenteredText("P", 204, 3, navColor(UiNavTarget::Project));
+      builder.CenteredText("M", 204, 24, navColor(UiNavTarget::Mixer));
+    } else if (phraseBranch) {
+      builder.CenteredText("G", 220, 3, navColor(UiNavTarget::Groove));
+      builder.CenteredText("T", 220, 24, navColor(UiNavTarget::PhraseTable));
+    } else if (instrumentBranch) {
+      builder.CenteredText("T", 228, 24,
+                           navColor(UiNavTarget::InstrumentTable));
     }
+    builder.Text("S", 202, 13,
+                 navColor(UiNavTarget::Song));
+    builder.Text("C", 210, 13,
+                 navColor(UiNavTarget::Chain));
+    builder.Text("P", 218, 13,
+                 navColor(UiNavTarget::Phrase));
+    builder.Text("I", 226, 13,
+                 navColor(UiNavTarget::Instrument));
   } else {
     if (model.showBatteryPercent) {
       std::array<char, 5> percent{};
@@ -166,6 +178,12 @@ RectI16 UiChromeRenderer::NavTargetRect(UiNavTarget target) {
     return {225, 12, 7, 9};
   case UiNavTarget::Mixer:
     return {201, 23, 7, 9};
+  case UiNavTarget::Groove:
+    return {217, 2, 7, 9};
+  case UiNavTarget::PhraseTable:
+    return {217, 23, 7, 9};
+  case UiNavTarget::InstrumentTable:
+    return {225, 23, 7, 9};
   }
   return {201, 12, 7, 9};
 }

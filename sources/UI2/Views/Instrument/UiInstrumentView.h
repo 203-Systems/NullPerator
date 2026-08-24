@@ -68,6 +68,7 @@ struct UiInstrumentViewData {
   bool bottomTrackInkVisible = true;
   bool numberFocus = false;
   std::int16_t scrollOffset = 0;
+  UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
 };
 

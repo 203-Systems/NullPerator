@@ -661,6 +661,14 @@ TEST_CASE("UI2 NAV targets share one movable seven by nine bubble") {
         ui2::RectI16{225, 12, 7, 9});
   CHECK(ui2::UiChromeRenderer::NavTargetRect(ui2::UiNavTarget::Mixer) ==
         ui2::RectI16{201, 23, 7, 9});
+  CHECK(ui2::UiChromeRenderer::NavTargetRect(ui2::UiNavTarget::Groove) ==
+        ui2::RectI16{217, 2, 7, 9});
+  CHECK(ui2::UiChromeRenderer::NavTargetRect(
+            ui2::UiNavTarget::PhraseTable) ==
+        ui2::RectI16{217, 23, 7, 9});
+  CHECK(ui2::UiChromeRenderer::NavTargetRect(
+            ui2::UiNavTarget::InstrumentTable) ==
+        ui2::RectI16{225, 23, 7, 9});
 }
 
 TEST_CASE("UI2 fixed-point easing is nonlinear and lands exactly") {

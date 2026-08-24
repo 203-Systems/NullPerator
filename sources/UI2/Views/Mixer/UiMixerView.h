@@ -21,6 +21,7 @@ struct UiMixerViewData {
   std::array<std::array<std::uint8_t, 2>, 9> vuLevelTop{};
   std::array<std::string_view, 9> volumes{};
   std::int8_t selectedChannel = 0;
+  UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
 };
 

@@ -163,7 +163,8 @@ void UiPhraseView::RenderDelta(const UiPhraseViewData &previous,
       previous.topMetaInkVisible != current.topMetaInkVisible) {
     render({72, 0, 40, 34});
   }
-  if (previous.power != current.power)
+  if (previous.power != current.power ||
+      previous.navCursor != current.navCursor)
     render({184, 0, 56, 34});
   if (previous.activeHeader != current.activeHeader) {
     render({24, 34, 171, 13});
@@ -242,6 +243,7 @@ UiBuildStatus UiPhraseView::Build(const UiPhraseViewData &data, UiPalette &,
       .metaX = 85,
       .power = data.power,
       .navTarget = UiNavTarget::Phrase,
+      .navCursor = data.navCursor,
       .metaSelectionRect = data.topMetaVisualRect,
       .metaSelectionOverride = data.topMetaVisualOverride,
       .metaInkVisible = data.topMetaInkVisible,

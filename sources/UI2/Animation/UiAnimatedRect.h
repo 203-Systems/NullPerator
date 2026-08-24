@@ -64,6 +64,7 @@ enum class UiCursorRole : std::uint8_t {
   Content,
   TopMeta,
   BottomTrack,
+  ChromeNavigation,
   Navigation,
   Count,
 };

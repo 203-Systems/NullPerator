@@ -99,7 +99,8 @@ void UiChainView::RenderDelta(const UiChainViewData &previous,
       previous.topMetaVisualOverride != current.topMetaVisualOverride ||
       previous.topMetaInkVisible != current.topMetaInkVisible)
     render({56, 0, 40, 34});
-  if (previous.power != current.power || previous.elapsed != current.elapsed)
+  if (previous.power != current.power || previous.elapsed != current.elapsed ||
+      previous.navCursor != current.navCursor)
     render({184, 0, 56, 34});
 
   if (previous.editColumn != current.editColumn)
@@ -157,6 +158,7 @@ UiBuildStatus UiChainView::Build(const UiChainViewData &data,
       .elapsed = data.elapsed,
       .power = data.power,
       .navTarget = UiNavTarget::Chain,
+      .navCursor = data.navCursor,
       .metaSelectionRect = data.topMetaVisualRect,
       .metaSelectionOverride = data.topMetaVisualOverride,
       .metaInkVisible = data.topMetaInkVisible,

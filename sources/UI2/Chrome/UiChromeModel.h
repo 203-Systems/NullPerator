@@ -31,6 +31,17 @@ enum class UiNavTarget : std::uint8_t {
   Phrase,
   Instrument,
   Mixer,
+  Groove,
+  PhraseTable,
+  InstrumentTable,
+};
+
+struct UiNavCursorModel {
+  RectI16 selectionRect{};
+  bool selectionOverride = false;
+  bool inkVisible = true;
+
+  bool operator==(const UiNavCursorModel &) const = default;
 };
 
 struct UiTopBarModel {
@@ -40,6 +51,7 @@ struct UiTopBarModel {
   std::int16_t metaX = -1;
   UiPowerState power = UiPowerState::BatteryNormal;
   UiNavTarget navTarget = UiNavTarget::Song;
+  UiNavCursorModel navCursor{};
   bool metaSelected = false;
   RectI16 metaSelectionRect{};
   bool metaSelectionOverride = false;

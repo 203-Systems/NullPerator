@@ -227,6 +227,9 @@ private:
   CapturePowerState(IUiApplicationStateSource &source, bool playing);
   [[nodiscard]] UiPowerState
   CurrentPowerState(IUiApplicationStateSource &source, bool playing);
+  void UpdateNavigationCursor(UiNavCursorModel &cursor,
+                              IUiApplicationStateSource &source,
+                              UiNavTarget target, std::uint32_t nowMs);
   void CaptureDialog(IUiApplicationStateSource &source);
   void ActivatePage(RuntimePage page);
   [[nodiscard]] bool DialogChanged() const;
@@ -258,7 +261,8 @@ private:
                                              std::uint32_t nowMs);
   [[nodiscard]] PresentResult PresentGroove(IUiApplicationStateSource &source,
                                             std::uint32_t nowMs);
-  [[nodiscard]] PresentResult PresentMixer(IUiApplicationStateSource &source);
+  [[nodiscard]] PresentResult PresentMixer(IUiApplicationStateSource &source,
+                                           std::uint32_t nowMs);
   [[nodiscard]] PresentResult
   PresentSampleEditor(IUiApplicationStateSource &source, std::uint32_t nowMs);
   [[nodiscard]] PresentResult
@@ -274,6 +278,7 @@ private:
   RectI16 cursorTarget_{};
   RectI16 topMetaTarget_{};
   RectI16 bottomTrackTarget_{};
+  RectI16 navigationCursorTarget_{};
   RectI16 dialogCursorTarget_{};
   DialogFrameState previousDialog_{};
   DialogFrameState currentDialog_{};
@@ -283,6 +288,7 @@ private:
   bool cursorTargetValid_ = false;
   bool topMetaTargetValid_ = false;
   bool bottomTrackTargetValid_ = false;
+  bool navigationCursorTargetValid_ = false;
   bool previousValid_ = false;
   bool dialogPreviousValid_ = false;
   bool dialogCursorTargetValid_ = false;

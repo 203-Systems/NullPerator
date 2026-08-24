@@ -56,6 +56,32 @@ UiApplicationRuntime::CurrentPowerState(IUiApplicationStateSource &source,
   return CapturePowerState(source, playing).power;
 }
 
+void UiApplicationRuntime::UpdateNavigationCursor(
+    UiNavCursorModel &cursor, IUiApplicationStateSource &source,
+    UiNavTarget target, std::uint32_t nowMs) {
+  cursor = {};
+  if (!source.NavigationHeld()) {
+    navigationCursorTargetValid_ = false;
+    return;
+  }
+
+  const RectI16 targetRect = UiChromeRenderer::NavTargetRect(target);
+  if (!navigationCursorTargetValid_) {
+    cursors_.Snap(UiCursorRole::ChromeNavigation, targetRect, nowMs);
+    navigationCursorTarget_ = targetRect;
+    navigationCursorTargetValid_ = true;
+  } else if (targetRect != navigationCursorTarget_) {
+    cursors_.Retarget(UiCursorRole::ChromeNavigation, targetRect, nowMs,
+                      kSongCursorDurationMs);
+    navigationCursorTarget_ = targetRect;
+  }
+  cursor.selectionRect =
+      cursors_.Sample(UiCursorRole::ChromeNavigation, nowMs);
+  cursor.selectionOverride = true;
+  cursor.inkVisible =
+      !cursors_.Active(UiCursorRole::ChromeNavigation, nowMs);
+}
+
 void UiApplicationRuntime::ActivatePage(RuntimePage page) {
   switch (page) {
   case RuntimePage::Song:
@@ -229,7 +255,7 @@ PresentResult UiApplicationRuntime::Present(IUiApplicationStateSource &source) {
   case RuntimePage::Groove:
     return PresentGroove(source, nowMs);
   case RuntimePage::Mixer:
-    return PresentMixer(source);
+    return PresentMixer(source, nowMs);
   case RuntimePage::SampleEditor:
     return PresentSampleEditor(source, nowMs);
   case RuntimePage::SampleSlices:
@@ -250,6 +276,7 @@ UiApplicationRuntime::PresentSong(IUiApplicationStateSource &source,
   const UiApplicationActivityState activity = source.CaptureSong(current);
   current.power = current.navHeld ? UiPowerState::Navigation
                                   : CurrentPowerState(source, activity.active);
+  UpdateNavigationCursor(current.navCursor, source, UiNavTarget::Song, nowMs);
   const RectI16 target =
       UiSongView::CursorTargetRect(current.editTrack, current.editRow);
   if (!cursorTargetValid_) {
@@ -321,6 +348,7 @@ UiSongViewData UiApplicationRuntime::ViewDataFor(const SongFrameState &state) {
   data.playing = state.playing;
   data.liveMode = state.liveMode;
   data.power = state.power;
+  data.navCursor = state.navCursor;
   return data;
 }
 
@@ -351,6 +379,7 @@ UiApplicationRuntime::ViewDataFor(const ChainFrameState &state) {
   data.numberFocus = state.numberFocus;
   data.adjustmentFocus = state.adjustmentFocus;
   data.power = state.power;
+  data.navCursor = state.navCursor;
   return data;
 }
 
@@ -362,6 +391,7 @@ UiApplicationRuntime::PresentChain(IUiApplicationStateSource &source,
   const UiApplicationActivityState activity = source.CaptureChain(current);
   current.power = current.navHeld ? UiPowerState::Navigation
                                   : CurrentPowerState(source, activity.active);
+  UpdateNavigationCursor(current.navCursor, source, UiNavTarget::Chain, nowMs);
   if (current.numberFocus) {
     const UiTopBarModel top{.title = "CHAIN", .meta = current.number.data()};
     const RectI16 topTarget = UiChromeRenderer::MetaTargetRect(top);
@@ -513,6 +543,7 @@ UiApplicationRuntime::ViewDataFor(const PhraseFrameState &state) {
   data.numberFocus = state.numberFocus;
   data.adjustmentFocus = state.adjustmentFocus;
   data.power = state.power;
+  data.navCursor = state.navCursor;
   return data;
 }
 
@@ -524,6 +555,8 @@ UiApplicationRuntime::PresentPhrase(IUiApplicationStateSource &source,
   const UiApplicationActivityState activity = source.CapturePhrase(current);
   current.power = current.navHeld ? UiPowerState::Navigation
                                   : CurrentPowerState(source, activity.active);
+  UpdateNavigationCursor(current.navCursor, source, UiNavTarget::Phrase,
+                         nowMs);
   if (current.numberFocus) {
     const UiTopBarModel top{
         .title = "PHRASE", .meta = current.number.data(), .metaX = 85};
@@ -666,6 +699,7 @@ UiApplicationRuntime::ViewDataFor(const TableFrameState &state) {
   data.numberFocus = state.numberFocus;
   data.adjustmentFocus = state.adjustmentFocus;
   data.power = state.power;
+  data.navCursor = state.navCursor;
   return data;
 }
 
@@ -677,6 +711,11 @@ UiApplicationRuntime::PresentTable(IUiApplicationStateSource &source,
   const UiApplicationActivityState activity = source.CaptureTable(current);
   current.power = current.navHeld ? UiPowerState::Navigation
                                   : CurrentPowerState(source, activity.active);
+  UpdateNavigationCursor(
+      current.navCursor, source,
+      current.number[0] == 'I' ? UiNavTarget::InstrumentTable
+                               : UiNavTarget::PhraseTable,
+      nowMs);
   if (current.numberFocus) {
     const UiTopBarModel top{.title = "TABLE", .meta = current.number.data()};
     const RectI16 topTarget = UiChromeRenderer::MetaTargetRect(top);
@@ -797,6 +836,7 @@ UiApplicationRuntime::ViewDataFor(const InstrumentFrameState &state) {
   data.numberFocus = state.numberFocus;
   data.scrollOffset = state.scrollOffset;
   data.power = state.power;
+  data.navCursor = state.navCursor;
   return data;
 }
 
@@ -809,6 +849,8 @@ UiApplicationRuntime::PresentInstrument(IUiApplicationStateSource &source,
       previousValid_ ? previous.scrollOffset : 0;
   const UiApplicationActivityState activity = source.CaptureInstrument(current);
   current.power = CurrentPowerState(source, activity.active);
+  UpdateNavigationCursor(current.navCursor, source, UiNavTarget::Instrument,
+                         nowMs);
   if (current.numberFocus) {
     current.scrollOffset = previousScroll;
     const UiTopBarModel top{.title = "INST", .meta = current.number.data()};
@@ -918,6 +960,7 @@ UiApplicationRuntime::ViewDataFor(const ProjectFrameState &state) {
   data.cursorInkVisible = state.cursorInkVisible;
   data.scrollOffset = state.scrollOffset;
   data.power = state.power;
+  data.navCursor = state.navCursor;
   return data;
 }
 
@@ -930,6 +973,8 @@ UiApplicationRuntime::PresentProject(IUiApplicationStateSource &source,
       previousValid_ ? previous.scrollOffset : 0;
   const UiApplicationActivityState activity = source.CaptureProject(current);
   current.power = CurrentPowerState(source, activity.active);
+  UpdateNavigationCursor(current.navCursor, source, UiNavTarget::Project,
+                         nowMs);
   current.scrollOffset =
       UiProjectView::RevealCursor(previousScroll, current.cursor);
   const RectI16 target = UiProjectView::CursorTargetRect(current.cursor);
@@ -1287,6 +1332,7 @@ UiApplicationRuntime::ViewDataFor(const GrooveFrameState &state) {
   data.cursorVisualOverride = state.cursorVisualOverride;
   data.cursorInkVisible = state.cursorInkVisible;
   data.power = state.power;
+  data.navCursor = state.navCursor;
   return data;
 }
 
@@ -1297,6 +1343,8 @@ UiApplicationRuntime::PresentGroove(IUiApplicationStateSource &source,
   GrooveFrameState &previous = frames_.groove.previous;
   const UiApplicationActivityState activity = source.CaptureGroove(current);
   current.power = CurrentPowerState(source, activity.active);
+  UpdateNavigationCursor(current.navCursor, source, UiNavTarget::Groove,
+                         nowMs);
   const RectI16 target = UiGrooveView::CursorTargetRect(current.editRow);
   if (!cursorTargetValid_) {
     cursors_.Snap(UiCursorRole::Content, target, nowMs);
@@ -1353,15 +1401,18 @@ UiApplicationRuntime::ViewDataFor(const MixerFrameState &state) {
   }
   data.selectedChannel = state.selectedChannel;
   data.power = state.power;
+  data.navCursor = state.navCursor;
   return data;
 }
 
 PresentResult
-UiApplicationRuntime::PresentMixer(IUiApplicationStateSource &source) {
+UiApplicationRuntime::PresentMixer(IUiApplicationStateSource &source,
+                                   std::uint32_t nowMs) {
   MixerFrameState &current = frames_.mixer.current;
   MixerFrameState &previous = frames_.mixer.previous;
   const UiApplicationActivityState activity = source.CaptureMixer(current);
   current.power = CurrentPowerState(source, activity.active);
+  UpdateNavigationCursor(current.navCursor, source, UiNavTarget::Mixer, nowMs);
   const bool baseChanged = !previousValid_ || current != previous;
   if (!baseChanged && !DialogChanged()) {
     return engine_.PresentDirty();

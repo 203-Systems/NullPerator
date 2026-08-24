@@ -69,7 +69,8 @@ void UiMixerView::RenderDelta(const UiMixerViewData &previous,
                               const UiFrameScene &currentScene,
                               UiIndexedSurface &surface,
                               const UiPalette &palette) {
-  if (previous.power != current.power) {
+  if (previous.power != current.power ||
+      previous.navCursor != current.navCursor) {
     UiFrameRenderer::RenderRegion(currentScene, surface, palette,
                                   {184, 0, 56, 34});
   }
@@ -115,6 +116,8 @@ UiBuildStatus UiMixerView::Build(const UiMixerViewData &data,
   const UiTopBarModel top{
       .title = "MIXER",
       .power = data.power,
+      .navTarget = UiNavTarget::Mixer,
+      .navCursor = data.navCursor,
   };
   const UiBuildStatus topStatus = UiChromeRenderer::BuildTop(top, scene.top);
   if (topStatus != UiBuildStatus::Built)

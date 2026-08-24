@@ -141,7 +141,8 @@ void UiInstrumentView::RenderDelta(const UiInstrumentViewData &previous,
       previous.topMetaInkVisible != current.topMetaInkVisible) {
     render({48, 0, 48, 34});
   }
-  if (previous.power != current.power || previous.elapsed != current.elapsed) {
+  if (previous.power != current.power || previous.elapsed != current.elapsed ||
+      previous.navCursor != current.navCursor) {
     render({184, 0, 56, 34});
   }
   const bool contentRedrawn = previous.scrollOffset != current.scrollOffset;
@@ -200,6 +201,8 @@ UiBuildStatus UiInstrumentView::Build(const UiInstrumentViewData &data,
       .meta = data.number,
       .elapsed = data.elapsed,
       .power = data.power,
+      .navTarget = UiNavTarget::Instrument,
+      .navCursor = data.navCursor,
       .metaSelectionRect = data.topMetaVisualRect,
       .metaSelectionOverride = data.topMetaVisualOverride,
       .metaInkVisible = data.topMetaInkVisible,

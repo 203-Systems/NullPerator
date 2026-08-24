@@ -111,7 +111,8 @@ bool UiSongView::RequiresFullInvalidation(const UiSongViewData &previous,
          previous.showVu != current.showVu ||
          previous.showBottom != current.showBottom ||
          previous.playing != current.playing ||
-         previous.power != current.power;
+         previous.power != current.power ||
+         previous.navCursor != current.navCursor;
 }
 
 void UiSongView::RenderDelta(const UiSongViewData &previous,
@@ -236,6 +237,7 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data,
       .metaX = 61,
       .power = data.power,
       .navTarget = UiNavTarget::Song,
+      .navCursor = data.navCursor,
   };
   const UiBuildStatus topStatus = UiChromeRenderer::BuildTop(top, scene.top);
   if (topStatus != UiBuildStatus::Built) return topStatus;

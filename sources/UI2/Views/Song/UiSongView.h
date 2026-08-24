@@ -38,6 +38,7 @@ struct UiSongViewData {
   bool modeFocus = false;
   bool playing = true;
   bool liveMode = false;
+  UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::Playing;
 };
 

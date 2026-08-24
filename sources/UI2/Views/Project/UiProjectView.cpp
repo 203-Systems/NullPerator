@@ -127,7 +127,8 @@ void UiProjectView::RenderDelta(const UiProjectViewData &previous,
   const auto contentRect = [&](RectI16 rect) {
     return UiVerticalList::VisualRect(rect, currentScene.contentOffsetY);
   };
-  if (previous.power != current.power)
+  if (previous.power != current.power ||
+      previous.navCursor != current.navCursor)
     render({184, 0, 56, 34});
   const bool contentRedrawn = previous.scrollOffset != current.scrollOffset;
   if (contentRedrawn) render({0, 34, 240, 174});
@@ -175,7 +176,10 @@ UiBuildStatus UiProjectView::Build(const UiProjectViewData &data, UiPalette &,
   scene.topBackground = UiColorToken::SurfaceTopBar;
   scene.bottomBackground = UiColorToken::SurfaceBottomBar;
 
-  const UiTopBarModel top{.title = "PROJECT", .power = data.power};
+  const UiTopBarModel top{.title = "PROJECT",
+                          .power = data.power,
+                          .navTarget = UiNavTarget::Project,
+                          .navCursor = data.navCursor};
   const UiBuildStatus topStatus = UiChromeRenderer::BuildTop(top, scene.top);
   if (topStatus != UiBuildStatus::Built)
     return topStatus;
