@@ -9,8 +9,6 @@ extern "C" {
 
 #define TEXT_WIDTH 30
 #define TEXT_HEIGHT 24
-#define CHAR_HEIGHT 10
-#define CHAR_WIDTH 8
 
 // ARNE-16 palette converted to RGB565
 typedef enum {
@@ -45,6 +43,11 @@ void display_draw_changed();
 void display_draw_screen();
 void display_fill_rect(uint8_t color_index, uint16_t x, uint16_t y,
                        uint16_t width, uint16_t height);
+// Draws a synchronous RGB565 block. Pixels must already be in the byte order
+// expected by esp_lcd (most-significant byte first on the ST7789 transport).
+// The source remains owned by the caller and may be reused when this returns.
+bool display_draw_rgb565_region(uint16_t x, uint16_t y, uint16_t width,
+                                uint16_t height, const uint16_t *pixels);
 void display_draw_region(uint8_t x, uint8_t y, uint8_t width, uint8_t height);
 void display_draw_sub_region(uint8_t x, uint8_t y, uint8_t width,
                              uint8_t height);

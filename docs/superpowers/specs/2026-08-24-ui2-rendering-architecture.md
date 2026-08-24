@@ -1,8 +1,9 @@
 # PicoTracker UI2 Rendering and Interaction Architecture
 
-Status: proposed implementation framework. This document consolidates the UI
-decisions made in chat through 2026-08-24. Visual approval still precedes page
-implementation.
+Status: implementation in progress. This document consolidates the UI decisions
+made in chat through 2026-08-24. Visual approval still precedes page
+implementation; the ESP32-S3 presenter is connected early so portability is
+proved continuously rather than deferred until all pages are complete.
 
 Base revision: `67c182e6 fix(web-ui): restore 203 branding`
 
@@ -406,10 +407,12 @@ general gradient shader or per-frame color interpolation is required.
 
 ### 6.1 API-first delivery decision
 
-UI2 is introduced as a new shared C++ API before any production page is
-ported. WASM is its first backend and first product caller. ESP32-S3 is the
-second backend, added only after the API has rendered and animated the approved
-pages on the computer.
+UI2 is introduced as a new shared C++ API before production pages are ported.
+WASM remains the visual-review backend, but ESP32-S3 receives a thin presenter
+as soon as the first representative page works. Both targets use the same
+application-state adapter, scene builder, rasterizer, indexed surface, palette,
+dirty-strip collector, and page code. This catches firmware memory, byte-order,
+and scheduling mistakes while the API is still inexpensive to correct.
 
 The API has two deliberately separate sides:
 
@@ -471,9 +474,10 @@ public:
 
 `UiSceneBuilder` is a small value type whose primitive methods are inline and
 append to fixed-capacity arrays. Drawing primitives do not use virtual calls.
-Only one presenter call occurs per submitted frame. `UiStorage` is supplied by
-the target and owns every framebuffer, command list, text pool, and DMA scratch
-buffer, so allocation policy is explicit and measurable.
+Only one presenter call occurs per submitted frame. Shared storage owns the
+indexed framebuffer, command list, and text pool. A physical-display target
+supplies its DMA-capable RGB staging storage explicitly to the presenter, so
+the shared layer never assumes that ordinary C++ object memory is DMA-safe.
 
 The first computer-side integration is:
 
@@ -485,11 +489,11 @@ existing C++ View/controller
         -> existing #picotracker-canvas
 ```
 
-The later device integration changes only the final line:
+The device integration changes only the final line:
 
 ```text
 UiEngine composites the same indexed frame
-        -> Esp32UiPresenter expands dirty strips to RGB565 DMA buffers
+        -> UiRgb565Presenter expands dirty strips to one RGB565 DMA block
         -> esp_lcd_panel_draw_bitmap()
 ```
 
@@ -766,13 +770,20 @@ Initial target for the ESP32-S3 UI path:
 | Item | Approximate bytes |
 | --- | ---: |
 | 240x240 8-bit indexed framebuffer | 57,600 |
-| Two 240x8 RGB565 DMA staging strips | 7,680 |
+| One caller-owned 240x8 RGB565 DMA staging block | 3,840 |
 | Dirty tile mask and strip list | <1,000 |
 | Three retained scene command/text buffers | 18,000-24,000 |
 | Palette, ramps, animation state | <4,000 |
-| Total target | about 82-94 KB |
+| Total target with transition retention | about 78-90 KB |
 
-Only DMA staging buffers require DMA-capable internal memory. The indexed frame
+The current 64-bit Host layout of `UiApplicationRuntime`, including retained
+Song and Phrase snapshots plus all independent cursor animators, is 71,600
+bytes; the
+ESP32-S3 32-bit layout is expected to be smaller and must be confirmed from the
+firmware map file. The presenter object is at most 64 bytes and its one external
+DMA block is 3,840 bytes. These are test-enforced bounds, not estimates.
+
+Only the DMA staging block requires DMA-capable internal memory. The indexed frame
 and retained scenes may use normal internal RAM; PSRAM is an optional fallback,
 not a design dependency. Final placement is chosen from map-file and runtime
 profiling.
@@ -901,8 +912,9 @@ ordering.
 - Compile them into the ordinary host test binary without any platform SDK.
 - Test capacity, clipping, fixed-point time, deterministic output, and the
   single-present-call contract.
-- Do not add an ESP32 implementation yet; instead enforce ESP constraints in
-  the types and tests.
+- Enforce ESP constraints in types and tests; after the first representative
+  Song frame is stable, connect the minimal RGB565 presenter and reversible
+  legacy fallback so every later API change remains firmware-valid.
 
 ### Phase 2: make WASM the first real API user
 
@@ -936,15 +948,15 @@ they exercise:
 
 Do not migrate every page until these five match approved frames and motion.
 
-### Phase 5: approve API v1 and port the presenter to ESP32-S3
+### Phase 5: approve API v1 and harden the ESP32-S3 presenter
 
 - Review actual command counts, text-pool use, indexed-frame memory, dirty
   transfer volume, and WASM timeline traces.
 - Freeze API v1; page primitives may no longer be added only for desktop
   convenience.
-- Implement `Esp32UiPresenter` against the same read-only indexed surface,
-  palette, and dirty strips.
-- Expand only dirty strips to RGB565 DMA buffers.
+- Re-audit `UiRgb565Presenter` against the same read-only indexed surface,
+  palette, and dirty strips already exercised by Song.
+- Continue expanding only dirty strips through the caller-owned DMA block.
 - Profile internal RAM, PSRAM, SPI transfer time, task time, and audio underruns.
 - Tune strip height and transition refresh cadence from measurements without
   changing page code.

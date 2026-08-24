@@ -11,9 +11,11 @@
 
 /* Character graphics mode */
 
-#define DISPLAY_WIDTH (TEXT_WIDTH * CHAR_WIDTH)
-#define DISPLAY_HEIGHT (TEXT_HEIGHT * CHAR_HEIGHT)
-#define ROW_BUFFER_PIXELS (DISPLAY_WIDTH * CHAR_HEIGHT)
+#define DISPLAY_CHAR_HEIGHT 10
+#define DISPLAY_CHAR_WIDTH 8
+#define DISPLAY_WIDTH (TEXT_WIDTH * DISPLAY_CHAR_WIDTH)
+#define DISPLAY_HEIGHT (TEXT_HEIGHT * DISPLAY_CHAR_HEIGHT)
+#define ROW_BUFFER_PIXELS (DISPLAY_WIDTH * DISPLAY_CHAR_HEIGHT)
 #define FILL_CHUNK_ROWS 8
 
 #define SWAP_BYTES(color) ((uint16_t)(color >> 8) | (uint16_t)(color << 8))
@@ -132,11 +134,11 @@ static void render_text_span(uint8_t x, uint8_t y, uint8_t width) {
   }
   ensure_panel_io_callback();
 
-  const uint16_t screen_x = x * CHAR_WIDTH;
-  const uint16_t screen_y = y * CHAR_HEIGHT;
-  const uint16_t screen_width = width * CHAR_WIDTH;
+  const uint16_t screen_x = x * DISPLAY_CHAR_WIDTH;
+  const uint16_t screen_y = y * DISPLAY_CHAR_HEIGHT;
+  const uint16_t screen_width = width * DISPLAY_CHAR_WIDTH;
 
-  for (uint8_t pixel_y = 0; pixel_y < CHAR_HEIGHT; ++pixel_y) {
+  for (uint8_t pixel_y = 0; pixel_y < DISPLAY_CHAR_HEIGHT; ++pixel_y) {
     uint16_t *row = row_buffer + (pixel_y * screen_width);
 
     for (uint8_t char_x = 0; char_x < width; ++char_x) {
@@ -145,9 +147,9 @@ static void render_text_span(uint8_t x, uint8_t y, uint8_t width) {
       const uint16_t fg_color = palette[colors[idx] >> 4];
       const uint16_t bg_color = palette[colors[idx] & 0x0F];
       const uint16_t row_bits = get_glyph_row_bits(character, pixel_y);
-      uint16_t *glyph = row + (char_x * CHAR_WIDTH);
+      uint16_t *glyph = row + (char_x * DISPLAY_CHAR_WIDTH);
 
-      for (uint8_t pixel_x = 0; pixel_x < CHAR_WIDTH; ++pixel_x) {
+      for (uint8_t pixel_x = 0; pixel_x < DISPLAY_CHAR_WIDTH; ++pixel_x) {
         const uint16_t mask = static_cast<uint16_t>(1U << pixel_x);
         glyph[pixel_x] = (row_bits & mask) ? fg_color : bg_color;
       }
@@ -157,7 +159,8 @@ static void render_text_span(uint8_t x, uint8_t y, uint8_t width) {
   clear_stale_color_transfer_done();
   ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel, screen_x, screen_y,
                                             screen_x + screen_width,
-                                            screen_y + CHAR_HEIGHT, row_buffer));
+                                            screen_y + DISPLAY_CHAR_HEIGHT,
+                                            row_buffer));
   wait_for_color_transfer_done();
 }
 
@@ -325,4 +328,28 @@ void display_fill_rect(uint8_t color_index, uint16_t x, uint16_t y,
     draw_y += chunk_rows;
     remaining -= chunk_rows;
   }
+}
+
+bool display_draw_rgb565_region(uint16_t x, uint16_t y, uint16_t width,
+                                uint16_t height,
+                                const uint16_t *pixels) {
+  if (pixels == NULL || width == 0 || height == 0 || x >= DISPLAY_WIDTH ||
+      y >= DISPLAY_HEIGHT || width > DISPLAY_WIDTH - x ||
+      height > DISPLAY_HEIGHT - y) {
+    return false;
+  }
+
+  esp_lcd_panel_handle_t panel = NullperatorHAL::Display::GetPanel();
+  if (panel == NULL) {
+    return false;
+  }
+  ensure_panel_io_callback();
+  clear_stale_color_transfer_done();
+  const esp_err_t result = esp_lcd_panel_draw_bitmap(
+      panel, x, y, x + width, y + height, pixels);
+  if (result != ESP_OK) {
+    return false;
+  }
+  wait_for_color_transfer_done();
+  return true;
 }

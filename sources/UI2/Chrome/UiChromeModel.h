@@ -41,6 +41,9 @@ struct UiTopBarModel {
   UiPowerState power = UiPowerState::BatteryNormal;
   UiNavTarget navTarget = UiNavTarget::Song;
   bool metaSelected = false;
+  RectI16 metaSelectionRect{};
+  bool metaSelectionOverride = false;
+  bool metaInkVisible = true;
   bool showBatteryPercent = false;
   std::uint8_t batteryPercent = 60;
 };
@@ -49,6 +52,9 @@ struct UiTrackNotesModel {
   std::array<std::string_view, 8> notes{};
   std::int8_t selectedTrack = -1;
   std::int8_t selectedNote = -1;
+  RectI16 trackSelectionRect{};
+  bool trackSelectionOverride = false;
+  bool trackInkVisible = true;
 };
 
 struct UiColoredText {

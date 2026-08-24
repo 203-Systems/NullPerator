@@ -21,13 +21,14 @@ enum class UiBuildStatus : std::uint8_t {
 
 class UiChromeRenderer {
 public:
-  [[nodiscard]] static UiBuildStatus BuildTop(const UiTopBarModel &model,
-                                              UiBarScene &scene,
-                                              std::optional<RectI16>
-                                                  navHighlight = std::nullopt);
+  [[nodiscard]] static UiBuildStatus
+  BuildTop(const UiTopBarModel &model, UiBarScene &scene,
+           std::optional<RectI16> navHighlight = std::nullopt);
   [[nodiscard]] static UiBuildStatus BuildBottom(const UiBottomBarModel &model,
                                                  UiBarScene &scene);
   [[nodiscard]] static RectI16 NavTargetRect(UiNavTarget target);
+  [[nodiscard]] static RectI16 MetaTargetRect(const UiTopBarModel &model);
+  [[nodiscard]] static RectI16 BottomTrackTargetRect(std::int8_t track);
 
 private:
   static void DrawPower(const UiTopBarModel &model,

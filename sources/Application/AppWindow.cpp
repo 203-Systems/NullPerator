@@ -122,6 +122,14 @@ struct AppWindowViews {
         recordView(w, &viewData), nullView(w, &viewData) {}
 };
 
+int AppWindow::PhraseRowForUi2() const {
+  return views_ == nullptr ? 0 : views_->phraseView.RowForUi2();
+}
+
+int AppWindow::PhraseColumnForUi2() const {
+  return views_ == nullptr ? 0 : views_->phraseView.ColumnForUi2();
+}
+
 void AppWindow::defineColor(FourCC colorCode, GUIColor &color,
                             int paletteIndex) {
 

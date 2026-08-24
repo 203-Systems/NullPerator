@@ -72,14 +72,16 @@ UiBuildStatus UiChromeRenderer::BuildTop(const UiTopBarModel &model,
             ? model.metaX
             : static_cast<std::int16_t>(
                   9 + UiFont5x7::TextWidth(model.title.size(), titleScale) + 7);
+    builder.Text(model.meta, metaX, 10, UiColorToken::CursorPrimary);
     if (model.metaSelected) {
-      builder.Selection({static_cast<std::int16_t>(metaX - 2), 9,
-                         static_cast<std::int16_t>(
-                             UiFont5x7::TextWidth(model.meta.size()) + 4),
-                         9});
-      builder.Text(model.meta, metaX, 10, UiColorToken::CursorInk);
-    } else {
-      builder.Text(model.meta, metaX, 10, UiColorToken::CursorPrimary);
+      const RectI16 selection =
+          model.metaSelectionOverride && !model.metaSelectionRect.Empty()
+              ? model.metaSelectionRect
+              : MetaTargetRect(model);
+      builder.Selection(selection);
+      if (model.metaInkVisible) {
+        builder.Text(model.meta, metaX, 10, UiColorToken::CursorInk);
+      }
     }
   }
 
@@ -127,14 +129,44 @@ UiBuildStatus UiChromeRenderer::BuildTop(const UiTopBarModel &model,
 
 RectI16 UiChromeRenderer::NavTargetRect(UiNavTarget target) {
   switch (target) {
-  case UiNavTarget::Project: return {201, 2, 7, 9};
-  case UiNavTarget::Song: return {201, 12, 7, 9};
-  case UiNavTarget::Chain: return {209, 12, 7, 9};
-  case UiNavTarget::Phrase: return {217, 12, 7, 9};
-  case UiNavTarget::Instrument: return {225, 12, 7, 9};
-  case UiNavTarget::Mixer: return {201, 23, 7, 9};
+  case UiNavTarget::Project:
+    return {201, 2, 7, 9};
+  case UiNavTarget::Song:
+    return {201, 12, 7, 9};
+  case UiNavTarget::Chain:
+    return {209, 12, 7, 9};
+  case UiNavTarget::Phrase:
+    return {217, 12, 7, 9};
+  case UiNavTarget::Instrument:
+    return {225, 12, 7, 9};
+  case UiNavTarget::Mixer:
+    return {201, 23, 7, 9};
   }
   return {201, 12, 7, 9};
+}
+
+RectI16 UiChromeRenderer::MetaTargetRect(const UiTopBarModel &model) {
+  if (model.meta.empty())
+    return {};
+  const std::int16_t metaX =
+      model.metaX >= 0
+          ? model.metaX
+          : static_cast<std::int16_t>(
+                9 +
+                UiFont5x7::TextWidth(model.title.size(),
+                                     model.title.size() <= 7 ? 2 : 1) +
+                7);
+  return {
+      static_cast<std::int16_t>(metaX - 2), 9,
+      static_cast<std::int16_t>(UiFont5x7::TextWidth(model.meta.size()) + 4),
+      9};
+}
+
+RectI16 UiChromeRenderer::BottomTrackTargetRect(std::int8_t track) {
+  if (track < 0 || track >= 8)
+    return {};
+  const std::int16_t center = static_cast<std::int16_t>(15 + track * 30);
+  return {static_cast<std::int16_t>(center - 7), 211, 15, 9};
 }
 
 UiBuildStatus UiChromeRenderer::BuildBottom(const UiBottomBarModel &model,
@@ -148,12 +180,7 @@ UiBuildStatus UiChromeRenderer::BuildBottom(const UiBottomBarModel &model,
     for (std::int16_t index = 0; index < 8; ++index) {
       const std::int16_t center = static_cast<std::int16_t>(15 + index * 30);
       std::array<char, 3> track{'T', static_cast<char>('1' + index), 0};
-      if (index == model.trackNotes.selectedTrack) {
-        builder.Selection({static_cast<std::int16_t>(center - 7), 211, 15, 9});
-        builder.CenteredText(track.data(), center, 213, UiColorToken::CursorInk);
-      } else {
-        builder.CenteredText(track.data(), center, 213, UiColorToken::TextMuted);
-      }
+      builder.CenteredText(track.data(), center, 213, UiColorToken::TextMuted);
       const std::string_view note = model.trackNotes.notes[index];
       const UiColorToken noteColor =
           note == "--" ? UiColorToken::TextDim : UiColorToken::TextPrimary;
@@ -165,6 +192,22 @@ UiBuildStatus UiChromeRenderer::BuildBottom(const UiBottomBarModel &model,
         builder.CenteredText(note, center, 227, UiColorToken::CursorInk);
       } else {
         builder.CenteredText(note, center, 227, noteColor);
+      }
+    }
+    if (model.trackNotes.selectedTrack >= 0 &&
+        model.trackNotes.selectedTrack < 8) {
+      const std::int8_t track = model.trackNotes.selectedTrack;
+      const std::int16_t center = static_cast<std::int16_t>(15 + track * 30);
+      std::array<char, 3> label{'T', static_cast<char>('1' + track), 0};
+      const RectI16 selection =
+          model.trackNotes.trackSelectionOverride &&
+                  !model.trackNotes.trackSelectionRect.Empty()
+              ? model.trackNotes.trackSelectionRect
+              : BottomTrackTargetRect(track);
+      builder.Selection(selection);
+      if (model.trackNotes.trackInkVisible) {
+        builder.CenteredText(label.data(), center, 213,
+                             UiColorToken::CursorInk);
       }
     }
     break;
@@ -181,7 +224,8 @@ UiBuildStatus UiChromeRenderer::BuildBottom(const UiBottomBarModel &model,
     }
     break;
   case UiBottomBarKind::Actions: {
-    if (model.actions.count == 0) break;
+    if (model.actions.count == 0)
+      break;
     const std::int16_t width = 240 / model.actions.count;
     for (std::uint8_t index = 0; index < model.actions.count; ++index) {
       builder.CenteredText(
@@ -211,7 +255,8 @@ UiBuildStatus UiChromeRenderer::BuildBottom(const UiBottomBarModel &model,
         const int count = static_cast<int>(model.selector.options.size());
         return model.selector.options[(index % count + count) % count];
       }
-      if (index < 0 || index >= static_cast<int>(model.selector.options.size())) {
+      if (index < 0 ||
+          index >= static_cast<int>(model.selector.options.size())) {
         return {};
       }
       return model.selector.options[index];

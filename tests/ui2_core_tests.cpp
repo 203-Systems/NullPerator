@@ -5,16 +5,19 @@
 #include "UI2/Render/IUiPresenter.h"
 #include "UI2/Render/UiDirtyTiles.h"
 #include "UI2/Render/UiIndexedSurface.h"
+#include "UI2/Render/UiRgb565Presenter.h"
 #include "UI2/Render/UiVuGradient.h"
 #include "UI2/Scene/UiCommandList.h"
 #include "UI2/Theme/UiPalette.h"
 #include "UI2/UiEngine.h"
 #include "UI2/Render/UiFrameRenderer.h"
 #include "UI2/Views/Song/UiSongView.h"
+#include "UI2/Views/Phrase/UiPhraseView.h"
 #include "Adapters/wasm/gui/WasmUiPresenter.h"
 #include "Application/UI2/Ui2ApplicationRuntime.h"
 
 #include "ui2_song_fixture.h"
+#include "ui2_phrase_fixture.h"
 
 #include "doctest/doctest.h"
 
@@ -60,6 +63,33 @@ struct CommitProbe {
   }
   int calls = 0;
   bool result = true;
+};
+
+struct Rgb565WriteProbe {
+  struct Call {
+    std::uint16_t x = 0;
+    std::uint16_t y = 0;
+    std::uint16_t width = 0;
+    std::uint16_t height = 0;
+    std::uint16_t first = 0;
+    std::uint16_t last = 0;
+  };
+
+  static bool Write(void *context, std::uint16_t x, std::uint16_t y,
+                    std::uint16_t width, std::uint16_t height,
+                    const std::uint16_t *pixels) {
+    auto &probe = *static_cast<Rgb565WriteProbe *>(context);
+    const std::size_t index = probe.calls++;
+    if (index < probe.records.size()) {
+      probe.records[index] =
+          {x, y, width, height, pixels[0], pixels[width * height - 1U]};
+    }
+    return probe.failOnCall == 0 || probe.calls != probe.failOnCall;
+  }
+
+  std::array<Call, 8> records{};
+  std::size_t calls = 0;
+  std::size_t failOnCall = 0;
 };
 
 } // namespace
@@ -261,6 +291,17 @@ TEST_CASE("UI2 fixed-point easing is nonlinear and lands exactly") {
   CHECK_FALSE(track.Active(1'180));
 }
 
+TEST_CASE("UI2 fixed-point motion remains continuous across millis wrap") {
+  ui2::UiMotionTrack track;
+  track.Start(0, 100, 0xFFFFFFF0U, 40);
+  CHECK(track.Active(0xFFFFFFFAU));
+  CHECK(track.Sample(0xFFFFFFFAU) > 0);
+  CHECK(track.Active(5U));
+  CHECK(track.Sample(5U) > 50);
+  CHECK(track.Sample(24U) == 100);
+  CHECK_FALSE(track.Active(24U));
+}
+
 TEST_CASE("UI2 cursor roles animate independently for dual-cursor input") {
   ui2::UiCursorAnimatorSet cursors;
   cursors.Snap(ui2::UiCursorRole::TopMeta, {83, 9, 15, 9}, 100);
@@ -274,6 +315,21 @@ TEST_CASE("UI2 cursor roles animate independently for dual-cursor input") {
         ui2::RectI16{95, 9, 15, 9});
   CHECK(cursors.Sample(ui2::UiCursorRole::BottomTrack, 220) ==
         ui2::RectI16{98, 211, 15, 9});
+}
+
+TEST_CASE("UI2 cursor retarget continues from its current visual position") {
+  ui2::UiAnimatedRect cursor;
+  cursor.Snap({20, 40, 15, 9}, 1'000);
+  cursor.Retarget({120, 140, 15, 9}, 1'000, 120);
+  const ui2::RectI16 interrupted = cursor.Sample(1'040);
+  CHECK(interrupted.x > 20);
+  CHECK(interrupted.x < 120);
+  CHECK(interrupted.y > 40);
+  CHECK(interrupted.y < 140);
+
+  cursor.Retarget({60, 80, 15, 9}, 1'040, 120);
+  CHECK(cursor.Sample(1'040) == interrupted);
+  CHECK(cursor.Sample(1'160) == ui2::RectI16{60, 80, 15, 9});
 }
 
 TEST_CASE("UI2 content slides as whole layers while bars crossfade") {
@@ -311,6 +367,9 @@ TEST_CASE("UI2 approved Song fixture fits fixed scene buffers") {
         palette.Index(ui2::UiColorToken::CursorRow));
   CHECK(surface.Pixel(219, 47) ==
         palette.Index(ui2::UiColorToken::VuTrack));
+  const ui2::RectI16 cursor = ui2::UiSongView::CursorTargetRect(0, 8);
+  CHECK(surface.Pixel(cursor.x + 1, cursor.y + 4) ==
+        palette.Index(ui2::UiColorToken::PlaybackActive));
 }
 
 TEST_CASE("UI2 engine calls one presenter and clears dirt only after success") {
@@ -366,6 +425,55 @@ TEST_CASE("UI2 WASM presenter converts only dirty strips and commits once") {
   CHECK(probe.calls == 2);
 }
 
+TEST_CASE("UI2 RGB565 presenter chunks dirty strips without a framebuffer") {
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiPalette palette;
+  const auto field = palette.Index(ui2::UiColorToken::SurfaceField);
+  const auto cursor = palette.Index(ui2::UiColorToken::CursorPrimary);
+  surface.Clear(field);
+  surface.SetPixel(4, 5, cursor);
+
+  const std::array<ui2::DirtyStrip, 1> strips{{{4, 5, 3, 10}}};
+  std::array<std::uint16_t, ui2::UiRgb565Presenter::kTransferPixels>
+      transfer{};
+  Rgb565WriteProbe probe;
+  ui2::UiRgb565Presenter presenter(
+      transfer.data(), transfer.size(), &Rgb565WriteProbe::Write, &probe,
+      ui2::UiRgb565ByteOrder::MostSignificantByteFirst);
+  CHECK(presenter.Present(surface, palette, strips) ==
+        ui2::PresentResult::Presented);
+  REQUIRE(probe.calls == 2);
+  CHECK(probe.records[0].x == 4);
+  CHECK(probe.records[0].y == 5);
+  CHECK(probe.records[0].width == 3);
+  CHECK(probe.records[0].height == 8);
+  CHECK(probe.records[1].y == 13);
+  CHECK(probe.records[1].height == 2);
+
+  const std::uint16_t cursor565 = palette.Rgb565(cursor);
+  const std::uint16_t field565 = palette.Rgb565(field);
+  CHECK(probe.records[0].first ==
+        static_cast<std::uint16_t>((cursor565 >> 8U) | (cursor565 << 8U)));
+  CHECK(probe.records[0].last ==
+        static_cast<std::uint16_t>((field565 >> 8U) | (field565 << 8U)));
+
+  probe = {};
+  probe.failOnCall = 2;
+  CHECK(presenter.Present(surface, palette, strips) ==
+        ui2::PresentResult::Deferred);
+  CHECK(probe.calls == 2);
+
+  std::array<std::uint16_t, 1> undersized{};
+  Rgb565WriteProbe rejectedProbe;
+  ui2::UiRgb565Presenter rejected(
+      undersized.data(), undersized.size(), &Rgb565WriteProbe::Write,
+      &rejectedProbe, ui2::UiRgb565ByteOrder::Native);
+  CHECK(rejected.Present(surface, palette, strips) ==
+        ui2::PresentResult::Failed);
+  CHECK(rejectedProbe.calls == 0);
+}
+
 TEST_CASE("UI2 VU mapping is bounded monotonic and integer only") {
   CHECK(ui2::UiApplicationRuntime::VuTopFromAmplitude(0) == 153);
   CHECK(ui2::UiApplicationRuntime::VuTopFromAmplitude(32) == 153);
@@ -378,6 +486,14 @@ TEST_CASE("UI2 VU mapping is bounded monotonic and integer only") {
     CHECK(top <= 153);
     previous = top;
   }
+}
+
+TEST_CASE("UI2 firmware runtime keeps a fixed bounded memory footprint") {
+  // 64-bit Host is the larger layout; the ESP32-S3 build uses 32-bit pointers.
+  CHECK(sizeof(ui2::UiApplicationRuntime) < 72'000);
+  CHECK(sizeof(ui2::UiRgb565Presenter) <= 64);
+  CHECK(ui2::UiRgb565Presenter::kTransferPixels * sizeof(std::uint16_t) ==
+        3'840);
 }
 
 TEST_CASE("UI2 region rendering restores exact pixels without a backbuffer") {
@@ -450,6 +566,47 @@ TEST_CASE("UI2 Song delta rendering is pixel-identical to a full redraw") {
   CHECK(deltaSurface.DirtyTiles().Any());
 }
 
+TEST_CASE("UI2 Song animated cursor delta matches the same full visual frame") {
+  ui2::UiPalette deltaPalette;
+  ui2::UiSongViewData previous = ui2::test::ApprovedSongFixture();
+  ui2::UiFrameScene previousScene;
+  REQUIRE(ui2::UiSongView::Build(previous, deltaPalette, previousScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage deltaStorage;
+  ui2::UiIndexedSurface deltaSurface(deltaStorage);
+  ui2::UiFrameRenderer::RenderStatic(previousScene, deltaSurface,
+                                     deltaPalette);
+  deltaSurface.ClearDirty();
+
+  ui2::UiSongViewData current = previous;
+  current.editRow = 3;
+  current.editTrack = 5;
+  current.cursorVisualOverride = true;
+  current.cursorVisualRect = {91, 85, 15, 9};
+  current.cursorInkVisible = false;
+  ui2::UiFrameScene currentScene;
+  REQUIRE(ui2::UiSongView::Build(current, deltaPalette, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSongView::RenderDelta(previous, current, currentScene, deltaSurface,
+                               deltaPalette);
+
+  ui2::UiPalette fullPalette;
+  ui2::UiFrameScene fullScene;
+  REQUIRE(ui2::UiSongView::Build(current, fullPalette, fullScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage fullStorage;
+  ui2::UiIndexedSurface fullSurface(fullStorage);
+  ui2::UiFrameRenderer::RenderStatic(fullScene, fullSurface, fullPalette);
+
+  CHECK(std::equal(deltaSurface.Pixels().begin(), deltaSurface.Pixels().end(),
+                   fullSurface.Pixels().begin(), fullSurface.Pixels().end()));
+  CHECK(deltaSurface.Pixel(current.cursorVisualRect.x + 7,
+                           current.cursorVisualRect.y + 4) ==
+        deltaPalette.Index(ui2::UiColorToken::CursorPrimary));
+  CHECK(ui2::UiSongView::CursorTargetRect(5, 3) ==
+        ui2::RectI16{131, 76, 15, 9});
+}
+
 TEST_CASE("UI2 Song idle is clean and a cursor move stays locally dirty") {
   ui2::UiPalette palette;
   ui2::UiSongViewData previous = ui2::test::ApprovedSongFixture();
@@ -481,4 +638,138 @@ TEST_CASE("UI2 Song idle is clean and a cursor move stays locally dirty") {
   }
   CHECK(transferredPixels < 5'000);
   CHECK(transferredPixels < 240U * 240U / 10U);
+}
+
+TEST_CASE("UI2 Phrase delta rendering is pixel-identical to a full redraw") {
+  ui2::UiPalette deltaPalette;
+  ui2::UiPhraseViewData previous =
+      ui2::test::ApprovedPhraseFixture("note");
+  ui2::UiFrameScene previousScene;
+  REQUIRE(ui2::UiPhraseView::Build(previous, deltaPalette, previousScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage deltaStorage;
+  ui2::UiIndexedSurface deltaSurface(deltaStorage);
+  ui2::UiFrameRenderer::RenderStatic(previousScene, deltaSurface,
+                                     deltaPalette);
+  deltaSurface.ClearDirty();
+
+  ui2::UiPhraseViewData current = previous;
+  current.editRow = 4;
+  current.editColumn = 2;
+  current.activeHeader = ui2::UiPhraseHeader::Fx1;
+  current.rows[7][3] = "BEEF";
+  current.cursorBottom =
+      ui2::test::ApprovedPhraseFixture("fx").cursorBottom;
+  current.cursorVisualOverride = true;
+  current.cursorVisualRect = {75, 76, 20, 9};
+  current.cursorInkVisible = false;
+  ui2::UiFrameScene currentScene;
+  REQUIRE(ui2::UiPhraseView::Build(current, deltaPalette, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiPhraseView::RenderDelta(previous, current, currentScene,
+                                 deltaSurface, deltaPalette);
+
+  ui2::UiPalette fullPalette;
+  ui2::UiFrameScene fullScene;
+  REQUIRE(ui2::UiPhraseView::Build(current, fullPalette, fullScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage fullStorage;
+  ui2::UiIndexedSurface fullSurface(fullStorage);
+  ui2::UiFrameRenderer::RenderStatic(fullScene, fullSurface, fullPalette);
+
+  CHECK(std::equal(deltaSurface.Pixels().begin(), deltaSurface.Pixels().end(),
+                   fullSurface.Pixels().begin(), fullSurface.Pixels().end()));
+  CHECK(deltaSurface.DirtyTiles().Any());
+}
+
+TEST_CASE("UI2 Phrase dual cursor animation renders exact visual overrides") {
+  ui2::UiPalette palette;
+  ui2::UiPhraseViewData data =
+      ui2::test::ApprovedPhraseFixture("number");
+  data.topMetaVisualOverride = true;
+  data.topMetaVisualRect = {75, 9, 15, 9};
+  data.topMetaInkVisible = false;
+  data.bottomTrackVisualOverride = true;
+  data.bottomTrackVisualRect = {83, 211, 15, 9};
+  data.bottomTrackInkVisible = false;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiPhraseView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+
+  CHECK(surface.Pixel(82, 13) ==
+        palette.Index(ui2::UiColorToken::CursorPrimary));
+  CHECK(surface.Pixel(90, 215) ==
+        palette.Index(ui2::UiColorToken::CursorPrimary));
+  CHECK(ui2::UiChromeRenderer::MetaTargetRect(
+            {.title = "PHRASE", .meta = "3A", .metaX = 85}) ==
+        ui2::RectI16{83, 9, 15, 9});
+  CHECK(ui2::UiChromeRenderer::BottomTrackTargetRect(2) ==
+        ui2::RectI16{68, 211, 15, 9});
+}
+
+TEST_CASE("UI2 Phrase idle is clean and a cursor move stays locally dirty") {
+  ui2::UiPalette palette;
+  ui2::UiPhraseViewData previous =
+      ui2::test::ApprovedPhraseFixture("note");
+  ui2::UiFrameScene previousScene;
+  REQUIRE(ui2::UiPhraseView::Build(previous, palette, previousScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(previousScene, surface, palette);
+  surface.ClearDirty();
+
+  ui2::UiPhraseView::RenderDelta(previous, previous, previousScene, surface,
+                                 palette);
+  CHECK_FALSE(surface.DirtyTiles().Any());
+
+  ui2::UiPhraseViewData current = previous;
+  current.editRow = 11;
+  ui2::UiFrameScene currentScene;
+  REQUIRE(ui2::UiPhraseView::Build(current, palette, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiPhraseView::RenderDelta(previous, current, currentScene, surface,
+                                 palette);
+  ui2::DirtyStripList strips;
+  REQUIRE(surface.DirtyTiles().Collect(strips));
+  std::uint32_t transferredPixels = 0;
+  for (const ui2::DirtyStrip strip : strips.Strips()) {
+    transferredPixels +=
+        static_cast<std::uint32_t>(strip.width) * strip.height;
+  }
+  CHECK(transferredPixels < 8'000);
+  CHECK(transferredPixels < 240U * 240U / 7U);
+}
+
+TEST_CASE("UI2 Phrase animated bottom cursor delta matches a full frame") {
+  ui2::UiPalette palette;
+  ui2::UiPhraseViewData previous =
+      ui2::test::ApprovedPhraseFixture("number");
+  ui2::UiFrameScene previousScene;
+  REQUIRE(ui2::UiPhraseView::Build(previous, palette, previousScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(previousScene, surface, palette);
+  surface.ClearDirty();
+
+  ui2::UiPhraseViewData current = previous;
+  current.selectedTrack = 4;
+  current.bottomTrackVisualOverride = true;
+  current.bottomTrackVisualRect = {92, 211, 15, 9};
+  current.bottomTrackInkVisible = false;
+  ui2::UiFrameScene currentScene;
+  REQUIRE(ui2::UiPhraseView::Build(current, palette, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiPhraseView::RenderDelta(previous, current, currentScene, surface,
+                                 palette);
+
+  ui2::UiSurfaceStorage expectedStorage;
+  ui2::UiIndexedSurface expected(expectedStorage);
+  ui2::UiFrameRenderer::RenderStatic(currentScene, expected, palette);
+  CHECK(std::equal(surface.Pixels().begin(), surface.Pixels().end(),
+                   expected.Pixels().begin(), expected.Pixels().end()));
 }

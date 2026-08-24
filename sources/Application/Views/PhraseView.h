@@ -28,6 +28,11 @@ public:
   bool ShouldDrawBattery() const override;
   bool ShouldDrawPlayTime() const override;
 
+  // Read-only application-thread snapshot used by the shared UI2 renderer.
+  // Editing remains owned by PhraseView; UI2 never mutates these fields.
+  int RowForUi2() const { return row_; }
+  int ColumnForUi2() const { return col_; }
+
 protected:
   void updateCursor(int dx, int dy);
   void updateCursorValue(ViewUpdateDirection offset, int xOffset = 0,

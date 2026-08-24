@@ -30,6 +30,14 @@ macro(adapter_node_setup)
     "${_node_root}/Adapters/node/managed_components/espressif__esp_codec_dev")
   message(STATUS "EXTRA_COMPONENT_DIRS: ${EXTRA_COMPONENT_DIRS}")
 
+  option(PICOTRACKER_UI2_DEFAULT
+         "Enable the shared UI2 renderer on supported firmware views" ON)
+  if(PICOTRACKER_UI2_DEFAULT)
+    add_compile_definitions(PICOTRACKER_UI2_DEFAULT=1)
+  else()
+    add_compile_definitions(PICOTRACKER_UI2_DEFAULT=0)
+  endif()
+
   project(picoTracker)
 
   set(CMAKE_C_STANDARD 11)

@@ -75,6 +75,9 @@ public:
   bool HasModalForUi2() const {
     return _currentView != nullptr && _currentView->HasModalView();
   }
+  int PhraseRowForUi2() const;
+  int PhraseColumnForUi2() const;
+  unsigned short ButtonMaskForUi2() const { return _mask; }
 
 #if defined(__EMSCRIPTEN__)
   // Acceptance diagnostics are requested from browser main but executed by

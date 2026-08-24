@@ -22,12 +22,40 @@ std::array<char, 3> HexByte(std::uint8_t value) {
   return {digits[value >> 4U], digits[value & 0x0FU], 0};
 }
 
+RectI16 ResolvedCursorRect(const UiSongViewData &data) {
+  if (data.cursorVisualOverride && !data.cursorVisualRect.Empty()) {
+    return Intersect(data.cursorVisualRect, RectI16::Screen());
+  }
+  return UiSongView::CursorTargetRect(data.editTrack, data.editRow);
+}
+
+RectI16 ExpandedCursorDamage(RectI16 rect) {
+  if (rect.Empty()) return {};
+  return Intersect({static_cast<std::int16_t>(rect.x - 1),
+                    static_cast<std::int16_t>(rect.y - 1),
+                    static_cast<std::int16_t>(rect.width + 2),
+                    static_cast<std::int16_t>(rect.height + 2)},
+                   RectI16::Screen());
+}
+
 } // namespace
 
 RectI16 UiSongView::CellDamageRect(std::uint8_t track, std::uint8_t row) {
   if (track >= 8U || row >= 16U) return {};
   return {static_cast<std::int16_t>(kTrackX[track] - 3),
           static_cast<std::int16_t>(46 + row * 10), 17, 11};
+}
+
+RectI16 UiSongView::CursorTargetRect(std::uint8_t track, std::uint8_t row) {
+  if (track >= 8U || row >= 16U) return {};
+  return {static_cast<std::int16_t>(kTrackX[track] - 2),
+          static_cast<std::int16_t>(46 + row * 10), 15, 9};
+}
+
+RectI16 UiSongView::PlaybackTickRect(std::uint8_t track, std::uint8_t row) {
+  if (track >= 8U || row >= 16U) return {};
+  return {static_cast<std::int16_t>(kTrackX[track] - 3),
+          static_cast<std::int16_t>(48 + row * 10), 2, 5};
 }
 
 RectI16 UiSongView::RowDamageRect(std::uint8_t row) {
@@ -75,11 +103,25 @@ void UiSongView::RenderDelta(const UiSongViewData &previous,
   if (previous.name != current.name) render({59, 0, 132, 34});
   if (previous.elapsed != current.elapsed) render({190, 0, 50, 34});
 
+  const RectI16 previousCursor = ResolvedCursorRect(previous);
+  const RectI16 currentCursor = ResolvedCursorRect(current);
+  if (previousCursor != currentCursor ||
+      previous.cursorInkVisible != current.cursorInkVisible) {
+    render(ExpandedCursorDamage(previousCursor));
+    render(ExpandedCursorDamage(currentCursor));
+    render(CellDamageRect(previous.editTrack, previous.editRow));
+    render(CellDamageRect(current.editTrack, current.editRow));
+  }
+
   if (previous.editRow != current.editRow) {
     render(RowDamageRect(previous.editRow));
     render(RowDamageRect(current.editRow));
-    rowRendered[previous.editRow] = true;
-    rowRendered[current.editRow] = true;
+    if (previous.editRow < rowRendered.size()) {
+      rowRendered[previous.editRow] = true;
+    }
+    if (current.editRow < rowRendered.size()) {
+      rowRendered[current.editRow] = true;
+    }
   }
   if (previous.editTrack != current.editTrack) {
     render(TrackHeaderDamageRect(previous.editTrack));
@@ -173,6 +215,8 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data,
 
   const std::int16_t editY = static_cast<std::int16_t>(47 + data.editRow * 10);
   builder.Fill({5, editY, 213, 10}, UiColorToken::CursorRow);
+  const RectI16 cursorRect = ResolvedCursorRect(data);
+  const RectI16 targetRect = CursorTargetRect(data.editTrack, data.editRow);
   for (std::uint8_t row = 0; row < 16; ++row) {
     const std::int16_t y = static_cast<std::int16_t>(47 + row * 10);
     const auto rowLabel =
@@ -184,29 +228,45 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data,
       const auto value = HexByte(data.rows[row][track]);
       const char *displayValue =
           data.rows[row][track] == 0xFFU ? "--" : value.data();
-      const bool selected = row == data.editRow && track == data.editTrack;
+      const bool target = row == data.editRow && track == data.editTrack;
       const bool playback = data.playing &&
                             data.playbackRows[track] ==
                                 static_cast<std::int8_t>(row);
-      if (selected) {
-        builder.Selection(
-            {static_cast<std::int16_t>(kTrackX[track] - 2),
-             static_cast<std::int16_t>(y - 1), 15, 9},
-            playback);
-        builder.Text(displayValue, kTrackX[track], y, UiColorToken::CursorInk);
-      } else {
-        builder.Text(displayValue, kTrackX[track], y,
-                     data.rows[row][track] == 0 ||
-                             data.rows[row][track] == 0xFFU
-                         ? UiColorToken::TextDim
-                         : UiColorToken::TextPrimary);
-      }
-      if (playback && !selected) {
-        builder.Fill({static_cast<std::int16_t>(kTrackX[track] - 3),
-                      static_cast<std::int16_t>(y + 1), 2, 5},
+      builder.Text(displayValue, kTrackX[track], y,
+                   data.rows[row][track] == 0 ||
+                           data.rows[row][track] == 0xFFU
+                       ? UiColorToken::TextDim
+                       : UiColorToken::TextPrimary);
+      if (playback && !(target && cursorRect == targetRect)) {
+        builder.Fill(PlaybackTickRect(track, row),
                      UiColorToken::PlaybackActive);
       }
     }
+  }
+
+  bool cursorOverPlayback = false;
+  if (!cursorRect.Empty() && data.playing) {
+    for (std::uint8_t track = 0; track < 8; ++track) {
+      const std::int8_t playbackRow = data.playbackRows[track];
+      if (playbackRow >= 0 && playbackRow < 16 &&
+          !Intersect(cursorRect, PlaybackTickRect(
+                                     track, static_cast<std::uint8_t>(
+                                                playbackRow)))
+               .Empty()) {
+        cursorOverPlayback = true;
+        break;
+      }
+    }
+  }
+  builder.Selection(cursorRect, cursorOverPlayback);
+  if (data.cursorInkVisible && data.editTrack < 8U && data.editRow < 16U) {
+    const auto selectedValue = HexByte(data.rows[data.editRow][data.editTrack]);
+    const char *displayValue = data.rows[data.editRow][data.editTrack] == 0xFFU
+                                   ? "--"
+                                   : selectedValue.data();
+    builder.Text(displayValue, kTrackX[data.editTrack],
+                 static_cast<std::int16_t>(47 + data.editRow * 10),
+                 UiColorToken::CursorInk);
   }
 
   if (!UiVuGradient::Configure(palette, 153)) {

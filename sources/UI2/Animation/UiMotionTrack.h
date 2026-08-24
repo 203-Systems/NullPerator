@@ -32,8 +32,9 @@ public:
   }
 
   [[nodiscard]] std::int32_t Sample(std::uint32_t nowMs) const {
-    if (!active_ || nowMs <= startMs_) return from_;
+    if (!active_) return from_;
     const std::uint32_t elapsed = nowMs - startMs_;
+    if (elapsed == 0U) return from_;
     if (elapsed >= durationMs_) return to_;
     const UnitQ16 time = static_cast<UnitQ16>(
         (static_cast<std::uint64_t>(elapsed) * 65'535U) / durationMs_);
@@ -43,8 +44,7 @@ public:
   }
 
   [[nodiscard]] bool Active(std::uint32_t nowMs) const {
-    if (!active_ || nowMs < startMs_) return false;
-    return nowMs - startMs_ < durationMs_;
+    return active_ && nowMs - startMs_ < durationMs_;
   }
 
 private:

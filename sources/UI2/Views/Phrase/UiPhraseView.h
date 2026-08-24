@@ -1,0 +1,69 @@
+/*
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Copyright (c) 2026 PicoTracker contributors
+ */
+
+#pragma once
+
+#include "UI2/Chrome/UiBarResolver.h"
+#include "UI2/Chrome/UiChromeRenderer.h"
+#include "UI2/Render/UiIndexedSurface.h"
+#include "UI2/Scene/UiFrameScene.h"
+
+#include <array>
+#include <cstdint>
+#include <string_view>
+
+namespace ui2 {
+
+enum class UiPhraseHeader : std::uint8_t {
+  None,
+  Note,
+  Instrument,
+  Fx1,
+  Fx2,
+};
+
+struct UiPhraseViewData {
+  std::string_view number = "00";
+  std::string_view elapsed = "00:08";
+  std::array<std::array<std::string_view, 6>, 16> rows{};
+  std::array<std::string_view, 8> trackNotes{};
+  UiBottomBarModel cursorBottom{};
+  std::uint8_t rowOffset = 0;
+  std::uint8_t editRow = 0;
+  std::uint8_t editColumn = 0;
+  std::int8_t selectedTrack = 0;
+  UiPhraseHeader activeHeader = UiPhraseHeader::None;
+  RectI16 cursorVisualRect{};
+  RectI16 topMetaVisualRect{};
+  RectI16 bottomTrackVisualRect{};
+  bool cursorVisualOverride = false;
+  bool topMetaVisualOverride = false;
+  bool bottomTrackVisualOverride = false;
+  bool cursorInkVisible = true;
+  bool topMetaInkVisible = true;
+  bool bottomTrackInkVisible = true;
+  bool numberFocus = false;
+  UiPowerState power = UiPowerState::BatteryNormal;
+};
+
+class UiPhraseView {
+public:
+  [[nodiscard]] static UiBuildStatus
+  Build(const UiPhraseViewData &data, UiPalette &palette, UiFrameScene &scene);
+  static void RenderDelta(const UiPhraseViewData &previous,
+                          const UiPhraseViewData &current,
+                          const UiFrameScene &currentScene,
+                          UiIndexedSurface &surface, const UiPalette &palette);
+  [[nodiscard]] static RectI16 CursorTargetRect(const UiPhraseViewData &data);
+  [[nodiscard]] static RectI16 RowDamageRect(std::uint8_t row);
+
+private:
+  [[nodiscard]] static bool
+  RequiresFullInvalidation(const UiPhraseViewData &previous,
+                           const UiPhraseViewData &current);
+};
+
+} // namespace ui2
