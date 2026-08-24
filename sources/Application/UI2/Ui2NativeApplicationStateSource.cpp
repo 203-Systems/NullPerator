@@ -467,10 +467,10 @@ Ui2NativeApplicationStateSource::CaptureProject(UiProjectFrameState &state) {
                     state.selectorOptions[index].size(), "%02d",
                     minimum + start + index);
   } else if (state.cursor == UiProjectCursor::Scale) {
-    const std::uint16_t current = model.GetScale();
-    const std::uint16_t start = selectorWindow(current, numScales);
-    for (std::uint8_t index = 0; index < state.selectorCount; ++index)
-      CopyUpper(state.selectorOptions[index], scaleNames[start + index]);
+    state.selectorCount = 1U;
+    state.selectorCurrent = 0U;
+    state.selectorWrap = true;
+    CopyUpper(state.selectorOptions[0], scaleNames[model.GetScale()]);
   } else if (state.cursor == UiProjectCursor::Root) {
     const std::uint16_t current = model.GetScaleRoot();
     const std::uint16_t start = selectorWindow(current, 12U);

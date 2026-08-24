@@ -398,9 +398,19 @@ void Ui2TrackerApplication::ExecuteProject(Ui2ProjectCommand command) {
       minimum = 0;
       maximum = 11;
     }
-    if (Variable *variable = project.FindVariable(id))
-      variable->SetInt(
-          std::clamp(variable->GetInt() + command.value, minimum, maximum));
+    if (Variable *variable = project.FindVariable(id)) {
+      if (command.type == Ui2ProjectCommandType::AdjustScale) {
+        const int count = maximum - minimum + 1;
+        const int wrapped =
+            ((variable->GetInt() + command.value - minimum) % count + count) %
+                count +
+            minimum;
+        variable->SetInt(wrapped);
+      } else {
+        variable->SetInt(
+            std::clamp(variable->GetInt() + command.value, minimum, maximum));
+      }
+    }
     break;
   }
   case Ui2ProjectCommandType::NewProject:

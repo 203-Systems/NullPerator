@@ -241,6 +241,13 @@ UiBuildStatus UiChromeRenderer::BuildBottom(const UiBottomBarModel &model,
         model.selector.current >= model.selector.options.size()) {
       break;
     }
+    if (model.selector.options.size() == 1) {
+      builder.CenteredText(model.selector.options[0], 120, 220,
+                           UiColorToken::TextColored);
+      builder.Text("<", 7, 220, UiColorToken::DerivedTextFaint);
+      builder.Text(">", 228, 220, UiColorToken::DerivedTextFaint);
+      break;
+    }
     if (model.selector.options.size() == 2) {
       for (std::uint8_t index = 0; index < 2; ++index) {
         builder.CenteredText(
