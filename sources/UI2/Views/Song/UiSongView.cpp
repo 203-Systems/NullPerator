@@ -209,7 +209,8 @@ void UiSongView::RenderDelta(const UiSongViewData &previous,
     }
   }
   if (previous.adjustmentFocus != current.adjustmentFocus ||
-      previous.modeFocus != current.modeFocus)
+      previous.modeFocus != current.modeFocus ||
+      previous.liveMode != current.liveMode)
     render({0, 208, 240, 32});
 
   for (std::uint8_t channel = 0; channel < 2U; ++channel) {
