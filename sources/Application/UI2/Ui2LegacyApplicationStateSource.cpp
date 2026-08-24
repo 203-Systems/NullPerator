@@ -614,14 +614,15 @@ UiLegacyApplicationStateSource::CaptureProject(UiProjectFrameState &state) {
   state = UiProjectFrameState{};
   const ProjectViewUi2Snapshot snapshot = window_.ProjectSnapshotForUi2();
   CopyText(state.name, snapshot.name.data());
-  std::snprintf(state.tempo.data(), state.tempo.size(), "%d / %02X",
-                static_cast<int>(snapshot.tempo),
-                static_cast<unsigned>(snapshot.tempo) & 0xFFU);
+  std::snprintf(state.tempo.data(), state.tempo.size(), "%d",
+                static_cast<int>(snapshot.tempo));
   std::snprintf(state.transpose.data(), state.transpose.size(), "%02d",
                 static_cast<int>(snapshot.transpose));
   CopyText(state.scale, snapshot.scale.Value());
   CopyText(state.root, snapshot.root.Value());
   state.nameAction = std::min<std::uint8_t>(snapshot.nameAction, 3U);
+  state.sampleAction =
+      snapshot.focus == ProjectViewUi2Focus::PurgeSamples ? 1U : 0U;
 
   switch (snapshot.focus) {
   case ProjectViewUi2Focus::Name:

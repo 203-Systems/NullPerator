@@ -31,12 +31,13 @@ enum class UiProjectCursor : std::uint8_t {
 
 struct UiProjectViewData {
   std::string_view name = "ONECYCAC";
-  std::string_view tempo = "163 / A3";
+  std::string_view tempo = "163";
   std::string_view transpose = "00";
   std::string_view scale = "CHROMATIC";
   std::string_view root = "C";
   UiProjectCursor cursor = UiProjectCursor::Tempo;
   std::uint8_t nameAction = 0;
+  std::uint8_t sampleAction = 0;
   std::uint8_t renderOption = 0;
   RectI16 cursorVisualRect{};
   bool cursorVisualOverride = false;

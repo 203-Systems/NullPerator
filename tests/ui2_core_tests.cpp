@@ -1709,7 +1709,7 @@ TEST_CASE("UI2 Project resolves cursor-specific bottom bars") {
   REQUIRE(ui2::UiProjectView::Build(
               ui2::test::ApprovedProjectFixture("playback"), palette,
               scene) == ui2::UiBuildStatus::Built);
-  CHECK_FALSE(scene.bottomVisible);
+  CHECK(scene.bottomVisible);
   REQUIRE(ui2::UiProjectView::Build(
               ui2::test::ApprovedProjectFixture("cleanup"), palette, scene) ==
           ui2::UiBuildStatus::Built);
@@ -1732,7 +1732,7 @@ TEST_CASE("UI2 Project exposes every approved conceptual row and action bar") {
     CHECK_FALSE(ui2::UiProjectView::CursorTargetRect(cursor).Empty());
     REQUIRE(ui2::UiProjectView::Build(data, palette, scene) ==
             ui2::UiBuildStatus::Built);
-    CHECK_FALSE(scene.bottomVisible);
+    CHECK(scene.bottomVisible);
   }
   constexpr std::array contextual{
       ui2::UiProjectCursor::Name, ui2::UiProjectCursor::SamplePool,
@@ -1762,7 +1762,7 @@ TEST_CASE("UI2 Project delta rendering is pixel-identical to a full redraw") {
   ui2::UiProjectViewData current =
       ui2::test::ApprovedProjectFixture("render");
   current.name = "LIVE SET";
-  current.tempo = "140 / C#3";
+  current.tempo = "140";
   ui2::UiFrameScene currentScene;
   REQUIRE(ui2::UiProjectView::Build(current, palette, currentScene) ==
           ui2::UiBuildStatus::Built);

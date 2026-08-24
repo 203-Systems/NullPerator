@@ -13,6 +13,7 @@ using ui2::Ui2ProjectContentCursor;
 using ui2::Ui2ProjectController;
 using ui2::Ui2ProjectNameAction;
 using ui2::Ui2ProjectRenderSelection;
+using ui2::Ui2ProjectSampleAction;
 
 } // namespace
 
@@ -36,7 +37,7 @@ TEST_CASE("UI2 Project controller keeps content and name actions independent") {
   controller.MoveDown();
   CHECK(controller.ContentCursor() == Ui2ProjectContentCursor::Tempo);
   CHECK(controller.NameAction() == Ui2ProjectNameAction::Rename);
-  CHECK(controller.Bottom().kind == Ui2ProjectBottomKind::Hidden);
+  CHECK(controller.Bottom().kind == Ui2ProjectBottomKind::ValueSelector);
   controller.MoveUp();
   CHECK(controller.ContentCursor() == Ui2ProjectContentCursor::Name);
   CHECK(controller.NameAction() == Ui2ProjectNameAction::Rename);
@@ -44,11 +45,11 @@ TEST_CASE("UI2 Project controller keeps content and name actions independent") {
 
 TEST_CASE("UI2 Project controller traverses only conceptual content rows") {
   Ui2ProjectController controller;
-  constexpr std::array<Ui2ProjectContentCursor, 9> order{
+  constexpr std::array<Ui2ProjectContentCursor, 8> order{
       Ui2ProjectContentCursor::Name,       Ui2ProjectContentCursor::Tempo,
       Ui2ProjectContentCursor::Transpose,  Ui2ProjectContentCursor::Scale,
-      Ui2ProjectContentCursor::Root,       Ui2ProjectContentCursor::SamplePool,
-      Ui2ProjectContentCursor::Samples,    Ui2ProjectContentCursor::Instruments,
+      Ui2ProjectContentCursor::Root,       Ui2ProjectContentCursor::Samples,
+      Ui2ProjectContentCursor::Instruments,
       Ui2ProjectContentCursor::Render,
   };
 
@@ -99,17 +100,16 @@ TEST_CASE("UI2 Project cleanup and render commands are explicit") {
   controller.MoveDown(); // Root
   CHECK_FALSE(controller.Enter().HasValue());
 
-  controller.MoveDown(); // Sample pool
-  CHECK(controller.Bottom().kind == Ui2ProjectBottomKind::SamplePoolAction);
+  controller.MoveDown(); // Samples
+  CHECK(controller.Bottom().kind == Ui2ProjectBottomKind::SampleActions);
+  CHECK(controller.SampleAction() == Ui2ProjectSampleAction::Browse);
   CHECK(controller.Enter().type == Ui2ProjectCommandType::BrowseSamplePool);
-
-  controller.MoveDown(); // Samples cleanup
-  CHECK(controller.Bottom().kind == Ui2ProjectBottomKind::CleanupAction);
+  controller.MoveRight();
+  CHECK(controller.SampleAction() == Ui2ProjectSampleAction::RemoveUnused);
   CHECK(controller.Enter().type ==
         Ui2ProjectCommandType::RemoveUnusedSamples);
   controller.MoveLeft();
-  CHECK(controller.Enter().type ==
-        Ui2ProjectCommandType::RemoveUnusedSamples);
+  CHECK(controller.Enter().type == Ui2ProjectCommandType::BrowseSamplePool);
 
   controller.MoveDown(); // Instruments cleanup
   CHECK(controller.Bottom().kind == Ui2ProjectBottomKind::CleanupAction);

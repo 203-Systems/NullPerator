@@ -151,8 +151,11 @@ void UiProjectView::RenderDelta(const UiProjectViewData &previous,
     render(ExpandedCursorDamage(oldCursor));
     render(ExpandedCursorDamage(newCursor));
   }
-  if (previous.cursor != current.cursor ||
+  if (previous.cursor != current.cursor || previous.tempo != current.tempo ||
+      previous.transpose != current.transpose ||
+      previous.scale != current.scale || previous.root != current.root ||
       previous.nameAction != current.nameAction ||
+      previous.sampleAction != current.sampleAction ||
       previous.renderOption != current.renderOption)
     render({0, 208, 240, 32});
 }
@@ -173,19 +176,41 @@ UiBuildStatus UiProjectView::Build(const UiProjectViewData &data, UiPalette &,
     return topStatus;
 
   UiBottomBarModel bottom{.kind = UiBottomBarKind::Hidden};
+  std::array<std::string_view, 1> valueOption{};
   if (data.cursor == UiProjectCursor::Name) {
     bottom.kind = UiBottomBarKind::Actions;
     bottom.actions.actions = {"NEW", "SAVE", "LOAD", "RENAME"};
     bottom.actions.count = 4;
     bottom.actions.active = std::min<std::uint8_t>(data.nameAction, 3);
-  } else if (data.cursor == UiProjectCursor::SamplePool) {
+  } else if (data.cursor == UiProjectCursor::Tempo ||
+             data.cursor == UiProjectCursor::Transpose ||
+             data.cursor == UiProjectCursor::Scale ||
+             data.cursor == UiProjectCursor::Root) {
+    bottom.kind = UiBottomBarKind::Selector;
+    switch (data.cursor) {
+    case UiProjectCursor::Tempo:
+      valueOption[0] = data.tempo;
+      break;
+    case UiProjectCursor::Transpose:
+      valueOption[0] = data.transpose;
+      break;
+    case UiProjectCursor::Scale:
+      valueOption[0] = data.scale;
+      break;
+    case UiProjectCursor::Root:
+      valueOption[0] = data.root;
+      break;
+    default:
+      break;
+    }
+    bottom.selector.options = valueOption;
+    bottom.selector.current = 0;
+  } else if (data.cursor == UiProjectCursor::SamplePool ||
+             data.cursor == UiProjectCursor::Samples) {
     bottom.kind = UiBottomBarKind::Actions;
-    bottom.actions.actions = {"BROWSE", {}, {}, {}};
-    bottom.actions.count = 1;
-  } else if (data.cursor == UiProjectCursor::Samples) {
-    bottom.kind = UiBottomBarKind::Actions;
-    bottom.actions.actions = {"REMOVE UNUSED", {}, {}, {}};
-    bottom.actions.count = 1;
+    bottom.actions.actions = {"BROWSE", "REMOVE UNUSED", {}, {}};
+    bottom.actions.count = 2;
+    bottom.actions.active = std::min<std::uint8_t>(data.sampleAction, 1);
   } else if (data.cursor == UiProjectCursor::Instruments) {
     bottom.kind = UiBottomBarKind::Actions;
     bottom.actions.actions = {"REMOVE UNUSED", {}, {}, {}};

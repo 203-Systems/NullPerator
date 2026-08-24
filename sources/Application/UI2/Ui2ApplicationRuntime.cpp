@@ -894,6 +894,7 @@ UiApplicationRuntime::ViewDataFor(const ProjectFrameState &state) {
       .root = state.root.data(),
       .cursor = state.cursor,
       .nameAction = state.nameAction,
+      .sampleAction = state.sampleAction,
       .renderOption = state.renderOption,
       .cursorVisualRect = state.cursorVisualRect,
       .cursorVisualOverride = state.cursorVisualOverride,

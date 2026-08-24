@@ -266,6 +266,7 @@ struct UiProjectFrameState {
   std::array<char, 8> root{};
   UiProjectCursor cursor = UiProjectCursor::Name;
   std::uint8_t nameAction = 0;
+  std::uint8_t sampleAction = 0;
   std::uint8_t renderOption = 0;
   RectI16 cursorVisualRect{};
   bool cursorVisualOverride = false;

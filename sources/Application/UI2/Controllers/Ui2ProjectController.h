@@ -42,10 +42,17 @@ enum class Ui2ProjectRenderSelection : std::uint8_t {
   Count,
 };
 
+enum class Ui2ProjectSampleAction : std::uint8_t {
+  Browse = 0,
+  RemoveUnused,
+  Count,
+};
+
 enum class Ui2ProjectBottomKind : std::uint8_t {
   Hidden,
   NameActions,
-  SamplePoolAction,
+  ValueSelector,
+  SampleActions,
   CleanupAction,
   RenderSelector,
 };
@@ -91,9 +98,12 @@ public:
 
   constexpr Ui2ProjectController(Ui2ProjectContentCursor cursor,
                                  Ui2ProjectNameAction nameAction,
-                                 Ui2ProjectRenderSelection renderSelection)
+                                 Ui2ProjectRenderSelection renderSelection,
+                                 Ui2ProjectSampleAction sampleAction =
+                                     Ui2ProjectSampleAction::Browse)
       : cursor_(Sanitize(cursor)), nameAction_(Sanitize(nameAction)),
-        renderSelection_(Sanitize(renderSelection)) {}
+        renderSelection_(Sanitize(renderSelection)),
+        sampleAction_(Sanitize(sampleAction)) {}
 
   [[nodiscard]] constexpr Ui2ProjectContentCursor ContentCursor() const {
     return cursor_;
@@ -107,18 +117,28 @@ public:
     return renderSelection_;
   }
 
+  [[nodiscard]] constexpr Ui2ProjectSampleAction SampleAction() const {
+    return sampleAction_;
+  }
+
   // Vertical movement only changes the content cursor. Contextual action
   // choices remain owned by the controller and survive leaving their row.
   constexpr void MoveUp() {
     const std::uint8_t index = CursorIndex();
-    cursor_ = static_cast<Ui2ProjectContentCursor>(
-        index == 0 ? ContentCount() - 1U : index - 1U);
+    std::uint8_t previous = index == 0 ? ContentCount() - 1U : index - 1U;
+    if (previous == static_cast<std::uint8_t>(
+                        Ui2ProjectContentCursor::SamplePool))
+      --previous;
+    cursor_ = static_cast<Ui2ProjectContentCursor>(previous);
   }
 
   constexpr void MoveDown() {
     const std::uint8_t index = CursorIndex();
-    cursor_ = static_cast<Ui2ProjectContentCursor>((index + 1U) %
-                                                   ContentCount());
+    std::uint8_t next = static_cast<std::uint8_t>((index + 1U) % ContentCount());
+    if (next ==
+        static_cast<std::uint8_t>(Ui2ProjectContentCursor::SamplePool))
+      ++next;
+    cursor_ = static_cast<Ui2ProjectContentCursor>(next);
   }
 
   constexpr void MoveLeft() {
@@ -128,6 +148,10 @@ public:
     } else if (cursor_ == Ui2ProjectContentCursor::Render) {
       renderSelection_ = static_cast<Ui2ProjectRenderSelection>(Previous(
           static_cast<std::uint8_t>(renderSelection_), RenderOptionCount()));
+    } else if (cursor_ == Ui2ProjectContentCursor::SamplePool ||
+               cursor_ == Ui2ProjectContentCursor::Samples) {
+      sampleAction_ = static_cast<Ui2ProjectSampleAction>(Previous(
+          static_cast<std::uint8_t>(sampleAction_), SampleActionCount()));
     }
   }
 
@@ -138,6 +162,10 @@ public:
     } else if (cursor_ == Ui2ProjectContentCursor::Render) {
       renderSelection_ = static_cast<Ui2ProjectRenderSelection>(Next(
           static_cast<std::uint8_t>(renderSelection_), RenderOptionCount()));
+    } else if (cursor_ == Ui2ProjectContentCursor::SamplePool ||
+               cursor_ == Ui2ProjectContentCursor::Samples) {
+      sampleAction_ = static_cast<Ui2ProjectSampleAction>(
+          Next(static_cast<std::uint8_t>(sampleAction_), SampleActionCount()));
     }
   }
 
@@ -149,16 +177,11 @@ public:
               .selectedIndex = static_cast<std::uint8_t>(nameAction_),
               .optionCount = NameActionCount()};
     case Ui2ProjectContentCursor::SamplePool:
-      return {.kind = Ui2ProjectBottomKind::SamplePoolAction,
-              .selectedCommand = Ui2ProjectCommandType::BrowseSamplePool,
-              .selectedIndex = 0,
-              .optionCount = 1};
     case Ui2ProjectContentCursor::Samples:
-      return {.kind = Ui2ProjectBottomKind::CleanupAction,
-              .selectedCommand =
-                  Ui2ProjectCommandType::RemoveUnusedSamples,
-              .selectedIndex = 0,
-              .optionCount = 1};
+      return {.kind = Ui2ProjectBottomKind::SampleActions,
+              .selectedCommand = SampleCommand(sampleAction_),
+              .selectedIndex = static_cast<std::uint8_t>(sampleAction_),
+              .optionCount = SampleActionCount()};
     case Ui2ProjectContentCursor::Instruments:
       return {.kind = Ui2ProjectBottomKind::CleanupAction,
               .selectedCommand =
@@ -174,6 +197,7 @@ public:
     case Ui2ProjectContentCursor::Transpose:
     case Ui2ProjectContentCursor::Scale:
     case Ui2ProjectContentCursor::Root:
+      return {.kind = Ui2ProjectBottomKind::ValueSelector};
     case Ui2ProjectContentCursor::Count:
       return {};
     }
@@ -230,6 +254,10 @@ private:
     return static_cast<std::uint8_t>(Ui2ProjectRenderSelection::Count);
   }
 
+  [[nodiscard]] static constexpr std::uint8_t SampleActionCount() {
+    return static_cast<std::uint8_t>(Ui2ProjectSampleAction::Count);
+  }
+
   [[nodiscard]] constexpr std::uint8_t CursorIndex() const {
     const std::uint8_t index = static_cast<std::uint8_t>(cursor_);
     return index < ContentCount() ? index : 0;
@@ -267,6 +295,20 @@ private:
                : Ui2ProjectRenderSelection::Mixdown;
   }
 
+  [[nodiscard]] static constexpr Ui2ProjectSampleAction
+  Sanitize(Ui2ProjectSampleAction action) {
+    return static_cast<std::uint8_t>(action) < SampleActionCount()
+               ? action
+               : Ui2ProjectSampleAction::Browse;
+  }
+
+  [[nodiscard]] static constexpr Ui2ProjectCommandType
+  SampleCommand(Ui2ProjectSampleAction action) {
+    return action == Ui2ProjectSampleAction::RemoveUnused
+               ? Ui2ProjectCommandType::RemoveUnusedSamples
+               : Ui2ProjectCommandType::BrowseSamplePool;
+  }
+
   [[nodiscard]] static constexpr Ui2ProjectCommandType
   NameCommand(Ui2ProjectNameAction action) {
     switch (action) {
@@ -301,6 +343,7 @@ private:
   Ui2ProjectNameAction nameAction_ = Ui2ProjectNameAction::New;
   Ui2ProjectRenderSelection renderSelection_ =
       Ui2ProjectRenderSelection::Mixdown;
+  Ui2ProjectSampleAction sampleAction_ = Ui2ProjectSampleAction::Browse;
 };
 
 static_assert(std::is_trivially_copyable_v<Ui2ProjectCommand>);

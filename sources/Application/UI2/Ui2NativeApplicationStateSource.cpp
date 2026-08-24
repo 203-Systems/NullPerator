@@ -424,14 +424,15 @@ Ui2NativeApplicationStateSource::CaptureProject(UiProjectFrameState &state) {
   state = {};
   Project &model = session_.ProjectModel();
   model.GetProjectName(state.name.data());
-  std::snprintf(state.tempo.data(), state.tempo.size(), "%d / %02X",
-                model.GetTempo(), static_cast<unsigned>(model.GetTempo()) & 0xFFU);
+  std::snprintf(state.tempo.data(), state.tempo.size(), "%d",
+                model.GetTempo());
   std::snprintf(state.transpose.data(), state.transpose.size(), "%02d",
                 model.GetTranspose());
   CopyUpper(state.scale, scaleNames[model.GetScale()]);
   CopyUpper(state.root, noteNames[model.GetScaleRoot()]);
   state.cursor = static_cast<UiProjectCursor>(project_.ContentCursor());
   state.nameAction = static_cast<std::uint8_t>(project_.NameAction());
+  state.sampleAction = static_cast<std::uint8_t>(project_.SampleAction());
   state.renderOption = static_cast<std::uint8_t>(project_.RenderSelection());
   return {.active = PlayerRunning()};
 }
