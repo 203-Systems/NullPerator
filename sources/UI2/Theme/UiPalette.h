@@ -60,6 +60,10 @@ public:
   UiPalette();
 
   void Set(PaletteIndex index, Rgb888 color);
+  // Theme loads replace all user slots at once and rebuild the derived ramps a
+  // single time. Calling Set nineteen times is correct but needlessly repeats
+  // the same coverage work on ESP32.
+  void SetUserColors(const std::array<Rgb888, kUserColorCount> &colors);
   void Set(UiColorToken token, Rgb888 color) {
     Set(static_cast<PaletteIndex>(token), color);
   }

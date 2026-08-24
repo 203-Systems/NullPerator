@@ -30,9 +30,11 @@
 #include "UI2/Views/Theme/UiThemeView.h"
 #include "UI2/Views/Tracker/UiTrackerGridMetrics.h"
 #include "Adapters/wasm/gui/WasmUiPresenter.h"
+#include "Application/UI2/Ui2SettingsControllerAdapters.h"
 #include "Application/UI2/Ui2SettingsAdapters.h"
 #include "Application/UI2/Ui2ApplicationRuntime.h"
 #include "Application/UI2/Ui2ModalInputGate.h"
+#include "Application/UI2/Ui2SampleAdapters.h"
 
 #include "ui2_song_fixture.h"
 #include "ui2_browser_fixture.h"
@@ -141,6 +143,23 @@ void CheckDeltaMatchesFullFrame(const Data &previous, const Data &current,
   ui2::UiFrameRenderer::RenderStatic(currentScene, full, palette);
   CHECK(std::equal(delta.Pixels().begin(), delta.Pixels().end(),
                    full.Pixels().begin(), full.Pixels().end()));
+}
+
+const ui2::UiCommand *FindTextCommand(const ui2::UiCommandStream &stream,
+                                      std::string_view text) {
+  for (const ui2::UiCommand &command : stream.commands) {
+    if (command.kind != ui2::UiCommandKind::Text ||
+        command.auxiliaryColor != text.size()) {
+      continue;
+    }
+    const std::size_t begin = command.payload;
+    const std::size_t end = begin + text.size();
+    if (end > stream.text.size())
+      continue;
+    if (std::equal(text.begin(), text.end(), stream.text.begin() + begin))
+      return &command;
+  }
+  return nullptr;
 }
 
 } // namespace
@@ -1839,8 +1858,68 @@ TEST_CASE("UI2 Theme and Font adapters retain owned fixed-capacity text") {
   CHECK(fontData.power == ui2::UiPowerState::Charging);
 }
 
+TEST_CASE("UI2 settings adapters terminate malformed fixed-capacity text") {
+  ThemeViewUi2Snapshot themeSnapshot;
+  themeSnapshot.name.fill('N');
+  themeSnapshot.focus = ThemeViewUi2Focus::Color;
+  themeSnapshot.selectedColor = 99;
+  themeSnapshot.nameAction = 99;
+  const ui2::UiThemeViewState themeState =
+      ui2::MakeUiThemeViewState(themeSnapshot);
+  CHECK(themeState.ToViewData().name.size() ==
+        ThemeViewUi2Snapshot::NameCapacity - 1U);
+  CHECK(themeState.ToViewData().selectedColor == -1);
+  CHECK(themeState.ToViewData().nameAction == 0);
+
+  FontViewUi2Snapshot fontSnapshot;
+  fontSnapshot.font.fill('F');
+  const ui2::UiFontViewState fontState =
+      ui2::MakeUiFontViewState(fontSnapshot);
+  CHECK(fontState.ToViewData().font.size() ==
+        FontViewUi2Snapshot::FontCapacity - 1U);
+}
+
+TEST_CASE("UI2 legacy Theme focus adapter exposes real controller coverage") {
+  CHECK(ui2::AdaptLegacyThemeFocus(0).focus == ThemeViewUi2Focus::Name);
+  CHECK(ui2::AdaptLegacyThemeFocus(0).nameAction ==
+        static_cast<std::uint8_t>(ui2::UiThemeNameAction::Rename));
+  CHECK(ui2::AdaptLegacyThemeFocus(1).nameAction ==
+        static_cast<std::uint8_t>(ui2::UiThemeNameAction::Load));
+  CHECK(ui2::AdaptLegacyThemeFocus(2).nameAction ==
+        static_cast<std::uint8_t>(ui2::UiThemeNameAction::Save));
+  CHECK(ui2::AdaptLegacyThemeFocus(3).focus == ThemeViewUi2Focus::Font);
+  CHECK(ui2::AdaptLegacyThemeFocus(4).focus == ThemeViewUi2Focus::Unknown);
+  for (std::int16_t component = 5; component <= 7; ++component) {
+    CHECK(ui2::AdaptLegacyThemeFocus(component).focus ==
+          ThemeViewUi2Focus::Color);
+    CHECK(ui2::AdaptLegacyThemeFocus(component).selectedColor == 3);
+  }
+  CHECK(ui2::AdaptLegacyThemeFocus(8).focus == ThemeViewUi2Focus::Unknown);
+  // Legacy Highlight1 is not the source of any one independently editable
+  // semantic UI2 row; pretending it is text.dim would edit Emphasis instead.
+  CHECK(ui2::AdaptLegacyThemeFocus(15).focus == ThemeViewUi2Focus::Unknown);
+  CHECK(ui2::AdaptLegacyThemeFocus(60).selectedColor == 4);
+  CHECK(ui2::AdaptLegacyThemeFocus(64).focus == ThemeViewUi2Focus::Unknown);
+
+  ThemeViewUi2Snapshot legacy;
+  legacy.nameActionMask = ui2::kLegacyThemeNameActionMask;
+  legacy.editableColorMask = ui2::kLegacyThemeEditableColorMask;
+  CHECK_FALSE(legacy.HasNameAction(
+      static_cast<std::uint8_t>(ui2::UiThemeNameAction::New)));
+  CHECK(legacy.HasNameAction(
+      static_cast<std::uint8_t>(ui2::UiThemeNameAction::Load)));
+  CHECK(legacy.IsColorEditable(3));
+  CHECK_FALSE(legacy.IsColorEditable(18));
+  CHECK_FALSE(ui2::ThemeControllerCoversApprovedContract(legacy));
+
+  legacy.nameActionMask = ui2::kApprovedThemeNameActionMask;
+  legacy.editableColorMask = ui2::kApprovedThemeEditableColorMask;
+  CHECK(ui2::ThemeControllerCoversApprovedContract(legacy));
+}
+
 TEST_CASE("UI2 Theme palette synchronization is explicit and reversible") {
   ThemeViewUi2Snapshot snapshot;
+  snapshot.colorsValid = true;
   for (std::size_t index = 0; index < snapshot.colors.size(); ++index) {
     snapshot.colors[index] =
         static_cast<std::uint32_t>(0x010203U + index * 0x070B0DU) &
@@ -1853,7 +1932,8 @@ TEST_CASE("UI2 Theme palette synchronization is explicit and reversible") {
   CHECK(state.ToViewData().name == "");
   CHECK(palette.Get(0) == before);
 
-  ui2::ApplyThemeSnapshotToPalette(snapshot, palette);
+  CHECK(ui2::ApplyThemeSnapshotToPalette(snapshot, palette));
+  ui2::UiPalette sequentialReference;
   for (std::size_t index = 0; index < snapshot.colors.size(); ++index) {
     const std::uint32_t packed = snapshot.colors[index];
     const ui2::Rgb888 expected{
@@ -1861,11 +1941,25 @@ TEST_CASE("UI2 Theme palette synchronization is explicit and reversible") {
         static_cast<std::uint8_t>(packed >> 8U),
         static_cast<std::uint8_t>(packed)};
     CHECK(palette.Get(static_cast<ui2::PaletteIndex>(index)) == expected);
+    sequentialReference.Set(static_cast<ui2::PaletteIndex>(index), expected);
   }
+  for (std::size_t index = 0; index < ui2::UiPalette::kColorCount; ++index)
+    CHECK(palette.Get(static_cast<ui2::PaletteIndex>(index)) ==
+          sequentialReference.Get(static_cast<ui2::PaletteIndex>(index)));
 
   ThemeViewUi2Snapshot roundTrip;
   ui2::CopyPaletteToThemeSnapshot(palette, roundTrip);
+  CHECK(roundTrip.colorsValid);
   CHECK(roundTrip.colors == snapshot.colors);
+}
+
+TEST_CASE("UI2 Theme rejects an invalid compatibility palette snapshot") {
+  ThemeViewUi2Snapshot snapshot;
+  snapshot.colors.fill(0x00FF00U);
+  ui2::UiPalette palette;
+  const ui2::Rgb888 before = palette.Get(0);
+  CHECK_FALSE(ui2::ApplyThemeSnapshotToPalette(snapshot, palette));
+  CHECK(palette.Get(0) == before);
 }
 
 TEST_CASE("UI2 Theme bottom action changes use a pixel-identical delta") {
@@ -2159,6 +2253,79 @@ TEST_CASE("UI2 Record idle is clean and animated cursor damage stays local") {
   CHECK(transferredPixels < 240U * 240U / 4U);
 }
 
+TEST_CASE("UI2 Record centers semantic state text and saving progress") {
+  struct Case {
+    ui2::UiRecordState state;
+    std::string_view text;
+    ui2::UiColorToken color;
+    bool bottomVisible;
+  };
+  constexpr std::array cases{
+      Case{ui2::UiRecordState::Armed, "PRESS PLAY TO RECORD",
+           ui2::UiColorToken::PlaybackActive, true},
+      Case{ui2::UiRecordState::Recording, "PRESS PLAY TO STOP",
+           ui2::UiColorToken::SystemError, true},
+      Case{ui2::UiRecordState::Saving, "SAVING",
+           ui2::UiColorToken::SystemWarning, false},
+      Case{ui2::UiRecordState::Unavailable, "RECORDING UNAVAILABLE",
+           ui2::UiColorToken::SystemWarning, false},
+  };
+
+  for (const Case &test : cases) {
+    ui2::UiRecordViewData data;
+    data.state = test.state;
+    data.savingPercent = 42U;
+    ui2::UiPalette palette;
+    ui2::UiFrameScene scene;
+    REQUIRE(ui2::UiRecordView::Build(data, palette, scene) ==
+            ui2::UiBuildStatus::Built);
+    CHECK(scene.bottomVisible == test.bottomVisible);
+
+    const ui2::UiCommand *instruction =
+        FindTextCommand(scene.content.Stream(), test.text);
+    REQUIRE(instruction != nullptr);
+    CHECK(instruction->bounds.x ==
+          120 - ui2::UiFont5x7::TextWidth(test.text.size()) / 2);
+    CHECK(instruction->bounds.y == 164);
+    CHECK(instruction->color == palette.Index(test.color));
+
+    if (test.state == ui2::UiRecordState::Saving) {
+      const ui2::UiCommand *progress =
+          FindTextCommand(scene.content.Stream(), "42%");
+      REQUIRE(progress != nullptr);
+      CHECK(progress->bounds.x ==
+            120 - ui2::UiFont5x7::TextWidth(3U, 2U) / 2);
+      CHECK(progress->bounds.y == 132);
+      CHECK(progress->color ==
+            palette.Index(ui2::UiColorToken::SystemWarning));
+    }
+  }
+}
+
+TEST_CASE("UI2 Record focus and state deltas match complete redraws") {
+  CHECK(ui2::UiRecordView::CursorTargetRect(ui2::UiRecordFocus::Source) ==
+        ui2::RectI16{7, 42, 226, 9});
+  CHECK(ui2::UiRecordView::CursorTargetRect(ui2::UiRecordFocus::LineGain) ==
+        ui2::RectI16{7, 53, 226, 9});
+  CHECK(ui2::UiRecordView::CursorTargetRect(ui2::UiRecordFocus::MicGain) ==
+        ui2::RectI16{7, 64, 226, 9});
+
+  const ui2::UiRecordViewData previous;
+  ui2::UiRecordViewData current = previous;
+  current.focus = ui2::UiRecordFocus::MicGain;
+  current.state = ui2::UiRecordState::Recording;
+  current.elapsed = "00:09";
+  CheckDeltaMatchesFullFrame(previous, current, ui2::UiRecordView::Build,
+                             ui2::UiRecordView::RenderDelta);
+
+  ui2::UiRecordViewData saving = current;
+  saving.state = ui2::UiRecordState::Saving;
+  saving.savingPercent = 81U;
+  saving.meterAvailable = false;
+  CheckDeltaMatchesFullFrame(current, saving, ui2::UiRecordView::Build,
+                             ui2::UiRecordView::RenderDelta);
+}
+
 TEST_CASE("UI2 Sample Editor delta is pixel-identical to a full redraw") {
   ui2::UiPalette palette;
   ui2::UiSampleEditorViewData previous =
@@ -2175,8 +2342,8 @@ TEST_CASE("UI2 Sample Editor delta is pixel-identical to a full redraw") {
   current.name = "LIVE TAKE";
   current.start = "000128";
   current.end = "000512";
-  current.loop = "PINGPONG";
-  current.gain = "+3 DB";
+  current.field3Value = "PINGPONG";
+  current.field4Value = "+3 DB";
   current.waveformRevision += 1;
   current.power = ui2::UiPowerState::BatteryLow;
   current.cursorVisualOverride = true;
@@ -2255,6 +2422,168 @@ TEST_CASE("UI2 Sample pages remain clean while their state is idle") {
   CHECK_FALSE(surface.DirtyTiles().Any());
 }
 
+TEST_CASE("UI2 Sample Editor adapter owns controller text waveform and modes") {
+  SampleEditorViewUi2Snapshot snapshot;
+  CopyUi2SnapshotText(snapshot.name, "LIVE TAKE");
+  CopyUi2SnapshotText(snapshot.start, "0000123");
+  CopyUi2SnapshotText(snapshot.end, "0004567");
+  CopyUi2SnapshotText(snapshot.operation, "PEAK NORMALIZE");
+  std::copy(ui2::test::kApprovedSampleEditorWaveform.begin(),
+            ui2::test::kApprovedSampleEditorWaveform.end(),
+            snapshot.waveform.encoded.begin());
+  snapshot.waveform.size = static_cast<std::uint16_t>(
+      ui2::test::kApprovedSampleEditorWaveform.size());
+  snapshot.waveform.revision = 0x12345678U;
+  snapshot.waveformReady = true;
+  snapshot.markers.Push(13U, Ui2WaveformMarkerKind::Start, false);
+  snapshot.markers.Push(201U, Ui2WaveformMarkerKind::Playhead, false);
+  snapshot.focus = SampleEditorViewUi2Focus::End;
+  snapshot.focusDigit = 5U;
+  snapshot.playing = true;
+
+  const ui2::UiSampleEditorControllerState state =
+      ui2::MakeUiSampleEditorControllerState(
+          snapshot, ui2::UiPowerState::BatteryHigh,
+          {.enterHeld = true, .editHeld = false});
+  snapshot.name[0] = 'X';
+  snapshot.waveform.encoded[0] ^= 0xFFU;
+  const ui2::UiSampleEditorViewData data = state.ToViewData();
+  CHECK(data.name == "LIVE TAKE");
+  CHECK(data.start == "0000123");
+  CHECK(data.end == "0004567");
+  CHECK(data.field3Label == "OP");
+  CHECK(data.field3Value == "PEAK NORMALIZE");
+  CHECK(data.field4Label == "APPLY");
+  CHECK(data.waveformMask.size() ==
+        ui2::test::kApprovedSampleEditorWaveform.size());
+  CHECK(data.waveformMask.front() ==
+        ui2::test::kApprovedSampleEditorWaveform.front());
+  REQUIRE(data.markers.size() == 2U);
+  CHECK(data.markers[0] ==
+        ui2::UiSampleWaveformMarker{13U,
+                                    ui2::UiSampleWaveformMarkerKind::Start,
+                                    false});
+  CHECK(data.markers[1].kind ==
+        ui2::UiSampleWaveformMarkerKind::Playhead);
+  CHECK(data.cursor == ui2::UiSampleEditorCursor::End);
+  CHECK(data.enterDigitFocus);
+  CHECK(data.focusDigit == 5U);
+  CHECK(ui2::UiSampleEditorView::CursorTargetRect(data) ==
+        ui2::RectI16{120, 155, 9, 9});
+  CHECK(data.power == ui2::UiPowerState::Playing);
+  CHECK(data.help == "ENTER+ARROWS ADJUST END");
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiSampleEditorView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK(FindTextCommand(scene.content.Stream(), "OP") != nullptr);
+  CHECK(FindTextCommand(scene.content.Stream(), "PEAK NORMALIZE") != nullptr);
+  CHECK(FindTextCommand(scene.content.Stream(), data.help) != nullptr);
+
+  SampleEditorViewUi2Snapshot library = snapshot;
+  library.focus = SampleEditorViewUi2Focus::SaveAndLoad;
+  library.projectPool = false;
+  const auto libraryState = ui2::MakeUiSampleEditorControllerState(library);
+  const auto libraryData = libraryState.ToViewData();
+  CHECK(libraryData.bottomActionCount == 3U);
+  CHECK(libraryData.bottomActions[1] == "SAVE&LOAD");
+  CHECK(libraryData.bottomActive == 1U);
+
+  library.projectPool = true;
+  library.focus = SampleEditorViewUi2Focus::Discard;
+  const auto poolState = ui2::MakeUiSampleEditorControllerState(library);
+  const auto poolData = poolState.ToViewData();
+  CHECK(poolData.bottomActionCount == 2U);
+  CHECK(poolData.bottomActions[1] == "DISCARD");
+  CHECK(poolData.bottomActive == 1U);
+}
+
+TEST_CASE("UI2 Sample Slices adapter maps real markers focus and help") {
+  SampleSlicesViewUi2Snapshot snapshot;
+  CopyUi2SnapshotText(snapshot.sliceCount, "03");
+  CopyUi2SnapshotText(snapshot.slice, "02 / 03");
+  CopyUi2SnapshotText(snapshot.start, "0000064");
+  CopyUi2SnapshotText(snapshot.zoom, "4X");
+  std::copy(ui2::test::kApprovedSampleSlicesWaveform.begin(),
+            ui2::test::kApprovedSampleSlicesWaveform.end(),
+            snapshot.waveform.encoded.begin());
+  snapshot.waveform.size = static_cast<std::uint16_t>(
+      ui2::test::kApprovedSampleSlicesWaveform.size());
+  snapshot.waveform.revision = 0xCAFE1234U;
+  snapshot.waveformReady = true;
+  snapshot.markers.Push(9U, Ui2WaveformMarkerKind::Slice, false);
+  snapshot.markers.Push(103U, Ui2WaveformMarkerKind::Slice, true);
+  snapshot.markers.Push(177U, Ui2WaveformMarkerKind::Playhead, false);
+  snapshot.selectedSlice = 1U;
+  snapshot.autoSliceCount = 16U;
+  snapshot.hasSample = true;
+  snapshot.previewActive = true;
+  snapshot.previewPlayheadVisible = true;
+  snapshot.focus = SampleSlicesViewUi2Focus::Waveform;
+
+  const ui2::UiSampleSlicesControllerState state =
+      ui2::MakeUiSampleSlicesControllerState(
+          snapshot, ui2::UiPowerState::BatteryNormal,
+          {.enterHeld = false, .editHeld = true});
+  snapshot.slice[0] = 'X';
+  snapshot.markers.markers[1].x = 0U;
+  const ui2::UiSampleSlicesViewData data = state.ToViewData();
+  CHECK(data.slice == "02 / 03");
+  CHECK(data.start == "0000064");
+  CHECK(data.zoom == "4X");
+  CHECK(data.autoSliceCount == "16");
+  REQUIRE(data.markers.size() == 3U);
+  CHECK(data.markers[1].x == 103U);
+  CHECK(data.markers[1].selected);
+  CHECK(data.markers[2].kind ==
+        ui2::UiSampleWaveformMarkerKind::Playhead);
+  CHECK(data.cursor == ui2::UiSampleSlicesCursor::Waveform);
+  CHECK(ui2::UiSampleSlicesView::CursorTargetRect(data) ==
+        ui2::RectI16{7, 43, 226, 86});
+  CHECK(data.help == "UP/DOWN ZOOM");
+  CHECK(data.power == ui2::UiPowerState::Playing);
+
+  const ui2::UiSampleSlicesControllerState copy = state;
+  CHECK(copy == state);
+  const ui2::UiSampleSlicesViewData copyData = copy.ToViewData();
+  CHECK(copyData.waveformMask.data() != data.waveformMask.data());
+
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiSampleSlicesView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+  surface.ClearDirty();
+  ui2::UiFrameScene copyScene;
+  REQUIRE(ui2::UiSampleSlicesView::Build(copyData, palette, copyScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSampleSlicesView::RenderDelta(data, copyData, copyScene, surface,
+                                       palette);
+  CHECK_FALSE(surface.DirtyTiles().Any());
+}
+
+TEST_CASE("UI2 Sample marker changes use pixel-identical deltas") {
+  std::array<ui2::UiSampleWaveformMarker, 2> previousMarkers{{
+      {21U, ui2::UiSampleWaveformMarkerKind::Start, true},
+      {180U, ui2::UiSampleWaveformMarkerKind::End, false},
+  }};
+  std::array<ui2::UiSampleWaveformMarker, 2> currentMarkers = previousMarkers;
+  currentMarkers[0].x = 45U;
+  currentMarkers[0].selected = false;
+  currentMarkers[1].selected = true;
+
+  ui2::UiSampleEditorViewData previous =
+      ui2::test::ApprovedSampleEditorFixture();
+  previous.markers = previousMarkers;
+  ui2::UiSampleEditorViewData current = previous;
+  current.markers = currentMarkers;
+  CheckDeltaMatchesFullFrame(previous, current,
+                             ui2::UiSampleEditorView::Build,
+                             ui2::UiSampleEditorView::RenderDelta);
+}
+
 TEST_CASE("UI2 Dialog overlay preserves its page and suppresses Bottom Bar") {
   ui2::UiPalette palette;
   ui2::UiSongViewData song = ui2::test::ApprovedSongFixture();
@@ -2271,7 +2600,8 @@ TEST_CASE("UI2 Dialog overlay preserves its page and suppresses Bottom Bar") {
           ui2::UiBuildStatus::Built);
   CHECK_FALSE(scene.bottomVisible);
   CHECK(scene.top.Size() > 0);
-  CHECK(scene.content.Size() > baseCommands);
+  CHECK(scene.content.Size() == baseCommands);
+  CHECK(scene.overlay.Size() > 0);
 }
 
 TEST_CASE("UI2 Dialog fits every live base-page scene") {
@@ -2321,6 +2651,14 @@ TEST_CASE("UI2 Dialog fits every live base-page scene") {
   apply();
   REQUIRE(ui2::UiMixerView::Build(ui2::test::ApprovedMixerFixture(), palette,
                                   scene) == ui2::UiBuildStatus::Built);
+  apply();
+  REQUIRE(ui2::UiSampleEditorView::Build(
+              ui2::test::ApprovedSampleEditorFixture(), palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  apply();
+  REQUIRE(ui2::UiSampleSlicesView::Build(
+              ui2::test::ApprovedSampleSlicesFixture(), palette, scene) ==
+          ui2::UiBuildStatus::Built);
   apply();
 }
 
@@ -2376,7 +2714,7 @@ TEST_CASE("UI2 Dialog renders real lines actions and selected action") {
   ui2::UiFrameScene scene;
   REQUIRE(ui2::UiDialogView::Apply(dialog, scene) ==
           ui2::UiBuildStatus::Built);
-  const ui2::UiCommandStream stream = scene.content.Stream();
+  const ui2::UiCommandStream stream = scene.overlay.Stream();
   const std::string_view text(stream.text.data(), stream.text.size());
   CHECK(text.find("DELETE PROJECT?") != std::string_view::npos);
   CHECK(text.find("THIS CANNOT BE UNDONE") != std::string_view::npos);
@@ -2392,8 +2730,8 @@ TEST_CASE("UI2 Dialog renders real lines actions and selected action") {
   scene.Clear();
   REQUIRE(ui2::UiDialogView::Apply(dialog, scene) ==
           ui2::UiBuildStatus::Built);
-  CHECK(std::none_of(scene.content.Commands().begin(),
-                     scene.content.Commands().end(),
+  CHECK(std::none_of(scene.overlay.Commands().begin(),
+                     scene.overlay.Commands().end(),
                      [](const ui2::UiCommand &command) {
                        return command.kind ==
                               ui2::UiCommandKind::FillCoverageRoundedRect;
@@ -2408,7 +2746,7 @@ TEST_CASE("UI2 Dialog uses full-screen and render snapshot text") {
   ui2::UiFrameScene fullScene;
   REQUIRE(ui2::UiDialogView::Apply(full, fullScene) ==
           ui2::UiBuildStatus::Built);
-  const ui2::UiCommandStream fullStream = fullScene.content.Stream();
+  const ui2::UiCommandStream fullStream = fullScene.overlay.Stream();
   const std::string_view fullText(fullStream.text.data(),
                                   fullStream.text.size());
   CHECK(fullText.find("LOW BATTERY") != std::string_view::npos);
@@ -2425,7 +2763,7 @@ TEST_CASE("UI2 Dialog uses full-screen and render snapshot text") {
   ui2::UiFrameScene renderScene;
   REQUIRE(ui2::UiDialogView::Apply(render, renderScene) ==
           ui2::UiBuildStatus::Built);
-  const ui2::UiCommandStream renderStream = renderScene.content.Stream();
+  const ui2::UiCommandStream renderStream = renderScene.overlay.Stream();
   const std::string_view renderText(renderStream.text.data(),
                                     renderStream.text.size());
   CHECK(renderText.find("STEMS RENDERING") != std::string_view::npos);
@@ -2484,7 +2822,8 @@ TEST_CASE("UI2 full-screen diagnostic replaces every retained page layer") {
   CHECK_FALSE(scene.bottomVisible);
   CHECK(scene.top.Size() == 0);
   CHECK(scene.bottom.Size() == 0);
-  CHECK(scene.content.Size() == 4);
+  CHECK(scene.content.Size() == 0);
+  CHECK(scene.overlay.Size() == 4);
 }
 
 TEST_CASE("UI2 retained full-screen dialog is independent of hidden base state") {

@@ -1,4 +1,5 @@
 #include "Application/Views/Ui2SampleSnapshot.h"
+#include "Application/Views/Ui2RecordSnapshot.h"
 
 #include "doctest/doctest.h"
 
@@ -76,4 +77,52 @@ TEST_CASE("UI2 legacy snapshot helpers clamp geometry and text") {
   CHECK(markers.count == 2U);
   CHECK(markers.markers[0].selected);
   CHECK(markers.markers[1].kind == Ui2WaveformMarkerKind::End);
+}
+
+TEST_CASE("UI2 Record snapshot projects fixed-capacity live state") {
+  RecordViewUi2Snapshot snapshot;
+  std::copy_n("MIC", 4U, snapshot.source.begin());
+  std::copy_n("-3 DB", 6U, snapshot.lineGain.begin());
+  std::copy_n("12 DB", 6U, snapshot.micGain.begin());
+  std::copy_n("00:17", 6U, snapshot.elapsed.begin());
+  snapshot.focus = RecordViewUi2Focus::MicGain;
+  snapshot.state = RecordViewUi2State::Recording;
+  snapshot.recordingAvailable = true;
+  snapshot.meterAvailable = true;
+  snapshot.meterSafeWidth = 120U;
+  snapshot.meterWarningWidth = 40U;
+
+  const ui2::UiRecordViewData data =
+      snapshot.ViewData(ui2::UiPowerState::BatteryLow);
+  CHECK(data.source == "MIC");
+  CHECK(data.lineGain == "-3 DB");
+  CHECK(data.micGain == "12 DB");
+  CHECK(data.elapsed == "00:17");
+  CHECK(data.focus == ui2::UiRecordFocus::MicGain);
+  CHECK(data.state == ui2::UiRecordState::Recording);
+  CHECK(data.safeWidth == 120U);
+  CHECK(data.warningWidth == 40U);
+  CHECK(data.power == ui2::UiPowerState::BatteryLow);
+
+  snapshot.recordingAvailable = false;
+  snapshot.meterAvailable = false;
+  const ui2::UiRecordViewData unavailable = snapshot.ViewData();
+  CHECK(unavailable.state == ui2::UiRecordState::Unavailable);
+  CHECK_FALSE(unavailable.meterAvailable);
+  CHECK(unavailable.safeWidth == 0U);
+  CHECK(unavailable.warningWidth == 0U);
+}
+
+TEST_CASE("UI2 Record snapshot maps idle and saving without dynamic storage") {
+  RecordViewUi2Snapshot snapshot;
+  snapshot.recordingAvailable = true;
+  snapshot.focus = RecordViewUi2Focus::Source;
+  snapshot.state = RecordViewUi2State::Idle;
+  CHECK(snapshot.ViewData().state == ui2::UiRecordState::Armed);
+
+  snapshot.state = RecordViewUi2State::Saving;
+  snapshot.savingPercent = 73U;
+  const ui2::UiRecordViewData saving = snapshot.ViewData();
+  CHECK(saving.state == ui2::UiRecordState::Saving);
+  CHECK(saving.savingPercent == 73U);
 }

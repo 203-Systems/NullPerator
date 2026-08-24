@@ -23,6 +23,7 @@ enum class UiDialogKind : std::uint8_t {
   TextInput,
   RenderProgress,
   FullScreen,
+  Rename,
 };
 
 enum class UiDialogAction : std::uint8_t {
@@ -30,6 +31,14 @@ enum class UiDialogAction : std::uint8_t {
   Yes,
   Cancel,
   No,
+  Save,
+  Random,
+};
+
+enum class UiDialogFocus : std::uint8_t {
+  Input,
+  Keyboard,
+  Actions,
 };
 
 inline constexpr std::size_t kUiDialogActionCapacity = 4U;
@@ -44,15 +53,22 @@ struct UiDialogViewData {
   std::array<UiDialogAction, kUiDialogActionCapacity> actions{};
   std::uint8_t actionCount = 0;
   std::uint8_t selectedAction = 0;
+  std::uint8_t selectedKey = 0;
+  RectI16 cursorVisualRect{};
   bool actionsFocused = true;
+  bool saveEnabled = true;
+  bool uppercase = true;
+  bool cursorVisualOverride = false;
+  bool cursorInkVisible = true;
+  UiDialogFocus focus = UiDialogFocus::Actions;
 
   bool operator==(const UiDialogViewData &) const = default;
 };
 
 class UiDialogView {
 public:
-  // Normal dialogs append to the already-built page scene and suppress its
-  // Bottom Bar. FullScreen replaces the scene entirely.
+  // Normal dialogs use the fixed overlay scene and suppress the page Bottom
+  // Bar. FullScreen and Rename replace the page scene entirely.
   [[nodiscard]] static UiBuildStatus Apply(const UiDialogViewData &data,
                                            UiFrameScene &scene);
   static void RenderDelta(const UiDialogViewData &previous,
@@ -61,6 +77,8 @@ public:
                           UiIndexedSurface &surface,
                           const UiPalette &palette);
   [[nodiscard]] static RectI16 DamageRect(UiDialogKind kind);
+  [[nodiscard]] static RectI16
+  CursorTargetRect(const UiDialogViewData &data);
 };
 
 } // namespace ui2

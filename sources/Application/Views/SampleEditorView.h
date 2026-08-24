@@ -14,6 +14,7 @@
 #include "Application/Instruments/InstrumentNameVariable.h"
 #include "Application/Instruments/SampleInstrument.h"
 #include "Application/Instruments/WavHeader.h"
+#include "Application/UI2/Ui2SampleSnapshots.h"
 #include "BaseClasses/UIActionField.h"
 #include "BaseClasses/UIBigHexVarField.h"
 #include "BaseClasses/UIIntVarField.h"
@@ -23,41 +24,7 @@
 #include "Foundation/Observable.h"
 #include "Foundation/Variables/StringVariable.h"
 #include "GraphField.h"
-#include "Ui2SampleSnapshot.h"
 #include "ViewData.h"
-#include <array>
-#include <cstdint>
-
-enum class SampleEditorViewUi2Focus : std::uint8_t {
-  Name,
-  Start,
-  End,
-  Operation,
-  Apply,
-  Save,
-  SaveAndLoad,
-  Discard,
-  Waveform,
-  Unknown,
-};
-
-// Fixed-capacity application-thread capture for UI2. It owns every displayed
-// string and waveform byte; no renderer retains Variable, GraphField, or file
-// data owned by the legacy view.
-struct SampleEditorViewUi2Snapshot {
-  std::array<char, 33> name{};
-  std::array<char, 8> start{};
-  std::array<char, 8> end{};
-  std::array<char, 17> operation{};
-  Ui2WaveformSnapshot waveform{};
-  Ui2WaveformMarkersSnapshot<3> markers{};
-  SampleEditorViewUi2Focus focus = SampleEditorViewUi2Focus::Unknown;
-  std::uint8_t focusDigit = 0;
-  bool waveformReady = false;
-  bool playing = false;
-  bool singleCycle = false;
-  bool projectPool = false;
-};
 
 class SampleEditorView : public FieldView, public I_Observer {
 public:

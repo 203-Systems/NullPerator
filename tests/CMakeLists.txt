@@ -20,6 +20,7 @@ add_executable(picoTracker_tests
   wasm_platform_tests.cpp
   ui2_browser_legacy_snapshot_tests.cpp
   ui2_dialog_adapter_tests.cpp
+  ui2_rename_render_tests.cpp
   ui2_legacy_snapshot_tests.cpp
   ui2_core_tests.cpp
   ../sources/Adapters/wasm/midi/MidiByteQueue.cpp
@@ -86,6 +87,26 @@ target_include_directories(picoTracker_tests PRIVATE
 target_compile_definitions(picoTracker_tests PRIVATE
   HOST_TEST
 )
+
+add_executable(ui2_rename_modal_tests
+  test_main.cpp
+  ui2_rename_modal_tests.cpp
+  ../sources/Foundation/Observable.cpp
+  ../sources/UIFramework/BasicDatas/GUIRect.cpp
+  ../sources/Application/Views/BaseClasses/ModalView.cpp
+  ../sources/Application/Views/ModalDialogs/RenameModalView.cpp
+)
+
+target_include_directories(ui2_rename_modal_tests PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/rename_stubs
+  ${CMAKE_CURRENT_LIST_DIR}/stubs
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals/SRC/include
+  ${CMAKE_CURRENT_LIST_DIR}/../sources
+)
+
+target_compile_definitions(ui2_rename_modal_tests PRIVATE HOST_TEST)
+add_test(NAME ui2_rename_modal_controller COMMAND ui2_rename_modal_tests)
 
 add_executable(ui2_snapshot_tool
   ui2_snapshot_main.cpp
@@ -516,7 +537,7 @@ if(NODE_EXECUTABLE)
       DEPENDS ui2_sample_${SAMPLE_STATE}_snapshot)
   endforeach()
 
-  foreach(DIALOG_STATE message input render full)
+  foreach(DIALOG_STATE message input render full rename)
     add_test(NAME ui2_dialog_${DIALOG_STATE}_snapshot
       COMMAND ui2_dialog_snapshot_tool "${DIALOG_STATE}"
         "${CMAKE_CURRENT_BINARY_DIR}/dialog-${DIALOG_STATE}-actual.ppm")

@@ -30,7 +30,7 @@ test('every registered C++ view and modal enters, draws, and processes input on 
   }
 
   const modalNames = await page.evaluate(() => globalThis.__picoTrackerViewsTest.modalNames)
-  expect(modalNames).toHaveLength(4)
+  expect(modalNames).toHaveLength(5)
   for (let modalType = 0; modalType < modalNames.length; modalType += 1) {
     const beforeDraw = await page.evaluate(() => globalThis.__picoTrackerViewsTest.modalGeneration())
     await page.evaluate((requested) => globalThis.__picoTrackerViewsTest.openModal(requested), modalType)

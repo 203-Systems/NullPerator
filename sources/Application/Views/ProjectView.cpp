@@ -10,9 +10,9 @@
 #include "ProjectView.h"
 #include "Application/Model/Scale.h"
 #include "Application/Persistency/PersistencyService.h"
-#include "Application/Utils/randomnames.h"
 #include "Application/Views/ImportView.h"
 #include "Application/Views/ModalDialogs/MessageBox.h"
+#include "Application/Views/ModalDialogs/RenameModalView.h"
 #include "Application/Views/ModalDialogs/RenderProgressModal.h"
 #include "Application/Views/SampleEditorView.h"
 #include "BaseClasses/UIActionField.h"
@@ -272,18 +272,23 @@ ProjectViewUi2Snapshot ProjectView::SnapshotForUi2() const {
   switch (GetFocusIndex()) {
   case 0:
     snapshot.focus = ProjectViewUi2Focus::Name;
+    snapshot.nameAction = 3;
     break;
   case 1:
     snapshot.focus = ProjectViewUi2Focus::Browse;
+    snapshot.nameAction = 1;
     break;
   case 2:
     snapshot.focus = ProjectViewUi2Focus::Save;
+    snapshot.nameAction = 2;
     break;
   case 3:
     snapshot.focus = ProjectViewUi2Focus::NewProject;
+    snapshot.nameAction = 0;
     break;
   case 4:
     snapshot.focus = ProjectViewUi2Focus::RandomName;
+    snapshot.nameAction = 3;
     break;
   case 5:
     snapshot.focus = ProjectViewUi2Focus::Tempo;
@@ -349,12 +354,35 @@ ProjectViewUi2Snapshot ProjectView::SnapshotForUi2() const {
   return snapshot;
 }
 
+void ProjectView::beginRename() {
+  DoModal(RenameModalView::Create(*this, nameField_->GetString().c_str(),
+                                  MAX_PROJECT_NAME_LENGTH),
+          ModalViewCallback::create<ProjectView,
+                                    &ProjectView::onRenameFinished>(*this));
+}
+
+void ProjectView::onRenameFinished(View &, ModalView &dialog) {
+  if (dialog.GetReturnCode() != RenameModalView::SaveReturnCode)
+    return;
+  const auto &rename = static_cast<const RenameModalView &>(dialog);
+  if (rename.Value()[0] == '\0' || getProjectName() == rename.Value())
+    return;
+  project_->SetProjectName(rename.Value());
+  saveAsFlag_ = true;
+  isDirty_ = true;
+}
+
 void ProjectView::ProcessButtonMask(unsigned short mask, bool pressed) {
 
   if (!pressed)
     return;
 
-  FieldView::ProcessButtonMask(mask, pressed);
+  if (GetFocus() == nameField_ && mask == EPBM_ENTER) {
+    beginRename();
+    return;
+  }
+  if (!(GetFocus() == nameField_ && (mask & (EPBM_ENTER | EPBM_EDIT))))
+    FieldView::ProcessButtonMask(mask, pressed);
 
   if (mask & EPBM_EDIT) {
     if (mask & EPBM_PLAY) {
@@ -449,13 +477,7 @@ void ProjectView::Update(Observable &, I_ObservableData *data) {
     break;
   }
   case FourCC::ActionRandomName: {
-    char name[10];
-    System *sys = System::GetInstance();
-    uint32_t randNum = sys->GetRandomNumber();
-    getNamesByIndex(name, randNum, 10);
-    printf("random:%s", name);
-    project_->SetProjectName(name);
-    saveAsFlag_ = true;
+    beginRename();
     break;
   }
   case FourCC::ActionSave: {
@@ -496,9 +518,7 @@ void ProjectView::Update(Observable &, I_ObservableData *data) {
     break;
   }
   case FourCC::ActionProjectRename:
-    Trace::Log("PROJECTVIEW", "Project renamed! prev name:%s",
-               nameField_->GetString().c_str());
-    saveAsFlag_ = true;
+    beginRename();
     break;
   case FourCC::ActionBrowse: {
     if (CanExit()) {

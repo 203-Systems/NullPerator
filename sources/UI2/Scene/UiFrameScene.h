@@ -16,6 +16,7 @@ struct UiFrameScene {
   UiBarScene top;
   UiContentScene content;
   UiBarScene bottom;
+  UiOverlayScene overlay;
   UiColorToken topBackground = UiColorToken::SurfaceTopBar;
   UiColorToken bottomBackground = UiColorToken::SurfaceBottomBar;
   std::int16_t topHeight = kTopBarHeight;
@@ -27,10 +28,11 @@ struct UiFrameScene {
     top.Clear();
     content.Clear();
     bottom.Clear();
+    overlay.Clear();
     contentOffsetY = 0;
   }
 };
 
-static_assert(sizeof(UiFrameScene) < 7'100);
+static_assert(sizeof(UiFrameScene) < 8'800);
 
 } // namespace ui2

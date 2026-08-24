@@ -84,8 +84,13 @@ private:
 
 using UiContentScene = UiCommandList<256, 1024>;
 using UiBarScene = UiCommandList<64, 256>;
+// Dialogs render after the page, bars and content. Keeping their short text
+// payload separate prevents a waveform command from consuming the bytes a
+// confirmation or editor needs, without giving every page a larger buffer.
+using UiOverlayScene = UiCommandList<80, 256>;
 
 static_assert(sizeof(UiContentScene) < 4'700);
 static_assert(sizeof(UiBarScene) < 1'200);
+static_assert(sizeof(UiOverlayScene) < 1'500);
 
 } // namespace ui2

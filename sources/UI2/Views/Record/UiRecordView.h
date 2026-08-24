@@ -16,6 +16,20 @@
 
 namespace ui2 {
 
+enum class UiRecordFocus : std::uint8_t {
+  Source,
+  LineGain,
+  MicGain,
+  None,
+};
+
+enum class UiRecordState : std::uint8_t {
+  Unavailable,
+  Armed,
+  Recording,
+  Saving,
+};
+
 struct UiRecordViewData {
   std::string_view source = "LINE IN";
   std::string_view lineGain = "0 DB";
@@ -23,9 +37,13 @@ struct UiRecordViewData {
   std::string_view elapsed = "00:00";
   std::uint16_t safeWidth = 154;
   std::uint16_t warningWidth = 42;
+  std::uint8_t savingPercent = 0;
   RectI16 cursorVisualRect{};
+  UiRecordFocus focus = UiRecordFocus::Source;
+  UiRecordState state = UiRecordState::Armed;
   bool cursorVisualOverride = false;
   bool cursorInkVisible = true;
+  bool meterAvailable = true;
   UiPowerState power = UiPowerState::BatteryNormal;
 };
 
@@ -39,8 +57,19 @@ public:
                           const UiFrameScene &currentScene,
                           UiIndexedSurface &surface,
                           const UiPalette &palette);
-  [[nodiscard]] static constexpr RectI16 CursorTargetRect() {
-    return {7, 42, 226, 9};
+  [[nodiscard]] static constexpr RectI16
+  CursorTargetRect(UiRecordFocus focus = UiRecordFocus::Source) {
+    switch (focus) {
+    case UiRecordFocus::Source:
+      return {7, 42, 226, 9};
+    case UiRecordFocus::LineGain:
+      return {7, 53, 226, 9};
+    case UiRecordFocus::MicGain:
+      return {7, 64, 226, 9};
+    case UiRecordFocus::None:
+      return {};
+    }
+    return {};
   }
 };
 

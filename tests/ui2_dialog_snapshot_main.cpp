@@ -35,13 +35,25 @@ int main(int argc, char **argv) {
     dialog.kind = ui2::UiDialogKind::FullScreen;
     dialog.title = "DIAGNOSTIC";
     dialog.label = "FULL SCREEN";
+  } else if (state == "rename") {
+    dialog.kind = ui2::UiDialogKind::Rename;
+    dialog.label = "NAME";
+    dialog.value = "ONECYCAC";
+    dialog.actions = {ui2::UiDialogAction::Cancel,
+                      ui2::UiDialogAction::Random,
+                      ui2::UiDialogAction::Save,
+                      ui2::UiDialogAction::Cancel};
+    dialog.actionCount = 3;
+    dialog.selectedAction = 2;
+    dialog.focus = ui2::UiDialogFocus::Input;
   } else {
     return 3;
   }
 
   ui2::UiPalette palette;
   ui2::UiFrameScene scene;
-  if (dialog.kind != ui2::UiDialogKind::FullScreen) {
+  if (dialog.kind != ui2::UiDialogKind::FullScreen &&
+      dialog.kind != ui2::UiDialogKind::Rename) {
     ui2::UiSongViewData song = ui2::test::ApprovedSongFixture();
     song.playing = false;
     song.power = ui2::UiPowerState::BatteryNormal;

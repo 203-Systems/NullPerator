@@ -11,6 +11,7 @@
 #include "UI2/Views/Font/UiFontView.h"
 #include "UI2/Views/Theme/UiThemeView.h"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 
@@ -19,17 +20,33 @@ namespace ui2 {
 static_assert(ThemeViewUi2Snapshot::ColorCount ==
               UiPalette::kUserColorCount);
 
+template <std::size_t DestinationSize, std::size_t SourceSize>
+inline void CopySettingsText(
+    std::array<char, DestinationSize> &destination,
+    const std::array<char, SourceSize> &source) {
+  static_assert(DestinationSize > 0U);
+  destination.fill('\0');
+  const std::size_t count =
+      DestinationSize - 1U < SourceSize ? DestinationSize - 1U : SourceSize;
+  for (std::size_t index = 0; index < count && source[index] != '\0'; ++index)
+    destination[index] = source[index];
+}
+
 // These conversions copy all retained text. The projected string_views from
 // ToViewData are only used while building a scene on the application thread.
 inline UiThemeViewState
 MakeUiThemeViewState(const ThemeViewUi2Snapshot &snapshot,
                      UiPowerState power = UiPowerState::BatteryNormal) {
   UiThemeViewState state;
-  state.name = snapshot.name;
-  state.nameAction = snapshot.nameAction;
-  state.selectedColor = snapshot.focus == ThemeViewUi2Focus::Color
-                            ? snapshot.selectedColor
-                            : -1;
+  CopySettingsText(state.name, snapshot.name);
+  state.nameAction = snapshot.nameAction < 4U ? snapshot.nameAction : 0U;
+  state.selectedColor =
+      snapshot.focus == ThemeViewUi2Focus::Color &&
+              snapshot.selectedColor >= 0 &&
+              static_cast<std::size_t>(snapshot.selectedColor) <
+                  ThemeViewUi2Snapshot::ColorCount
+          ? snapshot.selectedColor
+          : -1;
   state.power = power;
   return state;
 }
@@ -38,7 +55,7 @@ inline UiFontViewState
 MakeUiFontViewState(const FontViewUi2Snapshot &snapshot,
                     UiPowerState power = UiPowerState::BatteryNormal) {
   UiFontViewState state;
-  state.font = snapshot.font;
+  CopySettingsText(state.font, snapshot.font);
   state.power = power;
   return state;
 }
@@ -46,20 +63,26 @@ MakeUiFontViewState(const FontViewUi2Snapshot &snapshot,
 // Palette synchronization is deliberately separate from frame-state capture.
 // Call ApplyThemeSnapshotToPalette only after an explicit theme load or user
 // color commit; calling MakeUiThemeViewState never changes renderer colors.
-inline void ApplyThemeSnapshotToPalette(const ThemeViewUi2Snapshot &snapshot,
-                                        UiPalette &palette) {
+[[nodiscard]] inline bool
+ApplyThemeSnapshotToPalette(const ThemeViewUi2Snapshot &snapshot,
+                            UiPalette &palette) {
+  if (!snapshot.colorsValid)
+    return false;
+  std::array<Rgb888, UiPalette::kUserColorCount> colors{};
   for (std::size_t index = 0; index < snapshot.colors.size(); ++index) {
     const std::uint32_t color = snapshot.colors[index];
-    palette.Set(static_cast<PaletteIndex>(index),
-                {static_cast<std::uint8_t>((color >> 16U) & 0xFFU),
-                 static_cast<std::uint8_t>((color >> 8U) & 0xFFU),
-                 static_cast<std::uint8_t>(color & 0xFFU)});
+    colors[index] =
+        {static_cast<std::uint8_t>((color >> 16U) & 0xFFU),
+         static_cast<std::uint8_t>((color >> 8U) & 0xFFU),
+         static_cast<std::uint8_t>(color & 0xFFU)};
   }
+  palette.SetUserColors(colors);
+  return true;
 }
 
-// Before editing an already-loaded UI2 theme, copy the nineteen independent
-// palette values back to the application snapshot. This avoids re-expanding
-// the twelve-color legacy compatibility map on every frame.
+// A native UI2 theme controller may copy all nineteen independent palette
+// values into its owned snapshot. This does not make the twelve-color legacy
+// Config independently editable; its capability masks remain authoritative.
 inline void CopyPaletteToThemeSnapshot(const UiPalette &palette,
                                        ThemeViewUi2Snapshot &snapshot) {
   for (std::size_t index = 0; index < snapshot.colors.size(); ++index) {
@@ -69,6 +92,7 @@ inline void CopyPaletteToThemeSnapshot(const UiPalette &palette,
         (static_cast<std::uint32_t>(color.green) << 8U) |
         static_cast<std::uint32_t>(color.blue);
   }
+  snapshot.colorsValid = true;
 }
 
 } // namespace ui2

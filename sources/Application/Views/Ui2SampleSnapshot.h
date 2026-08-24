@@ -126,6 +126,8 @@ struct Ui2WaveformMarkerSnapshot {
   std::uint8_t x = 0;
   Ui2WaveformMarkerKind kind = Ui2WaveformMarkerKind::Slice;
   bool selected = false;
+
+  bool operator==(const Ui2WaveformMarkerSnapshot &) const = default;
 };
 
 template <std::size_t Capacity> struct Ui2WaveformMarkersSnapshot {

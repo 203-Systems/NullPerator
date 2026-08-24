@@ -55,6 +55,7 @@ public:
 protected:
 private:
   void onConfirmThemeOverwrite(View &view, ModalView &dialog);
+  void onRenameFinished(View &view, ModalView &dialog);
 
   void addSwatchField(ColorDefinition color, GUIPoint position);
   void addColorField(const char *label, Variable *colorVar,

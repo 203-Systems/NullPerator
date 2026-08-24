@@ -44,6 +44,11 @@ struct AppWindowViews;
 struct UiGridSelection;
 struct InstrumentViewUi2Snapshot;
 struct DeviceViewUi2Snapshot;
+struct ProjectViewUi2Snapshot;
+struct ThemeViewUi2Snapshot;
+struct RecordViewUi2Snapshot;
+struct SampleEditorViewUi2Snapshot;
+struct SampleSlicesViewUi2Snapshot;
 struct Ui2BrowserSnapshot;
 struct Ui2DialogSnapshot;
 
@@ -92,6 +97,11 @@ public:
   int GrooveRowForUi2() const;
   InstrumentViewUi2Snapshot InstrumentSnapshotForUi2();
   DeviceViewUi2Snapshot DeviceSnapshotForUi2() const;
+  ProjectViewUi2Snapshot ProjectSnapshotForUi2() const;
+  ThemeViewUi2Snapshot ThemeSnapshotForUi2() const;
+  RecordViewUi2Snapshot RecordSnapshotForUi2() const;
+  SampleEditorViewUi2Snapshot SampleEditorSnapshotForUi2() const;
+  SampleSlicesViewUi2Snapshot SampleSlicesSnapshotForUi2() const;
   Ui2BrowserSnapshot BrowserSnapshotForUi2() const;
   Ui2DialogSnapshot ModalSnapshotForUi2() const;
   std::uint32_t ModalInstanceIdForUi2() const;

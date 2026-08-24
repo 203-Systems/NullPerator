@@ -27,6 +27,7 @@
 #include "Application/Views/ModalDialogs/FullScreenBox.h"
 #include "Application/Views/ModalDialogs/MessageBox.h"
 #include "Application/Views/ModalDialogs/RenderProgressModal.h"
+#include "Application/Views/ModalDialogs/RenameModalView.h"
 #include "Application/Views/ModalDialogs/TextInputModalView.h"
 #include "Application/Views/NullView.h"
 #include "Application/Views/PhraseView.h"
@@ -158,6 +159,31 @@ InstrumentViewUi2Snapshot AppWindow::InstrumentSnapshotForUi2() {
 DeviceViewUi2Snapshot AppWindow::DeviceSnapshotForUi2() const {
   return views_ == nullptr ? DeviceViewUi2Snapshot{}
                            : views_->deviceView.SnapshotForUi2();
+}
+
+ProjectViewUi2Snapshot AppWindow::ProjectSnapshotForUi2() const {
+  return views_ == nullptr ? ProjectViewUi2Snapshot{}
+                           : views_->projectView.SnapshotForUi2();
+}
+
+ThemeViewUi2Snapshot AppWindow::ThemeSnapshotForUi2() const {
+  return views_ == nullptr ? ThemeViewUi2Snapshot{}
+                           : views_->themeView.SnapshotForUi2();
+}
+
+RecordViewUi2Snapshot AppWindow::RecordSnapshotForUi2() const {
+  return views_ == nullptr ? RecordViewUi2Snapshot{}
+                           : views_->recordView.SnapshotForUi2();
+}
+
+SampleEditorViewUi2Snapshot AppWindow::SampleEditorSnapshotForUi2() const {
+  return views_ == nullptr ? SampleEditorViewUi2Snapshot{}
+                           : views_->sampleEditorView.SnapshotForUi2();
+}
+
+SampleSlicesViewUi2Snapshot AppWindow::SampleSlicesSnapshotForUi2() const {
+  return views_ == nullptr ? SampleSlicesViewUi2Snapshot{}
+                           : views_->sampleSlicesView.SnapshotForUi2();
 }
 
 Ui2BrowserSnapshot AppWindow::BrowserSnapshotForUi2() const {
@@ -329,7 +355,7 @@ unsigned int AppWindow::CurrentViewForDiagnostics() const {
 }
 
 bool AppWindow::SwitchModalForDiagnostics(unsigned int modalType) {
-  constexpr unsigned int ModalCount = 4;
+  constexpr unsigned int ModalCount = 5;
   if (_currentView == nullptr || modalType > ModalCount) {
     return false;
   }
@@ -366,6 +392,10 @@ bool AppWindow::SwitchModalForDiagnostics(unsigned int modalType) {
   case 3:
     modal = FullScreenBox::Create(*_currentView, "Diagnostic full screen",
                                   MBBF_OK);
+    break;
+  case 4:
+    modal = RenameModalView::Create(*_currentView, "ONECYCAC",
+                                    MAX_PROJECT_NAME_LENGTH);
     break;
   default:
     return false;
@@ -938,7 +968,7 @@ void AppWindow::AnimationUpdate() {
   }
 
   if (sdCardMissing_ && !sdCardMessageShown_) {
-    if (_currentView) {
+    if (_currentView && !_currentView->HasModalView()) {
       FullScreenBox *mb = FullScreenBox::Create(
           *_currentView, "SD Card Missing", "Insert SD Card", 0);
       _currentView->DoModal(mb);

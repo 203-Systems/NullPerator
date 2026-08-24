@@ -23,6 +23,7 @@
 #include "Externals/etl/include/etl/to_string.h"
 #include "Foundation/Constants/SpecialCharacters.h"
 #include "ModalDialogs/MessageBox.h"
+#include "ModalDialogs/RenameModalView.h"
 #include "ModalDialogs/TextInputModalView.h"
 #include "System/System/System.h"
 #include <Application/Utils/stringutils.h>
@@ -1385,6 +1386,19 @@ void InstrumentView::ProcessButtonMask(unsigned short mask, bool pressed) {
           ? static_cast<UIIntVarField *>(focus)
           : nullptr;
 
+  if (mask == EPBM_ENTER && focusID == FourCC::InstrumentName) {
+    I_Instrument *instrument = getInstrument();
+    if (instrument != nullptr) {
+      const auto currentName = instrument->GetUserSetName();
+      DoModal(RenameModalView::Create(*this, currentName.c_str(),
+                                      MAX_INSTRUMENT_NAME_LENGTH),
+              ModalViewCallback::create<
+                  InstrumentView, &InstrumentView::onRenameFinished>(*this));
+      isDirty_ = true;
+    }
+    return;
+  }
+
   if ((mask & EPBM_EDIT) && (mask & EPBM_ENTER)) {
     int i = viewData_->currentInstrumentID_;
     InstrumentBank *bank = viewData_->project_->GetInstrumentBank();
@@ -1416,7 +1430,9 @@ void InstrumentView::ProcessButtonMask(unsigned short mask, bool pressed) {
 
   // Call the parent class's implementation first to ensure action fields like
   // Export, Import work correctly
-  FieldView::ProcessButtonMask(mask, pressed);
+  if (!(focusID == FourCC::InstrumentName &&
+        (mask & (EPBM_ENTER | EPBM_EDIT))))
+    FieldView::ProcessButtonMask(mask, pressed);
 
   Player *player = Player::GetInstance();
 
@@ -1948,4 +1964,15 @@ void InstrumentView::onConfirmExportOverwrite(View &, ModalView &dialog) {
   PersistencyService::GetInstance()->ExportInstrument(instrument, name, true);
   Trace::Log("INSTRUMENTVIEW", "Instrument '%s' exported with overwrite",
              name.c_str());
+}
+
+void InstrumentView::onRenameFinished(View &, ModalView &dialog) {
+  if (dialog.GetReturnCode() != RenameModalView::SaveReturnCode)
+    return;
+  I_Instrument *instrument = getInstrument();
+  if (instrument == nullptr)
+    return;
+  const auto &rename = static_cast<const RenameModalView &>(dialog);
+  instrument->SetName(rename.Value());
+  isDirty_ = true;
 }

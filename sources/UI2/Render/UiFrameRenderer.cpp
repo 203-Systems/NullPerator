@@ -49,6 +49,10 @@ void UiFrameRenderer::RenderRegion(const UiFrameScene &scene,
                    static_cast<std::int16_t>(kScreenHeight -
                                              scene.bottomTop)}));
   }
+  // Overlay commands use absolute screen coordinates and are intentionally
+  // last. A modal therefore stays anchored while a list beneath it scrolls,
+  // and its fixed 256-byte payload never competes with waveform data.
+  UiRasterizer::Render(scene.overlay.Stream(), surface, &palette, {}, region);
 }
 
 } // namespace ui2

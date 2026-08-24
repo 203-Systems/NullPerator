@@ -26,6 +26,8 @@ namespace {
 constexpr uint16_t PreviewChannel = SONG_CHANNEL_COUNT - 1;
 constexpr int32_t SliceXOffset = 0;
 constexpr int32_t SliceYOffset = 2 * CHAR_HEIGHT;
+static_assert(SampleSlicesViewUi2Snapshot::SliceCapacity ==
+              SampleInstrument::MaxSlices);
 } // namespace
 
 SampleSlicesView::SampleSlicesView(GUIWindow &w, ViewData *data)

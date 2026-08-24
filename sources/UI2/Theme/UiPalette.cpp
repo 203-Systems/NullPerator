@@ -42,6 +42,13 @@ void UiPalette::Set(PaletteIndex index, Rgb888 color) {
   if (index < kUserColorCount) RebuildDerivedColors();
 }
 
+void UiPalette::SetUserColors(
+    const std::array<Rgb888, kUserColorCount> &colors) {
+  for (std::size_t index = 0; index < colors.size(); ++index)
+    SetRaw(static_cast<PaletteIndex>(index), colors[index]);
+  RebuildDerivedColors();
+}
+
 void UiPalette::SetRaw(PaletteIndex index, Rgb888 color) {
   colors_[index] = color;
   rgb565_[index] = PackRgb565(color);

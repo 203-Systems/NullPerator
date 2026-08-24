@@ -6,7 +6,11 @@
 
 #pragma once
 
+#include "Application/UI2/Ui2SampleAdapters.h"
+#include "Application/UI2/Ui2SettingsAdapters.h"
 #include "Application/Views/ModalDialogs/Ui2DialogSnapshot.h"
+#include "Application/Persistency/PersistenceConstants.h"
+#include "Application/Views/Ui2RecordSnapshot.h"
 #include "Application/Views/Ui2BrowserSnapshot.h"
 #include "UI2/Animation/UiAnimatedRect.h"
 #include "UI2/Render/UiFrameRenderer.h"
@@ -19,8 +23,12 @@
 #include "UI2/Views/Instrument/UiInstrumentView.h"
 #include "UI2/Views/Mixer/UiMixerView.h"
 #include "UI2/Views/Phrase/UiPhraseView.h"
+#include "UI2/Views/Project/UiProjectView.h"
+#include "UI2/Views/Record/UiRecordView.h"
+#include "UI2/Views/Sample/UiSampleViews.h"
 #include "UI2/Views/Song/UiSongView.h"
 #include "UI2/Views/Table/UiTableView.h"
+#include "UI2/Views/Theme/UiThemeView.h"
 
 #include <array>
 #include <cstdint>
@@ -80,6 +88,7 @@ public:
     cursorTargetValid_ = false;
     topMetaTargetValid_ = false;
     bottomTrackTargetValid_ = false;
+    dialogCursorTargetValid_ = false;
     activePage_ = RuntimePage::None;
   }
 
@@ -119,10 +128,15 @@ private:
     Phrase,
     Table,
     Instrument,
+    Project,
     Device,
+    Theme,
     Browser,
     Groove,
-    Mixer
+    Mixer,
+    SampleEditor,
+    SampleSlices,
+    Record
   };
 
   struct SongFrameState {
@@ -322,6 +336,24 @@ private:
     bool operator==(const MixerFrameState &) const = default;
   };
 
+  struct ProjectFrameState {
+    std::array<char, MAX_PROJECT_NAME_LENGTH + 1> name{};
+    std::array<char, 16> tempo{};
+    std::array<char, 8> transpose{};
+    std::array<char, 24> scale{};
+    std::array<char, 8> root{};
+    UiProjectCursor cursor = UiProjectCursor::Name;
+    std::uint8_t nameAction = 0;
+    std::uint8_t renderOption = 0;
+    RectI16 cursorVisualRect{};
+    bool cursorVisualOverride = false;
+    bool cursorInkVisible = true;
+    std::int16_t scrollOffset = 0;
+    UiPowerState power = UiPowerState::BatteryNormal;
+
+    bool operator==(const ProjectFrameState &) const = default;
+  };
+
   struct DeviceFrameState {
     std::array<char, 24> midiDevice{};
     std::array<char, 24> midiSync{};
@@ -364,6 +396,27 @@ private:
     bool operator==(const BrowserFrameState &) const = default;
   };
 
+  struct ThemeFrameState {
+    UiThemeViewState view{};
+    std::array<std::uint32_t, ThemeViewUi2Snapshot::ColorCount> colors{};
+    bool colorsValid = false;
+
+    bool operator==(const ThemeFrameState &) const = default;
+  };
+
+  struct RecordFrameState {
+    RecordViewUi2Snapshot snapshot{};
+    RectI16 cursorVisualRect{};
+    UiPowerState power = UiPowerState::BatteryNormal;
+    bool cursorVisualOverride = false;
+    bool cursorInkVisible = true;
+
+    bool operator==(const RecordFrameState &) const = default;
+  };
+
+  using SampleEditorFrameState = UiSampleEditorControllerState;
+  using SampleSlicesFrameState = UiSampleSlicesControllerState;
+
   struct DialogFrameState {
     Ui2DialogSnapshot snapshot{};
     std::uint32_t instanceId = 0;
@@ -391,10 +444,20 @@ private:
                 std::is_trivially_destructible_v<InstrumentFrameState>);
   static_assert(std::is_trivially_copyable_v<MixerFrameState> &&
                 std::is_trivially_destructible_v<MixerFrameState>);
+  static_assert(std::is_trivially_copyable_v<ProjectFrameState> &&
+                std::is_trivially_destructible_v<ProjectFrameState>);
   static_assert(std::is_trivially_copyable_v<DeviceFrameState> &&
                 std::is_trivially_destructible_v<DeviceFrameState>);
   static_assert(std::is_trivially_copyable_v<BrowserFrameState> &&
                 std::is_trivially_destructible_v<BrowserFrameState>);
+  static_assert(std::is_trivially_copyable_v<ThemeFrameState> &&
+                std::is_trivially_destructible_v<ThemeFrameState>);
+  static_assert(std::is_trivially_copyable_v<RecordFrameState> &&
+                std::is_trivially_destructible_v<RecordFrameState>);
+  static_assert(std::is_trivially_copyable_v<SampleEditorFrameState> &&
+                std::is_trivially_destructible_v<SampleEditorFrameState>);
+  static_assert(std::is_trivially_copyable_v<SampleSlicesFrameState> &&
+                std::is_trivially_destructible_v<SampleSlicesFrameState>);
   static_assert(std::is_trivially_copyable_v<DialogFrameState> &&
                 std::is_trivially_destructible_v<DialogFrameState>);
 
@@ -407,16 +470,23 @@ private:
     FramePair<PhraseFrameState> phrase;
     FramePair<TableFrameState> table;
     FramePair<InstrumentFrameState> instrument;
+    FramePair<ProjectFrameState> project;
     FramePair<DeviceFrameState> device;
+    FramePair<ThemeFrameState> theme;
     FramePair<BrowserFrameState> browser;
     FramePair<GrooveFrameState> groove;
     FramePair<MixerFrameState> mixer;
+    FramePair<SampleEditorFrameState> sampleEditor;
+    FramePair<SampleSlicesFrameState> sampleSlices;
+    FramePair<RecordFrameState> record;
 
     FrameStorage() noexcept {}
     ~FrameStorage() noexcept {}
   };
 
-  static_assert(sizeof(FrameStorage) < 2'100);
+  // The slice page owns a pair of compressed 222x78 waveform packets. This is
+  // the largest retained page, but remains a fixed, allocation-free block.
+  static_assert(sizeof(FrameStorage) < 2'700);
 
   static UiSongViewData ViewDataFor(const SongFrameState &state);
   static UiChainViewData ViewDataFor(const ChainFrameState &state);
@@ -424,19 +494,31 @@ private:
   static UiTableViewData ViewDataFor(const TableFrameState &state);
   static UiInstrumentViewData
   ViewDataFor(const InstrumentFrameState &state);
+  static UiProjectViewData ViewDataFor(const ProjectFrameState &state);
   static UiDeviceViewData ViewDataFor(const DeviceFrameState &state);
+  static UiThemeViewData ViewDataFor(const ThemeFrameState &state);
   static UiBrowserViewData ViewDataFor(const BrowserFrameState &state);
   static UiGrooveViewData ViewDataFor(const GrooveFrameState &state);
   static UiMixerViewData ViewDataFor(const MixerFrameState &state);
+  static UiSampleEditorViewData
+  ViewDataFor(const SampleEditorFrameState &state);
+  static UiSampleSlicesViewData
+  ViewDataFor(const SampleSlicesFrameState &state);
+  static UiRecordViewData ViewDataFor(const RecordFrameState &state);
   void CaptureSong(AppWindow &window, SongFrameState &state);
   void CaptureChain(AppWindow &window, ChainFrameState &state);
   void CapturePhrase(AppWindow &window, PhraseFrameState &state);
   void CaptureTable(AppWindow &window, TableFrameState &state);
   void CaptureInstrument(AppWindow &window, InstrumentFrameState &state);
+  void CaptureProject(AppWindow &window, ProjectFrameState &state);
   void CaptureDevice(AppWindow &window, DeviceFrameState &state);
+  void CaptureTheme(AppWindow &window, ThemeFrameState &state);
   void CaptureBrowser(AppWindow &window, BrowserFrameState &state);
   void CaptureGroove(AppWindow &window, GrooveFrameState &state);
   void CaptureMixer(AppWindow &window, MixerFrameState &state);
+  void CaptureSampleEditor(AppWindow &window, SampleEditorFrameState &state);
+  void CaptureSampleSlices(AppWindow &window, SampleSlicesFrameState &state);
+  void CaptureRecord(AppWindow &window, RecordFrameState &state);
   [[nodiscard]] PowerFrameState CapturePowerState(bool playing);
   [[nodiscard]] UiPowerState CurrentPowerState(bool playing);
   void CaptureDialog(AppWindow &window);
@@ -458,13 +540,23 @@ private:
                                            std::uint32_t nowMs);
   [[nodiscard]] PresentResult PresentInstrument(AppWindow &window,
                                                 std::uint32_t nowMs);
+  [[nodiscard]] PresentResult PresentProject(AppWindow &window,
+                                             std::uint32_t nowMs);
   [[nodiscard]] PresentResult PresentDevice(AppWindow &window,
                                             std::uint32_t nowMs);
+  [[nodiscard]] PresentResult PresentTheme(AppWindow &window,
+                                           std::uint32_t nowMs);
   [[nodiscard]] PresentResult PresentBrowser(AppWindow &window,
                                              std::uint32_t nowMs);
   [[nodiscard]] PresentResult PresentGroove(AppWindow &window,
                                             std::uint32_t nowMs);
   [[nodiscard]] PresentResult PresentMixer(AppWindow &window);
+  [[nodiscard]] PresentResult PresentSampleEditor(AppWindow &window,
+                                                  std::uint32_t nowMs);
+  [[nodiscard]] PresentResult PresentSampleSlices(AppWindow &window,
+                                                  std::uint32_t nowMs);
+  [[nodiscard]] PresentResult PresentRecord(AppWindow &window,
+                                            std::uint32_t nowMs);
 
   UiEngineStorage engineStorage_{};
   UiEngine engine_;
@@ -474,6 +566,7 @@ private:
   RectI16 cursorTarget_{};
   RectI16 topMetaTarget_{};
   RectI16 bottomTrackTarget_{};
+  RectI16 dialogCursorTarget_{};
   DialogFrameState previousDialog_{};
   DialogFrameState currentDialog_{};
   PowerFrameState cachedPower_{};
@@ -484,6 +577,7 @@ private:
   bool bottomTrackTargetValid_ = false;
   bool previousValid_ = false;
   bool dialogPreviousValid_ = false;
+  bool dialogCursorTargetValid_ = false;
   RuntimePage activePage_ = RuntimePage::None;
 };
 

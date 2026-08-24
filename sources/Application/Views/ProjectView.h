@@ -64,6 +64,7 @@ struct ProjectViewUi2Snapshot {
   std::int16_t masterVolume = 0;
   std::int8_t transpose = 0;
   ProjectViewUi2Focus focus = ProjectViewUi2Focus::Unknown;
+  std::uint8_t nameAction = 0;
 };
 
 class ProjectView : public FieldView, public I_Observer {
@@ -102,6 +103,8 @@ public:
 
 private:
   bool canRenderFromFirstSongRow() const;
+  void beginRename();
+  void onRenameFinished(View &view, ModalView &dialog);
 
   Project *project_;
   // Debug

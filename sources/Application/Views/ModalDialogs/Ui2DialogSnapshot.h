@@ -20,7 +20,7 @@
 // into this packet; no Variable, ETL string, or legacy View storage escapes.
 struct Ui2DialogSnapshot {
   static constexpr std::size_t TextCapacity = 33;
-  static constexpr std::size_t ValueCapacity = 17;
+  static constexpr std::size_t ValueCapacity = 21;
   static constexpr std::size_t ElapsedCapacity = 8;
   static constexpr std::uint8_t ProgressPixelWidth = 144;
 
@@ -33,7 +33,14 @@ struct Ui2DialogSnapshot {
   std::uint8_t progressWidth = 0;
   std::uint8_t actionCount = 0;
   std::uint8_t selectedAction = 0;
+  std::uint8_t selectedKey = 0;
+  ui2::RectI16 cursorVisualRect{};
   bool actionsFocused = true;
+  bool saveEnabled = true;
+  bool uppercase = true;
+  bool cursorVisualOverride = false;
+  bool cursorInkVisible = true;
+  ui2::UiDialogFocus focus = ui2::UiDialogFocus::Actions;
 
   bool operator==(const Ui2DialogSnapshot &) const = default;
 
@@ -50,6 +57,8 @@ struct Ui2DialogSnapshot {
 
   void SetSelectedAction(int selected, bool focused) {
     actionsFocused = focused;
+    focus = focused ? ui2::UiDialogFocus::Actions
+                    : ui2::UiDialogFocus::Input;
     if (actionCount == 0U) {
       selectedAction = 0U;
       return;
@@ -57,6 +66,15 @@ struct Ui2DialogSnapshot {
     selectedAction = static_cast<std::uint8_t>(
         std::clamp(selected, 0, static_cast<int>(actionCount) - 1));
   }
+
+  void SetRenameFocus(ui2::UiDialogFocus nextFocus,
+                      std::uint8_t keyIndex = 0U) {
+    focus = nextFocus;
+    actionsFocused = nextFocus == ui2::UiDialogFocus::Actions;
+    selectedKey = keyIndex;
+  }
+
+  void SetRenameUppercase(bool enabled) { uppercase = enabled; }
 
   void SetProgressPercent(int percent) {
     const int bounded = std::clamp(percent, 0, 100);
@@ -75,7 +93,14 @@ struct Ui2DialogSnapshot {
         .actions = actions,
         .actionCount = actionCount,
         .selectedAction = selectedAction,
+        .selectedKey = selectedKey,
+        .cursorVisualRect = cursorVisualRect,
         .actionsFocused = actionsFocused,
+        .saveEnabled = saveEnabled,
+        .uppercase = uppercase,
+        .cursorVisualOverride = cursorVisualOverride,
+        .cursorInkVisible = cursorInkVisible,
+        .focus = focus,
     };
   }
 
@@ -98,4 +123,4 @@ private:
 };
 
 static_assert(std::is_trivially_copyable_v<Ui2DialogSnapshot>);
-static_assert(sizeof(Ui2DialogSnapshot) <= 104U);
+static_assert(sizeof(Ui2DialogSnapshot) <= 128U);

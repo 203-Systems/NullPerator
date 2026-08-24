@@ -14,40 +14,8 @@
 #include "BaseClasses/UIIntVarField.h"
 #include "FieldView.h"
 #include "Foundation/Observable.h"
+#include "Ui2RecordSnapshot.h"
 #include "ViewData.h"
-#include <array>
-#include <cstdint>
-
-enum class RecordViewUi2Focus : std::uint8_t {
-  Source,
-  LineGain,
-  MicGain,
-  Unknown,
-};
-
-enum class RecordViewUi2State : std::uint8_t {
-  Idle,
-  Recording,
-  Saving,
-};
-
-struct RecordViewUi2Snapshot {
-  std::array<char, 17> source{};
-  std::array<char, 9> lineGain{};
-  std::array<char, 9> micGain{};
-  std::array<char, 6> elapsed{};
-  RecordViewUi2Focus focus = RecordViewUi2Focus::Unknown;
-  RecordViewUi2State state = RecordViewUi2State::Idle;
-  std::uint8_t sourceIndex = 0;
-  std::int8_t lineGainDb = 0;
-  std::int8_t micGainDb = 0;
-  std::uint8_t savingPercent = 0;
-  // The current audio adapters expose no input meter samples. UI2 must draw a
-  // neutral track until a platform supplies real levels rather than rendering
-  // the approved fixture's synthetic meter as live data.
-  bool meterAvailable = false;
-  bool recordingAvailable = false;
-};
 
 class RecordView : public FieldView, public I_Observer {
 public:

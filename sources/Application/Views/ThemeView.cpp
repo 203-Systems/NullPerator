@@ -11,7 +11,9 @@
 #include "Application/AppWindow.h"
 #include "Application/Model/Config.h"
 #include "Application/Persistency/PersistenceConstants.h"
+#include "Application/UI2/Ui2SettingsControllerAdapters.h"
 #include "Application/Views/ModalDialogs/MessageBox.h"
+#include "Application/Views/ModalDialogs/RenameModalView.h"
 #include "Application/Views/ModalDialogs/TextInputModalView.h"
 #include "System/Console/Trace.h"
 #include "System/FileSystem/FileSystem.h"
@@ -32,44 +34,56 @@ constexpr uint8_t COLOR_COMPONENT_X_OFFSETS[COLOR_COMPONENT_COUNT] = {
 
 namespace {
 
-std::uint32_t ThemeColorForUi2(Config *config, FourCC id) {
+bool ThemeColorForUi2(Config *config, FourCC id, std::uint32_t &color) {
   Variable *value = config == nullptr ? nullptr : config->FindVariable(id);
-  return value == nullptr
-             ? 0U
-             : static_cast<std::uint32_t>(value->GetInt()) & 0x00FFFFFFU;
+  if (value == nullptr)
+    return false;
+  color = static_cast<std::uint32_t>(value->GetInt()) & 0x00FFFFFFU;
+  return true;
 }
 
-// A legacy file has twelve named colors. Copying repeated source values into
-// separate semantic slots is only the compatibility import step; after that,
-// every entry in ThemeViewUi2Snapshot::colors remains independently editable.
-void CaptureSemanticColors(
+// A legacy file has twelve named colors. This is an explicit compatibility
+// projection: repeated semantic slots remain mirrors of their legacy source on
+// every capture. ThemeViewUi2Snapshot::editableColorMask separately records
+// which UI2 rows this legacy controller can address directly.
+bool CaptureSemanticColors(
     Config *config,
     std::array<std::uint32_t, ThemeViewUi2Snapshot::ColorCount> &colors) {
-  const std::uint32_t foreground =
-      ThemeColorForUi2(config, FourCC::VarFGColor);
-  const std::uint32_t background =
-      ThemeColorForUi2(config, FourCC::VarBGColor);
-  const std::uint32_t console =
-      ThemeColorForUi2(config, FourCC::VarConsoleColor);
-  const std::uint32_t cursor =
-      ThemeColorForUi2(config, FourCC::VarCursorColor);
-  const std::uint32_t info = ThemeColorForUi2(config, FourCC::VarInfoColor);
-  const std::uint32_t warning =
-      ThemeColorForUi2(config, FourCC::VarWarnColor);
-  const std::uint32_t error =
-      ThemeColorForUi2(config, FourCC::VarErrorColor);
+  std::uint32_t foreground = 0;
+  std::uint32_t background = 0;
+  std::uint32_t console = 0;
+  std::uint32_t cursor = 0;
+  std::uint32_t info = 0;
+  std::uint32_t warning = 0;
+  std::uint32_t error = 0;
+  std::uint32_t emphasis = 0;
+  std::uint32_t highlighted = 0;
+  std::uint32_t accentAlt = 0;
+  std::uint32_t accent = 0;
+  const bool valid =
+      ThemeColorForUi2(config, FourCC::VarFGColor, foreground) &&
+      ThemeColorForUi2(config, FourCC::VarBGColor, background) &&
+      ThemeColorForUi2(config, FourCC::VarConsoleColor, console) &&
+      ThemeColorForUi2(config, FourCC::VarCursorColor, cursor) &&
+      ThemeColorForUi2(config, FourCC::VarInfoColor, info) &&
+      ThemeColorForUi2(config, FourCC::VarWarnColor, warning) &&
+      ThemeColorForUi2(config, FourCC::VarErrorColor, error) &&
+      ThemeColorForUi2(config, FourCC::VarEmphasisColor, emphasis) &&
+      ThemeColorForUi2(config, FourCC::VarHI2Color, highlighted) &&
+      ThemeColorForUi2(config, FourCC::VarAccentAltColor, accentAlt) &&
+      ThemeColorForUi2(config, FourCC::VarAccentColor, accent);
 
   colors = {
       background, // surface.bg
       console,    // surface.top_bar
       console,    // surface.bottom_bar
       foreground, // text.normal
-      ThemeColorForUi2(config, FourCC::VarEmphasisColor), // text.dim
+      emphasis,   // text.dim
       background, // text.highlighted
-      ThemeColorForUi2(config, FourCC::VarHI2Color), // text.colored
-      cursor, // cursor.primary
-      ThemeColorForUi2(config, FourCC::VarAccentAltColor), // cursor.row
-      ThemeColorForUi2(config, FourCC::VarAccentColor), // playback.active
+      highlighted, // text.colored
+      cursor,      // cursor.primary
+      accentAlt,   // cursor.row
+      accent,      // playback.active
       info,       // system.info
       warning,    // system.warning
       error,      // system.error
@@ -80,22 +94,8 @@ void CaptureSemanticColors(
       warning,    // vu.warning
       error,      // vu.peak
   };
+  return valid;
 }
-
-constexpr std::array<std::int8_t, COLOR_COUNT> kLegacyColorToUi2{
-    3,  // Foreground -> text.normal
-    0,  // Background -> surface.bg
-    4,  // Highlight1 -> text.dim
-    6,  // Highlight2 -> text.colored
-    1,  // Console -> surface.top_bar
-    7,  // Cursor -> cursor.primary
-    10, // Info -> system.info
-    11, // Warning -> system.warning
-    12, // Error -> system.error
-    9,  // Accent -> playback.active
-    8,  // AccentAlt -> cursor.row
-    4,  // Emphasis -> text.dim
-};
 
 } // namespace
 
@@ -224,29 +224,16 @@ ThemeViewUi2Snapshot ThemeView::SnapshotForUi2() const {
   const auto name = themeNameField_->GetString();
   std::snprintf(snapshot.name.data(), snapshot.name.size(), "%s",
                 name.c_str());
-  CaptureSemanticColors(Config::GetInstance(), snapshot.colors);
+  snapshot.colorsValid =
+      CaptureSemanticColors(Config::GetInstance(), snapshot.colors);
+  snapshot.editableColorMask = ui2::kLegacyThemeEditableColorMask;
+  snapshot.nameActionMask = ui2::kLegacyThemeNameActionMask;
 
-  const int focusIndex = GetFocusIndex();
-  if (focusIndex == 0) {
-    snapshot.focus = ThemeViewUi2Focus::Name;
-    snapshot.nameAction = 3; // RENAME
-  } else if (focusIndex == 1) {
-    snapshot.focus = ThemeViewUi2Focus::Name;
-    snapshot.nameAction = 1; // legacy Import -> LOAD
-  } else if (focusIndex == 2) {
-    snapshot.focus = ThemeViewUi2Focus::Name;
-    snapshot.nameAction = 2; // legacy Export -> SAVE
-  } else if (focusIndex == 3) {
-    snapshot.focus = ThemeViewUi2Focus::Font;
-  } else if (focusIndex >= 5) {
-    const int componentOffset = focusIndex - 5;
-    const int legacyColor = componentOffset / 5;
-    const int component = componentOffset % 5;
-    if (legacyColor >= 0 && legacyColor < COLOR_COUNT && component < 3) {
-      snapshot.focus = ThemeViewUi2Focus::Color;
-      snapshot.selectedColor = kLegacyColorToUi2[legacyColor];
-    }
-  }
+  const ui2::UiThemeControllerFocus focus =
+      ui2::AdaptLegacyThemeFocus(static_cast<std::int16_t>(GetFocusIndex()));
+  snapshot.focus = focus.focus;
+  snapshot.selectedColor = focus.selectedColor;
+  snapshot.nameAction = focus.nameAction;
   return snapshot;
 }
 
@@ -279,7 +266,19 @@ void ThemeView::ProcessButtonMask(unsigned short mask, bool pressed) {
   if (!pressed)
     return;
 
-  FieldView::ProcessButtonMask(mask, pressed);
+  if (mask == EPBM_ENTER && GetFocus() == themeNameField_) {
+    const auto currentName = themeNameField_->GetString();
+    DoModal(RenameModalView::Create(*this, currentName.c_str(),
+                                    MAX_THEME_NAME_LENGTH),
+            ModalViewCallback::create<ThemeView,
+                                      &ThemeView::onRenameFinished>(*this));
+    isDirty_ = true;
+    return;
+  }
+
+  if (!(GetFocus() == themeNameField_ &&
+        (mask & (EPBM_ENTER | EPBM_EDIT))))
+    FieldView::ProcessButtonMask(mask, pressed);
 
   if (mask & EPBM_NAV) {
     if (mask & EPBM_LEFT) {
@@ -293,6 +292,22 @@ void ThemeView::ProcessButtonMask(unsigned short mask, bool pressed) {
     Player *player = Player::GetInstance();
     player->OnStartButton(PM_SONG, viewData_->songX_, false, viewData_->songX_);
   }
+}
+
+void ThemeView::onRenameFinished(View &, ModalView &dialog) {
+  if (dialog.GetReturnCode() != RenameModalView::SaveReturnCode)
+    return;
+  const auto &rename = static_cast<const RenameModalView &>(dialog);
+  if (rename.Value()[0] == '\0')
+    return;
+  exportThemeName_ = rename.Value();
+  themeNameVar_.SetString(exportThemeName_.c_str(), false);
+  themeNameField_->SetVariable(themeNameVar_);
+  Config *config = Config::GetInstance();
+  if (Variable *name = config->FindVariable(FourCC::VarThemeName))
+    name->SetString(exportThemeName_.c_str());
+  configDirty_ = true;
+  isDirty_ = true;
 }
 
 void ThemeView::DrawView() {

@@ -9,6 +9,7 @@ export const VIEW_NAMES = Object.freeze([
 
 export const MODAL_NAMES = Object.freeze([
   'Message Box', 'Text Input', 'Render Progress', 'Full Screen Box',
+  'Rename',
 ])
 
 function requireExport(module, name) {

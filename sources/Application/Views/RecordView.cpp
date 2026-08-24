@@ -107,10 +107,17 @@ RecordViewUi2Snapshot RecordView::SnapshotForUi2() const {
   std::snprintf(snapshot.elapsed.data(), snapshot.elapsed.size(), "%02u:%02u",
                 static_cast<unsigned int>((totalSeconds / 60U) % 100U),
                 static_cast<unsigned int>(totalSeconds % 60U));
-  snapshot.savingPercent = GetSavingProgressPercent();
+  snapshot.savingPercent =
+      std::min<std::uint8_t>(GetSavingProgressPercent(), 100U);
   snapshot.state = uiSavingActive_    ? RecordViewUi2State::Saving
                    : uiRecordingActive_ ? RecordViewUi2State::Recording
                                         : RecordViewUi2State::Idle;
+
+  // The picoTracker, Node and WASM adapters currently expose stubs for record
+  // capture and no input-level samples. Keep the live projection honest: the
+  // approved safe/warning meter remains a design fixture, not fabricated state.
+  snapshot.recordingAvailable = false;
+  snapshot.meterAvailable = false;
 
   switch (GetFocusIndex()) {
   case 0:

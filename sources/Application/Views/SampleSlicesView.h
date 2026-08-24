@@ -9,6 +9,7 @@
 #ifndef _SAMPLE_SLICES_VIEW_H_
 #define _SAMPLE_SLICES_VIEW_H_
 
+#include "Application/UI2/Ui2SampleSnapshots.h"
 #include "BaseClasses/UIActionField.h"
 #include "BaseClasses/UIIntVarField.h"
 #include "BaseClasses/UIStaticField.h"
@@ -18,35 +19,9 @@
 #include "Foundation/Variables/WatchedVariable.h"
 #include "GraphField.h"
 #include "System/System/System.h"
-#include "Ui2SampleSnapshot.h"
 #include "ViewData.h"
-#include <array>
-#include <cstdint>
 
 class SampleInstrument;
-
-enum class SampleSlicesViewUi2Focus : std::uint8_t {
-  Waveform,
-  AutoSliceCount,
-  AutoSlice,
-  Unknown,
-};
-
-struct SampleSlicesViewUi2Snapshot {
-  std::array<char, 3> sliceCount{};
-  std::array<char, 8> slice{};
-  std::array<char, 8> start{};
-  std::array<char, 8> zoom{};
-  Ui2WaveformSnapshot waveform{};
-  Ui2WaveformMarkersSnapshot<SampleInstrument::MaxSlices + 1> markers{};
-  SampleSlicesViewUi2Focus focus = SampleSlicesViewUi2Focus::Unknown;
-  std::uint8_t selectedSlice = 0;
-  std::uint8_t autoSliceCount = 0;
-  bool waveformReady = false;
-  bool hasSample = false;
-  bool previewActive = false;
-  bool previewPlayheadVisible = false;
-};
 
 class SampleSlicesView : public FieldView, public I_Observer {
 public:

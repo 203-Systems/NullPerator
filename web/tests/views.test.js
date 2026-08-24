@@ -49,12 +49,13 @@ describe('view acceptance diagnostics', () => {
     }))
     expect(MODAL_NAMES).toEqual([
       'Message Box', 'Text Input', 'Render Progress', 'Full Screen Box',
+      'Rename',
     ])
-    handle.openModal(3)
+    handle.openModal(4)
     handle.closeModal()
-    expect(requestModal.mock.calls).toEqual([[3], [4]])
+    expect(requestModal.mock.calls).toEqual([[4], [5]])
     expect([handle.currentModal(), handle.modalGeneration()]).toEqual([3, 9])
-    for (const value of [-1, 4, 1.5, '1']) {
+    for (const value of [-1, 5, 1.5, '1']) {
       expect(() => handle.openModal(value)).toThrow(RangeError)
     }
   })

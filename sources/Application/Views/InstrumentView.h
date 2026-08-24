@@ -143,6 +143,7 @@ private:
   void onConfirmResetInstrument(View &view, ModalView &dialog);
   void onConfirmSampleChange(View &view, ModalView &dialog);
   void onConfirmExportOverwrite(View &view, ModalView &dialog);
+  void onRenameFinished(View &view, ModalView &dialog);
 
   static constexpr size_t SliceCountLabelSize = 20;
   Project *project_;

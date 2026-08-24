@@ -171,6 +171,14 @@ directly.
 - Enum/boolean fields: selector bar.
 - Groove and Mixer: hidden by default.
 - Browser pages: page-specific Load/Delete/Edit actions.
+- Rename opens a dedicated opaque 240×240 editor page instead of revealing the
+  page underneath. `RENAME` is centered in its own Top Bar, followed by a
+  single-line draft and an on-screen keyboard whose first row is numeric. The
+  keyboard includes case, Space and Delete keys; the fixed action row is
+  `CANCEL / RANDOM / SAVE`. Random only changes the draft; Cancel discards it;
+  Save commits the draft to the owning page. Editing uses a fixed-capacity
+  buffer, so the same controller is deterministic and allocation-free on
+  ESP32-S3.
 - Pressing and holding Nav may expand the Bottom Bar to show navigation and
   mixer information. Expansion is a height/reveal animation, not a page
   relayout.
