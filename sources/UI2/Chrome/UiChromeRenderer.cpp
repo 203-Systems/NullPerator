@@ -309,8 +309,12 @@ UiBuildStatus UiChromeRenderer::BuildBottom(const UiBottomBarModel &model,
     std::array<char, 4> coarse{};
     std::snprintf(fine.data(), fine.size(), "%u",
                   static_cast<unsigned>(model.adjustment.fineStep));
-    std::snprintf(coarse.data(), coarse.size(), "%u",
-                  static_cast<unsigned>(model.adjustment.coarseStep));
+    if (model.adjustment.coarseOctave) {
+      std::snprintf(coarse.data(), coarse.size(), "OCT");
+    } else {
+      std::snprintf(coarse.data(), coarse.size(), "%u",
+                    static_cast<unsigned>(model.adjustment.coarseStep));
+    }
     builder.Text("<", 24, 220, UiColorToken::DerivedTextFaint);
     DrawPlusMinus(builder, 54, 220);
     builder.Text(fine.data(), 60, 220, UiColorToken::TextColored);

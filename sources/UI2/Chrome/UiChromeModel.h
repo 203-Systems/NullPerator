@@ -85,6 +85,7 @@ struct UiSelectorBarModel {
 struct UiAdjustmentLegendModel {
   std::uint8_t fineStep = 1;
   std::uint8_t coarseStep = 10;
+  bool coarseOctave = false;
 };
 
 enum class UiBottomBarKind : std::uint8_t {

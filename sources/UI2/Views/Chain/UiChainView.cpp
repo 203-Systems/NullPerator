@@ -168,8 +168,11 @@ UiBuildStatus UiChainView::Build(const UiChainViewData &data,
   editTracks.trackSelectionRect = data.bottomTrackVisualRect;
   editTracks.trackSelectionOverride = data.bottomTrackVisualOverride;
   editTracks.trackInkVisible = data.bottomTrackInkVisible;
-  const UiAdjustmentLegendModel adjustment{.fineStep = 1U,
-                                            .coarseStep = 10U};
+  const UiAdjustmentLegendModel adjustment{
+      .fineStep = 1U,
+      .coarseStep = 10U,
+      .coarseOctave = data.editColumn == 1U,
+  };
   const UiBarInputs barInputs{
       .pageTop = top,
       .pageDefault = pageBottom,
