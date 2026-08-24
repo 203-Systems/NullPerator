@@ -11,6 +11,7 @@ add_library(ui2
   Theme/UiPalette.cpp
   Views/Chain/UiChainView.cpp
   Views/Device/UiDeviceView.cpp
+  Views/Font/UiFontView.cpp
   Views/Groove/UiGrooveView.cpp
   Views/Phrase/UiPhraseView.cpp
   Views/Instrument/UiInstrumentView.cpp
@@ -18,6 +19,7 @@ add_library(ui2
   Views/Song/UiSongView.cpp
   Views/Project/UiProjectView.cpp
   Views/Table/UiTableView.cpp
+  Views/Theme/UiThemeView.cpp
   UiEngine.cpp)
 
 target_include_directories(ui2 PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/..")

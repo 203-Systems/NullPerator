@@ -13,6 +13,7 @@
 #include "UI2/Render/UiFrameRenderer.h"
 #include "UI2/Views/Chain/UiChainView.h"
 #include "UI2/Views/Device/UiDeviceView.h"
+#include "UI2/Views/Font/UiFontView.h"
 #include "UI2/Views/Groove/UiGrooveView.h"
 #include "UI2/Views/Song/UiSongView.h"
 #include "UI2/Views/Phrase/UiPhraseView.h"
@@ -20,6 +21,7 @@
 #include "UI2/Views/Mixer/UiMixerView.h"
 #include "UI2/Views/Project/UiProjectView.h"
 #include "UI2/Views/Table/UiTableView.h"
+#include "UI2/Views/Theme/UiThemeView.h"
 #include "Adapters/wasm/gui/WasmUiPresenter.h"
 #include "Application/UI2/Ui2ApplicationRuntime.h"
 
@@ -1276,4 +1278,69 @@ TEST_CASE("UI2 Device idle frame stays clean") {
   surface.ClearDirty();
   ui2::UiDeviceView::RenderDelta(data, data, scene, surface, palette);
   CHECK_FALSE(surface.DirtyTiles().Any());
+}
+
+TEST_CASE("UI2 Theme and Font remain separate page contracts") {
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiThemeView::Build({}, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK(scene.bottomVisible);
+  REQUIRE(ui2::UiFontView::Build({}, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK_FALSE(scene.bottomVisible);
+}
+
+TEST_CASE("UI2 Theme delta rendering is pixel-identical to a full redraw") {
+  ui2::UiPalette palette;
+  ui2::UiThemeViewData previous;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiThemeView::Build(previous, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+  surface.ClearDirty();
+  ui2::UiThemeViewData current = previous;
+  current.name = "NIGHT";
+  current.cursorVisualOverride = true;
+  current.cursorVisualRect = {7, 47, 226, 9};
+  current.cursorInkVisible = false;
+  ui2::UiFrameScene currentScene;
+  REQUIRE(ui2::UiThemeView::Build(current, palette, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiThemeView::RenderDelta(previous, current, currentScene, surface,
+                                palette);
+  ui2::UiSurfaceStorage expectedStorage;
+  ui2::UiIndexedSurface expected(expectedStorage);
+  ui2::UiFrameRenderer::RenderStatic(currentScene, expected, palette);
+  CHECK(std::equal(surface.Pixels().begin(), surface.Pixels().end(),
+                   expected.Pixels().begin(), expected.Pixels().end()));
+}
+
+TEST_CASE("UI2 Font delta rendering is pixel-identical to a full redraw") {
+  ui2::UiPalette palette;
+  ui2::UiFontViewData previous;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiFontView::Build(previous, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+  surface.ClearDirty();
+  ui2::UiFontViewData current = previous;
+  current.font = "CONDENSED 5X7";
+  current.cursorVisualOverride = true;
+  current.cursorVisualRect = {7, 59, 226, 9};
+  current.cursorInkVisible = false;
+  ui2::UiFrameScene currentScene;
+  REQUIRE(ui2::UiFontView::Build(current, palette, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiFontView::RenderDelta(previous, current, currentScene, surface,
+                               palette);
+  ui2::UiSurfaceStorage expectedStorage;
+  ui2::UiIndexedSurface expected(expectedStorage);
+  ui2::UiFrameRenderer::RenderStatic(currentScene, expected, palette);
+  CHECK(std::equal(surface.Pixels().begin(), surface.Pixels().end(),
+                   expected.Pixels().begin(), expected.Pixels().end()));
 }
