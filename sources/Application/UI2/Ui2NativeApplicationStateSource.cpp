@@ -434,6 +434,7 @@ Ui2NativeApplicationStateSource::CaptureProject(UiProjectFrameState &state) {
   state.nameAction = static_cast<std::uint8_t>(project_.NameAction());
   state.sampleAction = static_cast<std::uint8_t>(project_.SampleAction());
   state.renderOption = static_cast<std::uint8_t>(project_.RenderSelection());
+  state.editHeld = project_.EditHeld();
   constexpr std::uint16_t visible = 5U;
   const auto selectorWindow = [&](std::uint16_t current,
                                   std::uint16_t count) {

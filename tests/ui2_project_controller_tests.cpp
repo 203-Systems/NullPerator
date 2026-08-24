@@ -144,7 +144,7 @@ TEST_CASE("UI2 Project controller sanitizes initial fixed-size state") {
   CHECK(controller.RenderSelection() ==
         Ui2ProjectRenderSelection::Mixdown);
   CHECK(std::is_trivially_copyable_v<Ui2ProjectController>);
-  CHECK(sizeof(Ui2ProjectController) <= 4U);
+  CHECK(sizeof(Ui2ProjectController) <= 8U);
 }
 
 TEST_CASE("UI2 Project value rows preserve legacy fine and coarse steps") {

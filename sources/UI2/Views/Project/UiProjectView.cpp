@@ -158,6 +158,7 @@ void UiProjectView::RenderDelta(const UiProjectViewData &previous,
       previous.selectorCount != current.selectorCount ||
       previous.selectorCurrent != current.selectorCurrent ||
       previous.selectorWrap != current.selectorWrap ||
+      previous.editHeld != current.editHeld ||
       previous.nameAction != current.nameAction ||
       previous.sampleAction != current.sampleAction ||
       previous.renderOption != current.renderOption)
@@ -186,6 +187,13 @@ UiBuildStatus UiProjectView::Build(const UiProjectViewData &data, UiPalette &,
     bottom.actions.actions = {"NEW", "SAVE", "LOAD", "RENAME"};
     bottom.actions.count = 4;
     bottom.actions.active = std::min<std::uint8_t>(data.nameAction, 3);
+  } else if (data.editHeld &&
+             (data.cursor == UiProjectCursor::Tempo ||
+              data.cursor == UiProjectCursor::Transpose)) {
+    bottom.kind = UiBottomBarKind::AdjustmentLegend;
+    bottom.adjustment.fineStep = 1U;
+    bottom.adjustment.coarseStep =
+        data.cursor == UiProjectCursor::Tempo ? 10U : 12U;
   } else if (data.cursor == UiProjectCursor::Tempo ||
              data.cursor == UiProjectCursor::Transpose ||
              data.cursor == UiProjectCursor::Scale ||

@@ -28,6 +28,26 @@ void DrawSegments(BarBuilder &builder,
   }
 }
 
+void DrawVerticalArrow(BarBuilder &builder, std::int16_t x, std::int16_t y,
+                       bool up) {
+  for (std::int16_t row = 0; row < 3; ++row) {
+    const std::int16_t rank = up ? row : static_cast<std::int16_t>(2 - row);
+    const std::int16_t width = static_cast<std::int16_t>(1 + rank * 2);
+    builder.Fill({static_cast<std::int16_t>(x + 2 - rank),
+                  static_cast<std::int16_t>(y + row), width, 1},
+                 UiColorToken::TextNormal);
+  }
+}
+
+void DrawPlusMinus(BarBuilder &builder, std::int16_t x, std::int16_t y) {
+  builder.Fill({static_cast<std::int16_t>(x + 2), y, 1, 5},
+               UiColorToken::TextNormal);
+  builder.Fill({x, static_cast<std::int16_t>(y + 2), 5, 1},
+               UiColorToken::TextNormal);
+  builder.Fill({x, static_cast<std::int16_t>(y + 6), 5, 1},
+               UiColorToken::TextNormal);
+}
+
 } // namespace
 
 void UiChromeRenderer::DrawPower(const UiTopBarModel &model,
@@ -277,6 +297,23 @@ UiBuildStatus UiChromeRenderer::BuildBottom(const UiBottomBarModel &model,
                          UiColorToken::TextDim);
     builder.Text("<", 7, 220, UiColorToken::DerivedTextFaint);
     builder.Text(">", 228, 220, UiColorToken::DerivedTextFaint);
+    break;
+  }
+  case UiBottomBarKind::AdjustmentLegend: {
+    std::array<char, 4> fine{};
+    std::array<char, 4> coarse{};
+    std::snprintf(fine.data(), fine.size(), "%u",
+                  static_cast<unsigned>(model.adjustment.fineStep));
+    std::snprintf(coarse.data(), coarse.size(), "%u",
+                  static_cast<unsigned>(model.adjustment.coarseStep));
+    builder.Text("<", 24, 220, UiColorToken::TextNormal);
+    DrawPlusMinus(builder, 54, 220);
+    builder.Text(fine.data(), 60, 220, UiColorToken::TextNormal);
+    builder.Text(">", 91, 220, UiColorToken::TextNormal);
+    DrawVerticalArrow(builder, 142, 222, false);
+    DrawPlusMinus(builder, 170, 220);
+    builder.Text(coarse.data(), 176, 220, UiColorToken::TextNormal);
+    DrawVerticalArrow(builder, 215, 222, true);
     break;
   }
   }

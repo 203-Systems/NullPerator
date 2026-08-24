@@ -82,12 +82,18 @@ struct UiSelectorBarModel {
   bool wrap = false;
 };
 
+struct UiAdjustmentLegendModel {
+  std::uint8_t fineStep = 1;
+  std::uint8_t coarseStep = 10;
+};
+
 enum class UiBottomBarKind : std::uint8_t {
   Hidden,
   TrackNotes,
   Context,
   Actions,
   Selector,
+  AdjustmentLegend,
 };
 
 struct UiBottomBarModel {
@@ -96,6 +102,7 @@ struct UiBottomBarModel {
   UiContextBarModel context{};
   UiActionBarModel actions{};
   UiSelectorBarModel selector{};
+  UiAdjustmentLegendModel adjustment{};
 };
 
 struct UiResolvedChrome {
