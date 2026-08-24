@@ -93,6 +93,23 @@ target_include_directories(ui2_snapshot_tool PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}
   ${CMAKE_CURRENT_LIST_DIR}/../sources)
 
+add_executable(ui2_topbar_snapshot_tool
+  ui2_topbar_snapshot_main.cpp
+  ../sources/UI2/Chrome/UiBarResolver.cpp
+  ../sources/UI2/Chrome/UiChromeRenderer.cpp
+  ../sources/UI2/Render/UiDirtyTiles.cpp
+  ../sources/UI2/Render/UiFrameRenderer.cpp
+  ../sources/UI2/Render/UiIndexedSurface.cpp
+  ../sources/UI2/Render/UiRasterizer.cpp
+  ../sources/UI2/Render/UiVuGradient.cpp
+  ../sources/UI2/Text/UiFont5x7.cpp
+  ../sources/UI2/Theme/UiPalette.cpp
+  ../sources/UI2/Views/Song/UiSongView.cpp)
+
+target_include_directories(ui2_topbar_snapshot_tool PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}
+  ${CMAKE_CURRENT_LIST_DIR}/../sources)
+
 add_executable(ui2_phrase_snapshot_tool
   ui2_phrase_snapshot_main.cpp
   ../sources/UI2/Chrome/UiBarResolver.cpp
@@ -202,6 +219,20 @@ if(NODE_EXECUTABLE)
       --golden "${CMAKE_CURRENT_LIST_DIR}/../web/e2e/ui2-golden.spec.js-snapshots/song.png"
       --tolerance-region 219,47,16,153,1)
   set_tests_properties(ui2_song_golden PROPERTIES DEPENDS ui2_song_snapshot)
+
+  foreach(TOPBAR_STATE playing low high charging nav)
+    add_test(NAME ui2_topbar_${TOPBAR_STATE}_snapshot
+      COMMAND ui2_topbar_snapshot_tool "${TOPBAR_STATE}"
+        "${CMAKE_CURRENT_BINARY_DIR}/topbar-${TOPBAR_STATE}-actual.ppm")
+    add_test(NAME ui2_topbar_${TOPBAR_STATE}_golden
+      COMMAND "${NODE_EXECUTABLE}"
+        "${CMAKE_CURRENT_LIST_DIR}/../web/tools/compare-ui2-snapshot.mjs"
+        --actual "${CMAKE_CURRENT_BINARY_DIR}/topbar-${TOPBAR_STATE}-actual.ppm"
+        --golden "${CMAKE_CURRENT_LIST_DIR}/../web/e2e/ui2-golden.spec.js-snapshots/topbar-${TOPBAR_STATE}.png"
+        --tolerance-region 219,47,16,153,1)
+    set_tests_properties(ui2_topbar_${TOPBAR_STATE}_golden PROPERTIES
+      DEPENDS ui2_topbar_${TOPBAR_STATE}_snapshot)
+  endforeach()
 
   foreach(PHRASE_STATE note empty fx number)
     add_test(NAME ui2_phrase_${PHRASE_STATE}_snapshot
