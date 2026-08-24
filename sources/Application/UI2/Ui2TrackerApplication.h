@@ -14,6 +14,7 @@
 #include "Application/UI2/Controllers/Ui2ThemeController.h"
 #include "Application/UI2/Controllers/Ui2FontController.h"
 #include "Application/UI2/Controllers/Ui2ProjectController.h"
+#include "Application/UI2/Controllers/Ui2MixerController.h"
 #include "Application/UI2/Controllers/Ui2RenameController.h"
 #include "Application/UI2/Controllers/Ui2TrackerControllerHub.h"
 #include "Application/UI2/Ui2ApplicationRuntime.h"
@@ -55,6 +56,7 @@ private:
   void ExecuteTheme(Ui2ThemeCommand command);
   void HandleFont(TrackerAction action, bool pressed);
   void HandleRename(TrackerAction action, bool pressed);
+  void HandleMixer(TrackerAction action, bool pressed);
   void ExecuteProject(Ui2ProjectCommand command);
   void ExecuteGroove(Ui2GrooveCommand command);
   void SynchronizeGridPage();
@@ -68,6 +70,7 @@ private:
   Ui2ThemeController theme_{};
   Ui2FontController font_{};
   Ui2RenameController rename_{};
+  Ui2MixerController mixer_{};
   Ui2ControllerInputState projectInput_{};
   Ui2NativeApplicationStateSource source_;
   UiApplicationRuntime runtime_;

@@ -10,6 +10,7 @@
 #include "Application/UI2/Controllers/Ui2DeviceController.h"
 #include "Application/UI2/Controllers/Ui2ThemeController.h"
 #include "Application/UI2/Controllers/Ui2ProjectController.h"
+#include "Application/UI2/Controllers/Ui2MixerController.h"
 #include "Application/UI2/Controllers/Ui2RenameController.h"
 #include "Application/UI2/Controllers/Ui2TrackerControllerHub.h"
 #include "Application/UI2/Ui2ApplicationStateSource.h"
@@ -30,9 +31,11 @@ public:
                                   Ui2GrooveController &groove,
                                   Ui2DeviceController &device,
                                   Ui2ThemeController &theme,
-                                  Ui2RenameController &rename)
+                                  Ui2RenameController &rename,
+                                  Ui2MixerController &mixer)
       : session_(session), tracker_(tracker), project_(project),
-        groove_(groove), device_(device), theme_(theme), rename_(rename) {}
+        groove_(groove), device_(device), theme_(theme), rename_(rename),
+        mixer_(mixer) {}
 
   void SetActivePage(UiApplicationPage page) { activePage_ = page; }
 
@@ -87,6 +90,7 @@ private:
   Ui2DeviceController &device_;
   Ui2ThemeController &theme_;
   Ui2RenameController &rename_;
+  Ui2MixerController &mixer_;
   UiApplicationPage activePage_ = UiApplicationPage::Song;
 };
 

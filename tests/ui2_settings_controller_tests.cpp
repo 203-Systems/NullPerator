@@ -2,6 +2,7 @@
 #include "Application/UI2/Controllers/Ui2FontController.h"
 #include "Application/UI2/Controllers/Ui2GrooveController.h"
 #include "Application/UI2/Controllers/Ui2InstrumentController.h"
+#include "Application/UI2/Controllers/Ui2MixerController.h"
 #include "Application/UI2/Controllers/Ui2RenameController.h"
 #include "Application/UI2/Controllers/Ui2ThemeController.h"
 
@@ -147,6 +148,24 @@ TEST_CASE("UI2 Rename owns its bounded draft and full-page navigation") {
   CHECK(controller.Snapshot().focus == UiDialogFocus::Actions);
   CHECK(Tap(controller, TrackerAction::Enter) == Ui2RenameCommand::Save);
   CHECK_FALSE(controller.Active());
+}
+
+TEST_CASE("UI2 Mixer selects nine strips and edits volume with Enter") {
+  using namespace ui2;
+  Ui2MixerController controller;
+  for (std::uint8_t channel = 1U; channel < Ui2MixerController::ChannelCount;
+       ++channel) {
+    const auto command = Tap(controller, TrackerAction::Right);
+    CHECK(command.type == Ui2MixerCommandType::SelectChannel);
+    CHECK(command.channel == channel);
+  }
+  CHECK(controller.SelectedChannel() == 8U);
+  controller.Handle(TrackerAction::Enter, true);
+  const auto adjust = Tap(controller, TrackerAction::Up);
+  CHECK(adjust.type == Ui2MixerCommandType::AdjustVolume);
+  CHECK(adjust.channel == 8U);
+  CHECK(adjust.delta == 1);
+  controller.Handle(TrackerAction::Enter, false);
 }
 
 TEST_CASE("UI2 Instrument name actions and type selector are independent") {

@@ -62,7 +62,8 @@ Ui2TrackerPage TrackerPageFor(UiApplicationPage page) {
 Ui2TrackerApplication::Ui2TrackerApplication(IUiPresenter &presenter)
     : session_(UNNAMED_PROJECT_NAME), modelPort_(session_),
       tracker_(modelPort_),
-      source_(session_, tracker_, project_, groove_, device_, theme_, rename_),
+      source_(session_, tracker_, project_, groove_, device_, theme_, rename_,
+              mixer_),
       runtime_(presenter) {}
 
 bool Ui2TrackerApplication::Init() {
@@ -158,8 +159,7 @@ void Ui2TrackerApplication::DispatchTrackerAction(TrackerAction action,
     HandleDevice(action, pressed);
     break;
   case UiApplicationPage::Mixer:
-    if (pressed && action == TrackerAction::Up)
-      ActivatePage(UiApplicationPage::Song);
+    HandleMixer(action, pressed);
     break;
   case UiApplicationPage::Instrument:
   case UiApplicationPage::Browser:
@@ -295,6 +295,36 @@ void Ui2TrackerApplication::HandleRename(TrackerAction action, bool pressed) {
   } else if (command == Ui2RenameCommand::Save) {
     session_.ProjectModel().SetProjectName(rename_.Value());
   }
+}
+
+void Ui2TrackerApplication::HandleMixer(TrackerAction action, bool pressed) {
+  const Ui2MixerCommand command = mixer_.Handle(action, pressed);
+  if (command.type == Ui2MixerCommandType::ReturnToSong) {
+    ActivatePage(UiApplicationPage::Song);
+    return;
+  }
+  if (command.type == Ui2MixerCommandType::OpenRecord) {
+    ActivatePage(UiApplicationPage::Record);
+    return;
+  }
+  if (command.type == Ui2MixerCommandType::StartPlayback) {
+    Player::GetInstance()->OnStartButton(PM_SONG, 0, false, 0);
+    return;
+  }
+  if (command.type != Ui2MixerCommandType::AdjustVolume)
+    return;
+
+  Project &project = session_.ProjectModel();
+  static constexpr FourCC channelVariables[SONG_CHANNEL_COUNT] = {
+      FourCC::VarChannel1Volume, FourCC::VarChannel2Volume,
+      FourCC::VarChannel3Volume, FourCC::VarChannel4Volume,
+      FourCC::VarChannel5Volume, FourCC::VarChannel6Volume,
+      FourCC::VarChannel7Volume, FourCC::VarChannel8Volume};
+  const bool master = command.channel == SONG_CHANNEL_COUNT;
+  Variable *variable = project.FindVariable(
+      master ? FourCC::VarMasterVolume : channelVariables[command.channel]);
+  if (variable != nullptr)
+    variable->SetInt(std::clamp(variable->GetInt() + command.delta, 0, 99));
 }
 
 void Ui2TrackerApplication::HandleTheme(TrackerAction action, bool pressed) {

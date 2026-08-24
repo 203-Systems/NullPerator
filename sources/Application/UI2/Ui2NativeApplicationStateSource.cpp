@@ -564,7 +564,7 @@ Ui2NativeApplicationStateSource::CaptureMixer(UiMixerFrameState &state) {
   for (auto &channel : state.vuLevelTop)
     channel = {UiMixerView::kMeterHeight, UiMixerView::kMeterHeight};
   Project &project = session_.ProjectModel();
-  state.selectedChannel = session_.EditorState().songX_;
+  state.selectedChannel = static_cast<std::int8_t>(mixer_.SelectedChannel());
   for (std::uint8_t channel = 0; channel < SONG_CHANNEL_COUNT; ++channel)
     FormatVolume(project.GetChannelVolume(channel), state.volumes[channel]);
   FormatVolume(project.GetMasterVolume(), state.volumes[SONG_CHANNEL_COUNT]);
