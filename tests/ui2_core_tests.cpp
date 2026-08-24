@@ -11,6 +11,7 @@
 #include "UI2/Theme/UiPalette.h"
 #include "UI2/UiEngine.h"
 #include "UI2/Render/UiFrameRenderer.h"
+#include "UI2/Views/Groove/UiGrooveView.h"
 #include "UI2/Views/Song/UiSongView.h"
 #include "UI2/Views/Phrase/UiPhraseView.h"
 #include "UI2/Views/Instrument/UiInstrumentView.h"
@@ -20,6 +21,7 @@
 #include "Application/UI2/Ui2ApplicationRuntime.h"
 
 #include "ui2_song_fixture.h"
+#include "ui2_groove_fixture.h"
 #include "ui2_phrase_fixture.h"
 #include "ui2_instrument_fixture.h"
 #include "ui2_mixer_fixture.h"
@@ -1001,6 +1003,66 @@ TEST_CASE("UI2 Mixer idle is clean and one meter change stays local") {
           ui2::UiBuildStatus::Built);
   ui2::UiMixerView::RenderDelta(previous, current, currentScene, surface,
                                 palette);
+  ui2::DirtyStripList strips;
+  REQUIRE(surface.DirtyTiles().Collect(strips));
+  std::uint32_t transferredPixels = 0;
+  for (const ui2::DirtyStrip strip : strips.Strips()) {
+    transferredPixels +=
+        static_cast<std::uint32_t>(strip.width) * strip.height;
+  }
+  CHECK(transferredPixels < 3'000);
+}
+
+TEST_CASE("UI2 Groove delta rendering is pixel-identical to a full redraw") {
+  ui2::UiPalette palette;
+  ui2::UiGrooveViewData previous = ui2::test::ApprovedGrooveFixture();
+  ui2::UiFrameScene previousScene;
+  REQUIRE(ui2::UiGrooveView::Build(previous, palette, previousScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(previousScene, surface, palette);
+  surface.ClearDirty();
+
+  ui2::UiGrooveViewData current = previous;
+  current.editRow = 7;
+  current.steps[7] = 0x09;
+  current.cursorVisualOverride = true;
+  current.cursorVisualRect = {27, 86, 15, 9};
+  current.cursorInkVisible = false;
+  ui2::UiFrameScene currentScene;
+  REQUIRE(ui2::UiGrooveView::Build(current, palette, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiGrooveView::RenderDelta(previous, current, currentScene, surface,
+                                 palette);
+
+  ui2::UiSurfaceStorage expectedStorage;
+  ui2::UiIndexedSurface expected(expectedStorage);
+  ui2::UiFrameRenderer::RenderStatic(currentScene, expected, palette);
+  CHECK(std::equal(surface.Pixels().begin(), surface.Pixels().end(),
+                   expected.Pixels().begin(), expected.Pixels().end()));
+}
+
+TEST_CASE("UI2 Groove idle is clean and a row move stays locally dirty") {
+  ui2::UiPalette palette;
+  ui2::UiGrooveViewData previous = ui2::test::ApprovedGrooveFixture();
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiGrooveView::Build(previous, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+  surface.ClearDirty();
+  ui2::UiGrooveView::RenderDelta(previous, previous, scene, surface, palette);
+  CHECK_FALSE(surface.DirtyTiles().Any());
+
+  ui2::UiGrooveViewData current = previous;
+  current.editRow = 1;
+  ui2::UiFrameScene currentScene;
+  REQUIRE(ui2::UiGrooveView::Build(current, palette, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiGrooveView::RenderDelta(previous, current, currentScene, surface,
+                                 palette);
   ui2::DirtyStripList strips;
   REQUIRE(surface.DirtyTiles().Collect(strips));
   std::uint32_t transferredPixels = 0;
