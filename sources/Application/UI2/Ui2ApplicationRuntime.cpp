@@ -886,22 +886,27 @@ UiApplicationRuntime::PresentInstrument(IUiApplicationStateSource &source,
 
 UiProjectViewData
 UiApplicationRuntime::ViewDataFor(const ProjectFrameState &state) {
-  return {
-      .name = state.name.data(),
-      .tempo = state.tempo.data(),
-      .transpose = state.transpose.data(),
-      .scale = state.scale.data(),
-      .root = state.root.data(),
-      .cursor = state.cursor,
-      .nameAction = state.nameAction,
-      .sampleAction = state.sampleAction,
-      .renderOption = state.renderOption,
-      .cursorVisualRect = state.cursorVisualRect,
-      .cursorVisualOverride = state.cursorVisualOverride,
-      .cursorInkVisible = state.cursorInkVisible,
-      .scrollOffset = state.scrollOffset,
-      .power = state.power,
-  };
+  UiProjectViewData data;
+  data.name = state.name.data();
+  data.tempo = state.tempo.data();
+  data.transpose = state.transpose.data();
+  data.scale = state.scale.data();
+  data.root = state.root.data();
+  for (std::size_t index = 0; index < state.selectorOptions.size(); ++index)
+    data.selectorOptions[index] = state.selectorOptions[index].data();
+  data.selectorCount = state.selectorCount;
+  data.selectorCurrent = state.selectorCurrent;
+  data.selectorWrap = state.selectorWrap;
+  data.cursor = state.cursor;
+  data.nameAction = state.nameAction;
+  data.sampleAction = state.sampleAction;
+  data.renderOption = state.renderOption;
+  data.cursorVisualRect = state.cursorVisualRect;
+  data.cursorVisualOverride = state.cursorVisualOverride;
+  data.cursorInkVisible = state.cursorInkVisible;
+  data.scrollOffset = state.scrollOffset;
+  data.power = state.power;
+  return data;
 }
 
 PresentResult

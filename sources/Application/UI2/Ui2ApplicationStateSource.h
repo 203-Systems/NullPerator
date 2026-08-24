@@ -264,10 +264,14 @@ struct UiProjectFrameState {
   std::array<char, 8> transpose{};
   std::array<char, 24> scale{};
   std::array<char, 8> root{};
+  std::array<std::array<char, 24>, 5> selectorOptions{};
+  std::uint8_t selectorCount = 0;
+  std::uint8_t selectorCurrent = 0;
   UiProjectCursor cursor = UiProjectCursor::Name;
   std::uint8_t nameAction = 0;
   std::uint8_t sampleAction = 0;
   std::uint8_t renderOption = 0;
+  bool selectorWrap = false;
   RectI16 cursorVisualRect{};
   bool cursorVisualOverride = false;
   bool cursorInkVisible = true;

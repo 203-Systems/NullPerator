@@ -228,6 +228,14 @@ void Ui2TrackerApplication::HandleProject(TrackerAction action,
   if (projectInput_.AnyModifier())
     return;
 
+  if (action == TrackerAction::Left || action == TrackerAction::Right) {
+    const Ui2ProjectCommand adjustment = project_.Adjust(action);
+    if (adjustment.HasValue()) {
+      ExecuteProject(adjustment);
+      return;
+    }
+  }
+
   switch (action) {
   case TrackerAction::Up:
     project_.MoveUp();

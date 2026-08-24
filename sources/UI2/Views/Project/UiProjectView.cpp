@@ -154,6 +154,10 @@ void UiProjectView::RenderDelta(const UiProjectViewData &previous,
   if (previous.cursor != current.cursor || previous.tempo != current.tempo ||
       previous.transpose != current.transpose ||
       previous.scale != current.scale || previous.root != current.root ||
+      previous.selectorOptions != current.selectorOptions ||
+      previous.selectorCount != current.selectorCount ||
+      previous.selectorCurrent != current.selectorCurrent ||
+      previous.selectorWrap != current.selectorWrap ||
       previous.nameAction != current.nameAction ||
       previous.sampleAction != current.sampleAction ||
       previous.renderOption != current.renderOption)
@@ -187,24 +191,35 @@ UiBuildStatus UiProjectView::Build(const UiProjectViewData &data, UiPalette &,
              data.cursor == UiProjectCursor::Scale ||
              data.cursor == UiProjectCursor::Root) {
     bottom.kind = UiBottomBarKind::Selector;
-    switch (data.cursor) {
-    case UiProjectCursor::Tempo:
-      valueOption[0] = data.tempo;
-      break;
-    case UiProjectCursor::Transpose:
-      valueOption[0] = data.transpose;
-      break;
-    case UiProjectCursor::Scale:
-      valueOption[0] = data.scale;
-      break;
-    case UiProjectCursor::Root:
-      valueOption[0] = data.root;
-      break;
-    default:
-      break;
+    if (data.selectorCount > 0) {
+      const std::uint8_t count = std::min<std::uint8_t>(
+          data.selectorCount,
+          static_cast<std::uint8_t>(data.selectorOptions.size()));
+      bottom.selector.options =
+          std::span<const std::string_view>(data.selectorOptions.data(), count);
+      bottom.selector.current =
+          std::min<std::uint8_t>(data.selectorCurrent, count - 1U);
+      bottom.selector.wrap = data.selectorWrap;
+    } else {
+      switch (data.cursor) {
+      case UiProjectCursor::Tempo:
+        valueOption[0] = data.tempo;
+        break;
+      case UiProjectCursor::Transpose:
+        valueOption[0] = data.transpose;
+        break;
+      case UiProjectCursor::Scale:
+        valueOption[0] = data.scale;
+        break;
+      case UiProjectCursor::Root:
+        valueOption[0] = data.root;
+        break;
+      default:
+        break;
+      }
+      bottom.selector.options = valueOption;
+      bottom.selector.current = 0;
     }
-    bottom.selector.options = valueOption;
-    bottom.selector.current = 0;
   } else if (data.cursor == UiProjectCursor::SamplePool ||
              data.cursor == UiProjectCursor::Samples) {
     bottom.kind = UiBottomBarKind::Actions;

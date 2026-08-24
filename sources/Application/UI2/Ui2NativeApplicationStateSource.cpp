@@ -434,6 +434,49 @@ Ui2NativeApplicationStateSource::CaptureProject(UiProjectFrameState &state) {
   state.nameAction = static_cast<std::uint8_t>(project_.NameAction());
   state.sampleAction = static_cast<std::uint8_t>(project_.SampleAction());
   state.renderOption = static_cast<std::uint8_t>(project_.RenderSelection());
+  constexpr std::uint16_t visible = 5U;
+  const auto selectorWindow = [&](std::uint16_t current,
+                                  std::uint16_t count) {
+    const std::uint16_t maximum = static_cast<std::uint16_t>(count - 1U);
+    const std::uint16_t start = static_cast<std::uint16_t>(
+        std::min<std::uint16_t>(current > 2U ? current - 2U : 0U,
+                                maximum >= visible - 1U
+                                    ? maximum - (visible - 1U)
+                                    : 0U));
+    state.selectorCount =
+        static_cast<std::uint8_t>(std::min<std::uint16_t>(visible, count));
+    state.selectorCurrent = static_cast<std::uint8_t>(current - start);
+    return start;
+  };
+  if (state.cursor == UiProjectCursor::Tempo) {
+    const std::uint16_t count = MAX_TEMPO - MIN_TEMPO + 1U;
+    const std::uint16_t current = model.GetTempo() - MIN_TEMPO;
+    const std::uint16_t start = selectorWindow(current, count);
+    for (std::uint8_t index = 0; index < state.selectorCount; ++index)
+      std::snprintf(state.selectorOptions[index].data(),
+                    state.selectorOptions[index].size(), "%u",
+                    static_cast<unsigned>(MIN_TEMPO + start + index));
+  } else if (state.cursor == UiProjectCursor::Transpose) {
+    constexpr std::int16_t minimum = -48;
+    constexpr std::uint16_t count = 97U;
+    const std::uint16_t current =
+        static_cast<std::uint16_t>(model.GetTranspose() - minimum);
+    const std::uint16_t start = selectorWindow(current, count);
+    for (std::uint8_t index = 0; index < state.selectorCount; ++index)
+      std::snprintf(state.selectorOptions[index].data(),
+                    state.selectorOptions[index].size(), "%02d",
+                    minimum + start + index);
+  } else if (state.cursor == UiProjectCursor::Scale) {
+    const std::uint16_t current = model.GetScale();
+    const std::uint16_t start = selectorWindow(current, numScales);
+    for (std::uint8_t index = 0; index < state.selectorCount; ++index)
+      CopyUpper(state.selectorOptions[index], scaleNames[start + index]);
+  } else if (state.cursor == UiProjectCursor::Root) {
+    const std::uint16_t current = model.GetScaleRoot();
+    const std::uint16_t start = selectorWindow(current, 12U);
+    for (std::uint8_t index = 0; index < state.selectorCount; ++index)
+      CopyUpper(state.selectorOptions[index], noteNames[start + index]);
+  }
   return {.active = PlayerRunning()};
 }
 

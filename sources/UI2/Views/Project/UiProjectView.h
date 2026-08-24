@@ -12,6 +12,7 @@
 #include "UI2/Scene/UiFrameScene.h"
 #include "UI2/Theme/UiPalette.h"
 
+#include <array>
 #include <cstdint>
 #include <string_view>
 
@@ -35,6 +36,10 @@ struct UiProjectViewData {
   std::string_view transpose = "00";
   std::string_view scale = "CHROMATIC";
   std::string_view root = "C";
+  std::array<std::string_view, 5> selectorOptions{};
+  std::uint8_t selectorCount = 0;
+  std::uint8_t selectorCurrent = 0;
+  bool selectorWrap = false;
   UiProjectCursor cursor = UiProjectCursor::Tempo;
   std::uint8_t nameAction = 0;
   std::uint8_t sampleAction = 0;
