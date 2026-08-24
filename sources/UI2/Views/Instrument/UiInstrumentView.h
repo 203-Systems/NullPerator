@@ -8,6 +8,7 @@
 
 #include "UI2/Chrome/UiBarResolver.h"
 #include "UI2/Chrome/UiChromeRenderer.h"
+#include "UI2/Interaction/UiVerticalList.h"
 #include "UI2/Render/UiIndexedSurface.h"
 #include "UI2/Scene/UiFrameScene.h"
 
@@ -56,6 +57,7 @@ struct UiInstrumentViewData {
   bool topMetaInkVisible = true;
   bool bottomTrackInkVisible = true;
   bool numberFocus = false;
+  std::int16_t scrollOffset = 0;
   UiPowerState power = UiPowerState::BatteryNormal;
 };
 
@@ -70,6 +72,11 @@ public:
                           UiIndexedSurface &surface, const UiPalette &palette);
   [[nodiscard]] static RectI16
   CursorTargetRect(const UiInstrumentViewData &data);
+  [[nodiscard]] static std::int16_t
+  ContentBottom(const UiInstrumentViewData &data);
+  [[nodiscard]] static std::int16_t
+  RevealCursor(std::int16_t currentOffset,
+               const UiInstrumentViewData &data);
   [[nodiscard]] static RectI16 FieldDamageRect(std::int16_t y);
 
 private:

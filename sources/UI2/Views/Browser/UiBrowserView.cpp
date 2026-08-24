@@ -53,8 +53,8 @@ UiBuildStatus UiBrowserView::Build(const UiBrowserViewData &data, UiPalette &,
   scene.topHeight = 34;
   scene.bottomTop = 208;
   scene.bottomVisible = true;
-  scene.topBackground = UiColorToken::SurfaceBarDeep;
-  scene.bottomBackground = UiColorToken::SurfaceBarDeep;
+  scene.topBackground = UiColorToken::SurfaceTopBar;
+  scene.bottomBackground = UiColorToken::SurfaceBottomBar;
   const UiTopBarModel top{
       .title = data.title, .meta = data.meta, .power = data.power};
   const UiBuildStatus topStatus = UiChromeRenderer::BuildTop(top, scene.top);
@@ -72,14 +72,14 @@ UiBuildStatus UiBrowserView::Build(const UiBrowserViewData &data, UiPalette &,
     return bottomStatus;
 
   UiSceneBuilder<256, 1024> builder(scene.content);
-  builder.Text(">", 10, 45, UiColorToken::TextPrimary);
-  builder.Text(data.item, 21, 45, UiColorToken::TextPrimary);
+  builder.Text(">", 10, 45, UiColorToken::TextNormal);
+  builder.Text(data.item, 21, 45, UiColorToken::TextNormal);
   builder.Selection(ResolvedCursorRect(data));
   if (data.cursorInkVisible) {
-    builder.Text(">", 10, 45, UiColorToken::CursorInk);
-    builder.Text(data.item, 21, 45, UiColorToken::CursorInk);
+    builder.Text(">", 10, 45, UiColorToken::TextHighlighted);
+    builder.Text(data.item, 21, 45, UiColorToken::TextHighlighted);
   }
-  builder.Text(data.footer, 9, 192, UiColorToken::TextDim);
+  builder.Text(data.footer, 9, 192, UiColorToken::DerivedTextFaint);
   return builder.Ok() ? UiBuildStatus::Built : UiBuildStatus::CommandOverflow;
 }
 

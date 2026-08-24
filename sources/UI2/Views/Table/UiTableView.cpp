@@ -8,6 +8,7 @@
 
 #include "UI2/Render/UiFrameRenderer.h"
 #include "UI2/Text/UiFont5x7.h"
+#include "UI2/Views/Tracker/UiTrackerGridMetrics.h"
 
 #include <array>
 
@@ -22,8 +23,8 @@ std::array<char, 3> HexByte(std::uint8_t value) {
 }
 
 UiColorToken HeaderColor(UiTableHeader active, UiTableHeader candidate) {
-  return active == candidate ? UiColorToken::CursorPrimary
-                             : UiColorToken::TextMuted;
+  return active == candidate ? UiColorToken::TextColored
+                             : UiColorToken::TextDim;
 }
 
 RectI16 ResolvedCursorRect(const UiTableViewData &data) {
@@ -76,14 +77,14 @@ RectI16 UiTableView::CursorTargetRect(const UiTableViewData &data) {
     return {};
   const std::string_view value = data.rows[data.editRow][data.editColumn];
   return {static_cast<std::int16_t>(kColumnX[data.editColumn] - 2),
-          static_cast<std::int16_t>(48 + data.editRow * 9),
+          UiTrackerGridMetrics::RowBoundsY(data.editRow),
           static_cast<std::int16_t>(UiFont5x7::TextWidth(value.size()) + 4), 9};
 }
 
 RectI16 UiTableView::RowDamageRect(std::uint8_t row) {
   if (row >= 16U)
     return {};
-  return {5, static_cast<std::int16_t>(48 + row * 9), 230, 10};
+  return UiTrackerGridMetrics::RowDamage(row, 230);
 }
 
 bool UiTableView::RequiresFullInvalidation(const UiTableViewData &previous,
@@ -162,8 +163,8 @@ UiBuildStatus UiTableView::Build(const UiTableViewData &data, UiPalette &,
   scene.Clear();
   scene.topHeight = 34;
   scene.bottomTop = 208;
-  scene.topBackground = UiColorToken::SurfaceBarDeep;
-  scene.bottomBackground = UiColorToken::SurfaceBarDeep;
+  scene.topBackground = UiColorToken::SurfaceTopBar;
+  scene.bottomBackground = UiColorToken::SurfaceBottomBar;
 
   const UiTopBarModel pageTop{
       .title = "TABLE",
@@ -206,24 +207,25 @@ UiBuildStatus UiTableView::Build(const UiTableViewData &data, UiPalette &,
     const UiTableHeader candidate =
         column < 2U ? UiTableHeader::Fx1
                     : (column < 4U ? UiTableHeader::Fx2 : UiTableHeader::Fx3);
-    builder.Text(headers[column], kColumnX[column], 39,
+    builder.Text(headers[column], kColumnX[column],
+                 UiTrackerGridMetrics::kHeaderTextY,
                  (column & 1U) == 0U ? HeaderColor(data.activeHeader, candidate)
-                                     : UiColorToken::TextMuted);
+                                     : UiColorToken::TextDim);
   }
   for (std::uint8_t row = 0; row < 16U; ++row) {
-    const std::int16_t y = static_cast<std::int16_t>(49 + row * 9);
+    const std::int16_t y = UiTrackerGridMetrics::RowTextY(row);
     const auto label = HexByte(static_cast<std::uint8_t>(data.rowOffset + row));
     builder.Text(label.data(), 8, y,
                  !data.numberFocus && row == data.editRow
-                     ? UiColorToken::CursorPrimary
-                     : UiColorToken::TextDim);
+                     ? UiColorToken::TextColored
+                     : UiColorToken::DerivedTextFaint);
     for (std::uint8_t column = 0; column < kColumnX.size(); ++column) {
       const std::string_view value = data.rows[row][column];
-      UiColorToken color = UiColorToken::TextPrimary;
+      UiColorToken color = UiColorToken::TextNormal;
       if ((column & 1U) != 0U && value == "0000") {
-        color = UiColorToken::TextDim;
+        color = UiColorToken::DerivedTextFaint;
       } else if ((column & 1U) == 0U && value == "---") {
-        color = UiColorToken::TextMuted;
+        color = UiColorToken::TextDim;
       }
       builder.Text(value, kColumnX[column], y, color);
     }
@@ -235,8 +237,8 @@ UiBuildStatus UiTableView::Build(const UiTableViewData &data, UiPalette &,
         data.editColumn < kColumnX.size()) {
       builder.Text(data.rows[data.editRow][data.editColumn],
                    kColumnX[data.editColumn],
-                   static_cast<std::int16_t>(49 + data.editRow * 9),
-                   UiColorToken::CursorInk);
+                   UiTrackerGridMetrics::RowTextY(data.editRow),
+                   UiColorToken::TextHighlighted);
     }
   }
   return builder.Ok() ? UiBuildStatus::Built : UiBuildStatus::CommandOverflow;

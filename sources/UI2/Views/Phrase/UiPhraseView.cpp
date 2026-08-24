@@ -8,6 +8,7 @@
 
 #include "UI2/Render/UiFrameRenderer.h"
 #include "UI2/Text/UiFont5x7.h"
+#include "UI2/Views/Tracker/UiTrackerGridMetrics.h"
 
 #include <array>
 
@@ -26,8 +27,8 @@ bool IsDimValue(std::string_view value) {
 }
 
 UiColorToken HeaderColor(UiPhraseHeader active, UiPhraseHeader candidate) {
-  return active == candidate ? UiColorToken::CursorPrimary
-                             : UiColorToken::TextMuted;
+  return active == candidate ? UiColorToken::TextColored
+                             : UiColorToken::TextDim;
 }
 
 RectI16 ResolvedCursorRect(const UiPhraseViewData &data) {
@@ -89,14 +90,14 @@ RectI16 UiPhraseView::CursorTargetRect(const UiPhraseViewData &data) {
     return {};
   const std::string_view value = data.rows[data.editRow][data.editColumn];
   return {static_cast<std::int16_t>(kColumnX[data.editColumn] - 2),
-          static_cast<std::int16_t>(46 + data.editRow * 10),
+          UiTrackerGridMetrics::RowBoundsY(data.editRow),
           static_cast<std::int16_t>(UiFont5x7::TextWidth(value.size()) + 4), 9};
 }
 
 RectI16 UiPhraseView::RowDamageRect(std::uint8_t row) {
   if (row >= 16U)
     return {};
-  return {5, static_cast<std::int16_t>(46 + row * 10), 230, 11};
+  return UiTrackerGridMetrics::RowDamage(row, 230);
 }
 
 bool UiPhraseView::RequiresFullInvalidation(const UiPhraseViewData &previous,
@@ -186,8 +187,8 @@ UiBuildStatus UiPhraseView::Build(const UiPhraseViewData &data, UiPalette &,
   scene.Clear();
   scene.topHeight = 34;
   scene.bottomTop = 208;
-  scene.topBackground = UiColorToken::SurfaceBarDeep;
-  scene.bottomBackground = UiColorToken::SurfaceBarDeep;
+  scene.topBackground = UiColorToken::SurfaceTopBar;
+  scene.bottomBackground = UiColorToken::SurfaceBottomBar;
 
   const UiTopBarModel pageTop{
       .title = "PHRASE",
@@ -225,33 +226,34 @@ UiBuildStatus UiPhraseView::Build(const UiPhraseViewData &data, UiPalette &,
     return bottomStatus;
 
   UiSceneBuilder<256, 1024> builder(scene.content);
-  builder.Text("NOTE", kColumnX[0], 38,
+  builder.Text("NOTE", kColumnX[0], UiTrackerGridMetrics::kHeaderTextY,
                HeaderColor(data.activeHeader, UiPhraseHeader::Note));
-  builder.Text("INS", kColumnX[1], 38,
+  builder.Text("INS", kColumnX[1], UiTrackerGridMetrics::kHeaderTextY,
                HeaderColor(data.activeHeader, UiPhraseHeader::Instrument));
-  builder.Text("FX1", kColumnX[2], 38,
+  builder.Text("FX1", kColumnX[2], UiTrackerGridMetrics::kHeaderTextY,
                HeaderColor(data.activeHeader, UiPhraseHeader::Fx1));
-  builder.Text("FX2", kColumnX[4], 38,
+  builder.Text("FX2", kColumnX[4], UiTrackerGridMetrics::kHeaderTextY,
                HeaderColor(data.activeHeader, UiPhraseHeader::Fx2));
 
   if (!data.numberFocus && data.editRow < 16U) {
     builder.Fill(
-        {5, static_cast<std::int16_t>(47 + data.editRow * 10), 230, 10},
+        {5, UiTrackerGridMetrics::RowTextY(data.editRow), 230,
+         UiTrackerGridMetrics::kRowHeight},
         UiColorToken::CursorRow);
   }
   for (std::uint8_t row = 0; row < 16U; ++row) {
-    const std::int16_t y = static_cast<std::int16_t>(47 + row * 10);
+    const std::int16_t y = UiTrackerGridMetrics::RowTextY(row);
     const auto rowLabel =
         HexByte(static_cast<std::uint8_t>(data.rowOffset + row));
     builder.Text(rowLabel.data(), 7, y,
                  !data.numberFocus && row == data.editRow
-                     ? UiColorToken::CursorPrimary
-                     : UiColorToken::TextDim);
+                     ? UiColorToken::TextColored
+                     : UiColorToken::DerivedTextFaint);
     for (std::uint8_t column = 0; column < kColumnX.size(); ++column) {
       const std::string_view value = data.rows[row][column];
       builder.Text(value, kColumnX[column], y,
-                   IsDimValue(value) ? UiColorToken::TextDim
-                                     : UiColorToken::TextPrimary);
+                   IsDimValue(value) ? UiColorToken::DerivedTextFaint
+                                     : UiColorToken::TextNormal);
     }
   }
 
@@ -262,8 +264,8 @@ UiBuildStatus UiPhraseView::Build(const UiPhraseViewData &data, UiPalette &,
         data.editColumn < kColumnX.size()) {
       builder.Text(data.rows[data.editRow][data.editColumn],
                    kColumnX[data.editColumn],
-                   static_cast<std::int16_t>(47 + data.editRow * 10),
-                   UiColorToken::CursorInk);
+                   UiTrackerGridMetrics::RowTextY(data.editRow),
+                   UiColorToken::TextHighlighted);
     }
   }
 

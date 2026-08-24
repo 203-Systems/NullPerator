@@ -10,6 +10,7 @@
 #include "UI2/Render/UiVuGradient.h"
 #include "UI2/Scene/UiCommandList.h"
 #include "UI2/Theme/UiPalette.h"
+#include "UI2/Theme/UiThemeSchema.h"
 #include "UI2/UiEngine.h"
 #include "UI2/Render/UiFrameRenderer.h"
 #include "UI2/Views/Browser/UiBrowserView.h"
@@ -27,6 +28,7 @@
 #include "UI2/Views/Sample/UiSampleViews.h"
 #include "UI2/Views/Table/UiTableView.h"
 #include "UI2/Views/Theme/UiThemeView.h"
+#include "UI2/Views/Tracker/UiTrackerGridMetrics.h"
 #include "Adapters/wasm/gui/WasmUiPresenter.h"
 #include "Application/UI2/Ui2ApplicationRuntime.h"
 
@@ -237,11 +239,11 @@ TEST_CASE("UI2 rasterizer preserves original corners through layer clips") {
 
 TEST_CASE("UI2 semantic palette reproduces approved coverage composites") {
   ui2::UiPalette palette;
-  CHECK(palette.Get(palette.Index(ui2::UiColorToken::SurfaceField)) ==
+  CHECK(palette.Get(palette.Index(ui2::UiColorToken::SurfaceBackground)) ==
         ui2::Rgb888{0x03, 0x07, 0x07});
   CHECK(palette.Get(palette.CoverageIndex(
             ui2::UiCoverage::Playback,
-            palette.Index(ui2::UiColorToken::SurfaceField))) ==
+            palette.Index(ui2::UiColorToken::SurfaceBackground))) ==
         ui2::Rgb888{0x2D, 0x65, 0x45});
   CHECK(palette.Get(palette.CoverageIndex(
             ui2::UiCoverage::Playback,
@@ -252,55 +254,153 @@ TEST_CASE("UI2 semantic palette reproduces approved coverage composites") {
 TEST_CASE("UI2 semantic palette reproduces exact quarter coverage colors") {
   ui2::UiPalette palette;
   const ui2::PaletteIndex background =
-      palette.Index(ui2::UiColorToken::VuTrack);
+      palette.Index(ui2::UiColorToken::DerivedVuTrack);
   CHECK(palette.Get(
-            palette.AntialiasIndex(ui2::UiCoverage::Cursor, background, 1)) ==
-        ui2::Rgb888{0x17, 0x43, 0x45});
+            palette.AntialiasIndex(ui2::UiCoverage::Cursor, 1)) ==
+        ui2::Rgb888{0x14, 0x42, 0x42});
   CHECK(palette.Get(
-            palette.AntialiasIndex(ui2::UiCoverage::Cursor, background, 2)) ==
-        ui2::Rgb888{0x26, 0x76, 0x7B});
+            palette.AntialiasIndex(ui2::UiCoverage::Cursor, 2)) ==
+        ui2::Rgb888{0x24, 0x75, 0x79});
   CHECK(palette.Get(
-            palette.AntialiasIndex(ui2::UiCoverage::Cursor, background, 3)) ==
-        ui2::Rgb888{0x36, 0xA9, 0xB2});
+            palette.AntialiasIndex(ui2::UiCoverage::Cursor, 3)) ==
+        ui2::Rgb888{0x35, 0xA9, 0xB1});
   CHECK(palette.Get(
-            palette.AntialiasIndex(ui2::UiCoverage::Playback, background, 3)) ==
-        ui2::Rgb888{0x50, 0xB1, 0x77});
+            palette.AntialiasIndex(ui2::UiCoverage::Playback, 3)) ==
+        ui2::Rgb888{0x4F, 0xB0, 0x76});
+}
+
+TEST_CASE("UI2 user palette exposes exactly the approved semantic fields") {
+  CHECK(ui2::UiPalette::kUserColorCount == 19);
+  CHECK(ui2::kUiThemeColors.size() == ui2::UiPalette::kUserColorCount);
+  CHECK(ui2::kUiThemeColors.front().key == "surface.bg");
+  CHECK(ui2::kUiThemeColors.back().key == "vu.peak");
+  for (std::size_t left = 0; left < ui2::kUiThemeColors.size(); ++left) {
+    CHECK(static_cast<std::size_t>(ui2::kUiThemeColors[left].token) == left);
+    for (std::size_t right = left + 1; right < ui2::kUiThemeColors.size();
+         ++right) {
+      CHECK(ui2::kUiThemeColors[left].key != ui2::kUiThemeColors[right].key);
+    }
+  }
+}
+
+TEST_CASE("UI2 user colors remain independent while element colors regenerate") {
+  ui2::UiPalette palette;
+  const ui2::Rgb888 batteryLow =
+      palette.Get(palette.Index(ui2::UiColorToken::BatteryLow));
+  const ui2::Rgb888 vuPeak =
+      palette.Get(palette.Index(ui2::UiColorToken::VuPeak));
+  const ui2::Rgb888 oldCorner = palette.Get(palette.CoverageIndex(
+      ui2::UiCoverage::Cursor,
+      palette.Index(ui2::UiColorToken::SurfaceBackground)));
+
+  palette.Set(ui2::UiColorToken::SystemError, {1, 2, 3});
+  CHECK(palette.Get(palette.Index(ui2::UiColorToken::BatteryLow)) ==
+        batteryLow);
+  CHECK(palette.Get(palette.Index(ui2::UiColorToken::VuPeak)) == vuPeak);
+
+  palette.Set(ui2::UiColorToken::CursorPrimary, {0x90, 0x20, 0x40});
+  CHECK(palette.Get(palette.CoverageIndex(
+            ui2::UiCoverage::Cursor,
+            palette.Index(ui2::UiColorToken::SurfaceBackground))) !=
+        oldCorner);
+}
+
+TEST_CASE("UI2 screen background covers the full 240 by 240 surface") {
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  scene.Clear();
+  scene.topHeight = 0;
+  scene.bottomVisible = false;
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+  const auto background =
+      palette.Index(ui2::UiColorToken::SurfaceBackground);
+  CHECK(surface.Pixel(0, 0) == background);
+  CHECK(surface.Pixel(239, 239) == background);
+}
+
+TEST_CASE("UI2 tracker pages share one ten-pixel vertical rhythm") {
+  ui2::UiPhraseViewData phrase;
+  ui2::UiTableViewData table;
+  for (std::uint8_t row = 0; row < 15; ++row) {
+    phrase.editRow = row;
+    table.editRow = row;
+    const std::int16_t songY = ui2::UiSongView::CursorTargetRect(0, row).y;
+    CHECK(ui2::UiPhraseView::CursorTargetRect(phrase).y == songY);
+    CHECK(ui2::UiTableView::CursorTargetRect(table).y == songY);
+    CHECK(ui2::UiSongView::CursorTargetRect(0, row + 1).y - songY ==
+          ui2::UiTrackerGridMetrics::kRowPitch);
+  }
+}
+
+TEST_CASE("UI2 vertical list reveals items while bars remain fixed") {
+  ui2::UiThemeViewData previous;
+  ui2::UiThemeViewData current = previous;
+  current.selectedColor = 18;
+  current.scrollOffset = ui2::UiThemeView::RevealCursor(0, current);
+  CHECK(current.scrollOffset == 122);
+
+  ui2::UiPalette palette;
+  ui2::UiFrameScene previousScene;
+  REQUIRE(ui2::UiThemeView::Build(previous, palette, previousScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(previousScene, surface, palette);
+  surface.ClearDirty();
+
+  ui2::UiFrameScene currentScene;
+  REQUIRE(ui2::UiThemeView::Build(current, palette, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK(currentScene.contentOffsetY == 122);
+  ui2::UiThemeView::RenderDelta(previous, current, currentScene, surface,
+                                palette);
+  ui2::UiSurfaceStorage expectedStorage;
+  ui2::UiIndexedSurface expected(expectedStorage);
+  ui2::UiFrameRenderer::RenderStatic(currentScene, expected, palette);
+  CHECK(std::equal(surface.Pixels().begin(), surface.Pixels().end(),
+                   expected.Pixels().begin(), expected.Pixels().end()));
+  CHECK(surface.Pixel(0, 0) ==
+        palette.Index(ui2::UiColorToken::SurfaceTopBar));
+  CHECK(surface.Pixel(0, 239) ==
+        palette.Index(ui2::UiColorToken::SurfaceBottomBar));
 }
 
 TEST_CASE("UI2 sparse coverage masks copy bounded data and decode columns") {
   ui2::UiPalette palette;
   ui2::UiContentScene scene;
   ui2::UiSceneBuilder<256, 1024> builder(scene);
-  builder.Fill({10, 10, 20, 10}, ui2::UiColorToken::VuTrack);
+  builder.Fill({10, 10, 20, 10}, ui2::UiColorToken::DerivedVuTrack);
   std::array<std::uint8_t, 11> encoded{
       0x00, 0x01, 0x00, 0x02, 0x04, 0x39,
       0xFF, 0x00, 0x05, 0x02, 0x07};
   builder.SparseCoverageMask({10, 10, 4, 10}, encoded,
                              ui2::UiCoverage::Cursor,
-                             ui2::UiColorToken::VuTrack);
+                             ui2::UiColorToken::DerivedVuTrack);
   REQUIRE(builder.Ok());
   encoded.fill(0);
   ui2::UiSurfaceStorage storage;
   ui2::UiIndexedSurface surface(storage);
-  surface.Clear(palette.Index(ui2::UiColorToken::SurfaceField));
+  surface.Clear(palette.Index(ui2::UiColorToken::SurfaceBackground));
   ui2::UiRasterizer::Render(scene.Stream(), surface, &palette);
   const ui2::PaletteIndex background =
-      palette.Index(ui2::UiColorToken::VuTrack);
+      palette.Index(ui2::UiColorToken::DerivedVuTrack);
   CHECK(surface.Pixel(10, 10) ==
-        palette.AntialiasIndex(ui2::UiCoverage::Cursor, background, 1));
+        palette.AntialiasIndex(ui2::UiCoverage::Cursor, 1));
   CHECK(surface.Pixel(11, 12) ==
-        palette.AntialiasIndex(ui2::UiCoverage::Cursor, background, 2));
+        palette.AntialiasIndex(ui2::UiCoverage::Cursor, 2));
   CHECK(surface.Pixel(11, 13) ==
-        palette.AntialiasIndex(ui2::UiCoverage::Cursor, background, 3));
+        palette.AntialiasIndex(ui2::UiCoverage::Cursor, 3));
   CHECK(surface.Pixel(11, 14) ==
         palette.Index(ui2::UiColorToken::CursorPrimary));
   CHECK(surface.Pixel(11, 15) ==
-        palette.AntialiasIndex(ui2::UiCoverage::Cursor, background, 1));
+        palette.AntialiasIndex(ui2::UiCoverage::Cursor, 1));
   CHECK(surface.Pixel(12, 10) == background);
   CHECK(surface.Pixel(13, 15) ==
         palette.Index(ui2::UiColorToken::CursorPrimary));
   CHECK(surface.Pixel(13, 16) ==
-        palette.AntialiasIndex(ui2::UiCoverage::Cursor, background, 2));
+        palette.AntialiasIndex(ui2::UiCoverage::Cursor, 2));
 }
 
 TEST_CASE("UI2 VU gradient uses fixed palette slots without RGB framebuffer") {
@@ -437,13 +537,13 @@ TEST_CASE("UI2 approved Song fixture fits fixed scene buffers") {
   ui2::UiIndexedSurface surface(storage);
   ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
   CHECK(surface.Pixel(0, 0) ==
-        palette.Index(ui2::UiColorToken::SurfaceBarDeep));
+        palette.Index(ui2::UiColorToken::SurfaceTopBar));
   CHECK(surface.Pixel(5, 34) ==
-        palette.Index(ui2::UiColorToken::SurfaceField));
-  CHECK(surface.Pixel(5, 127) ==
+        palette.Index(ui2::UiColorToken::SurfaceBackground));
+  CHECK(surface.Pixel(5, 128) ==
         palette.Index(ui2::UiColorToken::CursorRow));
   CHECK(surface.Pixel(219, 47) ==
-        palette.Index(ui2::UiColorToken::VuTrack));
+        palette.Index(ui2::UiColorToken::DerivedVuTrack));
   const ui2::RectI16 cursor = ui2::UiSongView::CursorTargetRect(0, 8);
   CHECK(surface.Pixel(cursor.x + 1, cursor.y + 4) ==
         palette.Index(ui2::UiColorToken::PlaybackActive));
@@ -475,7 +575,7 @@ TEST_CASE("UI2 WASM presenter converts only dirty strips and commits once") {
   ui2::UiSurfaceStorage storage;
   ui2::UiIndexedSurface surface(storage);
   ui2::UiPalette palette;
-  surface.Clear(palette.Index(ui2::UiColorToken::SurfaceField));
+  surface.Clear(palette.Index(ui2::UiColorToken::SurfaceBackground));
   surface.ClearDirty();
   surface.FillRect({8, 8, 8, 8},
                    palette.Index(ui2::UiColorToken::CursorPrimary));
@@ -506,7 +606,7 @@ TEST_CASE("UI2 RGB565 presenter chunks dirty strips without a framebuffer") {
   ui2::UiSurfaceStorage storage;
   ui2::UiIndexedSurface surface(storage);
   ui2::UiPalette palette;
-  const auto field = palette.Index(ui2::UiColorToken::SurfaceField);
+  const auto field = palette.Index(ui2::UiColorToken::SurfaceBackground);
   const auto cursor = palette.Index(ui2::UiColorToken::CursorPrimary);
   surface.Clear(field);
   surface.SetPixel(4, 5, cursor);
@@ -681,7 +781,7 @@ TEST_CASE("UI2 Song animated cursor delta matches the same full visual frame") {
                            current.cursorVisualRect.y + 4) ==
         deltaPalette.Index(ui2::UiColorToken::CursorPrimary));
   CHECK(ui2::UiSongView::CursorTargetRect(5, 3) ==
-        ui2::RectI16{131, 76, 15, 9});
+        ui2::RectI16{131, 77, 15, 9});
 }
 
 TEST_CASE("UI2 Song idle is clean and a cursor move stays locally dirty") {

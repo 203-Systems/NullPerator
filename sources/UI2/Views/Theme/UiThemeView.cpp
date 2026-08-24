@@ -7,30 +7,30 @@
 #include "UI2/Views/Theme/UiThemeView.h"
 
 #include "UI2/Render/UiFrameRenderer.h"
-
-#include <array>
+#include "UI2/Theme/UiThemeSchema.h"
 
 namespace ui2 {
 namespace {
-
-constexpr std::array<std::string_view, 9> kLabels{
-    "FOREGROUND", "BACKGROUND", "HIGHLIGHT 1", "HIGHLIGHT 2", "CURSOR",
-    "INFO",       "WARNING",    "ERROR",       "ACCENT"};
-constexpr std::array<UiColorToken, 9> kSwatches{
-    UiColorToken::TextPrimary,   UiColorToken::SurfaceField,
-    UiColorToken::CursorPrimary, UiColorToken::PlaybackActive,
-    UiColorToken::CursorPrimary, UiColorToken::VuSafe,
-    UiColorToken::VuWarning,     UiColorToken::VuPeak,
-    UiColorToken::TextMuted};
 
 RectI16 ResolvedCursorRect(const UiThemeViewData &data) {
   if (data.cursorVisualOverride && !data.cursorVisualRect.Empty()) {
     return Intersect(data.cursorVisualRect, RectI16::Screen());
   }
-  return UiThemeView::CursorTargetRect();
+  return UiThemeView::CursorTargetRect(data);
 }
 
 } // namespace
+
+RectI16 UiThemeView::CursorTargetRect(const UiThemeViewData &data) {
+  if (data.selectedColor < 0) return CursorTargetRect();
+  return ColorCursorTargetRect(static_cast<std::uint8_t>(data.selectedColor));
+}
+
+std::int16_t UiThemeView::RevealCursor(std::int16_t currentOffset,
+                                       const UiThemeViewData &data) {
+  return UiVerticalList::Reveal(currentOffset, CursorTargetRect(data), 34,
+                                kRevealBottom, kContentBottom);
+}
 
 void UiThemeView::RenderDelta(const UiThemeViewData &previous,
                               const UiThemeViewData &current,
@@ -42,11 +42,17 @@ void UiThemeView::RenderDelta(const UiThemeViewData &previous,
   };
   if (previous.power != current.power)
     render({184, 0, 56, 34});
+  if (previous.scrollOffset != current.scrollOffset) {
+    render({0, 34, 240, 174});
+    return;
+  }
   if (previous.name != current.name)
-    render({5, 40, 230, 11});
+    render(UiVerticalList::VisualRect({5, 40, 230, 11},
+                                      current.scrollOffset));
   if (ResolvedCursorRect(previous) != ResolvedCursorRect(current) ||
       previous.cursorInkVisible != current.cursorInkVisible) {
-    render({5, 40, 230, 18});
+    render(UiVerticalList::VisualRect({5, 40, 230, kContentBottom - 40},
+                                      current.scrollOffset));
   }
 }
 
@@ -56,8 +62,11 @@ UiBuildStatus UiThemeView::Build(const UiThemeViewData &data, UiPalette &,
   scene.topHeight = 34;
   scene.bottomTop = 208;
   scene.bottomVisible = true;
-  scene.topBackground = UiColorToken::SurfaceBarDeep;
-  scene.bottomBackground = UiColorToken::SurfaceBarDeep;
+  scene.contentOffsetY = UiVerticalList::Clamp(data.scrollOffset,
+                                                kRevealBottom,
+                                                kContentBottom);
+  scene.topBackground = UiColorToken::SurfaceTopBar;
+  scene.bottomBackground = UiColorToken::SurfaceBottomBar;
   const UiTopBarModel top{.title = "THEME", .power = data.power};
   const UiBuildStatus topStatus = UiChromeRenderer::BuildTop(top, scene.top);
   if (topStatus != UiBuildStatus::Built)
@@ -71,19 +80,29 @@ UiBuildStatus UiThemeView::Build(const UiThemeViewData &data, UiPalette &,
     return bottomStatus;
 
   UiSceneBuilder<256, 1024> builder(scene.content);
-  builder.Text("NAME", 9, 42, UiColorToken::TextMuted);
-  builder.Text(data.name, 92, 42, UiColorToken::TextPrimary);
-  for (std::uint8_t index = 0; index < kLabels.size(); ++index) {
+  builder.Text("NAME", 9, 42, UiColorToken::TextDim);
+  builder.Text(data.name, 92, 42, UiColorToken::TextNormal);
+  for (std::uint8_t index = 0; index < kUiThemeColors.size(); ++index) {
     const std::int16_t topY = static_cast<std::int16_t>(58 + index * 14);
-    builder.Text(kLabels[index], 9, static_cast<std::int16_t>(topY + 3),
-                 index == 2U ? UiColorToken::CursorPrimary
-                             : UiColorToken::TextMuted);
-    builder.Fill({151, topY, 78, 10}, kSwatches[index]);
+    builder.Text(kUiThemeColors[index].label, 9,
+                 static_cast<std::int16_t>(topY + 3),
+                 UiColorToken::TextDim);
+    builder.Fill({151, topY, 78, 10}, kUiThemeColors[index].token);
   }
   builder.Selection(ResolvedCursorRect(data));
   if (data.cursorInkVisible) {
-    builder.Text("NAME", 9, 42, UiColorToken::CursorInk);
-    builder.Text(data.name, 92, 42, UiColorToken::CursorInk);
+    if (data.selectedColor < 0) {
+      builder.Text("NAME", 9, 42, UiColorToken::TextHighlighted);
+      builder.Text(data.name, 92, 42, UiColorToken::TextHighlighted);
+    } else if (static_cast<std::size_t>(data.selectedColor) <
+               kUiThemeColors.size()) {
+      const std::uint8_t index = static_cast<std::uint8_t>(data.selectedColor);
+      const std::int16_t topY = static_cast<std::int16_t>(58 + index * 14);
+      builder.Text(kUiThemeColors[index].label, 9,
+                   static_cast<std::int16_t>(topY + 3),
+                   UiColorToken::TextHighlighted);
+      builder.Fill({151, topY, 78, 10}, kUiThemeColors[index].token);
+    }
   }
   return builder.Ok() ? UiBuildStatus::Built : UiBuildStatus::CommandOverflow;
 }

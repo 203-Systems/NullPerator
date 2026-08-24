@@ -23,14 +23,13 @@ void UiFrameRenderer::RenderRegion(const UiFrameScene &scene,
   region = Intersect(region, RectI16::Screen());
   if (region.Empty()) return;
 
-  surface.FillRect(region, palette.Index(UiColorToken::SurfaceBlack));
-  surface.FillRect({5, 5, 230, 230},
-                   palette.Index(UiColorToken::SurfaceField), region);
+  surface.FillRect(region, palette.Index(UiColorToken::SurfaceBackground));
   surface.FillRect({0, 0, kScreenWidth, scene.topHeight},
                    palette.Index(scene.topBackground), region);
   const std::int16_t contentBottom =
       scene.bottomVisible ? scene.bottomTop : kScreenHeight;
-  UiRasterizer::Render(scene.content.Stream(), surface, &palette, {},
+  UiRasterizer::Render(scene.content.Stream(), surface, &palette,
+                       {0, static_cast<std::int16_t>(-scene.contentOffsetY)},
                        Intersect(region,
                                  {0, scene.topHeight, kScreenWidth,
                                   static_cast<std::int16_t>(

@@ -8,6 +8,7 @@
 
 #include "UI2/Render/UiFrameRenderer.h"
 #include "UI2/Render/UiVuGradient.h"
+#include "UI2/Views/Tracker/UiTrackerGridMetrics.h"
 
 #include <array>
 
@@ -43,24 +44,25 @@ RectI16 ExpandedCursorDamage(RectI16 rect) {
 RectI16 UiSongView::CellDamageRect(std::uint8_t track, std::uint8_t row) {
   if (track >= 8U || row >= 16U) return {};
   return {static_cast<std::int16_t>(kTrackX[track] - 3),
-          static_cast<std::int16_t>(46 + row * 10), 17, 11};
+          UiTrackerGridMetrics::RowBoundsY(row), 17, 11};
 }
 
 RectI16 UiSongView::CursorTargetRect(std::uint8_t track, std::uint8_t row) {
   if (track >= 8U || row >= 16U) return {};
   return {static_cast<std::int16_t>(kTrackX[track] - 2),
-          static_cast<std::int16_t>(46 + row * 10), 15, 9};
+          UiTrackerGridMetrics::RowBoundsY(row), 15, 9};
 }
 
 RectI16 UiSongView::PlaybackTickRect(std::uint8_t track, std::uint8_t row) {
   if (track >= 8U || row >= 16U) return {};
   return {static_cast<std::int16_t>(kTrackX[track] - 3),
-          static_cast<std::int16_t>(48 + row * 10), 2, 5};
+          static_cast<std::int16_t>(UiTrackerGridMetrics::RowTextY(row) + 1),
+          2, 5};
 }
 
 RectI16 UiSongView::RowDamageRect(std::uint8_t row) {
   if (row >= 16U) return {};
-  return {5, static_cast<std::int16_t>(46 + row * 10), 213, 11};
+  return UiTrackerGridMetrics::RowDamage(row, 213);
 }
 
 RectI16 UiSongView::TrackHeaderDamageRect(std::uint8_t track) {
@@ -188,8 +190,8 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data,
   scene.topHeight = 34;
   scene.bottomTop = 208;
   scene.bottomVisible = data.showBottom;
-  scene.topBackground = UiColorToken::SurfaceBarDeep;
-  scene.bottomBackground = UiColorToken::SurfaceBarDeep;
+  scene.topBackground = UiColorToken::SurfaceTopBar;
+  scene.bottomBackground = UiColorToken::SurfaceBottomBar;
 
   const UiTopBarModel top{
       .title = "SONG",
@@ -213,21 +215,21 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data,
   for (std::uint8_t track = 0; track < 8; ++track) {
     std::array<char, 3> label{'T', static_cast<char>('1' + track), 0};
     builder.Text(label.data(), kTrackX[track], 38,
-                 track == data.editTrack ? UiColorToken::CursorPrimary
-                                         : UiColorToken::TextMuted);
+                 track == data.editTrack ? UiColorToken::TextColored
+                                         : UiColorToken::TextDim);
   }
 
-  const std::int16_t editY = static_cast<std::int16_t>(47 + data.editRow * 10);
+  const std::int16_t editY = UiTrackerGridMetrics::RowTextY(data.editRow);
   builder.Fill({5, editY, 213, 10}, UiColorToken::CursorRow);
   const RectI16 cursorRect = ResolvedCursorRect(data);
   const RectI16 targetRect = CursorTargetRect(data.editTrack, data.editRow);
   for (std::uint8_t row = 0; row < 16; ++row) {
-    const std::int16_t y = static_cast<std::int16_t>(47 + row * 10);
+    const std::int16_t y = UiTrackerGridMetrics::RowTextY(row);
     const auto rowLabel =
         HexByte(static_cast<std::uint8_t>(data.rowOffset + row));
     builder.Text(rowLabel.data(), 7, y,
-                 row == data.editRow ? UiColorToken::CursorPrimary
-                                     : UiColorToken::TextDim);
+                 row == data.editRow ? UiColorToken::TextColored
+                                     : UiColorToken::DerivedTextFaint);
     for (std::uint8_t track = 0; track < 8; ++track) {
       const auto value = HexByte(data.rows[row][track]);
       const char *displayValue =
@@ -239,8 +241,8 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data,
       builder.Text(displayValue, kTrackX[track], y,
                    data.rows[row][track] == 0 ||
                            data.rows[row][track] == 0xFFU
-                       ? UiColorToken::TextDim
-                       : UiColorToken::TextPrimary);
+                       ? UiColorToken::DerivedTextFaint
+                       : UiColorToken::TextNormal);
       if (playback && !(target && cursorRect == targetRect)) {
         builder.Fill(PlaybackTickRect(track, row),
                      UiColorToken::PlaybackActive);
@@ -269,8 +271,8 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data,
                                    ? "--"
                                    : selectedValue.data();
     builder.Text(displayValue, kTrackX[data.editTrack],
-                 static_cast<std::int16_t>(47 + data.editRow * 10),
-                 UiColorToken::CursorInk);
+                 UiTrackerGridMetrics::RowTextY(data.editRow),
+                 UiColorToken::TextHighlighted);
   }
 
   if (data.showVu) {
@@ -279,7 +281,7 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data,
     }
     for (std::uint8_t channel = 0; channel < 2; ++channel) {
       const std::int16_t x = static_cast<std::int16_t>(219 + channel * 9);
-      builder.Fill({x, 47, 7, 153}, UiColorToken::VuTrack);
+      builder.Fill({x, 47, 7, 153}, UiColorToken::DerivedVuTrack);
       const std::uint8_t level = data.vuLevelTop[channel];
       builder.VerticalPaletteRamp(
           {x, static_cast<std::int16_t>(47 + level), 7,

@@ -59,7 +59,7 @@ struct UiTrackNotesModel {
 
 struct UiColoredText {
   std::string_view text;
-  UiColorToken color = UiColorToken::TextPrimary;
+  UiColorToken color = UiColorToken::TextNormal;
   std::int16_t x = -1;
 };
 

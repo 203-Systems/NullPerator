@@ -136,6 +136,9 @@ change these shared chrome bounds.
 - Device displays battery percentage to the left of the battery icon.
 - Boolean and enum device fields use the Bottom Bar selector. The selector has
   explicit wrap/no-wrap behavior per field.
+- Theme, Instrument, Project, and Device use vertically scrollable middle
+  content with fixed Top and Bottom Bars. Scrolling reveals the focused item;
+  it does not add an unapproved visible scrollbar.
 
 ### 2.5 Battery and Top Bar states
 
@@ -261,7 +264,7 @@ struct CursorTarget {
 - Dirty the union of the previous and current cursor bounds, expanded by one
   pixel for corner antialiasing.
 - Restore the base scene in that union, draw the bubble, then redraw selected
-  text using `cursor.ink`. This prevents trails and prevents the bubble from
+  text using `text.highlighted`. This prevents trails and prevents the bubble from
   covering text.
 - The low-contrast row background is a separate element. It may crossfade over
   two frames; it does not morph into the cell bubble.
@@ -362,43 +365,50 @@ temporarily replacing the battery icon cannot hide the safety path.
 User-facing palette names describe function, never a hue such as `cyan` or
 `mint`.
 
-Recommended persisted or derived tokens:
+The user-facing theme format exposes exactly these nineteen independent
+semantic colors:
 
 ```text
-surface.canvas
-surface.field
-surface.bar
-surface.bar.deep
-text.primary
-text.muted
+surface.bg
+surface.top_bar
+surface.bottom_bar
+text.normal
 text.dim
+text.highlighted
+text.colored
 cursor.primary
-cursor.soft
 cursor.row
-cursor.ink
 playback.active
-playback.soft
+system.info
+system.warning
+system.error
 battery.normal
 battery.charging
 battery.low
-vu.track
 vu.safe
-vu.safe.low
 vu.warning
 vu.peak
 ```
 
+`surface.bg` fills the complete 240 by 240 screen; there is no separate black
+canvas or decorative outer border. Top and Bottom Bar backgrounds remain
+independent user settings.
+
 The existing theme/project format must remain compatible. A compatibility map
-converts legacy `ColorDefinition`/FourCC entries to semantic tokens. Extra UI2
-colors are derived at load time; they are not added to the persisted format
-unless a separate migration is approved.
+converts legacy `ColorDefinition`/FourCC entries to the nineteen semantic
+tokens. Element-owned implementation colors are generated at load time and
+are never persisted or shown in the Theme page:
 
-Derived ramps are generated once when a theme changes:
+- faint text is derived from `text.dim` and `surface.bg`;
+- rounded cursor corner coverage and soft cursor composites are derived from
+  `cursor.primary`, the destination surface, and fixed Element alpha data;
+- VU track, low-safe endpoint, and the complete meter ramp are derived from
+  `vu.safe`, `vu.warning`, and `vu.peak` plus fixed VU Element data;
+- waveform coverage colors use the same fixed antialias cache.
 
-- bar text fade ramp: bar background to target text color;
-- cursor corner coverage colors;
-- VU ramp: `vu.safe.low` -> `vu.safe` -> `vu.warning` -> `vu.peak`;
-- muted and disabled variants.
+Changing one user token does not implicitly overwrite another user token.
+For example `system.error`, `battery.low`, and `vu.peak` are independent even
+when their default RGB values happen to be similar.
 
 The VU gradient is a short precomputed lookup indexed by meter height. No
 general gradient shader or per-frame color interpolation is required.
@@ -693,7 +703,27 @@ public:
 
 Scene capacity values above are initial estimates, not acceptance numbers.
 
-### 6.6 Indexed framebuffer
+### 6.6 Fixed-bar vertical lists
+
+Theme, Instrument, Project, and Device share a retained vertical-list layout.
+The Top Bar and Bottom Bar remain fixed; only the middle content layer receives
+an integer `content_offset_y`. Page commands remain in logical coordinates,
+and the rasterizer applies the translation while clipping to the content
+viewport.
+
+`UiVerticalList` provides constexpr clamp, reveal, and visual-rectangle helpers.
+When focus moves, the page computes the smallest offset that fully reveals the
+cursor with the page's approved breathing room. Theme currently exercises real
+scrolling across all nineteen palette rows; shorter Project and Device lists
+clamp to zero but use the same path so later approved fields do not require a
+second scrolling system.
+
+Scrolling has no heap allocation, per-row objects, or continuously animated
+scrollbar. A scroll delta rerasterizes only the content viewport, while bar
+pixels remain untouched. A visible scrollbar requires its own approved design
+before implementation.
+
+### 6.7 Indexed framebuffer
 
 Use one 8-bit indexed 240 by 240 framebuffer rather than a full RGBA or double
 RGB565 framebuffer.
@@ -728,7 +758,7 @@ public:
 };
 ```
 
-### 6.7 Rounded highlight rasterization
+### 6.8 Rounded highlight rasterization
 
 Do not use a blur or a general vector antialiaser. Use a tiny radius-specific
 coverage mask:
@@ -745,7 +775,7 @@ Coverage colors are precomputed from `cursor.primary` and the known underlying
 surface. Horizontal and vertical edges remain 100% coverage and therefore
 crisp.
 
-### 6.8 Waveform coverage masks
+### 6.9 Waveform coverage masks
 
 Sample Editor and Sample Slices use four-level antialiased waveforms without a
 general vector renderer or per-frame floating point. The sample decimator
@@ -797,7 +827,7 @@ Initial target for the ESP32-S3 UI path:
 
 The current 64-bit Host layout of `UiApplicationRuntime`, including retained
 Song, Phrase, and P/I Table snapshots plus all independent cursor animators,
-is 72,800 bytes; the
+is 72,816 bytes; the
 ESP32-S3 32-bit layout is expected to be smaller and must be confirmed from the
 firmware map file. The presenter object is at most 64 bytes and its one external
 DMA block is 3,840 bytes. These are test-enforced bounds, not estimates.

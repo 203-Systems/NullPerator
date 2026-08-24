@@ -22,7 +22,7 @@ describe('approved UI2 golden frames', () => {
   it('keeps every approved 240x240 state byte-for-byte locked', async () => {
     const manifest = JSON.parse(await readFile(resolve(goldenDirectory, 'manifest.json'), 'utf8'))
     expect(manifest.format).toBe(1)
-    expect(manifest.frameCount).toBe(42)
+    expect(manifest.frameCount).toBe(43)
     expect(manifest.frames).toHaveLength(manifest.frameCount)
     expect(new Set(manifest.frames.map((frame) => frame.view)).size).toBe(manifest.frameCount)
 

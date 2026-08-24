@@ -287,7 +287,7 @@ UiApplicationRuntime::ViewDataFor(const PhraseFrameState &state) {
                                               .x = 9};
     data.cursorBottom.context.firstLine[1] = {.text = state.contextTail.data(),
                                               .color =
-                                                  UiColorToken::TextPrimary,
+                                                  UiColorToken::TextNormal,
                                               .x = 94};
   } else if (state.context == PhraseContext::Fx) {
     data.cursorBottom.kind = UiBottomBarKind::Context;
@@ -300,7 +300,7 @@ UiApplicationRuntime::ViewDataFor(const PhraseFrameState &state) {
     if (data.cursorBottom.context.firstLineCount == 2) {
       data.cursorBottom.context.firstLine[1] = {
           .text = state.contextTail.data(),
-          .color = UiColorToken::TextPrimary,
+          .color = UiColorToken::TextNormal,
           .x = static_cast<std::int16_t>(
               9 + UiFont5x7::TextWidth(std::strlen(state.contextLead.data())) +
               7)};
@@ -309,7 +309,7 @@ UiApplicationRuntime::ViewDataFor(const PhraseFrameState &state) {
       data.cursorBottom.context.secondLineCount = 1;
       data.cursorBottom.context.secondLine[0] = {
           .text = state.contextDescription.data(),
-          .color = UiColorToken::TextPrimary,
+          .color = UiColorToken::TextNormal,
           .x = 9};
     }
   }
@@ -438,7 +438,7 @@ UiApplicationRuntime::ViewDataFor(const TableFrameState &state) {
     if (data.cursorBottom.context.firstLineCount == 2) {
       data.cursorBottom.context.firstLine[1] = {
           .text = state.contextTail.data(),
-          .color = UiColorToken::TextPrimary,
+          .color = UiColorToken::TextNormal,
           .x = static_cast<std::int16_t>(
               9 + UiFont5x7::TextWidth(std::strlen(state.contextLead.data())) +
               7)};
@@ -447,7 +447,7 @@ UiApplicationRuntime::ViewDataFor(const TableFrameState &state) {
       data.cursorBottom.context.secondLineCount = 1;
       data.cursorBottom.context.secondLine[0] = {
           .text = state.contextDescription.data(),
-          .color = UiColorToken::TextPrimary,
+          .color = UiColorToken::TextNormal,
           .x = 9};
     }
   }

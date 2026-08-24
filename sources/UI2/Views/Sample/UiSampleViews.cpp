@@ -40,14 +40,14 @@ bool WaveformChanged(const Data &left, const Data &right) {
 
 void DrawField(UiSceneBuilder<256, 1024> &builder, std::string_view label,
                std::string_view value, std::int16_t y) {
-  builder.Text(label, 9, y, UiColorToken::TextMuted);
-  builder.Text(value, 92, y, UiColorToken::TextPrimary);
+  builder.Text(label, 9, y, UiColorToken::TextDim);
+  builder.Text(value, 92, y, UiColorToken::TextNormal);
 }
 
 void DrawSection(UiSceneBuilder<256, 1024> &builder, std::string_view label,
                  std::int16_t y) {
   const std::int16_t width = UiFont5x7::TextWidth(label.size());
-  builder.Text(label, 9, y, UiColorToken::CursorPrimary);
+  builder.Text(label, 9, y, UiColorToken::TextColored);
   builder.Fill({static_cast<std::int16_t>(9 + width + 7),
                 static_cast<std::int16_t>(y + 3),
                 static_cast<std::int16_t>(222 - width), 1},
@@ -86,8 +86,8 @@ UiBuildStatus UiSampleEditorView::Build(const UiSampleEditorViewData &data,
   scene.topHeight = 34;
   scene.bottomTop = 208;
   scene.bottomVisible = true;
-  scene.topBackground = UiColorToken::SurfaceBarDeep;
-  scene.bottomBackground = UiColorToken::SurfaceBarDeep;
+  scene.topBackground = UiColorToken::SurfaceTopBar;
+  scene.bottomBackground = UiColorToken::SurfaceBottomBar;
   const UiTopBarModel top{
       .title = "SAMPLE", .meta = "EDIT", .power = data.power};
   const UiBuildStatus topStatus = UiChromeRenderer::BuildTop(top, scene.top);
@@ -102,17 +102,17 @@ UiBuildStatus UiSampleEditorView::Build(const UiSampleEditorViewData &data,
 
   UiSceneBuilder<256, 1024> builder(scene.content);
   DrawSection(builder, data.name, 42);
-  builder.Fill({9, 60, 222, 72}, UiColorToken::VuTrack);
+  builder.Fill({9, 60, 222, 72}, UiColorToken::DerivedVuTrack);
   builder.SparseCoverageMask({9, 60, 222, 72}, data.waveformMask,
-                             UiCoverage::Cursor, UiColorToken::VuTrack);
+                             UiCoverage::Cursor, UiColorToken::DerivedVuTrack);
   DrawField(builder, "START", data.start, 145);
   DrawField(builder, "END", data.end, 156);
   DrawField(builder, "LOOP", data.loop, 167);
   DrawField(builder, "GAIN", data.gain, 178);
   builder.Selection(ResolvedCursorRect(data, CursorTargetRect()));
   if (data.cursorInkVisible) {
-    builder.Text("START", 9, 145, UiColorToken::CursorInk);
-    builder.Text(data.start, 92, 145, UiColorToken::CursorInk);
+    builder.Text("START", 9, 145, UiColorToken::TextHighlighted);
+    builder.Text(data.start, 92, 145, UiColorToken::TextHighlighted);
   }
   return builder.Ok() ? UiBuildStatus::Built
                       : UiBuildStatus::CommandOverflow;
@@ -152,8 +152,8 @@ UiBuildStatus UiSampleSlicesView::Build(const UiSampleSlicesViewData &data,
   scene.topHeight = 34;
   scene.bottomTop = 208;
   scene.bottomVisible = true;
-  scene.topBackground = UiColorToken::SurfaceBarDeep;
-  scene.bottomBackground = UiColorToken::SurfaceBarDeep;
+  scene.topBackground = UiColorToken::SurfaceTopBar;
+  scene.bottomBackground = UiColorToken::SurfaceBottomBar;
   const UiTopBarModel top{
       .title = "SLICES", .meta = data.sliceCount, .power = data.power};
   const UiBuildStatus topStatus = UiChromeRenderer::BuildTop(top, scene.top);
@@ -167,23 +167,23 @@ UiBuildStatus UiSampleSlicesView::Build(const UiSampleSlicesViewData &data,
   if (bottomStatus != UiBuildStatus::Built) return bottomStatus;
 
   UiSceneBuilder<256, 1024> builder(scene.content);
-  builder.Fill({9, 46, 222, 78}, UiColorToken::VuTrack);
+  builder.Fill({9, 46, 222, 78}, UiColorToken::DerivedVuTrack);
   builder.SparseCoverageMask({9, 46, 222, 78}, data.waveformMask,
-                             UiCoverage::Playback, UiColorToken::VuTrack);
+                             UiCoverage::Playback, UiColorToken::DerivedVuTrack);
   constexpr std::array<std::int16_t, 5> kMarkerX{9, 64, 119, 174, 230};
   for (std::size_t index = 0; index < kMarkerX.size(); ++index) {
     builder.Fill({kMarkerX[index], 44, 1, 84},
-                 index == data.selectedMarker ? UiColorToken::CursorPrimary
-                                              : UiColorToken::TextMuted);
+                 index == data.selectedMarker ? UiColorToken::TextColored
+                                              : UiColorToken::TextDim);
   }
   DrawField(builder, "SLICE", data.slice, 139);
   DrawField(builder, "START", data.start, 150);
   DrawField(builder, "ZOOM", data.zoom, 161);
-  builder.Text("NAV SELECT  EDIT FINE", 9, 188, UiColorToken::TextDim);
+  builder.Text("NAV SELECT  EDIT FINE", 9, 188, UiColorToken::DerivedTextFaint);
   builder.Selection(ResolvedCursorRect(data, CursorTargetRect()));
   if (data.cursorInkVisible) {
-    builder.Text("SLICE", 9, 139, UiColorToken::CursorInk);
-    builder.Text(data.slice, 92, 139, UiColorToken::CursorInk);
+    builder.Text("SLICE", 9, 139, UiColorToken::TextHighlighted);
+    builder.Text(data.slice, 92, 139, UiColorToken::TextHighlighted);
   }
   return builder.Ok() ? UiBuildStatus::Built
                       : UiBuildStatus::CommandOverflow;

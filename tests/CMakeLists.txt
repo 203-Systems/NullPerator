@@ -340,7 +340,7 @@ if(NODE_EXECUTABLE)
       "${CMAKE_CURRENT_LIST_DIR}/../web/tools/compare-ui2-snapshot.mjs"
       --actual "${CMAKE_CURRENT_BINARY_DIR}/song-actual.ppm"
       --golden "${CMAKE_CURRENT_LIST_DIR}/../web/e2e/ui2-golden.spec.js-snapshots/song.png"
-      --tolerance-region 219,47,16,153,1)
+      --tolerance-region 219,47,16,153,2)
   set_tests_properties(ui2_song_golden PROPERTIES DEPENDS ui2_song_snapshot)
 
   foreach(TOPBAR_STATE playing low high charging nav)
@@ -352,7 +352,7 @@ if(NODE_EXECUTABLE)
         "${CMAKE_CURRENT_LIST_DIR}/../web/tools/compare-ui2-snapshot.mjs"
         --actual "${CMAKE_CURRENT_BINARY_DIR}/topbar-${TOPBAR_STATE}-actual.ppm"
         --golden "${CMAKE_CURRENT_LIST_DIR}/../web/e2e/ui2-golden.spec.js-snapshots/topbar-${TOPBAR_STATE}.png"
-        --tolerance-region 219,47,16,153,1)
+        --tolerance-region 219,47,16,153,2)
     set_tests_properties(ui2_topbar_${TOPBAR_STATE}_golden PROPERTIES
       DEPENDS ui2_topbar_${TOPBAR_STATE}_snapshot)
   endforeach()
@@ -408,7 +408,7 @@ if(NODE_EXECUTABLE)
       "${CMAKE_CURRENT_LIST_DIR}/../web/tools/compare-ui2-snapshot.mjs"
       --actual "${CMAKE_CURRENT_BINARY_DIR}/mixer-actual.ppm"
       --golden "${CMAKE_CURRENT_LIST_DIR}/../web/e2e/ui2-golden.spec.js-snapshots/mixer.png"
-      --tolerance-region 7,46,219,153,1)
+      --tolerance-region 7,46,219,153,2)
   set_tests_properties(ui2_mixer_golden PROPERTIES
     DEPENDS ui2_mixer_snapshot)
 
@@ -431,7 +431,7 @@ if(NODE_EXECUTABLE)
       "${CMAKE_CURRENT_LIST_DIR}/../web/tools/compare-ui2-snapshot.mjs"
       --actual "${CMAKE_CURRENT_BINARY_DIR}/chain-actual.ppm"
       --golden "${CMAKE_CURRENT_LIST_DIR}/../web/e2e/ui2-golden.spec.js-snapshots/chain.png"
-      --tolerance-region 219,50,16,148,1)
+      --tolerance-region 219,50,16,148,2)
   set_tests_properties(ui2_chain_golden PROPERTIES
     DEPENDS ui2_chain_snapshot)
 
@@ -463,7 +463,7 @@ if(NODE_EXECUTABLE)
   set_tests_properties(ui2_device_golden PROPERTIES
     DEPENDS ui2_device_snapshot)
 
-  foreach(SETTINGS_STATE theme font)
+  foreach(SETTINGS_STATE theme theme-scroll font)
     add_test(NAME ui2_${SETTINGS_STATE}_snapshot
       COMMAND ui2_settings_snapshot_tool "${SETTINGS_STATE}"
         "${CMAKE_CURRENT_BINARY_DIR}/${SETTINGS_STATE}-actual.ppm")

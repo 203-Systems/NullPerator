@@ -82,7 +82,7 @@ UiBuildStatus UiGrooveView::Build(const UiGrooveViewData &data, UiPalette &,
   scene.Clear();
   scene.topHeight = 34;
   scene.bottomVisible = false;
-  scene.topBackground = UiColorToken::SurfaceBarDeep;
+  scene.topBackground = UiColorToken::SurfaceTopBar;
   const UiTopBarModel top{
       .title = "GROOVE",
       .meta = data.number,
@@ -93,19 +93,19 @@ UiBuildStatus UiGrooveView::Build(const UiGrooveViewData &data, UiPalette &,
     return topStatus;
 
   UiSceneBuilder<256, 1024> builder(scene.content);
-  builder.Text("STEP", 28, 39, UiColorToken::CursorPrimary);
+  builder.Text("STEP", 28, 39, UiColorToken::TextColored);
   const RectI16 cursor = ResolvedCursorRect(data);
   for (std::uint8_t row = 0; row < 16U; ++row) {
     const std::int16_t y = static_cast<std::int16_t>(49 + row * 9);
     const auto rowText = HexByte(row);
     builder.Text(rowText.data(), 8, y,
-                 row == data.editRow ? UiColorToken::CursorPrimary
-                                     : UiColorToken::TextDim);
+                 row == data.editRow ? UiColorToken::TextColored
+                                     : UiColorToken::DerivedTextFaint);
     const auto value = HexByte(data.steps[row]);
     const char *display = data.steps[row] == 0xFFU ? "--" : value.data();
     builder.Text(display, 29, y,
-                 data.steps[row] == 0xFFU ? UiColorToken::TextDim
-                                          : UiColorToken::TextPrimary);
+                 data.steps[row] == 0xFFU ? UiColorToken::DerivedTextFaint
+                                          : UiColorToken::TextNormal);
   }
   builder.Selection(cursor);
   if (data.cursorInkVisible && data.editRow < 16U) {
@@ -113,7 +113,7 @@ UiBuildStatus UiGrooveView::Build(const UiGrooveViewData &data, UiPalette &,
     const char *display =
         data.steps[data.editRow] == 0xFFU ? "--" : value.data();
     builder.Text(display, 29, static_cast<std::int16_t>(49 + data.editRow * 9),
-                 UiColorToken::CursorInk);
+                 UiColorToken::TextHighlighted);
   }
   return builder.Ok() ? UiBuildStatus::Built : UiBuildStatus::CommandOverflow;
 }

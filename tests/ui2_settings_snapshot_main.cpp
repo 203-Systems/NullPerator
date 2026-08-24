@@ -11,8 +11,13 @@ int main(int argc, char **argv) {
   const std::string_view state = argv[1];
   ui2::UiPalette palette;
   ui2::UiFrameScene scene;
-  if (state == "theme") {
-    if (ui2::UiThemeView::Build({}, palette, scene) !=
+  if (state == "theme" || state == "theme-scroll") {
+    ui2::UiThemeViewData data;
+    if (state == "theme-scroll") {
+      data.selectedColor = 18;
+      data.scrollOffset = ui2::UiThemeView::RevealCursor(0, data);
+    }
+    if (ui2::UiThemeView::Build(data, palette, scene) !=
         ui2::UiBuildStatus::Built) {
       return 3;
     }

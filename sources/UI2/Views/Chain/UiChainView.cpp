@@ -104,8 +104,8 @@ UiBuildStatus UiChainView::Build(const UiChainViewData &data,
   scene.topHeight = 34;
   scene.bottomTop = 208;
   scene.bottomVisible = true;
-  scene.topBackground = UiColorToken::SurfaceBarDeep;
-  scene.bottomBackground = UiColorToken::SurfaceBarDeep;
+  scene.topBackground = UiColorToken::SurfaceTopBar;
+  scene.bottomBackground = UiColorToken::SurfaceBottomBar;
 
   const UiTopBarModel top{
       .title = "CHAIN",
@@ -126,26 +126,26 @@ UiBuildStatus UiChainView::Build(const UiChainViewData &data,
     return UiBuildStatus::CommandOverflow;
   }
   UiSceneBuilder<256, 1024> builder(scene.content);
-  builder.Text("PH", 34, 39, UiColorToken::CursorPrimary);
-  builder.Text("TR", 69, 39, UiColorToken::TextMuted);
+  builder.Text("PH", 34, 39, UiColorToken::TextColored);
+  builder.Text("TR", 69, 39, UiColorToken::TextDim);
   const RectI16 cursor = ResolvedCursorRect(data);
   for (std::uint8_t row = 0; row < 16U; ++row) {
     const std::int16_t y = static_cast<std::int16_t>(49 + row * 9);
     const auto rowText = HexByte(row);
     builder.Text(rowText.data(), 8, y,
-                 row == data.editRow ? UiColorToken::CursorPrimary
-                                     : UiColorToken::TextDim);
+                 row == data.editRow ? UiColorToken::TextColored
+                                     : UiColorToken::DerivedTextFaint);
     const auto phrase = HexByte(data.phrases[row]);
     const char *phraseText = data.phrases[row] == 0xFFU ? "--" : phrase.data();
     builder.Text(phraseText, 33, y,
-                 data.phrases[row] == 0xFFU ? UiColorToken::TextDim
-                                            : UiColorToken::TextPrimary);
+                 data.phrases[row] == 0xFFU ? UiColorToken::DerivedTextFaint
+                                            : UiColorToken::TextNormal);
     const auto transpose = HexByte(data.transposes[row]);
     const char *transposeText =
         data.transposes[row] == 0xFFU ? "--" : transpose.data();
     builder.Text(transposeText, 68, y,
-                 data.transposes[row] == 0xFFU ? UiColorToken::TextDim
-                                               : UiColorToken::TextMuted);
+                 data.transposes[row] == 0xFFU ? UiColorToken::DerivedTextFaint
+                                               : UiColorToken::TextDim);
   }
   builder.Selection(cursor);
   if (data.cursorInkVisible && data.editRow < 16U) {
@@ -153,11 +153,11 @@ UiBuildStatus UiChainView::Build(const UiChainViewData &data,
     const char *display =
         data.phrases[data.editRow] == 0xFFU ? "--" : phrase.data();
     builder.Text(display, 33, static_cast<std::int16_t>(49 + data.editRow * 9),
-                 UiColorToken::CursorInk);
+                 UiColorToken::TextHighlighted);
   }
   for (std::uint8_t side = 0; side < 2U; ++side) {
     const RectI16 meter = VuDamageRect(side);
-    builder.Fill(meter, UiColorToken::VuTrack);
+    builder.Fill(meter, UiColorToken::DerivedVuTrack);
     const std::uint8_t level =
         std::min<std::uint8_t>(data.vuLevelTop[side], kMeterHeight);
     builder.VerticalPaletteRamp(

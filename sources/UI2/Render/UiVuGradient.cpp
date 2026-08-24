@@ -24,7 +24,7 @@ constexpr std::array<Stop, 7> kStops{{
     {20, UiColorToken::VuWarning},
     {27, UiColorToken::VuSafe},
     {62, UiColorToken::VuSafe},
-    {100, UiColorToken::VuSafeLow},
+    {100, UiColorToken::DerivedVuSafeLow},
 }};
 
 std::uint8_t LerpChannel(std::uint8_t from, std::uint8_t to,

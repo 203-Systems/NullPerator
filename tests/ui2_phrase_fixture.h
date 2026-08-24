@@ -34,9 +34,9 @@ inline UiPhraseViewData ApprovedPhraseFixture(std::string_view state) {
     data.cursorBottom.kind = UiBottomBarKind::Context;
     data.cursorBottom.context.firstLineCount = 2;
     data.cursorBottom.context.firstLine[0] = {
-        .text = "INSTRUMENT 00", .color = UiColorToken::CursorPrimary, .x = 9};
+        .text = "INSTRUMENT 00", .color = UiColorToken::TextColored, .x = 9};
     data.cursorBottom.context.firstLine[1] = {
-        .text = "AKWF 0906", .color = UiColorToken::TextPrimary, .x = 94};
+        .text = "AKWF 0906", .color = UiColorToken::TextNormal, .x = 94};
   } else if (state == "empty") {
     data.editRow = 1;
     data.editColumn = 0;
@@ -49,13 +49,13 @@ inline UiPhraseViewData ApprovedPhraseFixture(std::string_view state) {
     data.cursorBottom.kind = UiBottomBarKind::Context;
     data.cursorBottom.context.firstLineCount = 2;
     data.cursorBottom.context.firstLine[0] = {
-        .text = "KILL", .color = UiColorToken::CursorPrimary, .x = 9};
+        .text = "KILL", .color = UiColorToken::TextColored, .x = 9};
     data.cursorBottom.context.firstLine[1] = {
-        .text = "--BB", .color = UiColorToken::TextPrimary, .x = 39};
+        .text = "--BB", .color = UiColorToken::TextNormal, .x = 39};
     data.cursorBottom.context.secondLineCount = 1;
     data.cursorBottom.context.secondLine[0] = {
         .text = "STOP AUDIO AFTER BB TICKS",
-        .color = UiColorToken::TextPrimary,
+        .color = UiColorToken::TextNormal,
         .x = 9};
   } else if (state == "number") {
     data.numberFocus = true;

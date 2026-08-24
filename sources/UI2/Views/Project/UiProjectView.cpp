@@ -35,14 +35,14 @@ RectI16 ExpandedCursorDamage(RectI16 rect) {
 
 void DrawField(UiSceneBuilder<256, 1024> &builder, std::string_view label,
                std::string_view value, std::int16_t y) {
-  builder.Text(label, 9, y, UiColorToken::TextMuted);
-  builder.Text(value, 92, y, UiColorToken::TextPrimary);
+  builder.Text(label, 9, y, UiColorToken::TextDim);
+  builder.Text(value, 92, y, UiColorToken::TextNormal);
 }
 
 void DrawSection(UiSceneBuilder<256, 1024> &builder, std::string_view label,
                  std::int16_t y) {
   const std::int16_t width = UiFont5x7::TextWidth(label.size());
-  builder.Text(label, 9, y, UiColorToken::CursorPrimary);
+  builder.Text(label, 9, y, UiColorToken::TextColored);
   builder.Fill({static_cast<std::int16_t>(9 + width + 7),
                 static_cast<std::int16_t>(y + 3),
                 static_cast<std::int16_t>(222 - width), 1},
@@ -53,18 +53,18 @@ void DrawSelectedInk(UiSceneBuilder<256, 1024> &builder,
                      const UiProjectViewData &data) {
   switch (data.cursor) {
   case UiProjectCursor::Name:
-    builder.Text("NAME", 9, 42, UiColorToken::CursorInk);
-    builder.Text(data.name, 92, 42, UiColorToken::CursorInk);
+    builder.Text("NAME", 9, 42, UiColorToken::TextHighlighted);
+    builder.Text(data.name, 92, 42, UiColorToken::TextHighlighted);
     break;
   case UiProjectCursor::Tempo:
-    builder.Text("TEMPO", 9, 70, UiColorToken::CursorInk);
-    builder.Text(data.tempo, 92, 70, UiColorToken::CursorInk);
+    builder.Text("TEMPO", 9, 70, UiColorToken::TextHighlighted);
+    builder.Text(data.tempo, 92, 70, UiColorToken::TextHighlighted);
     break;
   case UiProjectCursor::Samples:
-    builder.Text("SAMPLES", 9, 132, UiColorToken::CursorInk);
+    builder.Text("SAMPLES", 9, 132, UiColorToken::TextHighlighted);
     break;
   case UiProjectCursor::Render:
-    builder.Text("RENDER", 9, 172, UiColorToken::CursorInk);
+    builder.Text("RENDER", 9, 172, UiColorToken::TextHighlighted);
     break;
   }
 }
@@ -98,23 +98,29 @@ void UiProjectView::RenderDelta(const UiProjectViewData &previous,
   const auto render = [&](RectI16 rect) {
     UiFrameRenderer::RenderRegion(currentScene, surface, palette, rect);
   };
+  const auto contentRect = [&](RectI16 rect) {
+    return UiVerticalList::VisualRect(rect, currentScene.contentOffsetY);
+  };
   if (previous.power != current.power)
     render({184, 0, 56, 34});
-  if (previous.name != current.name)
-    render(FieldDamageRect(42));
-  if (previous.tempo != current.tempo)
-    render(FieldDamageRect(70));
-  if (previous.transpose != current.transpose)
-    render(FieldDamageRect(81));
-  if (previous.scale != current.scale)
-    render(FieldDamageRect(92));
-  if (previous.root != current.root)
-    render(FieldDamageRect(103));
+  const bool contentRedrawn = previous.scrollOffset != current.scrollOffset;
+  if (contentRedrawn) render({0, 34, 240, 174});
+  if (!contentRedrawn && previous.name != current.name)
+    render(contentRect(FieldDamageRect(42)));
+  if (!contentRedrawn && previous.tempo != current.tempo)
+    render(contentRect(FieldDamageRect(70)));
+  if (!contentRedrawn && previous.transpose != current.transpose)
+    render(contentRect(FieldDamageRect(81)));
+  if (!contentRedrawn && previous.scale != current.scale)
+    render(contentRect(FieldDamageRect(92)));
+  if (!contentRedrawn && previous.root != current.root)
+    render(contentRect(FieldDamageRect(103)));
 
-  const RectI16 oldCursor = ResolvedCursorRect(previous);
-  const RectI16 newCursor = ResolvedCursorRect(current);
-  if (oldCursor != newCursor ||
-      previous.cursorInkVisible != current.cursorInkVisible) {
+  const RectI16 oldCursor = contentRect(ResolvedCursorRect(previous));
+  const RectI16 newCursor = contentRect(ResolvedCursorRect(current));
+  if (!contentRedrawn && (oldCursor != newCursor ||
+                          previous.cursorInkVisible !=
+                              current.cursorInkVisible)) {
     render(ExpandedCursorDamage(oldCursor));
     render(ExpandedCursorDamage(newCursor));
     render({0, 208, 240, 32});
@@ -126,8 +132,9 @@ UiBuildStatus UiProjectView::Build(const UiProjectViewData &data, UiPalette &,
   scene.Clear();
   scene.topHeight = 34;
   scene.bottomTop = 208;
-  scene.topBackground = UiColorToken::SurfaceBarDeep;
-  scene.bottomBackground = UiColorToken::SurfaceBarDeep;
+  scene.contentOffsetY = UiVerticalList::Clamp(data.scrollOffset, 208, 181);
+  scene.topBackground = UiColorToken::SurfaceTopBar;
+  scene.bottomBackground = UiColorToken::SurfaceBottomBar;
 
   const UiTopBarModel top{.title = "PROJECT", .power = data.power};
   const UiBuildStatus topStatus = UiChromeRenderer::BuildTop(top, scene.top);

@@ -65,14 +65,14 @@ UiBuildStatus UiChromeRenderer::BuildTop(const UiTopBarModel &model,
   scene.Clear();
   BarBuilder builder(scene);
   const std::uint8_t titleScale = model.title.size() <= 7 ? 2 : 1;
-  builder.Text(model.title, 9, 10, UiColorToken::TextPrimary, titleScale);
+  builder.Text(model.title, 9, 10, UiColorToken::TextNormal, titleScale);
   if (!model.meta.empty()) {
     const std::int16_t metaX =
         model.metaX >= 0
             ? model.metaX
             : static_cast<std::int16_t>(
                   9 + UiFont5x7::TextWidth(model.title.size(), titleScale) + 7);
-    builder.Text(model.meta, metaX, 10, UiColorToken::CursorPrimary);
+    builder.Text(model.meta, metaX, 10, UiColorToken::TextColored);
     if (model.metaSelected) {
       const RectI16 selection =
           model.metaSelectionOverride && !model.metaSelectionRect.Empty()
@@ -80,47 +80,47 @@ UiBuildStatus UiChromeRenderer::BuildTop(const UiTopBarModel &model,
               : MetaTargetRect(model);
       builder.Selection(selection);
       if (model.metaInkVisible) {
-        builder.Text(model.meta, metaX, 10, UiColorToken::CursorInk);
+        builder.Text(model.meta, metaX, 10, UiColorToken::TextHighlighted);
       }
     }
   }
 
   if (model.power == UiPowerState::Playing) {
     builder.Text(">", 193, 14, UiColorToken::PlaybackActive);
-    builder.Text(model.elapsed, 206, 14, UiColorToken::TextPrimary);
+    builder.Text(model.elapsed, 206, 14, UiColorToken::TextNormal);
   } else if (model.power == UiPowerState::Navigation) {
-    builder.CenteredText("P", 204, 3, UiColorToken::TextPrimary);
+    builder.CenteredText("P", 204, 3, UiColorToken::TextNormal);
     builder.Selection(navHighlight.value_or(NavTargetRect(model.navTarget)));
     builder.Text("S", 202, 13,
                  model.navTarget == UiNavTarget::Song
-                     ? UiColorToken::CursorInk
-                     : UiColorToken::TextPrimary);
+                     ? UiColorToken::TextHighlighted
+                     : UiColorToken::TextNormal);
     builder.Text("C", 210, 13,
                  model.navTarget == UiNavTarget::Chain
-                     ? UiColorToken::CursorInk
-                     : UiColorToken::TextPrimary);
+                     ? UiColorToken::TextHighlighted
+                     : UiColorToken::TextNormal);
     builder.Text("P", 218, 13,
                  model.navTarget == UiNavTarget::Phrase
-                     ? UiColorToken::CursorInk
-                     : UiColorToken::TextPrimary);
+                     ? UiColorToken::TextHighlighted
+                     : UiColorToken::TextNormal);
     builder.Text("I", 226, 13,
                  model.navTarget == UiNavTarget::Instrument
-                     ? UiColorToken::CursorInk
-                     : UiColorToken::TextPrimary);
+                     ? UiColorToken::TextHighlighted
+                     : UiColorToken::TextNormal);
     builder.CenteredText("M", 204, 24,
                          model.navTarget == UiNavTarget::Mixer
-                             ? UiColorToken::CursorInk
-                             : UiColorToken::TextPrimary);
+                             ? UiColorToken::TextHighlighted
+                             : UiColorToken::TextNormal);
     if (model.navTarget == UiNavTarget::Project) {
       // Redraw selected glyph after the bubble so it uses cursor ink.
-      builder.CenteredText("P", 204, 3, UiColorToken::CursorInk);
+      builder.CenteredText("P", 204, 3, UiColorToken::TextHighlighted);
     }
   } else {
     if (model.showBatteryPercent) {
       std::array<char, 5> percent{};
       std::snprintf(percent.data(), percent.size(), "%u%%",
                     static_cast<unsigned>(model.batteryPercent));
-      builder.Text(percent.data(), 184, 14, UiColorToken::TextPrimary);
+      builder.Text(percent.data(), 184, 14, UiColorToken::TextNormal);
     }
     DrawPower(model, builder);
   }
@@ -180,16 +180,16 @@ UiBuildStatus UiChromeRenderer::BuildBottom(const UiBottomBarModel &model,
     for (std::int16_t index = 0; index < 8; ++index) {
       const std::int16_t center = static_cast<std::int16_t>(15 + index * 30);
       std::array<char, 3> track{'T', static_cast<char>('1' + index), 0};
-      builder.CenteredText(track.data(), center, 213, UiColorToken::TextMuted);
+      builder.CenteredText(track.data(), center, 213, UiColorToken::TextDim);
       const std::string_view note = model.trackNotes.notes[index];
       const UiColorToken noteColor =
-          note == "--" ? UiColorToken::TextDim : UiColorToken::TextPrimary;
+          note == "--" ? UiColorToken::DerivedTextFaint : UiColorToken::TextNormal;
       if (index == model.trackNotes.selectedNote) {
         const std::int16_t width = UiFont5x7::TextWidth(note.size());
         builder.Fill({static_cast<std::int16_t>(center - width / 2 - 2), 226,
                       static_cast<std::int16_t>(width + 4), 9},
-                     UiColorToken::CursorPrimary);
-        builder.CenteredText(note, center, 227, UiColorToken::CursorInk);
+                     UiColorToken::TextColored);
+        builder.CenteredText(note, center, 227, UiColorToken::TextHighlighted);
       } else {
         builder.CenteredText(note, center, 227, noteColor);
       }
@@ -207,7 +207,7 @@ UiBuildStatus UiChromeRenderer::BuildBottom(const UiBottomBarModel &model,
       builder.Selection(selection);
       if (model.trackNotes.trackInkVisible) {
         builder.CenteredText(label.data(), center, 213,
-                             UiColorToken::CursorInk);
+                             UiColorToken::TextHighlighted);
       }
     }
     break;
@@ -231,8 +231,8 @@ UiBuildStatus UiChromeRenderer::BuildBottom(const UiBottomBarModel &model,
       builder.CenteredText(
           model.actions.actions[index],
           static_cast<std::int16_t>(width * index + width / 2), 220,
-          index == model.actions.active ? UiColorToken::CursorPrimary
-                                        : UiColorToken::TextMuted);
+          index == model.actions.active ? UiColorToken::TextColored
+                                        : UiColorToken::TextDim);
     }
     break;
   }
@@ -245,8 +245,8 @@ UiBuildStatus UiChromeRenderer::BuildBottom(const UiBottomBarModel &model,
       for (std::uint8_t index = 0; index < 2; ++index) {
         builder.CenteredText(
             model.selector.options[index], index == 0 ? 60 : 180, 220,
-            index == model.selector.current ? UiColorToken::CursorPrimary
-                                            : UiColorToken::TextMuted);
+            index == model.selector.current ? UiColorToken::TextColored
+                                            : UiColorToken::TextDim);
       }
       break;
     }
@@ -263,13 +263,13 @@ UiBuildStatus UiChromeRenderer::BuildBottom(const UiBottomBarModel &model,
     };
     const int current = model.selector.current;
     builder.CenteredText(optionAt(current - 1), 60, 220,
-                         UiColorToken::TextMuted);
+                         UiColorToken::TextDim);
     builder.CenteredText(optionAt(current), 120, 220,
-                         UiColorToken::CursorPrimary);
+                         UiColorToken::TextColored);
     builder.CenteredText(optionAt(current + 1), 180, 220,
-                         UiColorToken::TextMuted);
-    builder.Text("<", 7, 220, UiColorToken::TextDim);
-    builder.Text(">", 228, 220, UiColorToken::TextDim);
+                         UiColorToken::TextDim);
+    builder.Text("<", 7, 220, UiColorToken::DerivedTextFaint);
+    builder.Text(">", 228, 220, UiColorToken::DerivedTextFaint);
     break;
   }
   }

@@ -17,25 +17,31 @@ namespace ui2 {
 // Stable semantic indices are part of the UI2 presenter contract. Page code
 // never names hues and user themes only replace these semantic roles.
 enum class UiColorToken : PaletteIndex {
-  SurfaceBlack = 0,
-  SurfaceField,
-  SurfaceBar,
-  SurfaceBarDeep,
-  TextPrimary,
-  TextMuted,
+  SurfaceBackground = 0,
+  SurfaceTopBar,
+  SurfaceBottomBar,
+  TextNormal,
   TextDim,
+  TextHighlighted,
+  TextColored,
   CursorPrimary,
   CursorRow,
-  CursorInk,
   PlaybackActive,
+  SystemInfo,
+  SystemWarning,
+  SystemError,
   BatteryNormal,
   BatteryCharging,
   BatteryLow,
-  VuTrack,
   VuSafe,
-  VuSafeLow,
   VuWarning,
   VuPeak,
+
+  // Generated implementation colors. These are not persisted theme fields
+  // and never appear in Theme UI.
+  DerivedTextFaint,
+  DerivedVuTrack,
+  DerivedVuSafeLow,
   Count,
 };
 
@@ -44,6 +50,11 @@ enum class UiCoverage : std::uint8_t { Cursor = 0, Playback = 1 };
 class UiPalette {
 public:
   static constexpr std::size_t kColorCount = 256;
+  static constexpr std::size_t kUserColorCount =
+      static_cast<std::size_t>(UiColorToken::DerivedTextFaint);
+  // Element-owned dynamic ramps may use this bank. The stable theme and
+  // generated cursor/waveform colors live below it.
+  static constexpr PaletteIndex kFirstDynamicIndex = 96;
 
   UiPalette();
 
@@ -60,7 +71,6 @@ public:
   [[nodiscard]] PaletteIndex CoverageIndex(UiCoverage coverage,
                                             PaletteIndex destination) const;
   [[nodiscard]] PaletteIndex AntialiasIndex(UiCoverage coverage,
-                                             PaletteIndex destination,
                                              std::uint8_t quarterCoverage) const;
 
   [[nodiscard]] static constexpr std::uint16_t PackRgb565(Rgb888 color) {
@@ -74,12 +84,13 @@ private:
   static constexpr std::size_t kThemeColorCount =
       static_cast<std::size_t>(UiColorToken::Count);
   static constexpr PaletteIndex kCoverageStart = 32;
-  static constexpr PaletteIndex kAntialiasStart =
+  static constexpr PaletteIndex kElementAntialiasStart =
       kCoverageStart + 2 * kThemeColorCount;
-  static_assert(kAntialiasStart + 2 * 3 * kThemeColorCount <= kColorCount);
+  static_assert(kThemeColorCount <= kCoverageStart);
+  static_assert(kElementAntialiasStart + 2 * 3 <= kFirstDynamicIndex);
 
   void SetRaw(PaletteIndex index, Rgb888 color);
-  void RebuildCoverage();
+  void RebuildDerivedColors();
   [[nodiscard]] static Rgb888 Composite(Rgb888 source, std::uint8_t alpha,
                                         Rgb888 destination);
   [[nodiscard]] static Rgb888 CompositeQuarter(Rgb888 source,

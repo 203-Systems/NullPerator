@@ -14,7 +14,7 @@ namespace ui2 {
 
 class UiVuGradient {
 public:
-  static constexpr PaletteIndex kFirstIndex = 80;
+  static constexpr PaletteIndex kFirstIndex = UiPalette::kFirstDynamicIndex;
   static constexpr std::uint16_t kMaximumHeight = 153;
 
   static bool Configure(UiPalette &palette, std::uint16_t height);

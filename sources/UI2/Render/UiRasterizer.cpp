@@ -83,7 +83,7 @@ void UiRasterizer::Render(UiCommandStream stream, UiIndexedSurface &surface,
                 x, y,
                 palette->AntialiasIndex(
                     static_cast<UiCoverage>(command.auxiliaryColor),
-                    command.color, quarterCoverage));
+                    quarterCoverage));
           }
         }
         cursor += packedLength;

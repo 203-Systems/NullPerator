@@ -16,16 +16,18 @@ struct UiFrameScene {
   UiBarScene top;
   UiContentScene content;
   UiBarScene bottom;
-  UiColorToken topBackground = UiColorToken::SurfaceBarDeep;
-  UiColorToken bottomBackground = UiColorToken::SurfaceBarDeep;
+  UiColorToken topBackground = UiColorToken::SurfaceTopBar;
+  UiColorToken bottomBackground = UiColorToken::SurfaceBottomBar;
   std::int16_t topHeight = kTopBarHeight;
   std::int16_t bottomTop = kBottomBarTop;
+  std::int16_t contentOffsetY = 0;
   bool bottomVisible = true;
 
   void Clear() {
     top.Clear();
     content.Clear();
     bottom.Clear();
+    contentOffsetY = 0;
   }
 };
 

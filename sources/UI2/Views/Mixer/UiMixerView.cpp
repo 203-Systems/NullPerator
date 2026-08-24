@@ -91,7 +91,7 @@ UiBuildStatus UiMixerView::Build(const UiMixerViewData &data,
   scene.Clear();
   scene.topHeight = 34;
   scene.bottomVisible = false;
-  scene.topBackground = UiColorToken::SurfaceBarDeep;
+  scene.topBackground = UiColorToken::SurfaceTopBar;
 
   const UiTopBarModel top{
       .title = "MIXER",
@@ -108,7 +108,7 @@ UiBuildStatus UiMixerView::Build(const UiMixerViewData &data,
   for (std::uint8_t channel = 0; channel < kChannelCount; ++channel) {
     for (std::uint8_t side = 0; side < 2U; ++side) {
       const RectI16 meter = MeterDamageRect(channel, side);
-      builder.Fill(meter, UiColorToken::VuTrack);
+      builder.Fill(meter, UiColorToken::DerivedVuTrack);
       const std::uint8_t level =
           std::min<std::uint8_t>(data.vuLevelTop[channel][side], kMeterHeight);
       builder.VerticalPaletteRamp(
@@ -118,11 +118,11 @@ UiBuildStatus UiMixerView::Build(const UiMixerViewData &data,
     }
     const bool selected = data.selectedChannel == channel;
     builder.CenteredText(data.volumes[channel], kCenters[channel], 207,
-                         selected ? UiColorToken::CursorPrimary
-                                  : UiColorToken::TextPrimary);
+                         selected ? UiColorToken::TextColored
+                                  : UiColorToken::TextNormal);
     builder.CenteredText(kLabels[channel], kCenters[channel], 224,
-                         selected ? UiColorToken::CursorPrimary
-                                  : UiColorToken::TextMuted);
+                         selected ? UiColorToken::TextColored
+                                  : UiColorToken::TextDim);
   }
 
   return builder.Ok() ? UiBuildStatus::Built : UiBuildStatus::CommandOverflow;

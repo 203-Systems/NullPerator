@@ -9,6 +9,7 @@
 #include "UI2/Render/UiFrameRenderer.h"
 #include "UI2/Text/UiFont5x7.h"
 
+#include <algorithm>
 #include <array>
 
 namespace ui2 {
@@ -41,14 +42,14 @@ RectI16 ExpandedCursorDamage(RectI16 rect) {
 void DrawField(UiSceneBuilder<256, 1024> &builder, std::string_view label,
                std::string_view value, std::int16_t y,
                UiColorToken valueColor) {
-  builder.Text(label, 9, y, UiColorToken::TextMuted);
+  builder.Text(label, 9, y, UiColorToken::TextDim);
   builder.Text(value, 92, y, valueColor);
 }
 
 void DrawSection(UiSceneBuilder<256, 1024> &builder, std::string_view label,
                  std::int16_t y) {
   const std::int16_t width = UiFont5x7::TextWidth(label.size());
-  builder.Text(label, 9, y, UiColorToken::CursorPrimary);
+  builder.Text(label, 9, y, UiColorToken::TextColored);
   builder.Fill({static_cast<std::int16_t>(9 + width + 7),
                 static_cast<std::int16_t>(y + 3),
                 static_cast<std::int16_t>(222 - width), 1},
@@ -67,6 +68,26 @@ RectI16 UiInstrumentView::CursorTargetRect(const UiInstrumentViewData &data) {
     return {};
   }
   return {};
+}
+
+std::int16_t UiInstrumentView::ContentBottom(
+    const UiInstrumentViewData &data) {
+  std::int16_t bottom = 63;
+  for (std::uint8_t index = 0; index < data.fieldCount; ++index) {
+    bottom = std::max(bottom,
+                      static_cast<std::int16_t>(data.fields[index].y + 8));
+  }
+  for (std::uint8_t index = 0; index < data.operatorCount; ++index) {
+    bottom = std::max(bottom,
+                      static_cast<std::int16_t>(151 + index * 9));
+  }
+  return bottom;
+}
+
+std::int16_t UiInstrumentView::RevealCursor(
+    std::int16_t currentOffset, const UiInstrumentViewData &data) {
+  return UiVerticalList::Reveal(currentOffset, CursorTargetRect(data), 34, 208,
+                                ContentBottom(data));
 }
 
 RectI16 UiInstrumentView::FieldDamageRect(std::int16_t y) {
@@ -94,6 +115,9 @@ void UiInstrumentView::RenderDelta(const UiInstrumentViewData &previous,
   const auto render = [&](RectI16 rect) {
     UiFrameRenderer::RenderRegion(currentScene, surface, palette, rect);
   };
+  const auto contentRect = [&](RectI16 rect) {
+    return UiVerticalList::VisualRect(rect, currentScene.contentOffsetY);
+  };
   if (previous.number != current.number ||
       previous.topMetaVisualRect != current.topMetaVisualRect ||
       previous.topMetaVisualOverride != current.topMetaVisualOverride ||
@@ -103,26 +127,32 @@ void UiInstrumentView::RenderDelta(const UiInstrumentViewData &previous,
   if (previous.power != current.power || previous.elapsed != current.elapsed) {
     render({184, 0, 56, 34});
   }
-  if (previous.name != current.name)
-    render(FieldDamageRect(42));
+  const bool contentRedrawn = previous.scrollOffset != current.scrollOffset;
+  if (contentRedrawn) render({0, 34, 240, 174});
+  if (!contentRedrawn && previous.name != current.name)
+    render(contentRect(FieldDamageRect(42)));
 
-  const RectI16 oldCursor = ResolvedCursorRect(previous);
-  const RectI16 newCursor = ResolvedCursorRect(current);
-  if (oldCursor != newCursor ||
-      previous.cursorInkVisible != current.cursorInkVisible) {
+  const RectI16 oldCursor = contentRect(ResolvedCursorRect(previous));
+  const RectI16 newCursor = contentRect(ResolvedCursorRect(current));
+  if (!contentRedrawn && (oldCursor != newCursor ||
+                          previous.cursorInkVisible !=
+                              current.cursorInkVisible)) {
     render(ExpandedCursorDamage(oldCursor));
     render(ExpandedCursorDamage(newCursor));
-    render(FieldDamageRect(42));
-    render(FieldDamageRect(54));
+    render(contentRect(FieldDamageRect(42)));
+    render(contentRect(FieldDamageRect(54)));
   }
-  for (std::uint8_t index = 0; index < current.fieldCount; ++index) {
+  for (std::uint8_t index = 0; !contentRedrawn && index < current.fieldCount;
+       ++index) {
     if (previous.fields[index] != current.fields[index]) {
-      render(FieldDamageRect(current.fields[index].y));
+      render(contentRect(FieldDamageRect(current.fields[index].y)));
     }
   }
-  for (std::uint8_t index = 0; index < current.operatorCount; ++index) {
+  for (std::uint8_t index = 0;
+       !contentRedrawn && index < current.operatorCount; ++index) {
     if (previous.operators[index] != current.operators[index]) {
-      render(FieldDamageRect(static_cast<std::int16_t>(144 + index * 9)));
+      render(contentRect(
+          FieldDamageRect(static_cast<std::int16_t>(144 + index * 9))));
     }
   }
   if (previous.cursor != current.cursor ||
@@ -140,8 +170,10 @@ UiBuildStatus UiInstrumentView::Build(const UiInstrumentViewData &data,
   scene.Clear();
   scene.topHeight = 34;
   scene.bottomTop = 208;
-  scene.topBackground = UiColorToken::SurfaceBarDeep;
-  scene.bottomBackground = UiColorToken::SurfaceBarDeep;
+  scene.contentOffsetY = UiVerticalList::Clamp(
+      data.scrollOffset, 208, ContentBottom(data));
+  scene.topBackground = UiColorToken::SurfaceTopBar;
+  scene.bottomBackground = UiColorToken::SurfaceBottomBar;
 
   const UiTopBarModel pageTop{
       .title = "INST",
@@ -195,36 +227,36 @@ UiBuildStatus UiInstrumentView::Build(const UiInstrumentViewData &data,
 
   UiSceneBuilder<256, 1024> builder(scene.content);
   const UiColorToken nameColor =
-      data.name == "--" ? UiColorToken::TextDim : UiColorToken::TextPrimary;
+      data.name == "--" ? UiColorToken::DerivedTextFaint : UiColorToken::TextNormal;
   DrawField(builder, "NAME", data.name, 42, nameColor);
   DrawField(builder, "TYPE", TypeName(data.kind), 54,
-            UiColorToken::TextPrimary);
+            UiColorToken::TextNormal);
 
   if (data.kind == UiInstrumentKind::Opal) {
     DrawSection(builder, "GENERAL SETTINGS", 70);
     for (std::uint8_t index = 0; index < data.fieldCount; ++index) {
       DrawField(builder, data.fields[index].label, data.fields[index].value,
                 data.fields[index].y,
-                data.fields[index].value == "--" ? UiColorToken::TextDim
-                                                 : UiColorToken::TextPrimary);
+                data.fields[index].value == "--" ? UiColorToken::DerivedTextFaint
+                                                 : UiColorToken::TextNormal);
     }
     DrawSection(builder, "OPERATOR SETTINGS", 120);
-    builder.Text("OP 1", 144, 132, UiColorToken::CursorPrimary);
-    builder.Text("OP 2", 190, 132, UiColorToken::TextMuted);
+    builder.Text("OP 1", 144, 132, UiColorToken::TextColored);
+    builder.Text("OP 2", 190, 132, UiColorToken::TextDim);
     for (std::uint8_t index = 0; index < data.operatorCount; ++index) {
       const std::int16_t y = static_cast<std::int16_t>(144 + index * 9);
-      builder.Text(data.operators[index].label, 9, y, UiColorToken::TextMuted);
+      builder.Text(data.operators[index].label, 9, y, UiColorToken::TextDim);
       builder.Text(data.operators[index].op1, 144, y,
-                   UiColorToken::TextPrimary);
+                   UiColorToken::TextNormal);
       builder.Text(data.operators[index].op2, 190, y,
-                   UiColorToken::TextPrimary);
+                   UiColorToken::TextNormal);
     }
   } else {
     for (std::uint8_t index = 0; index < data.fieldCount; ++index) {
       DrawField(builder, data.fields[index].label, data.fields[index].value,
                 data.fields[index].y,
-                data.fields[index].value == "--" ? UiColorToken::TextDim
-                                                 : UiColorToken::TextPrimary);
+                data.fields[index].value == "--" ? UiColorToken::DerivedTextFaint
+                                                 : UiColorToken::TextNormal);
     }
   }
 
@@ -233,11 +265,11 @@ UiBuildStatus UiInstrumentView::Build(const UiInstrumentViewData &data,
     builder.Selection(cursor);
     if (data.cursorInkVisible) {
       if (data.cursor == UiInstrumentCursor::Name) {
-        builder.Text("NAME", 9, 42, UiColorToken::CursorInk);
-        builder.Text(data.name, 92, 42, UiColorToken::CursorInk);
+        builder.Text("NAME", 9, 42, UiColorToken::TextHighlighted);
+        builder.Text(data.name, 92, 42, UiColorToken::TextHighlighted);
       } else {
-        builder.Text("TYPE", 9, 54, UiColorToken::CursorInk);
-        builder.Text(TypeName(data.kind), 92, 54, UiColorToken::CursorInk);
+        builder.Text("TYPE", 9, 54, UiColorToken::TextHighlighted);
+        builder.Text(TypeName(data.kind), 92, 54, UiColorToken::TextHighlighted);
       }
     }
   }

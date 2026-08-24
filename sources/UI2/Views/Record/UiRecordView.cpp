@@ -33,7 +33,7 @@ RectI16 ExpandedCursorDamage(RectI16 rect) {
 void DrawSection(UiSceneBuilder<256, 1024> &builder, std::string_view label,
                  std::int16_t y) {
   const std::int16_t width = UiFont5x7::TextWidth(label.size());
-  builder.Text(label, 9, y, UiColorToken::CursorPrimary);
+  builder.Text(label, 9, y, UiColorToken::TextColored);
   builder.Fill({static_cast<std::int16_t>(9 + width + 7),
                 static_cast<std::int16_t>(y + 3),
                 static_cast<std::int16_t>(222 - width), 1},
@@ -76,8 +76,8 @@ UiBuildStatus UiRecordView::Build(const UiRecordViewData &data,
   scene.topHeight = 34;
   scene.bottomTop = 208;
   scene.bottomVisible = true;
-  scene.topBackground = UiColorToken::SurfaceBarDeep;
-  scene.bottomBackground = UiColorToken::SurfaceBarDeep;
+  scene.topBackground = UiColorToken::SurfaceTopBar;
+  scene.bottomBackground = UiColorToken::SurfaceBottomBar;
   const UiTopBarModel top{
       .title = "RECORD", .meta = data.source, .power = data.power};
   const UiBuildStatus topStatus = UiChromeRenderer::BuildTop(top, scene.top);
@@ -91,14 +91,14 @@ UiBuildStatus UiRecordView::Build(const UiRecordViewData &data,
   if (bottomStatus != UiBuildStatus::Built) return bottomStatus;
 
   UiSceneBuilder<256, 1024> builder(scene.content);
-  builder.Text("SOURCE", 9, 43, UiColorToken::TextMuted);
-  builder.Text(data.source, 92, 43, UiColorToken::TextPrimary);
-  builder.Text("LINE GAIN", 9, 54, UiColorToken::TextMuted);
-  builder.Text(data.lineGain, 92, 54, UiColorToken::TextPrimary);
-  builder.Text("MIC GAIN", 9, 65, UiColorToken::TextMuted);
-  builder.Text(data.micGain, 92, 65, UiColorToken::TextPrimary);
+  builder.Text("SOURCE", 9, 43, UiColorToken::TextDim);
+  builder.Text(data.source, 92, 43, UiColorToken::TextNormal);
+  builder.Text("LINE GAIN", 9, 54, UiColorToken::TextDim);
+  builder.Text(data.lineGain, 92, 54, UiColorToken::TextNormal);
+  builder.Text("MIC GAIN", 9, 65, UiColorToken::TextDim);
+  builder.Text(data.micGain, 92, 65, UiColorToken::TextNormal);
   DrawSection(builder, "LEVEL", 84);
-  builder.Fill({9, 100, 222, 14}, UiColorToken::VuTrack);
+  builder.Fill({9, 100, 222, 14}, UiColorToken::DerivedVuTrack);
   const std::int16_t safe = static_cast<std::int16_t>(
       std::min<std::uint16_t>(data.safeWidth, 222));
   builder.Fill({9, 100, safe, 14}, UiColorToken::VuSafe);
@@ -106,13 +106,13 @@ UiBuildStatus UiRecordView::Build(const UiRecordViewData &data,
       std::min<std::uint16_t>(data.warningWidth, 222 - safe));
   builder.Fill({static_cast<std::int16_t>(9 + safe), 100, warning, 14},
                UiColorToken::VuWarning);
-  builder.CenteredText(data.elapsed, 120, 132, UiColorToken::TextPrimary, 2);
+  builder.CenteredText(data.elapsed, 120, 132, UiColorToken::TextNormal, 2);
   builder.CenteredText("PRESS PLAY TO RECORD", 120, 164,
                        UiColorToken::PlaybackActive);
   builder.Selection(ResolvedCursorRect(data));
   if (data.cursorInkVisible) {
-    builder.Text("SOURCE", 9, 43, UiColorToken::CursorInk);
-    builder.Text(data.source, 92, 43, UiColorToken::CursorInk);
+    builder.Text("SOURCE", 9, 43, UiColorToken::TextHighlighted);
+    builder.Text(data.source, 92, 43, UiColorToken::TextHighlighted);
   }
   return builder.Ok() ? UiBuildStatus::Built
                       : UiBuildStatus::CommandOverflow;

@@ -25,21 +25,21 @@ inline UiTableViewData ApprovedTableFixture(std::string_view state) {
   data.cursorBottom.context.secondLineCount = 1;
   if (state.starts_with("instrument")) {
     data.cursorBottom.context.firstLine[0] = {
-        .text = "FILTER", .color = UiColorToken::CursorPrimary, .x = 9};
+        .text = "FILTER", .color = UiColorToken::TextColored, .x = 9};
     data.cursorBottom.context.firstLine[1] = {
-        .text = "AABB", .color = UiColorToken::TextPrimary, .x = 51};
+        .text = "AABB", .color = UiColorToken::TextNormal, .x = 51};
     data.cursorBottom.context.secondLine[0] = {
         .text = "CUTOFF AA / RESONANCE BB",
-        .color = UiColorToken::TextPrimary,
+        .color = UiColorToken::TextNormal,
         .x = 9};
   } else {
     data.cursorBottom.context.firstLine[0] = {
-        .text = "KILL", .color = UiColorToken::CursorPrimary, .x = 9};
+        .text = "KILL", .color = UiColorToken::TextColored, .x = 9};
     data.cursorBottom.context.firstLine[1] = {
-        .text = "--BB", .color = UiColorToken::TextPrimary, .x = 39};
+        .text = "--BB", .color = UiColorToken::TextNormal, .x = 39};
     data.cursorBottom.context.secondLine[0] = {
         .text = "STOP AUDIO AFTER BB TICKS",
-        .color = UiColorToken::TextPrimary,
+        .color = UiColorToken::TextNormal,
         .x = 9};
   }
   return data;

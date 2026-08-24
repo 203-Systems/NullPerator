@@ -7,6 +7,7 @@
 #pragma once
 
 #include "UI2/Chrome/UiChromeRenderer.h"
+#include "UI2/Interaction/UiVerticalList.h"
 #include "UI2/Render/UiIndexedSurface.h"
 #include "UI2/Scene/UiFrameScene.h"
 #include "UI2/Theme/UiPalette.h"
@@ -30,6 +31,7 @@ struct UiDeviceViewData {
   RectI16 cursorVisualRect{};
   bool cursorVisualOverride = false;
   bool cursorInkVisible = true;
+  std::int16_t scrollOffset = 0;
   UiPowerState power = UiPowerState::BatteryNormal;
 };
 
@@ -43,6 +45,11 @@ public:
                           UiIndexedSurface &surface, const UiPalette &palette);
   [[nodiscard]] static constexpr RectI16 CursorTargetRect() {
     return {7, 53, 226, 9};
+  }
+  [[nodiscard]] static constexpr std::int16_t
+  RevealCursor(std::int16_t currentOffset) {
+    return UiVerticalList::Reveal(currentOffset, CursorTargetRect(), 34, 208,
+                                  203);
   }
   [[nodiscard]] static RectI16 FieldDamageRect(std::int16_t y);
 };
