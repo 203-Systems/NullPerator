@@ -194,6 +194,7 @@ void UiTableView::RenderDelta(const UiTableViewData &previous,
       previous.bottomTrackVisualRect != current.bottomTrackVisualRect ||
       previous.bottomTrackVisualOverride != current.bottomTrackVisualOverride ||
       previous.bottomTrackInkVisible != current.bottomTrackInkVisible ||
+      previous.adjustmentFocus != current.adjustmentFocus ||
       !ContextEqual(previous.cursorBottom, current.cursorBottom)) {
     render({0, 208, 240, 32});
   }
@@ -223,11 +224,14 @@ UiBuildStatus UiTableView::Build(const UiTableViewData &data, UiPalette &,
   tracks.trackSelectionRect = data.bottomTrackVisualRect;
   tracks.trackSelectionOverride = data.bottomTrackVisualOverride;
   tracks.trackInkVisible = data.bottomTrackInkVisible;
+  const UiAdjustmentLegendModel adjustment{.fineStep = 1U,
+                                            .coarseStep = 10U};
   const UiBarInputs inputs{
       .pageTop = pageTop,
       .pageDefault = hidden,
       .cursorContext = data.numberFocus ? nullptr : &data.cursorBottom,
       .editHeldTracks = &tracks,
+      .enterHeldAdjustment = data.adjustmentFocus ? &adjustment : nullptr,
       .editHeldNumber = data.numberFocus,
   };
   const UiResolvedChrome chrome = UiBarResolver::Resolve(inputs);

@@ -313,6 +313,7 @@ UiSongViewData UiApplicationRuntime::ViewDataFor(const SongFrameState &state) {
   data.selectionVisualRect = state.selectionVisualRect;
   data.cursorVisualOverride = state.cursorVisualOverride;
   data.cursorInkVisible = state.cursorInkVisible;
+  data.adjustmentFocus = state.adjustmentFocus;
   data.playing = state.playing;
   data.liveMode = state.liveMode;
   data.power = state.power;
@@ -344,6 +345,7 @@ UiApplicationRuntime::ViewDataFor(const ChainFrameState &state) {
   data.topMetaInkVisible = state.topMetaInkVisible;
   data.bottomTrackInkVisible = state.bottomTrackInkVisible;
   data.numberFocus = state.numberFocus;
+  data.adjustmentFocus = state.adjustmentFocus;
   data.power = state.power;
   return data;
 }
@@ -504,6 +506,7 @@ UiApplicationRuntime::ViewDataFor(const PhraseFrameState &state) {
   data.bottomTrackInkVisible = state.bottomTrackInkVisible;
   data.enterDigitFocus = state.enterDigitFocus;
   data.numberFocus = state.numberFocus;
+  data.adjustmentFocus = state.adjustmentFocus;
   data.power = state.power;
   return data;
 }
@@ -655,6 +658,7 @@ UiApplicationRuntime::ViewDataFor(const TableFrameState &state) {
   data.bottomTrackInkVisible = state.bottomTrackInkVisible;
   data.enterDigitFocus = state.enterDigitFocus;
   data.numberFocus = state.numberFocus;
+  data.adjustmentFocus = state.adjustmentFocus;
   data.power = state.power;
   return data;
 }

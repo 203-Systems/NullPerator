@@ -39,6 +39,7 @@ struct UiChainViewData {
   bool topMetaInkVisible = true;
   bool bottomTrackInkVisible = true;
   bool numberFocus = false;
+  bool adjustmentFocus = false;
   UiPowerState power = UiPowerState::BatteryNormal;
 };
 

@@ -75,6 +75,7 @@ struct UiSongFrameState {
   RectI16 selectionVisualRect{};
   bool cursorVisualOverride = false;
   bool cursorInkVisible = true;
+  bool adjustmentFocus = false;
   bool playing = false;
   bool liveMode = false;
   UiPowerState power = UiPowerState::BatteryNormal;
@@ -113,6 +114,7 @@ struct UiChainFrameState {
   bool topMetaInkVisible = true;
   bool bottomTrackInkVisible = true;
   bool numberFocus = false;
+  bool adjustmentFocus = false;
   UiPowerState power = UiPowerState::BatteryNormal;
 
   bool operator==(const UiChainFrameState &) const = default;
@@ -146,6 +148,7 @@ struct UiPhraseFrameState {
   bool bottomTrackInkVisible = true;
   bool enterDigitFocus = false;
   bool numberFocus = false;
+  bool adjustmentFocus = false;
   UiPowerState power = UiPowerState::BatteryNormal;
 
   bool operator==(const UiPhraseFrameState &) const = default;
@@ -187,6 +190,7 @@ struct UiTableFrameState {
   bool bottomTrackInkVisible = true;
   bool enterDigitFocus = false;
   bool numberFocus = false;
+  bool adjustmentFocus = false;
   UiPowerState power = UiPowerState::BatteryNormal;
 
   bool operator==(const UiTableFrameState &) const = default;

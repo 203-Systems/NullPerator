@@ -49,6 +49,7 @@ struct UiPhraseViewData {
   bool bottomTrackInkVisible = true;
   bool enterDigitFocus = false;
   bool numberFocus = false;
+  bool adjustmentFocus = false;
   UiPowerState power = UiPowerState::BatteryNormal;
 };
 

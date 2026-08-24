@@ -131,7 +131,8 @@ void UiChainView::RenderDelta(const UiChainViewData &previous,
       previous.selectedTrack != current.selectedTrack ||
       previous.bottomTrackVisualRect != current.bottomTrackVisualRect ||
       previous.bottomTrackVisualOverride != current.bottomTrackVisualOverride ||
-      previous.bottomTrackInkVisible != current.bottomTrackInkVisible) {
+      previous.bottomTrackInkVisible != current.bottomTrackInkVisible ||
+      previous.adjustmentFocus != current.adjustmentFocus) {
     render({0, 208, 240, 32});
   }
   for (std::uint8_t side = 0; side < 2U; ++side) {
@@ -167,10 +168,13 @@ UiBuildStatus UiChainView::Build(const UiChainViewData &data,
   editTracks.trackSelectionRect = data.bottomTrackVisualRect;
   editTracks.trackSelectionOverride = data.bottomTrackVisualOverride;
   editTracks.trackInkVisible = data.bottomTrackInkVisible;
+  const UiAdjustmentLegendModel adjustment{.fineStep = 1U,
+                                            .coarseStep = 10U};
   const UiBarInputs barInputs{
       .pageTop = top,
       .pageDefault = pageBottom,
       .editHeldTracks = &editTracks,
+      .enterHeldAdjustment = data.adjustmentFocus ? &adjustment : nullptr,
       .editHeldNumber = data.numberFocus,
   };
   const UiResolvedChrome chrome = UiBarResolver::Resolve(barInputs);

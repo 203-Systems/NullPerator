@@ -18,6 +18,11 @@ UiResolvedChrome UiBarResolver::Resolve(const UiBarInputs &inputs) {
     resolved.bottom.trackNotes = *inputs.editHeldTracks;
   }
 
+  if (inputs.enterHeldAdjustment != nullptr) {
+    resolved.bottom.kind = UiBottomBarKind::AdjustmentLegend;
+    resolved.bottom.adjustment = *inputs.enterHeldAdjustment;
+  }
+
   if (inputs.navHeld) {
     resolved.top.power = UiPowerState::Navigation;
     resolved.top.navTarget = inputs.navTarget;

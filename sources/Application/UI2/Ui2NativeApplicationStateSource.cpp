@@ -239,6 +239,8 @@ Ui2NativeApplicationStateSource::CaptureSong(UiSongFrameState &state) {
   state.editTrack = controller.Track();
   state.editRow = controller.VisibleRow();
   state.rowOffset = controller.RowOffset();
+  state.adjustmentFocus =
+      (controller.HeldMask() & TrackerActionBit(TrackerAction::Enter)) != 0U;
   for (std::uint8_t row = 0; row < 16U; ++row) {
     for (std::uint8_t track = 0; track < SONG_CHANNEL_COUNT; ++track) {
       state.rows[row][track] = project.song_.data_[
@@ -276,6 +278,9 @@ Ui2NativeApplicationStateSource::CaptureChain(UiChainFrameState &state) {
   state.editColumn = controller.Column();
   state.selectedTrack = controller.SelectedTrack();
   state.numberFocus = controller.NumberFocus();
+  state.adjustmentFocus =
+      !state.numberFocus &&
+      (controller.HeldMask() & TrackerActionBit(TrackerAction::Enter)) != 0U;
   if (controller.Selection().active) {
     const auto &selection = controller.Selection();
     state.selectionVisualRect = UiChainView::SelectionTargetRect(
@@ -304,6 +309,9 @@ Ui2NativeApplicationStateSource::CapturePhrase(UiPhraseFrameState &state) {
   state.selectedTrack = controller.SelectedTrack();
   state.numberFocus = controller.NumberFocus();
   state.enterDigitFocus = controller.EnterDigitFocus();
+  state.adjustmentFocus =
+      !state.numberFocus && !state.enterDigitFocus &&
+      (controller.HeldMask() & TrackerActionBit(TrackerAction::Enter)) != 0U;
   state.activeHeader = controller.Column() == 0U   ? UiPhraseHeader::Note
                        : controller.Column() == 1U ? UiPhraseHeader::Instrument
                        : controller.Column() <= 3U ? UiPhraseHeader::Fx1
@@ -375,6 +383,9 @@ Ui2NativeApplicationStateSource::CaptureTable(UiTableFrameState &state) {
   state.selectedTrack = controller.SelectedTrack();
   state.numberFocus = controller.NumberFocus();
   state.enterDigitFocus = controller.EnterDigitFocus();
+  state.adjustmentFocus =
+      !state.numberFocus && !state.enterDigitFocus &&
+      (controller.HeldMask() & TrackerActionBit(TrackerAction::Enter)) != 0U;
   state.activeHeader = controller.Column() < 2U   ? UiTableHeader::Fx1
                        : controller.Column() < 4U ? UiTableHeader::Fx2
                                                    : UiTableHeader::Fx3;

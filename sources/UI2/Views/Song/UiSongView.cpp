@@ -207,6 +207,8 @@ void UiSongView::RenderDelta(const UiSongViewData &previous,
       render(BottomTrackDamageRect(track));
     }
   }
+  if (previous.adjustmentFocus != current.adjustmentFocus)
+    render({0, 208, 240, 32});
 
   for (std::uint8_t channel = 0; channel < 2U; ++channel) {
     if (previous.vuLevelTop[channel] != current.vuLevelTop[channel]) {
@@ -234,10 +236,15 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data,
   const UiBuildStatus topStatus = UiChromeRenderer::BuildTop(top, scene.top);
   if (topStatus != UiBuildStatus::Built) return topStatus;
 
-  UiBottomBarModel bottom{.kind = data.showBottom
-                                     ? UiBottomBarKind::TrackNotes
-                                     : UiBottomBarKind::Hidden};
-  if (data.showBottom) bottom.trackNotes.notes = data.notes;
+  UiBottomBarModel bottom{
+      .kind = data.showBottom ? (data.adjustmentFocus
+                                     ? UiBottomBarKind::AdjustmentLegend
+                                     : UiBottomBarKind::TrackNotes)
+                              : UiBottomBarKind::Hidden};
+  if (data.showBottom && !data.adjustmentFocus)
+    bottom.trackNotes.notes = data.notes;
+  if (data.adjustmentFocus)
+    bottom.adjustment = {.fineStep = 1U, .coarseStep = 10U};
   const UiBuildStatus bottomStatus =
       UiChromeRenderer::BuildBottom(bottom, scene.bottom);
   if (bottomStatus != UiBuildStatus::Built) return bottomStatus;

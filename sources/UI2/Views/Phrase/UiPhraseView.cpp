@@ -221,6 +221,7 @@ void UiPhraseView::RenderDelta(const UiPhraseViewData &previous,
       previous.bottomTrackVisualRect != current.bottomTrackVisualRect ||
       previous.bottomTrackVisualOverride != current.bottomTrackVisualOverride ||
       previous.bottomTrackInkVisible != current.bottomTrackInkVisible ||
+      previous.adjustmentFocus != current.adjustmentFocus ||
       !BottomEqual(previous.cursorBottom, current.cursorBottom)) {
     render({0, 208, 240, 32});
   }
@@ -251,11 +252,14 @@ UiBuildStatus UiPhraseView::Build(const UiPhraseViewData &data, UiPalette &,
   editTracks.trackSelectionRect = data.bottomTrackVisualRect;
   editTracks.trackSelectionOverride = data.bottomTrackVisualOverride;
   editTracks.trackInkVisible = data.bottomTrackInkVisible;
+  const UiAdjustmentLegendModel adjustment{.fineStep = 1U,
+                                            .coarseStep = 10U};
   const UiBarInputs barInputs{
       .pageTop = pageTop,
       .pageDefault = pageBottom,
       .cursorContext = data.numberFocus ? nullptr : &data.cursorBottom,
       .editHeldTracks = &editTracks,
+      .enterHeldAdjustment = data.adjustmentFocus ? &adjustment : nullptr,
       .editHeldNumber = data.numberFocus,
   };
   const UiResolvedChrome chrome = UiBarResolver::Resolve(barInputs);
