@@ -31,11 +31,16 @@ void DrawSegments(BarBuilder &builder,
 void DrawVerticalArrow(BarBuilder &builder, std::int16_t x, std::int16_t y,
                        bool up) {
   for (std::int16_t row = 0; row < 3; ++row) {
-    const std::int16_t rank = up ? row : static_cast<std::int16_t>(2 - row);
-    const std::int16_t width = static_cast<std::int16_t>(1 + rank * 2);
-    builder.Fill({static_cast<std::int16_t>(x + 2 - rank),
-                  static_cast<std::int16_t>(y + row), width, 1},
+    const std::int16_t inset =
+        up ? static_cast<std::int16_t>(2 - row) : row;
+    builder.Fill({static_cast<std::int16_t>(x + inset),
+                  static_cast<std::int16_t>(y + row), 1, 1},
                  UiColorToken::DerivedTextFaint);
+    if (inset != 2) {
+      builder.Fill({static_cast<std::int16_t>(x + 4 - inset),
+                    static_cast<std::int16_t>(y + row), 1, 1},
+                   UiColorToken::DerivedTextFaint);
+    }
   }
 }
 
