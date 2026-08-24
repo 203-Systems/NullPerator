@@ -9,6 +9,7 @@ add_library(ui2
   Render/UiVuGradient.cpp
   Text/UiFont5x7.cpp
   Theme/UiPalette.cpp
+  Views/Browser/UiBrowserView.cpp
   Views/Chain/UiChainView.cpp
   Views/Device/UiDeviceView.cpp
   Views/Font/UiFontView.cpp

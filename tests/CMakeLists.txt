@@ -56,6 +56,7 @@ add_executable(picoTracker_tests
   ../sources/UI2/Text/UiFont5x7.cpp
   ../sources/UI2/Theme/UiPalette.cpp
   ../sources/UI2/UiEngine.cpp
+  ../sources/UI2/Views/Browser/UiBrowserView.cpp
   ../sources/UI2/Views/Chain/UiChainView.cpp
   ../sources/UI2/Views/Device/UiDeviceView.cpp
   ../sources/UI2/Views/Font/UiFontView.cpp
@@ -261,6 +262,22 @@ target_include_directories(ui2_settings_snapshot_tool PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}
   ${CMAKE_CURRENT_LIST_DIR}/../sources)
 
+add_executable(ui2_browser_snapshot_tool
+  ui2_browser_snapshot_main.cpp
+  ../sources/UI2/Chrome/UiBarResolver.cpp
+  ../sources/UI2/Chrome/UiChromeRenderer.cpp
+  ../sources/UI2/Render/UiDirtyTiles.cpp
+  ../sources/UI2/Render/UiFrameRenderer.cpp
+  ../sources/UI2/Render/UiIndexedSurface.cpp
+  ../sources/UI2/Render/UiRasterizer.cpp
+  ../sources/UI2/Text/UiFont5x7.cpp
+  ../sources/UI2/Theme/UiPalette.cpp
+  ../sources/UI2/Views/Browser/UiBrowserView.cpp)
+
+target_include_directories(ui2_browser_snapshot_tool PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}
+  ${CMAKE_CURRENT_LIST_DIR}/../sources)
+
 find_program(NODE_EXECUTABLE node)
 if(NODE_EXECUTABLE)
   add_test(NAME ui2_song_snapshot
@@ -404,5 +421,18 @@ if(NODE_EXECUTABLE)
         --golden "${CMAKE_CURRENT_LIST_DIR}/../web/e2e/ui2-golden.spec.js-snapshots/${SETTINGS_STATE}.png")
     set_tests_properties(ui2_${SETTINGS_STATE}_golden PROPERTIES
       DEPENDS ui2_${SETTINGS_STATE}_snapshot)
+  endforeach()
+
+  foreach(BROWSER_STATE sample-pool instrument-import projects theme-import)
+    add_test(NAME ui2_browser_${BROWSER_STATE}_snapshot
+      COMMAND ui2_browser_snapshot_tool "${BROWSER_STATE}"
+        "${CMAKE_CURRENT_BINARY_DIR}/${BROWSER_STATE}-actual.ppm")
+    add_test(NAME ui2_browser_${BROWSER_STATE}_golden
+      COMMAND "${NODE_EXECUTABLE}"
+        "${CMAKE_CURRENT_LIST_DIR}/../web/tools/compare-ui2-snapshot.mjs"
+        --actual "${CMAKE_CURRENT_BINARY_DIR}/${BROWSER_STATE}-actual.ppm"
+        --golden "${CMAKE_CURRENT_LIST_DIR}/../web/e2e/ui2-golden.spec.js-snapshots/${BROWSER_STATE}.png")
+    set_tests_properties(ui2_browser_${BROWSER_STATE}_golden PROPERTIES
+      DEPENDS ui2_browser_${BROWSER_STATE}_snapshot)
   endforeach()
 endif()

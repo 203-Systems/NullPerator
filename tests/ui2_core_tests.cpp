@@ -11,6 +11,7 @@
 #include "UI2/Theme/UiPalette.h"
 #include "UI2/UiEngine.h"
 #include "UI2/Render/UiFrameRenderer.h"
+#include "UI2/Views/Browser/UiBrowserView.h"
 #include "UI2/Views/Chain/UiChainView.h"
 #include "UI2/Views/Device/UiDeviceView.h"
 #include "UI2/Views/Font/UiFontView.h"
@@ -26,6 +27,7 @@
 #include "Application/UI2/Ui2ApplicationRuntime.h"
 
 #include "ui2_song_fixture.h"
+#include "ui2_browser_fixture.h"
 #include "ui2_chain_fixture.h"
 #include "ui2_device_fixture.h"
 #include "ui2_groove_fixture.h"
@@ -1343,4 +1345,50 @@ TEST_CASE("UI2 Font delta rendering is pixel-identical to a full redraw") {
   ui2::UiFrameRenderer::RenderStatic(currentScene, expected, palette);
   CHECK(std::equal(surface.Pixels().begin(), surface.Pixels().end(),
                    expected.Pixels().begin(), expected.Pixels().end()));
+}
+
+TEST_CASE("UI2 shared browser delta is pixel-identical across page variants") {
+  ui2::UiPalette palette;
+  ui2::UiBrowserViewData previous =
+      ui2::test::ApprovedBrowserFixture("sample-pool");
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiBrowserView::Build(previous, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+  surface.ClearDirty();
+
+  ui2::UiBrowserViewData current =
+      ui2::test::ApprovedBrowserFixture("projects");
+  current.item = "LIVE SET";
+  current.cursorVisualOverride = true;
+  current.cursorVisualRect = {7, 49, 226, 11};
+  current.cursorInkVisible = false;
+  ui2::UiFrameScene currentScene;
+  REQUIRE(ui2::UiBrowserView::Build(current, palette, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiBrowserView::RenderDelta(previous, current, currentScene, surface,
+                                  palette);
+
+  ui2::UiSurfaceStorage expectedStorage;
+  ui2::UiIndexedSurface expected(expectedStorage);
+  ui2::UiFrameRenderer::RenderStatic(currentScene, expected, palette);
+  CHECK(std::equal(surface.Pixels().begin(), surface.Pixels().end(),
+                   expected.Pixels().begin(), expected.Pixels().end()));
+}
+
+TEST_CASE("UI2 shared browser idle frame stays clean") {
+  ui2::UiPalette palette;
+  ui2::UiBrowserViewData data =
+      ui2::test::ApprovedBrowserFixture("theme-import");
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiBrowserView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+  surface.ClearDirty();
+  ui2::UiBrowserView::RenderDelta(data, data, scene, surface, palette);
+  CHECK_FALSE(surface.DirtyTiles().Any());
 }
