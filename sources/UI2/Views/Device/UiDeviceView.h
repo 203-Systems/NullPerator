@@ -37,8 +37,8 @@ struct UiDeviceViewData {
   std::string_view lineOut = "LINE LEVEL";
   std::string_view remoteUi = "ON";
   std::string_view resampler = "NONE";
-  std::string_view volume = "40";
-  std::string_view brightness = "FF";
+  std::string_view volume = "40%";
+  std::string_view brightness = "100%";
   std::string_view theme = "DEFAULT";
   std::string_view font = "REGULAR";
   std::string_view version = "VERSION 2.3 BETA";

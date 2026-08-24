@@ -92,11 +92,15 @@ bool Ui2TrackerApplication::Init() {
   }
 
   Audio::GetInstance()->Init();
+  std::uint16_t brightnessPercent = 100U;
   if (Config *config = Config::GetInstance()) {
     if (Variable *brightness =
             config->FindVariable(FourCC::VarBacklightLevel)) {
+      const int rawBrightness = std::clamp(brightness->GetInt(), 0, 255);
+      brightnessPercent = static_cast<std::uint16_t>(
+          (rawBrightness * 100 + 127) / 255);
       System::GetInstance()->SetDisplayBrightness(
-          static_cast<unsigned char>(brightness->GetInt()));
+          static_cast<unsigned char>(rawBrightness));
     }
   }
 
@@ -107,7 +111,8 @@ bool Ui2TrackerApplication::Init() {
   device_.SetSelector(Ui2DeviceField::Resampler, {3U, 0U, true});
   device_.SetSelector(Ui2DeviceField::LineOut, {2U, 0U, false});
   device_.SetSelector(Ui2DeviceField::Volume, {101U, 40U, false});
-  device_.SetSelector(Ui2DeviceField::Brightness, {256U, 255U, false});
+  device_.SetSelector(Ui2DeviceField::Brightness,
+                      {101U, brightnessPercent, false});
   device_.SetVisibleFields(
       Ui2DeviceController::AllFieldsMask &
       ~(std::uint32_t{1} << static_cast<std::uint8_t>(Ui2DeviceField::LineOut)) &
