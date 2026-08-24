@@ -12,6 +12,7 @@ add_library(ui2
   Views/Browser/UiBrowserView.cpp
   Views/Chain/UiChainView.cpp
   Views/Device/UiDeviceView.cpp
+  Views/Dialog/UiDialogView.cpp
   Views/Font/UiFontView.cpp
   Views/Groove/UiGrooveView.cpp
   Views/Phrase/UiPhraseView.cpp

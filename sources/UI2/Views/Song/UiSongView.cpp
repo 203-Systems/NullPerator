@@ -81,6 +81,8 @@ RectI16 UiSongView::VuDamageRect(std::uint8_t channel) {
 bool UiSongView::RequiresFullInvalidation(const UiSongViewData &previous,
                                           const UiSongViewData &current) {
   return previous.rowOffset != current.rowOffset ||
+         previous.showVu != current.showVu ||
+         previous.showBottom != current.showBottom ||
          previous.playing != current.playing ||
          previous.power != current.power;
 }
@@ -185,7 +187,7 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data,
   scene.Clear();
   scene.topHeight = 34;
   scene.bottomTop = 208;
-  scene.bottomVisible = true;
+  scene.bottomVisible = data.showBottom;
   scene.topBackground = UiColorToken::SurfaceBarDeep;
   scene.bottomBackground = UiColorToken::SurfaceBarDeep;
 
@@ -199,8 +201,10 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data,
   const UiBuildStatus topStatus = UiChromeRenderer::BuildTop(top, scene.top);
   if (topStatus != UiBuildStatus::Built) return topStatus;
 
-  UiBottomBarModel bottom{.kind = UiBottomBarKind::TrackNotes};
-  bottom.trackNotes.notes = data.notes;
+  UiBottomBarModel bottom{.kind = data.showBottom
+                                     ? UiBottomBarKind::TrackNotes
+                                     : UiBottomBarKind::Hidden};
+  if (data.showBottom) bottom.trackNotes.notes = data.notes;
   const UiBuildStatus bottomStatus =
       UiChromeRenderer::BuildBottom(bottom, scene.bottom);
   if (bottomStatus != UiBuildStatus::Built) return bottomStatus;
@@ -269,17 +273,19 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data,
                  UiColorToken::CursorInk);
   }
 
-  if (!UiVuGradient::Configure(palette, 153)) {
-    return UiBuildStatus::CommandOverflow;
-  }
-  for (std::uint8_t channel = 0; channel < 2; ++channel) {
-    const std::int16_t x = static_cast<std::int16_t>(219 + channel * 9);
-    builder.Fill({x, 47, 7, 153}, UiColorToken::VuTrack);
-    const std::uint8_t level = data.vuLevelTop[channel];
-    builder.VerticalPaletteRamp(
-        {x, static_cast<std::int16_t>(47 + level), 7,
-         static_cast<std::int16_t>(153 - level)},
-        UiVuGradient::IndexAt(level));
+  if (data.showVu) {
+    if (!UiVuGradient::Configure(palette, 153)) {
+      return UiBuildStatus::CommandOverflow;
+    }
+    for (std::uint8_t channel = 0; channel < 2; ++channel) {
+      const std::int16_t x = static_cast<std::int16_t>(219 + channel * 9);
+      builder.Fill({x, 47, 7, 153}, UiColorToken::VuTrack);
+      const std::uint8_t level = data.vuLevelTop[channel];
+      builder.VerticalPaletteRamp(
+          {x, static_cast<std::int16_t>(47 + level), 7,
+           static_cast<std::int16_t>(153 - level)},
+          UiVuGradient::IndexAt(level));
+    }
   }
 
   return builder.Ok() ? UiBuildStatus::Built

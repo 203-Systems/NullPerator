@@ -15,6 +15,7 @@
 #include "UI2/Views/Browser/UiBrowserView.h"
 #include "UI2/Views/Chain/UiChainView.h"
 #include "UI2/Views/Device/UiDeviceView.h"
+#include "UI2/Views/Dialog/UiDialogView.h"
 #include "UI2/Views/Font/UiFontView.h"
 #include "UI2/Views/Groove/UiGrooveView.h"
 #include "UI2/Views/Song/UiSongView.h"
@@ -1611,5 +1612,95 @@ TEST_CASE("UI2 Sample pages remain clean while their state is idle") {
   surface.ClearDirty();
   ui2::UiSampleSlicesView::RenderDelta(slices, slices, sliceScene, surface,
                                        palette);
+  CHECK_FALSE(surface.DirtyTiles().Any());
+}
+
+TEST_CASE("UI2 Dialog overlay preserves its page and suppresses Bottom Bar") {
+  ui2::UiPalette palette;
+  ui2::UiSongViewData song = ui2::test::ApprovedSongFixture();
+  song.playing = false;
+  song.power = ui2::UiPowerState::BatteryNormal;
+  song.showVu = false;
+  song.showBottom = false;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiSongView::Build(song, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  const std::size_t baseCommands = scene.content.Size();
+  ui2::UiDialogViewData dialog;
+  REQUIRE(ui2::UiDialogView::Apply(dialog, scene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK_FALSE(scene.bottomVisible);
+  CHECK(scene.top.Size() > 0);
+  CHECK(scene.content.Size() > baseCommands);
+}
+
+TEST_CASE("UI2 Dialog delta rendering is pixel-identical to a full redraw") {
+  ui2::UiPalette palette;
+  ui2::UiSongViewData song = ui2::test::ApprovedSongFixture();
+  song.playing = false;
+  song.power = ui2::UiPowerState::BatteryNormal;
+  song.showVu = false;
+  song.showBottom = false;
+  ui2::UiDialogViewData previous;
+  previous.kind = ui2::UiDialogKind::RenderProgress;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiSongView::Build(song, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  REQUIRE(ui2::UiDialogView::Apply(previous, scene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+  surface.ClearDirty();
+
+  ui2::UiDialogViewData current = previous;
+  current.elapsed = "00:12";
+  current.progressWidth = 120;
+  ui2::UiFrameScene currentScene;
+  REQUIRE(ui2::UiSongView::Build(song, palette, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  REQUIRE(ui2::UiDialogView::Apply(current, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiDialogView::RenderDelta(previous, current, currentScene, surface,
+                                 palette);
+  ui2::UiSurfaceStorage expectedStorage;
+  ui2::UiIndexedSurface expected(expectedStorage);
+  ui2::UiFrameRenderer::RenderStatic(currentScene, expected, palette);
+  CHECK(std::equal(surface.Pixels().begin(), surface.Pixels().end(),
+                   expected.Pixels().begin(), expected.Pixels().end()));
+}
+
+TEST_CASE("UI2 full-screen diagnostic replaces every retained page layer") {
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiSongView::Build(ui2::test::ApprovedSongFixture(), palette,
+                                 scene) == ui2::UiBuildStatus::Built);
+  ui2::UiDialogViewData dialog;
+  dialog.kind = ui2::UiDialogKind::FullScreen;
+  REQUIRE(ui2::UiDialogView::Apply(dialog, scene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK(scene.topHeight == 0);
+  CHECK_FALSE(scene.bottomVisible);
+  CHECK(scene.top.Size() == 0);
+  CHECK(scene.bottom.Size() == 0);
+  CHECK(scene.content.Size() == 4);
+}
+
+TEST_CASE("UI2 Dialog idle frame stays clean") {
+  ui2::UiPalette palette;
+  ui2::UiSongViewData song = ui2::test::ApprovedSongFixture();
+  song.showVu = false;
+  song.showBottom = false;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiSongView::Build(song, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiDialogViewData dialog;
+  REQUIRE(ui2::UiDialogView::Apply(dialog, scene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+  surface.ClearDirty();
+  ui2::UiDialogView::RenderDelta(dialog, dialog, scene, surface, palette);
   CHECK_FALSE(surface.DirtyTiles().Any());
 }

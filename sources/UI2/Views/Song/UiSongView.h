@@ -31,6 +31,8 @@ struct UiSongViewData {
   RectI16 cursorVisualRect{};
   bool cursorVisualOverride = false;
   bool cursorInkVisible = true;
+  bool showVu = true;
+  bool showBottom = true;
   bool playing = true;
   UiPowerState power = UiPowerState::Playing;
 };
