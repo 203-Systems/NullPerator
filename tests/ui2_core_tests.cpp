@@ -13,12 +13,14 @@
 #include "UI2/Render/UiFrameRenderer.h"
 #include "UI2/Views/Song/UiSongView.h"
 #include "UI2/Views/Phrase/UiPhraseView.h"
+#include "UI2/Views/Instrument/UiInstrumentView.h"
 #include "UI2/Views/Table/UiTableView.h"
 #include "Adapters/wasm/gui/WasmUiPresenter.h"
 #include "Application/UI2/Ui2ApplicationRuntime.h"
 
 #include "ui2_song_fixture.h"
 #include "ui2_phrase_fixture.h"
+#include "ui2_instrument_fixture.h"
 #include "ui2_table_fixture.h"
 
 #include "doctest/doctest.h"
@@ -844,4 +846,95 @@ TEST_CASE("UI2 Table idle is clean and row motion stays locally dirty") {
   }
   CHECK(transferredPixels < 8'000);
   CHECK(transferredPixels < 240U * 240U / 7U);
+}
+
+TEST_CASE("UI2 Instrument delta rendering is pixel-identical to a full redraw") {
+  ui2::UiPalette palette;
+  ui2::UiInstrumentViewData previous =
+      ui2::test::ApprovedInstrumentFixture("sample");
+  ui2::UiFrameScene previousScene;
+  REQUIRE(ui2::UiInstrumentView::Build(previous, palette, previousScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(previousScene, surface, palette);
+  surface.ClearDirty();
+
+  ui2::UiInstrumentViewData current = previous;
+  current.name = "BASS 01";
+  current.fields[2].value = "F1";
+  current.cursor = ui2::UiInstrumentCursor::Name;
+  current.cursorVisualOverride = true;
+  current.cursorVisualRect = {7, 47, 226, 9};
+  current.cursorInkVisible = false;
+  ui2::UiFrameScene currentScene;
+  REQUIRE(ui2::UiInstrumentView::Build(current, palette, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiInstrumentView::RenderDelta(previous, current, currentScene, surface,
+                                     palette);
+
+  ui2::UiSurfaceStorage expectedStorage;
+  ui2::UiIndexedSurface expected(expectedStorage);
+  ui2::UiFrameRenderer::RenderStatic(currentScene, expected, palette);
+  CHECK(std::equal(surface.Pixels().begin(), surface.Pixels().end(),
+                   expected.Pixels().begin(), expected.Pixels().end()));
+  CHECK(surface.DirtyTiles().Any());
+}
+TEST_CASE("UI2 Instrument idle is clean and cursor motion stays locally dirty") {
+  ui2::UiPalette palette;
+  ui2::UiInstrumentViewData previous =
+      ui2::test::ApprovedInstrumentFixture("sample");
+  ui2::UiFrameScene previousScene;
+  REQUIRE(ui2::UiInstrumentView::Build(previous, palette, previousScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(previousScene, surface, palette);
+  surface.ClearDirty();
+
+  ui2::UiInstrumentView::RenderDelta(previous, previous, previousScene,
+                                     surface, palette);
+  CHECK_FALSE(surface.DirtyTiles().Any());
+
+  ui2::UiInstrumentViewData current = previous;
+  current.cursorVisualOverride = true;
+  current.cursorVisualRect = {7, 47, 226, 9};
+  current.cursorInkVisible = false;
+  ui2::UiFrameScene currentScene;
+  REQUIRE(ui2::UiInstrumentView::Build(current, palette, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiInstrumentView::RenderDelta(previous, current, currentScene, surface,
+                                     palette);
+  ui2::DirtyStripList strips;
+  REQUIRE(surface.DirtyTiles().Collect(strips));
+  std::uint32_t transferredPixels = 0;
+  for (const ui2::DirtyStrip strip : strips.Strips()) {
+    transferredPixels +=
+        static_cast<std::uint32_t>(strip.width) * strip.height;
+  }
+  CHECK(transferredPixels < 8'000);
+  CHECK(transferredPixels < 240U * 240U / 7U);
+}
+
+TEST_CASE("UI2 Instrument enter mode resolves both independent cursors") {
+  ui2::UiInstrumentViewData data =
+      ui2::test::ApprovedInstrumentFixture("number");
+  data.topMetaVisualOverride = true;
+  data.topMetaVisualRect = {57, 9, 15, 9};
+  data.topMetaInkVisible = false;
+  data.bottomTrackVisualOverride = true;
+  data.bottomTrackVisualRect = {84, 211, 15, 9};
+  data.bottomTrackInkVisible = false;
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiInstrumentView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+
+  CHECK(surface.Pixel(64, 13) ==
+        palette.Index(ui2::UiColorToken::CursorPrimary));
+  CHECK(surface.Pixel(91, 215) ==
+        palette.Index(ui2::UiColorToken::CursorPrimary));
 }
