@@ -11,6 +11,7 @@
 #include "UI2/Theme/UiPalette.h"
 #include "UI2/UiEngine.h"
 #include "UI2/Render/UiFrameRenderer.h"
+#include "UI2/Views/Chain/UiChainView.h"
 #include "UI2/Views/Groove/UiGrooveView.h"
 #include "UI2/Views/Song/UiSongView.h"
 #include "UI2/Views/Phrase/UiPhraseView.h"
@@ -21,6 +22,7 @@
 #include "Application/UI2/Ui2ApplicationRuntime.h"
 
 #include "ui2_song_fixture.h"
+#include "ui2_chain_fixture.h"
 #include "ui2_groove_fixture.h"
 #include "ui2_phrase_fixture.h"
 #include "ui2_instrument_fixture.h"
@@ -1071,4 +1073,73 @@ TEST_CASE("UI2 Groove idle is clean and a row move stays locally dirty") {
         static_cast<std::uint32_t>(strip.width) * strip.height;
   }
   CHECK(transferredPixels < 3'000);
+}
+
+TEST_CASE("UI2 Chain keeps stereo VU channels physically separate") {
+  CHECK(ui2::UiChainView::VuDamageRect(0) ==
+        ui2::RectI16{219, 50, 7, 148});
+  CHECK(ui2::UiChainView::VuDamageRect(1) ==
+        ui2::RectI16{228, 50, 7, 148});
+}
+
+TEST_CASE("UI2 Chain delta rendering is pixel-identical to a full redraw") {
+  ui2::UiPalette palette;
+  ui2::UiChainViewData previous = ui2::test::ApprovedChainFixture();
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiChainView::Build(previous, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+  surface.ClearDirty();
+
+  ui2::UiChainViewData current = previous;
+  current.editRow = 6;
+  current.phrases[6] = 0x4C;
+  current.trackNotes[4] = "C#4";
+  current.vuLevelTop[1] = 80;
+  current.cursorVisualOverride = true;
+  current.cursorVisualRect = {31, 76, 15, 9};
+  current.cursorInkVisible = false;
+  ui2::UiFrameScene currentScene;
+  REQUIRE(ui2::UiChainView::Build(current, palette, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiChainView::RenderDelta(previous, current, currentScene, surface,
+                                palette);
+
+  ui2::UiSurfaceStorage expectedStorage;
+  ui2::UiIndexedSurface expected(expectedStorage);
+  ui2::UiFrameRenderer::RenderStatic(currentScene, expected, palette);
+  CHECK(std::equal(surface.Pixels().begin(), surface.Pixels().end(),
+                   expected.Pixels().begin(), expected.Pixels().end()));
+}
+
+TEST_CASE("UI2 Chain idle is clean and a cursor move stays locally dirty") {
+  ui2::UiPalette palette;
+  ui2::UiChainViewData previous = ui2::test::ApprovedChainFixture();
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiChainView::Build(previous, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+  surface.ClearDirty();
+  ui2::UiChainView::RenderDelta(previous, previous, scene, surface, palette);
+  CHECK_FALSE(surface.DirtyTiles().Any());
+
+  ui2::UiChainViewData current = previous;
+  current.editRow = 1;
+  ui2::UiFrameScene currentScene;
+  REQUIRE(ui2::UiChainView::Build(current, palette, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiChainView::RenderDelta(previous, current, currentScene, surface,
+                                palette);
+  ui2::DirtyStripList strips;
+  REQUIRE(surface.DirtyTiles().Collect(strips));
+  std::uint32_t transferredPixels = 0;
+  for (const ui2::DirtyStrip strip : strips.Strips()) {
+    transferredPixels +=
+        static_cast<std::uint32_t>(strip.width) * strip.height;
+  }
+  CHECK(transferredPixels < 4'000);
 }
