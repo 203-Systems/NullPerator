@@ -676,6 +676,19 @@ UiLegacyApplicationStateSource::CaptureProject(UiProjectFrameState &state) {
     break;
   }
 
+  if (state.cursor == UiProjectCursor::Root && snapshot.root.count > 0U &&
+      snapshot.root.options != nullptr) {
+    const int count = snapshot.root.count;
+    const int current = snapshot.root.current;
+    state.selectorCount = 3U;
+    state.selectorCurrent = 1U;
+    state.selectorWrap = true;
+    for (int index = 0; index < 3; ++index) {
+      const int option = (current + index - 1 + count) % count;
+      CopyText(state.selectorOptions[index], snapshot.root.options[option]);
+    }
+  }
+
   Player *player = Player::GetInstance();
   const bool playing = player != nullptr && player->IsRunning();
   return {.active = playing};

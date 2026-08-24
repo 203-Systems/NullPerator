@@ -484,10 +484,16 @@ Ui2NativeApplicationStateSource::CaptureProject(UiProjectFrameState &state) {
     state.selectorWrap = true;
     CopyUpper(state.selectorOptions[0], scaleNames[model.GetScale()]);
   } else if (state.cursor == UiProjectCursor::Root) {
-    const std::uint16_t current = model.GetScaleRoot();
-    const std::uint16_t start = selectorWindow(current, 12U);
-    for (std::uint8_t index = 0; index < state.selectorCount; ++index)
-      CopyUpper(state.selectorOptions[index], noteNames[start + index]);
+    constexpr std::int16_t count = 12;
+    const std::int16_t current = model.GetScaleRoot();
+    state.selectorCount = 3U;
+    state.selectorCurrent = 1U;
+    state.selectorWrap = true;
+    for (std::int16_t index = 0; index < 3; ++index) {
+      const std::int16_t option =
+          static_cast<std::int16_t>((current + index - 1 + count) % count);
+      CopyUpper(state.selectorOptions[index], noteNames[option]);
+    }
   }
   return {.active = PlayerRunning()};
 }

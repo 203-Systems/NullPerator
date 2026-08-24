@@ -411,7 +411,8 @@ void Ui2TrackerApplication::ExecuteProject(Ui2ProjectCommand command) {
       maximum = 11;
     }
     if (Variable *variable = project.FindVariable(id)) {
-      if (command.type == Ui2ProjectCommandType::AdjustScale) {
+      if (command.type == Ui2ProjectCommandType::AdjustScale ||
+          command.type == Ui2ProjectCommandType::AdjustRoot) {
         const int count = maximum - minimum + 1;
         const int wrapped =
             ((variable->GetInt() + command.value - minimum) % count + count) %
