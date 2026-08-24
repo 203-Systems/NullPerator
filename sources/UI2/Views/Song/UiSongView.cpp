@@ -18,6 +18,7 @@ namespace {
 
 constexpr std::array<std::int16_t, 8> kTrackX{28, 49, 70, 91,
                                               112, 133, 154, 175};
+constexpr std::array<std::string_view, 2> kSongModes{"SONG", "LIVE"};
 
 std::array<char, 3> HexByte(std::uint8_t value) {
   constexpr char digits[] = "0123456789ABCDEF";
@@ -207,7 +208,8 @@ void UiSongView::RenderDelta(const UiSongViewData &previous,
       render(BottomTrackDamageRect(track));
     }
   }
-  if (previous.adjustmentFocus != current.adjustmentFocus)
+  if (previous.adjustmentFocus != current.adjustmentFocus ||
+      previous.modeFocus != current.modeFocus)
     render({0, 208, 240, 32});
 
   for (std::uint8_t channel = 0; channel < 2U; ++channel) {
@@ -236,14 +238,20 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data,
   const UiBuildStatus topStatus = UiChromeRenderer::BuildTop(top, scene.top);
   if (topStatus != UiBuildStatus::Built) return topStatus;
 
-  UiBottomBarModel bottom{
-      .kind = data.showBottom ? (data.adjustmentFocus
-                                     ? UiBottomBarKind::AdjustmentLegend
-                                     : UiBottomBarKind::TrackNotes)
-                              : UiBottomBarKind::Hidden};
-  if (data.showBottom && !data.adjustmentFocus)
+  UiBottomBarModel bottom{.kind = UiBottomBarKind::Hidden};
+  if (data.showBottom && data.adjustmentFocus) {
+    bottom.kind = UiBottomBarKind::AdjustmentLegend;
+  } else if (data.showBottom && data.modeFocus) {
+    bottom.kind = UiBottomBarKind::Selector;
+    bottom.selector.options = kSongModes;
+    bottom.selector.current = data.liveMode ? 1U : 0U;
+    bottom.selector.wrap = true;
+  } else if (data.showBottom) {
+    bottom.kind = UiBottomBarKind::TrackNotes;
+  }
+  if (bottom.kind == UiBottomBarKind::TrackNotes)
     bottom.trackNotes.notes = data.notes;
-  if (data.adjustmentFocus)
+  if (bottom.kind == UiBottomBarKind::AdjustmentLegend)
     bottom.adjustment = {.fineStep = 1U, .coarseStep = 10U};
   const UiBuildStatus bottomStatus =
       UiChromeRenderer::BuildBottom(bottom, scene.bottom);

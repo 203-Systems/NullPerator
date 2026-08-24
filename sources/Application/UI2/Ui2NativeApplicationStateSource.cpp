@@ -241,6 +241,8 @@ Ui2NativeApplicationStateSource::CaptureSong(UiSongFrameState &state) {
   state.rowOffset = controller.RowOffset();
   state.adjustmentFocus =
       (controller.HeldMask() & TrackerActionBit(TrackerAction::Enter)) != 0U;
+  state.modeFocus =
+      (controller.HeldMask() & TrackerActionBit(TrackerAction::Edit)) != 0U;
   for (std::uint8_t row = 0; row < 16U; ++row) {
     for (std::uint8_t track = 0; track < SONG_CHANNEL_COUNT; ++track) {
       state.rows[row][track] = project.song_.data_[

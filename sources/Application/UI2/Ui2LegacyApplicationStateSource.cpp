@@ -264,6 +264,7 @@ UiLegacyApplicationStateSource::CaptureSong(UiSongFrameState &state) {
   state.editRow = static_cast<std::uint8_t>(std::clamp(viewData.songY_, 0, 15));
   state.adjustmentFocus =
       (window_.ButtonMaskForUi2() & EPBM_ENTER) != 0U;
+  state.modeFocus = (window_.ButtonMaskForUi2() & EPBM_EDIT) != 0U;
 
   const int firstRow = std::clamp(viewData.songOffset_, 0, SONG_ROW_COUNT - 16);
   state.rowOffset = static_cast<std::uint8_t>(firstRow);

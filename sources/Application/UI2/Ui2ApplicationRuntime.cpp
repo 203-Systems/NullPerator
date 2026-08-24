@@ -314,6 +314,7 @@ UiSongViewData UiApplicationRuntime::ViewDataFor(const SongFrameState &state) {
   data.cursorVisualOverride = state.cursorVisualOverride;
   data.cursorInkVisible = state.cursorInkVisible;
   data.adjustmentFocus = state.adjustmentFocus;
+  data.modeFocus = state.modeFocus;
   data.playing = state.playing;
   data.liveMode = state.liveMode;
   data.power = state.power;

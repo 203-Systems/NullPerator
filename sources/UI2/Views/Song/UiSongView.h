@@ -35,6 +35,7 @@ struct UiSongViewData {
   bool showVu = true;
   bool showBottom = true;
   bool adjustmentFocus = false;
+  bool modeFocus = false;
   bool playing = true;
   bool liveMode = false;
   UiPowerState power = UiPowerState::Playing;

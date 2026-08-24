@@ -76,6 +76,7 @@ struct UiSongFrameState {
   bool cursorVisualOverride = false;
   bool cursorInkVisible = true;
   bool adjustmentFocus = false;
+  bool modeFocus = false;
   bool playing = false;
   bool liveMode = false;
   UiPowerState power = UiPowerState::BatteryNormal;
