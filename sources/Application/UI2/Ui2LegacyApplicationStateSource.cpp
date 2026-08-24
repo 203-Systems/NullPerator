@@ -265,6 +265,7 @@ UiLegacyApplicationStateSource::CaptureSong(UiSongFrameState &state) {
   state.adjustmentFocus =
       (window_.ButtonMaskForUi2() & EPBM_ENTER) != 0U;
   state.modeFocus = (window_.ButtonMaskForUi2() & EPBM_EDIT) != 0U;
+  state.navHeld = (window_.ButtonMaskForUi2() & EPBM_NAV) != 0U;
 
   const int firstRow = std::clamp(viewData.songOffset_, 0, SONG_ROW_COUNT - 16);
   state.rowOffset = static_cast<std::uint8_t>(firstRow);
@@ -361,6 +362,7 @@ UiLegacyApplicationStateSource::CaptureChain(UiChainFrameState &state) {
   state.adjustmentFocus =
       !state.numberFocus &&
       (window_.ButtonMaskForUi2() & EPBM_ENTER) != 0U;
+  state.navHeld = (window_.ButtonMaskForUi2() & EPBM_NAV) != 0U;
 
   const int base = static_cast<int>(chainNumber) * PHRASES_PER_CHAIN;
   for (std::uint8_t row = 0; row < PHRASES_PER_CHAIN; ++row) {
@@ -418,6 +420,7 @@ UiLegacyApplicationStateSource::CapturePhrase(UiPhraseFrameState &state) {
                           (state.editColumn == 3U || state.editColumn == 5U);
   state.adjustmentFocus = !state.numberFocus && !state.enterDigitFocus &&
                           (phraseMask & EPBM_ENTER) != 0U;
+  state.navHeld = (phraseMask & EPBM_NAV) != 0U;
   state.activeHeader = state.editColumn == 0U   ? UiPhraseHeader::Note
                        : state.editColumn == 1U ? UiPhraseHeader::Instrument
                        : state.editColumn <= 3U ? UiPhraseHeader::Fx1
@@ -515,6 +518,7 @@ UiLegacyApplicationStateSource::CaptureTable(UiTableFrameState &state) {
                           (state.editColumn & 1U) != 0U;
   state.adjustmentFocus = !state.numberFocus && !state.enterDigitFocus &&
                           (tableMask & EPBM_ENTER) != 0U;
+  state.navHeld = (tableMask & EPBM_NAV) != 0U;
   const std::uint8_t group = state.editColumn / 2U;
   state.activeHeader = group == 0U   ? UiTableHeader::Fx1
                        : group == 1U ? UiTableHeader::Fx2

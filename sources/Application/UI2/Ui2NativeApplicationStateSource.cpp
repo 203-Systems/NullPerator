@@ -243,6 +243,8 @@ Ui2NativeApplicationStateSource::CaptureSong(UiSongFrameState &state) {
       (controller.HeldMask() & TrackerActionBit(TrackerAction::Enter)) != 0U;
   state.modeFocus =
       (controller.HeldMask() & TrackerActionBit(TrackerAction::Edit)) != 0U;
+  state.navHeld =
+      (controller.HeldMask() & TrackerActionBit(TrackerAction::Nav)) != 0U;
   for (std::uint8_t row = 0; row < 16U; ++row) {
     for (std::uint8_t track = 0; track < SONG_CHANNEL_COUNT; ++track) {
       state.rows[row][track] = project.song_.data_[
@@ -283,6 +285,8 @@ Ui2NativeApplicationStateSource::CaptureChain(UiChainFrameState &state) {
   state.adjustmentFocus =
       !state.numberFocus &&
       (controller.HeldMask() & TrackerActionBit(TrackerAction::Enter)) != 0U;
+  state.navHeld =
+      (controller.HeldMask() & TrackerActionBit(TrackerAction::Nav)) != 0U;
   if (controller.Selection().active) {
     const auto &selection = controller.Selection();
     state.selectionVisualRect = UiChainView::SelectionTargetRect(
@@ -314,6 +318,8 @@ Ui2NativeApplicationStateSource::CapturePhrase(UiPhraseFrameState &state) {
   state.adjustmentFocus =
       !state.numberFocus && !state.enterDigitFocus &&
       (controller.HeldMask() & TrackerActionBit(TrackerAction::Enter)) != 0U;
+  state.navHeld =
+      (controller.HeldMask() & TrackerActionBit(TrackerAction::Nav)) != 0U;
   state.activeHeader = controller.Column() == 0U   ? UiPhraseHeader::Note
                        : controller.Column() == 1U ? UiPhraseHeader::Instrument
                        : controller.Column() <= 3U ? UiPhraseHeader::Fx1
@@ -388,6 +394,8 @@ Ui2NativeApplicationStateSource::CaptureTable(UiTableFrameState &state) {
   state.adjustmentFocus =
       !state.numberFocus && !state.enterDigitFocus &&
       (controller.HeldMask() & TrackerActionBit(TrackerAction::Enter)) != 0U;
+  state.navHeld =
+      (controller.HeldMask() & TrackerActionBit(TrackerAction::Nav)) != 0U;
   state.activeHeader = controller.Column() < 2U   ? UiTableHeader::Fx1
                        : controller.Column() < 4U ? UiTableHeader::Fx2
                                                    : UiTableHeader::Fx3;

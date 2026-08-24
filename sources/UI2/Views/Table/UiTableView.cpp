@@ -213,6 +213,9 @@ UiBuildStatus UiTableView::Build(const UiTableViewData &data, UiPalette &,
       .meta = data.number,
       .elapsed = data.elapsed,
       .power = data.power,
+      .navTarget = !data.number.empty() && data.number.front() == 'I'
+                       ? UiNavTarget::Instrument
+                       : UiNavTarget::Phrase,
       .metaSelectionRect = data.topMetaVisualRect,
       .metaSelectionOverride = data.topMetaVisualOverride,
       .metaInkVisible = data.topMetaInkVisible,

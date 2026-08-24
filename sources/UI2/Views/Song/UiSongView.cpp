@@ -235,6 +235,7 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data,
       .elapsed = data.elapsed,
       .metaX = 61,
       .power = data.power,
+      .navTarget = UiNavTarget::Song,
   };
   const UiBuildStatus topStatus = UiChromeRenderer::BuildTop(top, scene.top);
   if (topStatus != UiBuildStatus::Built) return topStatus;

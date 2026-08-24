@@ -246,7 +246,8 @@ UiApplicationRuntime::PresentSong(IUiApplicationStateSource &source,
   SongFrameState &current = frames_.song.current;
   SongFrameState &previous = frames_.song.previous;
   const UiApplicationActivityState activity = source.CaptureSong(current);
-  current.power = CurrentPowerState(source, activity.active);
+  current.power = current.navHeld ? UiPowerState::Navigation
+                                  : CurrentPowerState(source, activity.active);
   const RectI16 target =
       UiSongView::CursorTargetRect(current.editTrack, current.editRow);
   if (!cursorTargetValid_) {
@@ -357,7 +358,8 @@ UiApplicationRuntime::PresentChain(IUiApplicationStateSource &source,
   ChainFrameState &current = frames_.chain.current;
   ChainFrameState &previous = frames_.chain.previous;
   const UiApplicationActivityState activity = source.CaptureChain(current);
-  current.power = CurrentPowerState(source, activity.active);
+  current.power = current.navHeld ? UiPowerState::Navigation
+                                  : CurrentPowerState(source, activity.active);
   if (current.numberFocus) {
     const UiTopBarModel top{.title = "CHAIN", .meta = current.number.data()};
     const RectI16 topTarget = UiChromeRenderer::MetaTargetRect(top);
@@ -518,7 +520,8 @@ UiApplicationRuntime::PresentPhrase(IUiApplicationStateSource &source,
   PhraseFrameState &current = frames_.phrase.current;
   PhraseFrameState &previous = frames_.phrase.previous;
   const UiApplicationActivityState activity = source.CapturePhrase(current);
-  current.power = CurrentPowerState(source, activity.active);
+  current.power = current.navHeld ? UiPowerState::Navigation
+                                  : CurrentPowerState(source, activity.active);
   if (current.numberFocus) {
     const UiTopBarModel top{
         .title = "PHRASE", .meta = current.number.data(), .metaX = 85};
@@ -670,7 +673,8 @@ UiApplicationRuntime::PresentTable(IUiApplicationStateSource &source,
   TableFrameState &current = frames_.table.current;
   TableFrameState &previous = frames_.table.previous;
   const UiApplicationActivityState activity = source.CaptureTable(current);
-  current.power = CurrentPowerState(source, activity.active);
+  current.power = current.navHeld ? UiPowerState::Navigation
+                                  : CurrentPowerState(source, activity.active);
   if (current.numberFocus) {
     const UiTopBarModel top{.title = "TABLE", .meta = current.number.data()};
     const RectI16 topTarget = UiChromeRenderer::MetaTargetRect(top);
