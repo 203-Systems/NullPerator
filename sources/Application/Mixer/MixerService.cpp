@@ -8,8 +8,6 @@
  */
 
 #include "MixerService.h"
-#include "Application/AppWindow.h"
-#include "Application/Application.h"
 #include "Application/Model/Config.h"
 #include "Application/Model/Project.h"
 #include "Application/Player/Player.h"

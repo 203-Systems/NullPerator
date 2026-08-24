@@ -278,7 +278,7 @@ AppWindow::AppWindow(I_GUIWindowImp &imp, const char *projectName)
   npf_snprintf(projectName_, sizeof(projectName_), "%s", projectName);
 
   EventDispatcher *ed = EventDispatcher::GetInstance();
-  ed->SetWindow(this);
+  ed->SetSink(this);
 
   Status::Install(this);
 
@@ -878,6 +878,16 @@ bool AppWindow::onEvent(GUIEvent &event) {
   return false;
 };
 
+void AppWindow::DispatchTrackerAction(TrackerAction action, bool pressed) {
+  static_assert(static_cast<int>(TrackerAction::Left) == EPBT_LEFT);
+  static_assert(static_cast<int>(TrackerAction::Enter) == EPBT_A);
+  static_assert(static_cast<int>(TrackerAction::Power) == EPBT_POWER);
+  GUIEvent event(static_cast<long>(action),
+                 pressed ? ET_PADBUTTONDOWN : ET_PADBUTTONUP,
+                 System::GetInstance()->GetClock(), false, false, false);
+  DispatchEvent(event);
+}
+
 void AppWindow::onUpdate(bool redraw) {
   if (redraw) {
     GUIWindow::Clear(backgroundColor_, true);
@@ -1036,6 +1046,23 @@ void AppWindow::Update(Observable &o, I_ObservableData *d) {
     return;
   }
 
+  // Player events are application/session events, not navigation ViewEvents.
+  // Keep this compatibility dispatch here while the legacy reference host is
+  // still buildable; the UI2-only host consumes PlayerEvent directly.
+  if (&o == Player::GetInstance()) {
+    auto *playerEvent = static_cast<PlayerEvent *>(d);
+    if (playerEvent == nullptr || _currentView == nullptr)
+      return;
+    if (_currentView->HasModalView()) {
+      _currentView->GetModalView()->OnPlayerUpdate(playerEvent->GetType(),
+                                                   playerEvent->GetTickCount());
+    } else {
+      _currentView->OnPlayerUpdate(playerEvent->GetType(),
+                                   playerEvent->GetTickCount());
+    }
+    return;
+  }
+
   ViewEvent *ve = (ViewEvent *)d;
 
   switch (ve->GetType()) {
@@ -1111,21 +1138,6 @@ void AppWindow::Update(Observable &o, I_ObservableData *d) {
     SetDirty();
     GUIWindow::Clear(backgroundColor_, true);
     Clear(true);
-    break;
-  }
-
-  case VET_PLAYER_POSITION_UPDATE: {
-    PlayerEvent *pt = (PlayerEvent *)ve;
-    if (_currentView) {
-      // Check if the current view has a modal view
-      const bool hasModal = _currentView->HasModalView();
-      if (hasModal) {
-        _currentView->GetModalView()->OnPlayerUpdate(pt->GetType(),
-                                                     pt->GetTickCount());
-      } else {
-        _currentView->OnPlayerUpdate(pt->GetType(), pt->GetTickCount());
-      }
-    }
     break;
   }
 

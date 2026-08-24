@@ -9,8 +9,7 @@
 
 #ifndef _PLAYER_H_
 #define _PLAYER_H_
-#include "Application/Views/BaseClasses/ViewEvent.h"
-#include "Application/Views/ViewData.h"
+#include "Application/Session/TrackerSessionState.h"
 #include "Externals/etl/include/etl/string.h"
 #include "Foundation/Observable.h"
 #include "Foundation/T_Singleton.h"
@@ -36,7 +35,7 @@ typedef uint32_t MixerStereoLevel;
 
 class I_Instrument;
 
-class PlayerEvent : public ViewEvent {
+class PlayerEvent : public I_ObservableData {
 public:
   PlayerEvent(PlayerEventType type, unsigned int tickCount = 0);
   PlayerEventType GetType();
@@ -55,8 +54,8 @@ private: // Singleton
   Player();
 
 public:
-  bool Init(Project *, ViewData *);
-  void BindProject(Project *, ViewData *);
+  bool Init(Project *, TrackerSessionState *);
+  void BindProject(Project *, TrackerSessionState *);
   void Reset();
   void Close();
 
@@ -159,7 +158,7 @@ protected:
 
 private:
   PlayerMixer mixer_;
-  ViewData *viewData_;
+  TrackerSessionState *viewData_;
   Project *project_;
 
   SequencerMode sequencerMode_;

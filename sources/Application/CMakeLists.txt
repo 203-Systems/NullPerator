@@ -1,8 +1,21 @@
+add_subdirectory(Model)
+add_subdirectory(Session)
+
+option(PICOTRACKER_UI2_LEGACY_STATE_SOURCE
+  "Build the AppWindow/View compatibility source for UiApplicationRuntime"
+  ON)
+
 add_library(application
   AppWindow.cpp
   Application.cpp
   UI2/Ui2ApplicationRuntime.cpp
 )
+
+if(PICOTRACKER_UI2_LEGACY_STATE_SOURCE)
+  target_sources(application PRIVATE
+    UI2/Ui2LegacyApplicationStateSource.cpp
+  )
+endif()
 
 target_link_libraries(application PUBLIC
   uiframework_simplebaseclasses
@@ -14,6 +27,7 @@ target_link_libraries(application PUBLIC
   application_model
   application_persistency
   application_player
+  application_session
   application_views_baseclasses
   application_views
   application_views_modaldialogs
@@ -26,7 +40,6 @@ target_include_directories(application PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 include_directories(${PROJECT_SOURCE_DIR})
 
-add_subdirectory(Model)
 add_subdirectory(Instruments)
 add_subdirectory(Player)
 add_subdirectory(Mixer)

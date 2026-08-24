@@ -11,6 +11,7 @@
 #define _APP_WINDOW_H_
 
 #include "Application/Views/BaseClasses/View.h"
+#include "Application/Input/ITrackerInputSink.h"
 #include "Application/Views/ViewData.h"
 #include "Application/UI2/Ui2ModalInputGate.h"
 #include "Foundation/Observable.h"
@@ -52,7 +53,10 @@ struct SampleSlicesViewUi2Snapshot;
 struct Ui2BrowserSnapshot;
 struct Ui2DialogSnapshot;
 
-class AppWindow : public GUIWindow, I_Observer, Status {
+class AppWindow : public GUIWindow,
+                  public ITrackerInputSink,
+                  I_Observer,
+                  Status {
 protected:
   AppWindow(I_GUIWindowImp &imp, const char *projectName);
   virtual ~AppWindow();
@@ -77,6 +81,7 @@ public:
   void SetDirty();
   void UpdateColorsFromConfig();
   void SetSdCardPresent(bool present);
+  void DispatchTrackerAction(TrackerAction action, bool pressed) override;
 
   // UI2 reads a frame snapshot on the application thread. These accessors do
   // not transfer ownership and must never be called from a display or audio

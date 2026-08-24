@@ -13,6 +13,7 @@
 #include "Application/Model/Config.h"
 #include "Application/Model/Project.h"
 #include "Application/Player/Player.h"
+#include "Application/Input/TrackerInput.h"
 #include "Application/Utils/mathutils.h"
 #include "Externals/etl/include/etl/delegate.h"
 #include "I_Action.h"
@@ -25,20 +26,6 @@
 #define VU_METER_CLIP_LEVEL 15
 #define VU_METER_WARN_LEVEL 8
 #define ALT_ROW_NUMBER 4 // for now const vs a user setting
-
-enum GUIEventPadButtonMasks {
-  EPBM_LEFT = 1,
-  EPBM_DOWN = 2,
-  EPBM_RIGHT = 4,
-  EPBM_UP = 8,
-  EPBM_ALT = 16,
-  EPBM_EDIT = 32,
-  EPBM_ENTER = 64,
-  EPBM_NAV = 128,
-  EPBM_PLAY = 256,
-  EPBM_SELECT = 512,
-  EPBM_POWER = 1024,
-};
 
 enum ViewType {
   VT_SONG,
@@ -94,6 +81,8 @@ enum ViewUpdateDirection { VUD_LEFT = 0, VUD_RIGHT, VUD_UP, VUD_DOWN };
 
 class View;
 class ModalView;
+class TrackerSessionState;
+using ViewData = TrackerSessionState;
 
 using ModalViewCallback = etl::delegate<void(View &v, ModalView &d)>;
 

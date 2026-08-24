@@ -3,7 +3,7 @@
 
 class GUIWindow;
 struct GUIPoint;
-class ViewData;
+#include "Application/Views/ViewData.h"
 
 void DrawLabeledField(GUIWindow &w, GUIPoint position, char *buffer);
 

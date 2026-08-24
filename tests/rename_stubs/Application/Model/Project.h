@@ -7,4 +7,5 @@
 #define SCREEN_WIDTH 30
 
 class Project;
-class ViewData;
+class TrackerSessionState;
+using ViewData = TrackerSessionState;

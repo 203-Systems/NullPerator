@@ -80,6 +80,93 @@ public:
   std::array<ui2::DirtyStrip, 8> lastStrips{};
 };
 
+class TestApplicationStateSource final : public ui2::IUiApplicationStateSource {
+public:
+  ui2::UiApplicationPage ActivePage() const override { return page; }
+  std::uint32_t NowMs() const override { return nowMs; }
+  ui2::UiApplicationBatteryState ReadBattery() const override {
+    return {.percentage = 73, .available = true, .charging = false};
+  }
+  bool HasDialog() const override { return false; }
+  Ui2DialogSnapshot DialogSnapshot() const override { return {}; }
+  std::uint32_t DialogInstanceId() const override { return 0; }
+
+  ui2::UiApplicationActivityState
+  CaptureSong(ui2::UiSongFrameState &state) override {
+    state = {};
+    state.name = {'T', 'E', 'S', 'T'};
+    return {};
+  }
+  ui2::UiApplicationActivityState
+  CaptureChain(ui2::UiChainFrameState &state) override {
+    state = {};
+    return {};
+  }
+  ui2::UiApplicationActivityState
+  CapturePhrase(ui2::UiPhraseFrameState &state) override {
+    state = {};
+    return {};
+  }
+  ui2::UiApplicationActivityState
+  CaptureTable(ui2::UiTableFrameState &state) override {
+    state = {};
+    return {};
+  }
+  ui2::UiApplicationActivityState
+  CaptureInstrument(ui2::UiInstrumentFrameState &state) override {
+    state = {};
+    return {};
+  }
+  ui2::UiApplicationActivityState
+  CaptureProject(ui2::UiProjectFrameState &state) override {
+    state = {};
+    return {};
+  }
+  ui2::UiApplicationActivityState
+  CaptureDevice(ui2::UiDeviceFrameState &state) override {
+    state = {};
+    return {};
+  }
+  ui2::UiApplicationActivityState
+  CaptureTheme(ui2::UiThemeFrameState &state) override {
+    state = {};
+    return {};
+  }
+  ui2::UiApplicationActivityState
+  CaptureBrowser(ui2::UiBrowserFrameState &state) override {
+    state = {};
+    return {};
+  }
+  ui2::UiApplicationActivityState
+  CaptureGroove(ui2::UiGrooveFrameState &state) override {
+    state = {};
+    return {};
+  }
+  ui2::UiApplicationActivityState
+  CaptureMixer(ui2::UiMixerFrameState &state) override {
+    state = {};
+    return {};
+  }
+  ui2::UiApplicationActivityState
+  CaptureSampleEditor(ui2::UiSampleEditorFrameState &state) override {
+    state = {};
+    return {};
+  }
+  ui2::UiApplicationActivityState
+  CaptureSampleSlices(ui2::UiSampleSlicesFrameState &state) override {
+    state = {};
+    return {};
+  }
+  ui2::UiApplicationActivityState
+  CaptureRecord(ui2::UiRecordFrameState &state) override {
+    state = {};
+    return {};
+  }
+
+  ui2::UiApplicationPage page = ui2::UiApplicationPage::Song;
+  std::uint32_t nowMs = 0;
+};
+
 } // namespace
 
 namespace {
@@ -767,6 +854,21 @@ TEST_CASE("UI2 RGB565 presenter chunks dirty strips without a framebuffer") {
   CHECK(rejected.Present(surface, palette, strips) ==
         ui2::PresentResult::Failed);
   CHECK(rejectedProbe.calls == 0);
+}
+
+TEST_CASE("UI2 application runtime consumes the pure state-source boundary") {
+  RecordingPresenter presenter;
+  ui2::UiApplicationRuntime runtime(presenter);
+  TestApplicationStateSource source;
+
+  CHECK(runtime.Supports(source));
+  CHECK(runtime.Present(source) == ui2::PresentResult::Presented);
+  CHECK(presenter.calls == 1);
+
+  source.page = ui2::UiApplicationPage::None;
+  CHECK_FALSE(runtime.Supports(source));
+  CHECK(runtime.Present(source) == ui2::PresentResult::Deferred);
+  CHECK(presenter.calls == 1);
 }
 
 TEST_CASE("UI2 VU mapping is bounded monotonic and integer only") {

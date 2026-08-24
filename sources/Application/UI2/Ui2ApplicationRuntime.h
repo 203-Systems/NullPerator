@@ -6,12 +6,7 @@
 
 #pragma once
 
-#include "Application/UI2/Ui2SampleAdapters.h"
-#include "Application/UI2/Ui2SettingsAdapters.h"
-#include "Application/Views/ModalDialogs/Ui2DialogSnapshot.h"
-#include "Application/Persistency/PersistenceConstants.h"
-#include "Application/Views/Ui2RecordSnapshot.h"
-#include "Application/Views/Ui2BrowserSnapshot.h"
+#include "Application/UI2/Ui2ApplicationStateSource.h"
 #include "UI2/Animation/UiAnimatedRect.h"
 #include "UI2/Render/UiFrameRenderer.h"
 #include "UI2/UiEngine.h"
@@ -34,8 +29,6 @@
 #include <cstdint>
 #include <type_traits>
 
-class AppWindow;
-
 namespace ui2 {
 
 namespace detail {
@@ -51,9 +44,9 @@ struct UiBatterySampleGate {
       wasPlaying = true;
       return false;
     }
-    const bool due = !initialized || wasPlaying ||
-                     static_cast<std::uint32_t>(nowMs - lastSampleMs) >=
-                         IntervalMs;
+    const bool due =
+        !initialized || wasPlaying ||
+        static_cast<std::uint32_t>(nowMs - lastSampleMs) >= IntervalMs;
     wasPlaying = false;
     if (due) {
       initialized = true;
@@ -80,8 +73,8 @@ public:
   explicit UiApplicationRuntime(IUiPresenter &presenter)
       : engine_(engineStorage_, presenter) {}
 
-  [[nodiscard]] bool Supports(const AppWindow &window) const;
-  [[nodiscard]] PresentResult Present(AppWindow &window);
+  [[nodiscard]] bool Supports(const IUiApplicationStateSource &source) const;
+  [[nodiscard]] PresentResult Present(IUiApplicationStateSource &source);
   void Invalidate() {
     previousValid_ = false;
     dialogPreviousValid_ = false;
@@ -121,301 +114,21 @@ private:
     bool batteryPercentValid = false;
   };
 
-  enum class RuntimePage : std::uint8_t {
-    None,
-    Song,
-    Chain,
-    Phrase,
-    Table,
-    Instrument,
-    Project,
-    Device,
-    Theme,
-    Browser,
-    Groove,
-    Mixer,
-    SampleEditor,
-    SampleSlices,
-    Record
-  };
-
-  struct SongFrameState {
-    std::array<char, 21> name{};
-    std::array<char, 6> elapsed{};
-    std::array<std::array<std::uint8_t, 8>, 16> rows{};
-    std::array<std::array<char, 5>, 8> notes{};
-    std::array<std::int8_t, 8> playbackRows{-1, -1, -1, -1, -1, -1, -1, -1};
-    std::array<std::uint8_t, 2> vuLevelTop{153, 153};
-    std::uint8_t rowOffset = 0;
-    std::uint8_t editRow = 0;
-    std::uint8_t editTrack = 0;
-    RectI16 cursorVisualRect{};
-    RectI16 selectionVisualRect{};
-    bool cursorVisualOverride = false;
-    bool cursorInkVisible = true;
-    bool playing = false;
-    bool liveMode = false;
-    UiPowerState power = UiPowerState::BatteryNormal;
-
-    bool operator==(const SongFrameState &) const = default;
-  };
-
-  struct PhraseRowState {
-    std::array<char, 5> note{};
-    std::array<char, 4> instrument{};
-    std::array<char, 4> fx1{};
-    std::array<char, 5> parameter1{};
-    std::array<char, 4> fx2{};
-    std::array<char, 5> parameter2{};
-    bool operator==(const PhraseRowState &) const = default;
-  };
-
-  struct ChainFrameState {
-    std::array<char, 3> number{};
-    std::array<char, 6> elapsed{};
-    std::array<std::uint8_t, 16> phrases{};
-    std::array<std::uint8_t, 16> transposes{};
-    std::array<std::array<char, 5>, 8> trackNotes{};
-    std::array<std::uint8_t, 2> vuLevelTop{148, 148};
-    std::uint8_t editRow = 0;
-    std::uint8_t editColumn = 0;
-    std::int8_t selectedTrack = 0;
-    RectI16 cursorVisualRect{};
-    RectI16 selectionVisualRect{};
-    RectI16 topMetaVisualRect{};
-    RectI16 bottomTrackVisualRect{};
-    bool cursorVisualOverride = false;
-    bool topMetaVisualOverride = false;
-    bool bottomTrackVisualOverride = false;
-    bool cursorInkVisible = true;
-    bool topMetaInkVisible = true;
-    bool bottomTrackInkVisible = true;
-    bool numberFocus = false;
-    UiPowerState power = UiPowerState::BatteryNormal;
-
-    bool operator==(const ChainFrameState &) const = default;
-  };
-
-  enum class PhraseContext : std::uint8_t { Hidden, Instrument, Fx };
-
-  struct PhraseFrameState {
-    std::array<char, 3> number{};
-    std::array<char, 6> elapsed{};
-    std::array<PhraseRowState, 16> rows{};
-    std::array<std::array<char, 5>, 8> trackNotes{};
-    std::array<char, 24> contextLead{};
-    std::array<char, 24> contextTail{};
-    std::array<char, 33> contextDescription{};
-    std::uint8_t editRow = 0;
-    std::uint8_t editColumn = 0;
-    std::uint8_t editDigit = 3;
-    std::int8_t selectedTrack = 0;
-    UiPhraseHeader activeHeader = UiPhraseHeader::None;
-    PhraseContext context = PhraseContext::Hidden;
-    RectI16 cursorVisualRect{};
-    RectI16 selectionVisualRect{};
-    RectI16 topMetaVisualRect{};
-    RectI16 bottomTrackVisualRect{};
-    bool cursorVisualOverride = false;
-    bool topMetaVisualOverride = false;
-    bool bottomTrackVisualOverride = false;
-    bool cursorInkVisible = true;
-    bool topMetaInkVisible = true;
-    bool bottomTrackInkVisible = true;
-    bool enterDigitFocus = false;
-    bool numberFocus = false;
-    UiPowerState power = UiPowerState::BatteryNormal;
-
-    bool operator==(const PhraseFrameState &) const = default;
-  };
-
-  struct TableRowState {
-    std::array<char, 4> fx1{};
-    std::array<char, 5> parameter1{};
-    std::array<char, 4> fx2{};
-    std::array<char, 5> parameter2{};
-    std::array<char, 4> fx3{};
-    std::array<char, 5> parameter3{};
-    bool operator==(const TableRowState &) const = default;
-  };
-
-  struct TableFrameState {
-    std::array<char, 4> number{};
-    std::array<char, 6> elapsed{};
-    std::array<TableRowState, 16> rows{};
-    std::array<std::array<char, 5>, 8> trackNotes{};
-    std::array<char, 24> contextLead{};
-    std::array<char, 24> contextTail{};
-    std::array<char, 33> contextDescription{};
-    std::uint8_t editRow = 0;
-    std::uint8_t editColumn = 0;
-    std::uint8_t editDigit = 3;
-    std::int8_t selectedTrack = 0;
-    UiTableHeader activeHeader = UiTableHeader::None;
-    PhraseContext context = PhraseContext::Hidden;
-    RectI16 cursorVisualRect{};
-    RectI16 selectionVisualRect{};
-    RectI16 topMetaVisualRect{};
-    RectI16 bottomTrackVisualRect{};
-    bool cursorVisualOverride = false;
-    bool topMetaVisualOverride = false;
-    bool bottomTrackVisualOverride = false;
-    bool cursorInkVisible = true;
-    bool topMetaInkVisible = true;
-    bool bottomTrackInkVisible = true;
-    bool enterDigitFocus = false;
-    bool numberFocus = false;
-    UiPowerState power = UiPowerState::BatteryNormal;
-
-    bool operator==(const TableFrameState &) const = default;
-  };
-
-  struct GrooveFrameState {
-    std::array<char, 3> number{};
-    std::array<std::uint8_t, 16> steps{};
-    std::uint8_t editRow = 0;
-    RectI16 cursorVisualRect{};
-    bool cursorVisualOverride = false;
-    bool cursorInkVisible = true;
-    UiPowerState power = UiPowerState::BatteryNormal;
-
-    bool operator==(const GrooveFrameState &) const = default;
-  };
-
-  struct InstrumentFieldState {
-    std::array<char, 16> label{};
-    std::array<char, 24> value{};
-    std::int16_t y = 0;
-    bool operator==(const InstrumentFieldState &) const = default;
-  };
-
-  struct InstrumentOperatorState {
-    std::array<char, 16> label{};
-    std::array<char, 8> op1{};
-    std::array<char, 8> op2{};
-    bool operator==(const InstrumentOperatorState &) const = default;
-  };
-
-  struct InstrumentFrameState {
-    std::array<char, 3> number{};
-    std::array<char, 6> elapsed{};
-    std::array<char, 17> name{};
-    std::array<InstrumentFieldState, 16> fields{};
-    std::array<InstrumentOperatorState, 6> operators{};
-    std::array<std::array<char, 5>, 8> trackNotes{};
-    std::uint8_t fieldCount = 0;
-    std::uint8_t operatorCount = 0;
-    std::uint8_t selectedField = 0;
-    std::uint8_t selectedOperator = 0;
-    std::uint8_t nameAction = 0;
-    std::int8_t selectedTrack = 0;
-    UiInstrumentKind kind = UiInstrumentKind::None;
-    UiInstrumentCursor cursor = UiInstrumentCursor::None;
-    RectI16 cursorVisualRect{};
-    RectI16 topMetaVisualRect{};
-    RectI16 bottomTrackVisualRect{};
-    bool cursorVisualOverride = false;
-    bool topMetaVisualOverride = false;
-    bool bottomTrackVisualOverride = false;
-    bool cursorInkVisible = true;
-    bool topMetaInkVisible = true;
-    bool bottomTrackInkVisible = true;
-    bool numberFocus = false;
-    std::int16_t scrollOffset = 0;
-    UiPowerState power = UiPowerState::BatteryNormal;
-
-    bool operator==(const InstrumentFrameState &) const = default;
-  };
-
-  struct MixerFrameState {
-    std::array<std::array<std::uint8_t, 2>, 9> vuLevelTop{};
-    std::array<std::array<char, 4>, 9> volumes{};
-    std::int8_t selectedChannel = 0;
-    UiPowerState power = UiPowerState::BatteryNormal;
-
-    bool operator==(const MixerFrameState &) const = default;
-  };
-
-  struct ProjectFrameState {
-    std::array<char, MAX_PROJECT_NAME_LENGTH + 1> name{};
-    std::array<char, 16> tempo{};
-    std::array<char, 8> transpose{};
-    std::array<char, 24> scale{};
-    std::array<char, 8> root{};
-    UiProjectCursor cursor = UiProjectCursor::Name;
-    std::uint8_t nameAction = 0;
-    std::uint8_t renderOption = 0;
-    RectI16 cursorVisualRect{};
-    bool cursorVisualOverride = false;
-    bool cursorInkVisible = true;
-    std::int16_t scrollOffset = 0;
-    UiPowerState power = UiPowerState::BatteryNormal;
-
-    bool operator==(const ProjectFrameState &) const = default;
-  };
-
-  struct DeviceFrameState {
-    std::array<char, 24> midiDevice{};
-    std::array<char, 24> midiSync{};
-    std::array<char, 24> lineOut{};
-    std::array<char, 24> remoteUi{};
-    std::array<char, 24> resampler{};
-    std::array<char, 8> volume{};
-    std::array<char, 8> brightness{};
-    std::array<char, 24> theme{};
-    std::array<char, 41> font{};
-    std::array<char, 32> version{};
-    std::array<std::array<char, 24>, 8> selectorOptions{};
-    std::uint8_t selectorCount = 0;
-    std::uint8_t selectorCurrent = 0;
-    std::uint8_t batteryPercent = 0;
-    UiDeviceCursor cursor = UiDeviceCursor::MidiDevice;
-    RectI16 cursorVisualRect{};
-    bool cursorVisualOverride = false;
-    bool cursorInkVisible = true;
-    bool selectorWrap = false;
-    bool showLineOut = false;
-    bool showVolume = true;
-    bool showTheme = true;
-    bool showFont = true;
-    bool showUpdateFirmware = false;
-    bool batteryPercentValid = false;
-    std::int16_t scrollOffset = 0;
-    UiPowerState power = UiPowerState::BatteryNormal;
-
-    bool operator==(const DeviceFrameState &) const = default;
-  };
-
-  struct BrowserFrameState {
-    Ui2BrowserSnapshot snapshot{};
-    RectI16 cursorVisualRect{};
-    bool cursorVisualOverride = false;
-    bool cursorInkVisible = true;
-    UiPowerState power = UiPowerState::BatteryNormal;
-
-    bool operator==(const BrowserFrameState &) const = default;
-  };
-
-  struct ThemeFrameState {
-    UiThemeViewState view{};
-    std::array<std::uint32_t, ThemeViewUi2Snapshot::ColorCount> colors{};
-    bool colorsValid = false;
-
-    bool operator==(const ThemeFrameState &) const = default;
-  };
-
-  struct RecordFrameState {
-    RecordViewUi2Snapshot snapshot{};
-    RectI16 cursorVisualRect{};
-    UiPowerState power = UiPowerState::BatteryNormal;
-    bool cursorVisualOverride = false;
-    bool cursorInkVisible = true;
-
-    bool operator==(const RecordFrameState &) const = default;
-  };
-
-  using SampleEditorFrameState = UiSampleEditorControllerState;
-  using SampleSlicesFrameState = UiSampleSlicesControllerState;
+  using RuntimePage = UiApplicationPage;
+  using SongFrameState = UiSongFrameState;
+  using ChainFrameState = UiChainFrameState;
+  using PhraseFrameState = UiPhraseFrameState;
+  using TableFrameState = UiTableFrameState;
+  using GrooveFrameState = UiGrooveFrameState;
+  using InstrumentFrameState = UiInstrumentFrameState;
+  using MixerFrameState = UiMixerFrameState;
+  using ProjectFrameState = UiProjectFrameState;
+  using DeviceFrameState = UiDeviceFrameState;
+  using BrowserFrameState = UiBrowserFrameState;
+  using ThemeFrameState = UiThemeFrameState;
+  using RecordFrameState = UiRecordFrameState;
+  using SampleEditorFrameState = UiSampleEditorFrameState;
+  using SampleSlicesFrameState = UiSampleSlicesFrameState;
 
   struct DialogFrameState {
     Ui2DialogSnapshot snapshot{};
@@ -492,8 +205,7 @@ private:
   static UiChainViewData ViewDataFor(const ChainFrameState &state);
   static UiPhraseViewData ViewDataFor(const PhraseFrameState &state);
   static UiTableViewData ViewDataFor(const TableFrameState &state);
-  static UiInstrumentViewData
-  ViewDataFor(const InstrumentFrameState &state);
+  static UiInstrumentViewData ViewDataFor(const InstrumentFrameState &state);
   static UiProjectViewData ViewDataFor(const ProjectFrameState &state);
   static UiDeviceViewData ViewDataFor(const DeviceFrameState &state);
   static UiThemeViewData ViewDataFor(const ThemeFrameState &state);
@@ -505,23 +217,11 @@ private:
   static UiSampleSlicesViewData
   ViewDataFor(const SampleSlicesFrameState &state);
   static UiRecordViewData ViewDataFor(const RecordFrameState &state);
-  void CaptureSong(AppWindow &window, SongFrameState &state);
-  void CaptureChain(AppWindow &window, ChainFrameState &state);
-  void CapturePhrase(AppWindow &window, PhraseFrameState &state);
-  void CaptureTable(AppWindow &window, TableFrameState &state);
-  void CaptureInstrument(AppWindow &window, InstrumentFrameState &state);
-  void CaptureProject(AppWindow &window, ProjectFrameState &state);
-  void CaptureDevice(AppWindow &window, DeviceFrameState &state);
-  void CaptureTheme(AppWindow &window, ThemeFrameState &state);
-  void CaptureBrowser(AppWindow &window, BrowserFrameState &state);
-  void CaptureGroove(AppWindow &window, GrooveFrameState &state);
-  void CaptureMixer(AppWindow &window, MixerFrameState &state);
-  void CaptureSampleEditor(AppWindow &window, SampleEditorFrameState &state);
-  void CaptureSampleSlices(AppWindow &window, SampleSlicesFrameState &state);
-  void CaptureRecord(AppWindow &window, RecordFrameState &state);
-  [[nodiscard]] PowerFrameState CapturePowerState(bool playing);
-  [[nodiscard]] UiPowerState CurrentPowerState(bool playing);
-  void CaptureDialog(AppWindow &window);
+  [[nodiscard]] PowerFrameState
+  CapturePowerState(IUiApplicationStateSource &source, bool playing);
+  [[nodiscard]] UiPowerState
+  CurrentPowerState(IUiApplicationStateSource &source, bool playing);
+  void CaptureDialog(IUiApplicationStateSource &source);
   void ActivatePage(RuntimePage page);
   [[nodiscard]] bool DialogChanged() const;
   [[nodiscard]] bool RequiresFullRebuild() const;
@@ -530,32 +230,32 @@ private:
   [[nodiscard]] UiBuildStatus ApplyDialog();
   void RenderDialogDelta();
   void CommitDialog();
-  [[nodiscard]] PresentResult PresentSong(AppWindow &window,
+  [[nodiscard]] PresentResult PresentSong(IUiApplicationStateSource &source,
                                           std::uint32_t nowMs);
-  [[nodiscard]] PresentResult PresentChain(AppWindow &window,
+  [[nodiscard]] PresentResult PresentChain(IUiApplicationStateSource &source,
                                            std::uint32_t nowMs);
-  [[nodiscard]] PresentResult PresentPhrase(AppWindow &window,
+  [[nodiscard]] PresentResult PresentPhrase(IUiApplicationStateSource &source,
                                             std::uint32_t nowMs);
-  [[nodiscard]] PresentResult PresentTable(AppWindow &window,
+  [[nodiscard]] PresentResult PresentTable(IUiApplicationStateSource &source,
                                            std::uint32_t nowMs);
-  [[nodiscard]] PresentResult PresentInstrument(AppWindow &window,
-                                                std::uint32_t nowMs);
-  [[nodiscard]] PresentResult PresentProject(AppWindow &window,
+  [[nodiscard]] PresentResult
+  PresentInstrument(IUiApplicationStateSource &source, std::uint32_t nowMs);
+  [[nodiscard]] PresentResult PresentProject(IUiApplicationStateSource &source,
                                              std::uint32_t nowMs);
-  [[nodiscard]] PresentResult PresentDevice(AppWindow &window,
+  [[nodiscard]] PresentResult PresentDevice(IUiApplicationStateSource &source,
                                             std::uint32_t nowMs);
-  [[nodiscard]] PresentResult PresentTheme(AppWindow &window,
+  [[nodiscard]] PresentResult PresentTheme(IUiApplicationStateSource &source,
                                            std::uint32_t nowMs);
-  [[nodiscard]] PresentResult PresentBrowser(AppWindow &window,
+  [[nodiscard]] PresentResult PresentBrowser(IUiApplicationStateSource &source,
                                              std::uint32_t nowMs);
-  [[nodiscard]] PresentResult PresentGroove(AppWindow &window,
+  [[nodiscard]] PresentResult PresentGroove(IUiApplicationStateSource &source,
                                             std::uint32_t nowMs);
-  [[nodiscard]] PresentResult PresentMixer(AppWindow &window);
-  [[nodiscard]] PresentResult PresentSampleEditor(AppWindow &window,
-                                                  std::uint32_t nowMs);
-  [[nodiscard]] PresentResult PresentSampleSlices(AppWindow &window,
-                                                  std::uint32_t nowMs);
-  [[nodiscard]] PresentResult PresentRecord(AppWindow &window,
+  [[nodiscard]] PresentResult PresentMixer(IUiApplicationStateSource &source);
+  [[nodiscard]] PresentResult
+  PresentSampleEditor(IUiApplicationStateSource &source, std::uint32_t nowMs);
+  [[nodiscard]] PresentResult
+  PresentSampleSlices(IUiApplicationStateSource &source, std::uint32_t nowMs);
+  [[nodiscard]] PresentResult PresentRecord(IUiApplicationStateSource &source,
                                             std::uint32_t nowMs);
 
   UiEngineStorage engineStorage_{};

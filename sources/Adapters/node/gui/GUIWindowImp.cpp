@@ -1,5 +1,7 @@
 #include "GUIWindowImp.h"
+#include "Application/Views/ViewData.h"
 #include "Application/AppWindow.h"
+#include "Application/UI2/Ui2LegacyApplicationStateSource.h"
 #include "Application/Model/Config.h"
 #include "System/Console/Trace.h"
 #include "System/System/System.h"
@@ -265,7 +267,9 @@ bool NodeGUIWindowImp::WriteUi2Chunk(void *, std::uint16_t x,
 
 bool NodeGUIWindowImp::Ui2ShouldOwnDisplay() const {
   if (!ui2Enabled_ || _window == nullptr) return false;
-  return ui2Runtime_.Supports(*static_cast<AppWindow *>(_window));
+  ui2::UiLegacyApplicationStateSource source(
+      *static_cast<AppWindow *>(_window));
+  return ui2Runtime_.Supports(source);
 }
 
 void NodeGUIWindowImp::RestoreLegacyFrame() {
@@ -285,8 +289,10 @@ void NodeGUIWindowImp::PresentUi2Frame() {
   }
 
   if (!ui2Active_) ui2Runtime_.Invalidate();
+  ui2::UiLegacyApplicationStateSource source(
+      *static_cast<AppWindow *>(_window));
   const ui2::PresentResult result =
-      ui2Runtime_.Present(*static_cast<AppWindow *>(_window));
+      ui2Runtime_.Present(source);
   if (result == ui2::PresentResult::Presented) {
     ui2Active_ = true;
   } else if (result == ui2::PresentResult::Failed) {

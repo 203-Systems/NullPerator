@@ -15,7 +15,6 @@
 #include "Application/Mixer/MixerService.h"
 #include "Application/Model/Project.h"
 #include "Application/Utils/fixed.h"
-#include "Application/Views/ViewData.h"
 #include "Foundation/Observable.h"
 #include "Foundation/T_Singleton.h"
 #include "PlayerChannel.h"

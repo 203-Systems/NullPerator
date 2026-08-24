@@ -20,6 +20,7 @@ add_executable(picoTracker_tests
   wasm_platform_tests.cpp
   ui2_browser_legacy_snapshot_tests.cpp
   ui2_dialog_adapter_tests.cpp
+  ui2_project_controller_tests.cpp
   ui2_rename_render_tests.cpp
   ui2_legacy_snapshot_tests.cpp
   ui2_core_tests.cpp
@@ -47,6 +48,7 @@ add_executable(picoTracker_tests
   ../sources/Adapters/wasm/filesystem/WasmFileSystem.cpp
   ../sources/Adapters/wasm/filesystem/WasmStorageBridge.cpp
   ../sources/Adapters/wasm/gui/WasmUiPresenter.cpp
+  ../sources/Application/UI2/Ui2ApplicationRuntime.cpp
   ../sources/Foundation/Observable.cpp
   ../sources/System/Timer/Timer.cpp
   ../sources/UI2/Chrome/UiBarResolver.cpp
@@ -107,6 +109,23 @@ target_include_directories(ui2_rename_modal_tests PRIVATE
 
 target_compile_definitions(ui2_rename_modal_tests PRIVATE HOST_TEST)
 add_test(NAME ui2_rename_modal_controller COMMAND ui2_rename_modal_tests)
+
+# The product UI2-only gate remains opt-in, but its artifact parser is a normal
+# host test so forbidden/required contract changes cannot silently weaken it.
+find_package(Python3 COMPONENTS Interpreter QUIET)
+if(Python3_Interpreter_FOUND)
+  add_test(NAME ui2_only_firmware_acceptance_checker
+    COMMAND "${Python3_EXECUTABLE}" -m unittest discover
+      -s "${CMAKE_CURRENT_LIST_DIR}/../tools/tests"
+      -p "test_verify_ui2_only_firmware.py")
+endif()
+
+# UI2-native controller tests are registered append-only to avoid churn in the
+# legacy-heavy source list above while controller extraction is in progress.
+target_sources(picoTracker_tests PRIVATE
+  ui2_settings_controller_tests.cpp
+  ui2_tracker_grid_controller_tests.cpp
+)
 
 add_executable(ui2_snapshot_tool
   ui2_snapshot_main.cpp

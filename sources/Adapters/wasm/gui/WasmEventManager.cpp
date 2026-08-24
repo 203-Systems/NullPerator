@@ -17,7 +17,9 @@
 #include "Adapters/wasm/system/WasmSystem.h"
 #include "Adapters/wasm/tracing/WasmProfiler.h"
 #include "Application/Application.h"
+#include "Application/Views/ViewData.h"
 #include "Application/AppWindow.h"
+#include "Application/UI2/Ui2LegacyApplicationStateSource.h"
 #include "Application/Instruments/SamplePool.h"
 #include "Application/Model/Project.h"
 #include "Application/Persistency/PersistenceConstants.h"
@@ -130,9 +132,11 @@ void WasmEventManager::PumpFrame() {
   if (!ui2Runtime_.has_value()) {
     ui2Runtime_.emplace(*wasmWindow);
   }
+  ui2::UiLegacyApplicationStateSource ui2Source(
+      *static_cast<AppWindow *>(window));
   const auto ui2ShouldOwnDisplay = [&]() {
     return ui2Enabled_.load(std::memory_order_acquire) &&
-           ui2Runtime_->Supports(*static_cast<AppWindow *>(window));
+           ui2Runtime_->Supports(ui2Source);
   };
   const auto presentUi2 = [&]() {
     const bool supported = ui2ShouldOwnDisplay();
@@ -144,7 +148,7 @@ void WasmEventManager::PumpFrame() {
     const bool entering = !ui2Active_;
     if (entering) ui2Runtime_->Invalidate();
     const ui2::PresentResult result =
-        ui2Runtime_->Present(*static_cast<AppWindow *>(window));
+        ui2Runtime_->Present(ui2Source);
     if (result == ui2::PresentResult::Failed) {
       ui2Enabled_.store(false, std::memory_order_release);
       wasmWindow->SetUi2DisplayOwnership(false);

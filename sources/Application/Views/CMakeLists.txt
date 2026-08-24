@@ -29,6 +29,7 @@ add_library(application_views
 target_link_libraries(application_views PUBLIC
   application_views_baseclasses
   application_instruments
+  application_session
   etl
   application_utils
   platform_display

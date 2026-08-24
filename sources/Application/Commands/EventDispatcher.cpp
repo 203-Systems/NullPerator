@@ -15,7 +15,7 @@ int EventDispatcher::keyRepeat_ = 30;
 int EventDispatcher::keyDelay_ = 500;
 
 EventDispatcher::EventDispatcher() {
-  window_ = 0;
+  sink_ = nullptr;
   eventMask_ = 0;
 
   // Read config file key repeat
@@ -25,10 +25,10 @@ EventDispatcher::EventDispatcher() {
   keyRepeat_ = config->GetValue("KEYREPEAT");
 
   repeatMask_ = 0;
-  repeatMask_ |= (1 << EPBT_LEFT);
-  repeatMask_ |= (1 << EPBT_RIGHT);
-  repeatMask_ |= (1 << EPBT_UP);
-  repeatMask_ |= (1 << EPBT_DOWN);
+  repeatMask_ |= TrackerActionBit(TrackerAction::Left);
+  repeatMask_ |= TrackerActionBit(TrackerAction::Right);
+  repeatMask_ |= TrackerActionBit(TrackerAction::Up);
+  repeatMask_ |= TrackerActionBit(TrackerAction::Down);
 
   timer_ = TimerService::GetInstance()->CreateTimer();
   timer_->AddObserver(*this);
@@ -42,53 +42,49 @@ EventDispatcher::~EventDispatcher() {
 
 void EventDispatcher::Execute(FourCC id, float value) {
 
-  if (window_) {
-    GUIEventPadButtonType mapping = EPBT_INVALID;
+  if (sink_) {
+    TrackerAction mapping = TrackerAction::Count;
     switch (id) {
     case FourCC::TrigEventEnter:
-      mapping = EPBT_A;
+      mapping = TrackerAction::Enter;
       break;
     case FourCC::TrigEventEdit:
-      mapping = EPBT_B;
+      mapping = TrackerAction::Edit;
       break;
     case FourCC::TrigEventLeft:
-      mapping = EPBT_LEFT;
+      mapping = TrackerAction::Left;
       break;
     case FourCC::TrigEventRight:
-      mapping = EPBT_RIGHT;
+      mapping = TrackerAction::Right;
       break;
     case FourCC::TrigEventUp:
-      mapping = EPBT_UP;
+      mapping = TrackerAction::Up;
       break;
     case FourCC::TrigEventDown:
-      mapping = EPBT_DOWN;
+      mapping = TrackerAction::Down;
       break;
     case FourCC::TrigEventAlt:
-      mapping = EPBT_L;
+      mapping = TrackerAction::Alt;
       break;
     case FourCC::TrigEventNav:
-      mapping = EPBT_R;
+      mapping = TrackerAction::Nav;
       break;
     case FourCC::TrigEventPlay:
-      mapping = EPBT_START;
+      mapping = TrackerAction::Play;
       break;
-      //	EPBT_SELECT
+    default:
+      return;
     }
 
     // Compute mask and repeat if needed
-
+    const unsigned int bit = TrackerActionBit(mapping);
     if (value > 0.5) {
-      eventMask_ |= (1 << mapping);
+      eventMask_ |= bit;
     } else {
-      eventMask_ ^= (1 << mapping);
+      eventMask_ &= ~bit;
     }
 
-    // Dispatch event to window
-
-    unsigned long now = System::GetInstance()->GetClock();
-    GUIEventType type = (value > 0.5) ? ET_PADBUTTONDOWN : ET_PADBUTTONUP;
-    GUIEvent event(mapping, type, now, 0, 0, 0);
-    window_->DispatchEvent(event);
+    sink_->DispatchTrackerAction(mapping, value > 0.5);
 
     if (eventMask_ & repeatMask_) {
       timer_->SetPeriod(float(keyDelay_));
@@ -99,19 +95,16 @@ void EventDispatcher::Execute(FourCC id, float value) {
   };
 };
 
-void EventDispatcher::SetWindow(GUIWindow *window) { window_ = window; };
+void EventDispatcher::SetSink(ITrackerInputSink *sink) { sink_ = sink; }
 
 unsigned int EventDispatcher::OnTimerTick() {
 
   unsigned sendMask = (eventMask_ & repeatMask_);
-  unsigned long now = System::GetInstance()->GetClock();
-
   if (sendMask) {
     int current = 0;
     while (sendMask) {
       if (sendMask & 1) {
-        GUIEvent event(current, ET_PADBUTTONDOWN, now, 0, 0, 0);
-        window_->DispatchEvent(event);
+        sink_->DispatchTrackerAction(static_cast<TrackerAction>(current), true);
       }
       sendMask >>= 1;
       current++;

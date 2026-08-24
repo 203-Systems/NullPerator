@@ -10,7 +10,7 @@
 #ifndef _EVENT_DISPATCHER_H_
 #define _EVENT_DISPATCHER_H_
 
-#include "Application/AppWindow.h"
+#include "Application/Input/ITrackerInputSink.h"
 #include "ApplicationCommandDispatcher.h"
 #include "Foundation/Observable.h"
 #include "Foundation/T_Singleton.h"
@@ -22,14 +22,14 @@ class EventDispatcher : public T_Singleton<EventDispatcher>,
 public:
   EventDispatcher();
   ~EventDispatcher();
-  void SetWindow(GUIWindow *window);
+  void SetSink(ITrackerInputSink *sink);
   virtual void Execute(FourCC id, float value);
   unsigned int OnTimerTick();
   int GetEventMask() { return eventMask_; };
   virtual void Update(Observable &o, I_ObservableData *d);
 
 private:
-  GUIWindow *window_;
+  ITrackerInputSink *sink_;
   static int keyRepeat_;
   static int keyDelay_;
   unsigned int eventMask_;

@@ -8,6 +8,8 @@
  */
 
 #include "Player.h"
+
+#include "System/Console/Trace.h"
 #include "Application/Instruments/CommandList.h"
 #ifdef __EMSCRIPTEN__
 #include "Adapters/wasm/tracing/WasmProfiler.h"
@@ -18,7 +20,6 @@
 #include "Application/Model/Groove.h"
 #include "Application/Player/TablePlayback.h"
 #include "Application/Utils/char.h"
-#include "Application/Views/BaseClasses/ViewEvent.h"
 #include "PlayerMixer.h"
 #include "Services/Midi/MidiService.h"
 #include "System/Console/n_assert.h"
@@ -51,7 +52,7 @@ Player::Player() : mixer_() {
   }
 };
 
-bool Player::Init(Project *project, ViewData *viewData) {
+bool Player::Init(Project *project, TrackerSessionState *viewData) {
 
   viewData_ = viewData;
   project_ = project;
@@ -66,7 +67,7 @@ bool Player::Init(Project *project, ViewData *viewData) {
   return mixer_.Start();
 }
 
-void Player::BindProject(Project *project, ViewData *viewData) {
+void Player::BindProject(Project *project, TrackerSessionState *viewData) {
   viewData_ = viewData;
   project_ = project;
   mixer_.BindProject(project);
@@ -1259,10 +1260,7 @@ int Player::GetPlayedBufferPercentage() {
 };
 
 PlayerEvent::PlayerEvent(PlayerEventType type, unsigned int tickCount)
-    : ViewEvent(VET_PLAYER_POSITION_UPDATE) {
-  type_ = type;
-  tickCount_ = tickCount;
-}
+    : type_(type), tickCount_(tickCount) {}
 
 PlayerEventType PlayerEvent::GetType() { return type_; };
 
