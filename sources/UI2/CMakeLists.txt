@@ -19,6 +19,7 @@ add_library(ui2
   Views/Mixer/UiMixerView.cpp
   Views/Song/UiSongView.cpp
   Views/Project/UiProjectView.cpp
+  Views/Record/UiRecordView.cpp
   Views/Table/UiTableView.cpp
   Views/Theme/UiThemeView.cpp
   UiEngine.cpp)

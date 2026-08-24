@@ -21,6 +21,7 @@
 #include "UI2/Views/Instrument/UiInstrumentView.h"
 #include "UI2/Views/Mixer/UiMixerView.h"
 #include "UI2/Views/Project/UiProjectView.h"
+#include "UI2/Views/Record/UiRecordView.h"
 #include "UI2/Views/Table/UiTableView.h"
 #include "UI2/Views/Theme/UiThemeView.h"
 #include "Adapters/wasm/gui/WasmUiPresenter.h"
@@ -1391,4 +1392,71 @@ TEST_CASE("UI2 shared browser idle frame stays clean") {
   surface.ClearDirty();
   ui2::UiBrowserView::RenderDelta(data, data, scene, surface, palette);
   CHECK_FALSE(surface.DirtyTiles().Any());
+}
+
+TEST_CASE("UI2 Record delta rendering is pixel-identical to a full redraw") {
+  ui2::UiPalette palette;
+  ui2::UiRecordViewData previous;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiRecordView::Build(previous, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+  surface.ClearDirty();
+
+  ui2::UiRecordViewData current = previous;
+  current.source = "MIC";
+  current.lineGain = "-3 DB";
+  current.micGain = "+6 DB";
+  current.elapsed = "01:23";
+  current.safeWidth = 128;
+  current.warningWidth = 60;
+  current.power = ui2::UiPowerState::BatteryLow;
+  current.cursorVisualOverride = true;
+  current.cursorVisualRect = {7, 64, 226, 9};
+  current.cursorInkVisible = false;
+  ui2::UiFrameScene currentScene;
+  REQUIRE(ui2::UiRecordView::Build(current, palette, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiRecordView::RenderDelta(previous, current, currentScene, surface,
+                                 palette);
+
+  ui2::UiSurfaceStorage expectedStorage;
+  ui2::UiIndexedSurface expected(expectedStorage);
+  ui2::UiFrameRenderer::RenderStatic(currentScene, expected, palette);
+  CHECK(std::equal(surface.Pixels().begin(), surface.Pixels().end(),
+                   expected.Pixels().begin(), expected.Pixels().end()));
+}
+
+TEST_CASE("UI2 Record idle is clean and animated cursor damage stays local") {
+  ui2::UiPalette palette;
+  ui2::UiRecordViewData previous;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiRecordView::Build(previous, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+  surface.ClearDirty();
+  ui2::UiRecordView::RenderDelta(previous, previous, scene, surface, palette);
+  CHECK_FALSE(surface.DirtyTiles().Any());
+
+  ui2::UiRecordViewData current = previous;
+  current.cursorVisualOverride = true;
+  current.cursorVisualRect = {7, 53, 226, 9};
+  current.cursorInkVisible = false;
+  ui2::UiFrameScene currentScene;
+  REQUIRE(ui2::UiRecordView::Build(current, palette, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiRecordView::RenderDelta(previous, current, currentScene, surface,
+                                 palette);
+  ui2::DirtyStripList strips;
+  REQUIRE(surface.DirtyTiles().Collect(strips));
+  std::uint32_t transferredPixels = 0;
+  for (const ui2::DirtyStrip strip : strips.Strips()) {
+    transferredPixels +=
+        static_cast<std::uint32_t>(strip.width) * strip.height;
+  }
+  CHECK(transferredPixels < 240U * 240U / 4U);
 }
