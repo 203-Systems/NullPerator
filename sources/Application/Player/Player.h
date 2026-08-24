@@ -164,6 +164,7 @@ private:
   SequencerMode sequencerMode_;
   PlayMode mode_;
   bool isRunning_;
+  bool ready_;
   bool stopAtEnd_;
 
   unsigned long startClock_; // .Used to time display live queued chains

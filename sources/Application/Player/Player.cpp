@@ -37,6 +37,7 @@ int32_t DecodeRetriggerOffset(int32_t value) {
 Player::Player() : mixer_() {
 
   isRunning_ = false;
+  ready_ = false;
   viewData_ = 0;
 
   lastSongPos_ = 0;
@@ -54,6 +55,7 @@ Player::Player() : mixer_() {
 
 bool Player::Init(Project *project, TrackerSessionState *viewData) {
 
+  ready_ = false;
   viewData_ = viewData;
   project_ = project;
 
@@ -64,7 +66,8 @@ bool Player::Init(Project *project, TrackerSessionState *viewData) {
   mixer_.AddObserver((*this));
   SyncMaster *sync = SyncMaster::GetInstance();
   sync->SetTempo(project_->GetTempo());
-  return mixer_.Start();
+  ready_ = mixer_.Start();
+  return ready_;
 }
 
 void Player::BindProject(Project *project, TrackerSessionState *viewData) {
@@ -84,6 +87,7 @@ void Player::Reset() {
 };
 
 void Player::Close() {
+  ready_ = false;
   mixer_.Stop();
   mixer_.Close();
 };
@@ -98,6 +102,11 @@ bool Player::IsChannelMuted(int channel) {
 
 void Player::Start(PlayMode mode, bool forceSongMode, MixerServiceMode msmMode,
                    bool stopAtEnd) {
+
+  if (!ready_ || project_ == nullptr || viewData_ == nullptr) {
+    Trace::Error("PLAYER", "Ignoring playback start: audio is not ready");
+    return;
+  }
 
   mixer_.Lock();
 
