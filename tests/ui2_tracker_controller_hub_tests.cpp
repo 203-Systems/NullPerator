@@ -107,3 +107,30 @@ TEST_CASE("UI2 tracker executor activates navigation target before storing") {
   CHECK(port.navigation.activePage == ui2::Ui2TrackerPage::Chain);
   CHECK(port.applied[0].targetPage == ui2::Ui2TrackerPage::Chain);
 }
+
+TEST_CASE("UI2 tracker executor preserves held navigation across page switches") {
+  FakeGridPort port;
+  ui2::Ui2TrackerCommandExecutor executor(port);
+
+  executor.Handle(TrackerAction::Nav, true);
+  executor.Hub().SetNavigationHeld(true);
+  executor.Handle(TrackerAction::Right, true);
+  executor.Handle(TrackerAction::Right, false);
+
+  CHECK(executor.ActivePage() == ui2::Ui2TrackerPage::Chain);
+  CHECK((executor.ActiveState().heldMask & EPBM_NAV) != 0U);
+
+  executor.Handle(TrackerAction::Right, true);
+  executor.Handle(TrackerAction::Right, false);
+  CHECK(executor.ActivePage() == ui2::Ui2TrackerPage::Phrase);
+  CHECK((executor.ActiveState().heldMask & EPBM_NAV) != 0U);
+
+  executor.Handle(TrackerAction::Left, true);
+  executor.Handle(TrackerAction::Left, false);
+  CHECK(executor.ActivePage() == ui2::Ui2TrackerPage::Chain);
+  CHECK((executor.ActiveState().heldMask & EPBM_NAV) != 0U);
+
+  executor.Handle(TrackerAction::Nav, false);
+  executor.Hub().SetNavigationHeld(false);
+  CHECK((executor.ActiveState().heldMask & EPBM_NAV) == 0U);
+}

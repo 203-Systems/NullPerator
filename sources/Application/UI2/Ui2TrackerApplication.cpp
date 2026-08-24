@@ -128,6 +128,82 @@ void Ui2TrackerApplication::DispatchTrackerAction(TrackerAction action,
   if (!initialized_ || action >= TrackerAction::Count)
     return;
 
+  const std::uint16_t bit = TrackerActionBit(action);
+  const bool alreadyHeld = (physicalHeldMask_ & bit) != 0U;
+  if (pressed)
+    physicalHeldMask_ |= bit;
+  else
+    physicalHeldMask_ &= static_cast<std::uint16_t>(~bit);
+
+  // START is the only physical action at slot 7. UI2 resolves its short-tap
+  // PLAY and held NAV meanings here so every platform, including the ESP32,
+  // observes exactly the same chord ordering and threshold.
+  if (action == TrackerAction::Start) {
+    if (pressed == alreadyHeld)
+      return;
+    HandleStart(pressed);
+    return;
+  }
+
+  if (startHeld_ && pressed && !alreadyHeld) {
+    startChordTriggered_ = true;
+    if (startAltPlay_ && action != TrackerAction::Alt) {
+      DispatchLogicalAction(TrackerAction::Play, false);
+      startAltPlay_ = false;
+      source_.SetNavigationHeld(true);
+      DispatchLogicalAction(TrackerAction::Start, true);
+      tracker_.Hub().SetNavigationHeld(true);
+    }
+  }
+
+  DispatchLogicalAction(action, pressed);
+}
+
+void Ui2TrackerApplication::HandleStart(bool pressed) {
+  if (pressed) {
+    startHeld_ = true;
+    startPressedAtMs_ = source_.NowMs();
+    const std::uint16_t companions = static_cast<std::uint16_t>(
+        physicalHeldMask_ & ~TrackerActionBit(TrackerAction::Start));
+    startAltPlay_ = companions == TrackerActionBit(TrackerAction::Alt);
+    startChordTriggered_ = companions != 0U && !startAltPlay_;
+    if (startAltPlay_) {
+      DispatchLogicalAction(TrackerAction::Play, true);
+    } else {
+      source_.SetNavigationHeld(true);
+      DispatchLogicalAction(TrackerAction::Start, true);
+      tracker_.Hub().SetNavigationHeld(true);
+    }
+    return;
+  }
+
+  const bool wasAltPlay = startAltPlay_;
+  const bool shortTap =
+      !startChordTriggered_ &&
+      static_cast<std::uint32_t>(source_.NowMs() - startPressedAtMs_) <
+          StartHoldMs;
+  startHeld_ = false;
+  startAltPlay_ = false;
+  startChordTriggered_ = false;
+  if (wasAltPlay) {
+    DispatchLogicalAction(TrackerAction::Play, false);
+    return;
+  }
+
+  DispatchLogicalAction(TrackerAction::Start, false);
+  tracker_.Hub().SetNavigationHeld(false);
+  source_.SetNavigationHeld(false);
+  if (shortTap) {
+    DispatchLogicalAction(TrackerAction::Play, true);
+    DispatchLogicalAction(TrackerAction::Play, false);
+  }
+}
+
+void Ui2TrackerApplication::DispatchLogicalAction(TrackerAction action,
+                                                  bool pressed) {
+  if (pressed && startHeld_ && TryNavigate(action))
+    return;
+
   const std::size_t actionIndex = static_cast<std::size_t>(action);
   if (rename_.Active()) {
     if (!pressed)
@@ -181,6 +257,109 @@ void Ui2TrackerApplication::DispatchTrackerAction(TrackerAction action,
     HandleFont(action, pressed);
     break;
   }
+}
+
+bool Ui2TrackerApplication::TryNavigate(TrackerAction action) {
+  if (action != TrackerAction::Left && action != TrackerAction::Right &&
+      action != TrackerAction::Up && action != TrackerAction::Down)
+    return false;
+  const std::uint16_t modifiers =
+      TrackerActionBit(TrackerAction::Alt) |
+      TrackerActionBit(TrackerAction::Edit) |
+      TrackerActionBit(TrackerAction::Enter);
+  if ((physicalHeldMask_ & modifiers) != 0U)
+    return false;
+
+  UiApplicationPage target = UiApplicationPage::None;
+  Ui2TrackerPage trackerTarget = Ui2TrackerPage::None;
+  switch (activePage_) {
+  case UiApplicationPage::Song:
+    if (action == TrackerAction::Right)
+      target = UiApplicationPage::Chain;
+    else if (action == TrackerAction::Up)
+      target = UiApplicationPage::Project;
+    else if (action == TrackerAction::Down)
+      target = UiApplicationPage::Mixer;
+    break;
+  case UiApplicationPage::Chain:
+    if (action == TrackerAction::Left)
+      target = UiApplicationPage::Song;
+    else if (action == TrackerAction::Right)
+      target = UiApplicationPage::Phrase;
+    break;
+  case UiApplicationPage::Phrase:
+    if (action == TrackerAction::Left)
+      target = UiApplicationPage::Chain;
+    else if (action == TrackerAction::Right)
+      target = UiApplicationPage::Instrument;
+    else if (action == TrackerAction::Down) {
+      target = UiApplicationPage::Table;
+      trackerTarget = Ui2TrackerPage::PhraseTable;
+    } else if (action == TrackerAction::Up)
+      target = UiApplicationPage::Groove;
+    break;
+  case UiApplicationPage::Instrument:
+    if (action == TrackerAction::Left)
+      target = UiApplicationPage::Phrase;
+    else if (action == TrackerAction::Down) {
+      target = UiApplicationPage::Table;
+      trackerTarget = Ui2TrackerPage::InstrumentTable;
+    }
+    break;
+  case UiApplicationPage::Table:
+    if (action == TrackerAction::Up)
+      target = tracker_.Hub().ActivePage() == Ui2TrackerPage::InstrumentTable
+                   ? UiApplicationPage::Instrument
+                   : UiApplicationPage::Phrase;
+    else if (action == TrackerAction::Left &&
+             tracker_.Hub().ActivePage() == Ui2TrackerPage::InstrumentTable) {
+      target = UiApplicationPage::Table;
+      trackerTarget = Ui2TrackerPage::PhraseTable;
+    } else if (action == TrackerAction::Right &&
+               tracker_.Hub().ActivePage() == Ui2TrackerPage::PhraseTable) {
+      target = UiApplicationPage::Table;
+      trackerTarget = Ui2TrackerPage::InstrumentTable;
+    }
+    break;
+  case UiApplicationPage::Groove:
+    if (action == TrackerAction::Down)
+      target = UiApplicationPage::Phrase;
+    break;
+  case UiApplicationPage::Mixer:
+    if (action == TrackerAction::Up)
+      target = UiApplicationPage::Song;
+    break;
+  case UiApplicationPage::Project:
+    if (action == TrackerAction::Down)
+      target = UiApplicationPage::Song;
+    else if (action == TrackerAction::Up)
+      target = UiApplicationPage::Device;
+    break;
+  case UiApplicationPage::Device:
+    if (action == TrackerAction::Down)
+      target = UiApplicationPage::Project;
+    break;
+  case UiApplicationPage::Theme:
+  case UiApplicationPage::Font:
+    if (action == TrackerAction::Left)
+      target = UiApplicationPage::Device;
+    break;
+  case UiApplicationPage::Browser:
+  case UiApplicationPage::SampleEditor:
+  case UiApplicationPage::SampleSlices:
+  case UiApplicationPage::Record:
+  case UiApplicationPage::None:
+    break;
+  }
+  if (target == UiApplicationPage::None)
+    return true;
+
+  ActivatePage(target);
+  if (trackerTarget != Ui2TrackerPage::None) {
+    tracker_.Hub().Activate(trackerTarget);
+    modelPort_.StoreGridNavigation(tracker_.Hub().Navigation());
+  }
+  return true;
 }
 
 PresentResult Ui2TrackerApplication::Present() {

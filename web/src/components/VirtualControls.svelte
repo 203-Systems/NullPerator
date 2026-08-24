@@ -70,7 +70,7 @@
       onpointerdown={(e)=>press(e,'alt')} onpointerup={(e)=>release(e,'alt',true)} onpointercancel={cancel} onlostpointercapture={(e)=>release(e,'alt')} onclick={(e)=>activate(e,'alt')}>
       <span class="switch"></span><kbd>X</kbd><em>ALT</em>
     </button>
-    <button type="button" class:pressed={heldActions.includes('nav') || heldActions.includes('play')} aria-label="PLAY" aria-pressed={heldActions.includes('nav') || heldActions.includes('play')} data-action="start" title="Tap: PLAY · Hold: NAV · Hold ALT first: hold ALT+PLAY" {disabled}
+    <button type="button" class:pressed={heldActions.includes('start')} aria-label="START" aria-pressed={heldActions.includes('start')} data-action="start" title="Tap: PLAY · Hold: NAV · Hold ALT first: hold ALT+PLAY" {disabled}
       onpointerdown={pressStart} onpointerup={(e)=>releaseStart(e,true)} onpointercancel={cancel} onlostpointercapture={releaseStart} onclick={activateStart}>
       <span class="switch"><span>▶</span></span><kbd>C</kbd><em>START</em>
     </button>

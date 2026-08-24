@@ -367,6 +367,7 @@ public:
   [[nodiscard]] virtual UiApplicationPage ActivePage() const = 0;
   [[nodiscard]] virtual std::uint32_t NowMs() const = 0;
   [[nodiscard]] virtual UiApplicationBatteryState ReadBattery() const = 0;
+  [[nodiscard]] virtual bool NavigationHeld() const { return false; }
 
   [[nodiscard]] virtual bool HasDialog() const = 0;
   [[nodiscard]] virtual Ui2DialogSnapshot DialogSnapshot() const = 0;

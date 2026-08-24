@@ -51,6 +51,8 @@ UiApplicationRuntime::CapturePowerState(IUiApplicationStateSource &source,
 UiPowerState
 UiApplicationRuntime::CurrentPowerState(IUiApplicationStateSource &source,
                                         bool playing) {
+  if (source.NavigationHeld())
+    return UiPowerState::Navigation;
   return CapturePowerState(source, playing).power;
 }
 

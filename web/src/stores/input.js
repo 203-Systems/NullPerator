@@ -6,13 +6,10 @@ export const ACTIONS = Object.freeze({
   alt: 4,
   edit: 5,
   enter: 6,
-  nav: 7,
-  play: 8,
+  start: 7,
   select: 9,
   power: 10,
 })
-
-export const START_HOLD_MS = 500
 
 function entry(action, ...bindings) {
   return Object.freeze({ action, bindings: Object.freeze(bindings.map((binding) => Object.freeze(binding))) })
@@ -29,13 +26,9 @@ export const DEFAULT_KEY_MAP = Object.freeze({
   alt: entry(ACTIONS.alt, ['KeyX']),
   edit: entry(ACTIONS.edit, ['KeyJ']),
   enter: entry(ACTIONS.enter, ['KeyK']),
-  // NAV is not a standalone Node control. START provisionally holds it so
-  // chords are ordered correctly, then converts a short standalone tap to
-  // PLAY on release. No firmware view assigns an action to NAV by itself.
-  nav: entry(ACTIONS.nav),
-  // C is handled as Node's dual-purpose START button below: tap emits PLAY,
-  // hold (or a chord with another key) behaves as NAV.
-  play: entry(ACTIONS.play),
+  // START is one physical action. Firmware UI2 owns tap/hold/chord semantics;
+  // the browser must not synthesize separate NAV and PLAY actions.
+  start: entry(ACTIONS.start, ['KeyC']),
   select: entry(ACTIONS.select),
   power: entry(ACTIONS.power),
 })
@@ -54,10 +47,7 @@ export function createInputStore(bridge) {
   const heldSources = new Map()
   const heldKeys = new Set()
   const activeBindings = new Set()
-  let startState = null
   let detach = null
-
-  const now = () => globalThis.performance?.now?.() ?? Date.now()
   const publish = () => {
     const snapshot = Object.freeze([...heldSources.keys()])
     for (const listener of listeners) listener(snapshot)
@@ -71,14 +61,6 @@ export function createInputStore(bridge) {
   function press(action, source = 'direct') {
     const name = actionName(action)
     if (name === null) return false
-    if (startState && name !== 'nav' && name !== 'play') {
-      if (startState.altPlay && name !== 'alt') {
-        startState.chordTriggered = true
-        release('play', startState.playSource)
-      } else if (!startState.altPlay) {
-        startState.chordTriggered = true
-      }
-    }
     const sources = heldSources.get(name) ?? new Set()
     if (sources.has(source)) return true
     const wasHeld = sources.size > 0
@@ -93,10 +75,6 @@ export function createInputStore(bridge) {
     if (name === null) return false
     const sources = heldSources.get(name)
     if (!sources?.has(source)) return false
-    if (name === 'alt' && sources.size === 1 && startState?.altPlay) {
-      startState.chordTriggered = true
-      release('play', startState.playSource)
-    }
     sources.delete(source)
     if (sources.size === 0) {
       heldSources.delete(name)
@@ -107,7 +85,6 @@ export function createInputStore(bridge) {
   }
 
   function releaseAll() {
-    startState = null
     heldSources.clear()
     heldKeys.clear()
     activeBindings.clear()
@@ -116,39 +93,11 @@ export function createInputStore(bridge) {
   }
 
   function pressStart(source = 'start') {
-    if (startState) return startState.source === source
-    const companionActions = [...heldSources.keys()].filter((name) => name !== 'nav' && name !== 'play')
-    const altPlay = companionActions.length === 1 && companionActions[0] === 'alt'
-    startState = {
-      source,
-      pressedAt: now(),
-      chordTriggered: companionActions.length > 0 && !altPlay,
-      altPlay,
-      navSource: `start-nav:${source}`,
-      playSource: `start-play:${source}`,
-    }
-    if (altPlay) press('play', startState.playSource)
-    else press('nav', startState.navSource)
-    return true
+    return press('start', source)
   }
 
   function releaseStart(source = 'start') {
-    if (startState?.source !== source) return false
-    const state = startState
-    const elapsed = now() - state.pressedAt
-    const isShortTap = !state.chordTriggered && elapsed < START_HOLD_MS
-    startState = null
-    if (state.altPlay) {
-      release('play', state.playSource)
-      return true
-    }
-    release('nav', state.navSource)
-    if (isShortTap) {
-      const pulseSource = `start-play:${source}`
-      press('play', pulseSource)
-      release('play', pulseSource)
-    }
-    return true
+    return release('start', source)
   }
 
   function bindingsForCode(code) {
@@ -175,21 +124,17 @@ export function createInputStore(bridge) {
   }
 
   function handleKeyDown(event) {
-    const isStart = event.code === 'KeyC'
-    const consumed = isStart || bindingsForCode(event.code).length > 0
+    const consumed = bindingsForCode(event.code).length > 0
     if (consumed) event.preventDefault?.()
     if (event.repeat || !consumed) return consumed
-    if (isStart) return pressStart('keyboard:KeyC')
     heldKeys.add(event.code)
     synchronizeBindings()
     return true
   }
 
   function handleKeyUp(event) {
-    const isStart = event.code === 'KeyC'
-    const consumed = isStart || bindingsForCode(event.code).length > 0
+    const consumed = bindingsForCode(event.code).length > 0
     if (consumed) event.preventDefault?.()
-    if (isStart) return releaseStart('keyboard:KeyC')
     heldKeys.delete(event.code)
     synchronizeBindings()
     return consumed

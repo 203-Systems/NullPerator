@@ -136,6 +136,15 @@ public:
     return instrumentTable_;
   }
 
+  void SetNavigationHeld(bool held) {
+    navigationHeld_ = held;
+    song_.SetNavigationHeld(held);
+    chain_.SetNavigationHeld(held);
+    phrase_.SetNavigationHeld(held);
+    phraseTable_.SetNavigationHeld(held);
+    instrumentTable_.SetNavigationHeld(held);
+  }
+
   [[nodiscard]] Ui2TrackerActiveControllerState ActiveState() const {
     Ui2TrackerActiveControllerState state{.page = activePage_};
     switch (activePage_) {
@@ -260,6 +269,7 @@ public:
         Ui2TrackerPage::InstrumentTable, state.instrumentTableNumber,
         state.track, state.instrumentTableRow, state.instrumentTableColumn,
         state.instrumentTableDigit);
+    SetNavigationHeld(navigationHeld_);
     pressOwners_.fill(Ui2TrackerPage::None);
     activePage_ = state.activePage == Ui2TrackerPage::None
                       ? Ui2TrackerPage::Song
@@ -355,6 +365,7 @@ private:
   Ui2PhraseController phrase_{};
   Ui2TableController phraseTable_{Ui2TrackerPage::PhraseTable};
   Ui2TableController instrumentTable_{Ui2TrackerPage::InstrumentTable};
+  bool navigationHeld_ = false;
   std::array<Ui2TrackerPage,
              static_cast<std::size_t>(TrackerAction::Count)>
       pressOwners_{};

@@ -38,10 +38,14 @@ public:
         mixer_(mixer) {}
 
   void SetActivePage(UiApplicationPage page) { activePage_ = page; }
+  void SetNavigationHeld(bool held) { navigationHeld_ = held; }
 
   [[nodiscard]] UiApplicationPage ActivePage() const override;
   [[nodiscard]] std::uint32_t NowMs() const override;
   [[nodiscard]] UiApplicationBatteryState ReadBattery() const override;
+  [[nodiscard]] bool NavigationHeld() const override {
+    return navigationHeld_;
+  }
 
   [[nodiscard]] bool HasDialog() const override { return rename_.Active(); }
   [[nodiscard]] Ui2DialogSnapshot DialogSnapshot() const override {
@@ -92,6 +96,7 @@ private:
   Ui2RenameController &rename_;
   Ui2MixerController &mixer_;
   UiApplicationPage activePage_ = UiApplicationPage::Song;
+  bool navigationHeld_ = false;
 };
 
 } // namespace ui2

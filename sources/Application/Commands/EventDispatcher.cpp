@@ -67,7 +67,7 @@ void EventDispatcher::Execute(FourCC id, float value) {
       mapping = TrackerAction::Alt;
       break;
     case FourCC::TrigEventNav:
-      mapping = TrackerAction::Nav;
+      mapping = TrackerAction::Start;
       break;
     case FourCC::TrigEventPlay:
       mapping = TrackerAction::Play;

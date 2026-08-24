@@ -48,6 +48,11 @@ public:
   bool ActivatePage(UiApplicationPage page);
 
 private:
+  static constexpr std::uint32_t StartHoldMs = 500U;
+
+  void DispatchLogicalAction(TrackerAction action, bool pressed);
+  void HandleStart(bool pressed);
+  [[nodiscard]] bool TryNavigate(TrackerAction action);
   void HandleProject(TrackerAction action, bool pressed);
   void HandleGroove(TrackerAction action, bool pressed);
   void HandleDevice(TrackerAction action, bool pressed);
@@ -76,6 +81,11 @@ private:
   UiApplicationRuntime runtime_;
   UiApplicationPage activePage_ = UiApplicationPage::Song;
   bool initialized_ = false;
+  std::uint16_t physicalHeldMask_ = 0U;
+  std::uint32_t startPressedAtMs_ = 0U;
+  bool startHeld_ = false;
+  bool startChordTriggered_ = false;
+  bool startAltPlay_ = false;
   std::array<UiApplicationPage,
              static_cast<std::size_t>(TrackerAction::Count)>
       pressOwners_{};

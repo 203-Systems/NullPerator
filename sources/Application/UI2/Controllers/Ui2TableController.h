@@ -39,6 +39,9 @@ public:
   [[nodiscard]] constexpr std::uint16_t HeldMask() const {
     return input_.Mask();
   }
+  constexpr void SetNavigationHeld(bool held) {
+    input_.Update(TrackerAction::Nav, held);
+  }
   [[nodiscard]] constexpr const Ui2GridSelectionState &Selection() const {
     return selection_;
   }

@@ -19,8 +19,11 @@ enum class TrackerAction : std::uint8_t {
   Alt,
   Edit,
   Enter,
-  Nav,
-  Play,
+  // One physical START button. Native UI2 resolves tap to logical PLAY and
+  // held/chorded input to navigation; adapters emit only this action.
+  Start,
+  Nav = Start, // Legacy UI/reference compatibility.
+  Play = 8,    // Logical action synthesized inside UI2.
   Select,
   Power,
   Count,
@@ -40,7 +43,8 @@ enum TrackerButtonMask : std::uint16_t {
   EPBM_ALT = TrackerActionBit(TrackerAction::Alt),
   EPBM_EDIT = TrackerActionBit(TrackerAction::Edit),
   EPBM_ENTER = TrackerActionBit(TrackerAction::Enter),
-  EPBM_NAV = TrackerActionBit(TrackerAction::Nav),
+  EPBM_START = TrackerActionBit(TrackerAction::Start),
+  EPBM_NAV = EPBM_START,
   EPBM_PLAY = TrackerActionBit(TrackerAction::Play),
   EPBM_SELECT = TrackerActionBit(TrackerAction::Select),
   EPBM_POWER = TrackerActionBit(TrackerAction::Power),
