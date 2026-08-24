@@ -20,6 +20,7 @@
 #include "Application/Views/ViewData.h"
 #include "Application/AppWindow.h"
 #include "Application/UI2/Ui2LegacyApplicationStateSource.h"
+#include "Application/UI2/Ui2TrackerApplication.h"
 #include "Application/Instruments/SamplePool.h"
 #include "Application/Model/Project.h"
 #include "Application/Persistency/PersistenceConstants.h"
@@ -59,6 +60,65 @@ void PublishApplicationSnapshot(AppWindow &window) noexcept {
   Wasm_ApplicationSnapshot().Publish(
       projectName, static_cast<std::uint32_t>(project.GetTempo()), sampleCount,
       playerRunning, masterLevel);
+}
+
+void PublishApplicationSnapshot(
+    ui2::Ui2TrackerApplication &application) noexcept {
+  Project &project = application.Session().ProjectModel();
+  char projectName[MAX_PROJECT_NAME_LENGTH + 1U]{};
+  project.GetProjectName(projectName);
+  std::uint32_t sampleCount = 0U;
+  if (auto *pool = SamplePool::GetInstance()) {
+    const int loaded = pool->GetNameListSize();
+    sampleCount = loaded > 0 ? static_cast<std::uint32_t>(loaded) : 0U;
+  }
+  Player *player = Player::GetInstance();
+  const bool running = application.Session().PlayerInitialized() &&
+                       player != nullptr && player->IsRunning();
+  Wasm_ApplicationSnapshot().Publish(
+      projectName, static_cast<std::uint32_t>(project.GetTempo()), sampleCount,
+      running, running ? player->GetMasterLevel() : 0U);
+}
+
+ui2::UiApplicationPage NativePageForDiagnostic(std::uint32_t view) {
+  using Page = ui2::UiApplicationPage;
+  switch (view) {
+  case VT_SONG:
+    return Page::Song;
+  case VT_CHAIN:
+    return Page::Chain;
+  case VT_PHRASE:
+    return Page::Phrase;
+  case VT_PROJECT:
+    return Page::Project;
+  case VT_DEVICE:
+    return Page::Device;
+  case VT_INSTRUMENT:
+    return Page::Instrument;
+  case VT_TABLE:
+  case VT_TABLE2:
+    return Page::Table;
+  case VT_GROOVE:
+    return Page::Groove;
+  case VT_MIXER:
+    return Page::Mixer;
+  case VT_IMPORT:
+  case VT_INSTRUMENT_IMPORT:
+  case VT_SELECTPROJECT:
+  case VT_SELECTTHEME:
+  case VT_THEME_IMPORT:
+    return Page::Browser;
+  case VT_THEME:
+    return Page::Theme;
+  case VT_SAMPLE_EDITOR:
+    return Page::SampleEditor;
+  case VT_SAMPLE_SLICES:
+    return Page::SampleSlices;
+  case VT_RECORD:
+    return Page::Record;
+  default:
+    return Page::None;
+  }
 }
 } // namespace
 
@@ -104,6 +164,10 @@ void WasmEventManager::RunFrame(void *context) {
 }
 
 void WasmEventManager::PumpFrame() {
+  if (nativeApplication_ != nullptr && nativeWindow_ != nullptr) {
+    PumpNativeFrame();
+    return;
+  }
   if (runtimeStopped_) {
     return;
   }
@@ -323,6 +387,113 @@ void WasmEventManager::PumpFrame() {
   WasmStorage_FlushMutationNotifications();
 }
 
+void WasmEventManager::PumpNativeFrame() {
+  if (runtimeStopped_)
+    return;
+  const auto runtimeState = PicoTracker_Wasm_GetState();
+  if (finished_.load(std::memory_order_acquire) ||
+      runtimeState == static_cast<std::uint32_t>(WasmRuntimeState::Stopping) ||
+      runtimeState == static_cast<std::uint32_t>(WasmRuntimeState::Stopped) ||
+      runtimeState == static_cast<std::uint32_t>(WasmRuntimeState::Failed)) {
+    StopRuntime();
+    return;
+  }
+
+  WasmGUIWindowImp &window = *nativeWindow_;
+  ui2::Ui2TrackerApplication &application = *nativeApplication_;
+  window.SetUi2DisplayOwnership(true);
+
+  if (booting_) {
+    application.Invalidate();
+    if (application.Present() == ui2::PresentResult::Failed ||
+        !window.HasPresentedFrame()) {
+      PicoTracker_Wasm_Fail("PicoTracker did not present an initial UI2 frame");
+      StopRuntime();
+      return;
+    }
+    WasmAudio::PublishSnapshot();
+    PublishApplicationSnapshot(application);
+    WasmStorage_FlushMutationNotifications();
+    PicoTracker_Wasm_MarkReady();
+    booting_ = false;
+    nextTick_ = SDL_GetTicks64() + PICO_CLOCK_INTERVAL;
+    return;
+  }
+  if (runtimeState != static_cast<std::uint32_t>(WasmRuntimeState::Ready)) {
+    StopRuntime();
+    return;
+  }
+
+  const std::uint32_t requestedView = requestedDiagnosticView_.exchange(
+      NoDiagnosticView, std::memory_order_acq_rel);
+  if (requestedView != NoDiagnosticView) {
+    const ui2::UiApplicationPage page = NativePageForDiagnostic(requestedView);
+    if (page != ui2::UiApplicationPage::None) {
+      application.ActivatePage(page);
+      diagnosticViewAwaitingDraw_ = requestedView;
+    } else {
+      diagnosticView_.store(NoDiagnosticView, std::memory_order_release);
+      diagnosticViewGeneration_.fetch_add(1, std::memory_order_acq_rel);
+    }
+  }
+
+  const std::uint32_t requestedModal = requestedDiagnosticModal_.exchange(
+      NoDiagnosticModal, std::memory_order_acq_rel);
+  if (requestedModal != NoDiagnosticModal) {
+    // Native modal controllers are added independently from page ownership.
+    // Acknowledge the request without ever routing it through a legacy View.
+    diagnosticModal_.store(requestedModal, std::memory_order_release);
+    diagnosticModalGeneration_.fetch_add(1, std::memory_order_acq_rel);
+  }
+
+  InputMap::RetryPendingTransitions();
+  if (auto *midi = WasmMidiService::Instance())
+    midi->Poll();
+  if (auto *audio = WasmAudioDriver::Instance())
+    audio->PumpProducer();
+  WasmAudio::PublishSnapshot();
+
+  SDL_Event event{};
+  while (SDL_PollEvent(&event) != 0) {
+    if (event.type == SDL_QUIT) {
+      window.ProcessQuit();
+    } else if (event.type == SDL_WINDOWEVENT &&
+               event.window.event == SDL_WINDOWEVENT_EXPOSED) {
+      window.ProcessExpose();
+    } else if (event.type == SDL_USEREVENT &&
+               event.user.code == InputMap::ActionEventCode) {
+      std::uint16_t action = 0;
+      bool pressed = false;
+      if (InputMap::DecodeActionEvent(
+              reinterpret_cast<std::uintptr_t>(event.user.data1), action,
+              pressed)) {
+        application.DispatchTrackerAction(static_cast<TrackerAction>(action),
+                                          pressed);
+        diagnosticInputGeneration_.fetch_add(1, std::memory_order_acq_rel);
+        InputMap::AcknowledgeAction(action, pressed);
+      }
+    }
+  }
+
+  const double now = SDL_GetTicks64();
+  if (now >= nextTick_) {
+    if (application.Present() == ui2::PresentResult::Failed) {
+      PicoTracker_Wasm_Fail("UI2 frame presentation failed");
+      StopRuntime();
+      return;
+    }
+    if (diagnosticViewAwaitingDraw_ != NoDiagnosticView) {
+      diagnosticView_.store(diagnosticViewAwaitingDraw_,
+                            std::memory_order_release);
+      diagnosticViewGeneration_.fetch_add(1, std::memory_order_acq_rel);
+      diagnosticViewAwaitingDraw_ = NoDiagnosticView;
+    }
+    nextTick_ = now + PICO_CLOCK_INTERVAL;
+  }
+  PublishApplicationSnapshot(application);
+  WasmStorage_FlushMutationNotifications();
+}
+
 void WasmEventManager::RequestDiagnosticView(std::uint32_t viewType) {
   requestedDiagnosticView_.store(viewType, std::memory_order_release);
 }
@@ -357,6 +528,14 @@ void WasmEventManager::SetUi2Enabled(bool enabled) {
 
 bool WasmEventManager::Ui2Enabled() const {
   return ui2Enabled_.load(std::memory_order_acquire);
+}
+
+void WasmEventManager::ConfigureNative(
+    WasmGUIWindowImp &window, ui2::Ui2TrackerApplication &application) {
+  nativeWindow_ = &window;
+  nativeApplication_ = &application;
+  ui2Enabled_.store(true, std::memory_order_release);
+  ui2Active_ = true;
 }
 
 void WasmEventManager::StopRuntime() {

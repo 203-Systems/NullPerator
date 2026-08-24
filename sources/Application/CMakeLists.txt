@@ -9,6 +9,9 @@ add_library(application
   AppWindow.cpp
   Application.cpp
   UI2/Ui2ApplicationRuntime.cpp
+  UI2/Ui2NativeApplicationStateSource.cpp
+  UI2/Ui2TrackerApplication.cpp
+  UI2/Ui2TrackerSessionModelPort.cpp
 )
 
 if(PICOTRACKER_UI2_LEGACY_STATE_SOURCE)
@@ -27,6 +30,7 @@ target_link_libraries(application PUBLIC
   application_model
   application_persistency
   application_player
+  application_lifecycle
   application_session
   application_views_baseclasses
   application_views

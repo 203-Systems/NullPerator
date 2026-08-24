@@ -11,6 +11,11 @@
 #include <atomic>
 #include <optional>
 
+class WasmGUIWindowImp;
+namespace ui2 {
+class Ui2TrackerApplication;
+}
+
 class WasmEventManager final : public T_Singleton<WasmEventManager>,
                                public EventManager {
 public:
@@ -28,12 +33,15 @@ public:
   std::uint32_t DiagnosticInputGeneration() const;
   void SetUi2Enabled(bool enabled);
   bool Ui2Enabled() const;
+  void ConfigureNative(WasmGUIWindowImp &window,
+                       ui2::Ui2TrackerApplication &application);
 
 private:
   static constexpr std::uint32_t NoDiagnosticView = 0xFFFFFFFFu;
   static constexpr std::uint32_t NoDiagnosticModal = 0xFFFFFFFFu;
   static void RunFrame(void *context);
   void PumpFrame();
+  void PumpNativeFrame();
   void StopRuntime();
 
   std::atomic<bool> finished_{false};
@@ -52,4 +60,6 @@ private:
   std::atomic<bool> ui2Enabled_{false};
   std::optional<ui2::UiApplicationRuntime> ui2Runtime_;
   bool ui2Active_ = false;
+  WasmGUIWindowImp *nativeWindow_ = nullptr;
+  ui2::Ui2TrackerApplication *nativeApplication_ = nullptr;
 };

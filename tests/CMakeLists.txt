@@ -125,6 +125,7 @@ endif()
 target_sources(picoTracker_tests PRIVATE
   ui2_settings_controller_tests.cpp
   ui2_tracker_grid_controller_tests.cpp
+  ui2_tracker_controller_hub_tests.cpp
 )
 
 add_executable(ui2_snapshot_tool

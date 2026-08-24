@@ -1,8 +1,10 @@
 #include "Adapters/wasm/platform/wasm_bridge.h"
 #include "Adapters/wasm/audio/WasmAudio.h"
 #include "Adapters/wasm/gui/GUIFactory.h"
+#include "Adapters/wasm/gui/WasmEventManager.h"
+#include "Adapters/wasm/gui/WasmGUIWindowImp.h"
 #include "Adapters/wasm/system/WasmSystem.h"
-#include "Application/Application.h"
+#include "Application/UI2/Ui2TrackerApplication.h"
 #include "UIFramework/Interfaces/I_GUIWindowFactory.h"
 
 #include <emscripten/emscripten.h>
@@ -47,20 +49,22 @@ int main() {
   alignas(GUIFactory) static unsigned char factoryStorage[sizeof(GUIFactory)];
   auto *factory = new (factoryStorage) GUIFactory();
   I_GUIWindowFactory::Install(factory);
-  EventManager *eventManager = factory->GetEventManager();
+  auto *eventManager = static_cast<WasmEventManager *>(factory->GetEventManager());
   if (eventManager == nullptr || !eventManager->Init()) {
     return FailStartup("Failed to initialize SDL2 browser UI");
   }
 
   GUICreateWindowParams params{};
   params.title = "PicoTracker";
-  if (!Application::GetInstance()->Init(params)) {
+  auto &window = static_cast<WasmGUIWindowImp &>(factory->CreateWindowImp(params));
+  alignas(ui2::Ui2TrackerApplication) static unsigned char applicationStorage[
+      sizeof(ui2::Ui2TrackerApplication)];
+  auto *application =
+      new (applicationStorage) ui2::Ui2TrackerApplication(window);
+  if (!application->Init()) {
     return FailStartup("Failed to initialize PicoTracker application");
   }
-  GUIWindow *window = Application::GetInstance()->GetWindow();
-  if (window == nullptr) {
-    return FailStartup("PicoTracker application did not create a window");
-  }
+  eventManager->ConfigureNative(window, *application);
   // MainLoop installs an Emscripten loop with simulate_infinite_loop=true, so
   // it does not return while the application pthread is alive. Teardown and
   // the final Stopped acknowledgement are owned by WasmEventManager; keeping

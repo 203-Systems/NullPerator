@@ -1,0 +1,109 @@
+/*
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
+#include "Application/UI2/Controllers/Ui2TrackerControllerHub.h"
+
+#include <doctest/doctest.h>
+
+namespace {
+
+class FakeGridPort final : public ui2::IUi2TrackerModelPort {
+public:
+  ui2::Ui2TrackerGridSessionState LoadGridSession() const override {
+    return loaded;
+  }
+
+  void StoreGridNavigation(
+      const ui2::Ui2TrackerGridNavigationState &state) override {
+    navigation = state;
+    ++storeCount;
+  }
+
+  void ApplyGridCommand(const ui2::Ui2TrackerCommand &command) override {
+    if (appliedCount < applied.size())
+      applied[appliedCount++] = command;
+    if (command.type == ui2::Ui2TrackerCommandType::SwitchPage)
+      loaded.activePage = command.targetPage;
+  }
+
+  ui2::Ui2TrackerGridSessionState loaded{};
+  ui2::Ui2TrackerGridNavigationState navigation{};
+  std::array<ui2::Ui2TrackerCommand, 8> applied{};
+  std::size_t appliedCount = 0;
+  std::size_t storeCount = 0;
+};
+
+} // namespace
+
+TEST_CASE("UI2 tracker hub restores independent grid page state") {
+  ui2::Ui2TrackerGridSessionState state{};
+  state.activePage = ui2::Ui2TrackerPage::Phrase;
+  state.track = 5;
+  state.songVisibleRow = 9;
+  state.songRowOffset = 32;
+  state.chainNumber = 0x34;
+  state.chainRow = 7;
+  state.chainColumn = 1;
+  state.phraseNumber = 0x21;
+  state.phraseRow = 11;
+  state.phraseColumn = 5;
+  state.phraseDigit = 2;
+  state.phraseTableNumber = 4;
+  state.instrumentTableNumber = 9;
+  state.liveMode = true;
+
+  ui2::Ui2TrackerControllerHub hub(state);
+  CHECK(hub.ActivePage() == ui2::Ui2TrackerPage::Phrase);
+  CHECK(hub.ActiveApplicationPage() == ui2::UiApplicationPage::Phrase);
+  CHECK(hub.Song().Track() == 5);
+  CHECK(hub.Song().VisibleRow() == 9);
+  CHECK(hub.Song().RowOffset() == 32);
+  CHECK(hub.Song().LiveMode());
+  CHECK(hub.Chain().Number() == 0x34);
+  CHECK(hub.Chain().Row() == 7);
+  CHECK(hub.Phrase().Number() == 0x21);
+  CHECK(hub.Phrase().Column() == 5);
+  CHECK(hub.PhraseTable().Number() == 4);
+  CHECK(hub.InstrumentTable().Number() == 9);
+}
+
+TEST_CASE("UI2 tracker hub keeps key release with the press owner") {
+  ui2::Ui2TrackerControllerHub hub;
+  (void)hub.Handle(TrackerAction::Enter, true);
+  hub.Activate(ui2::Ui2TrackerPage::Chain);
+  (void)hub.Handle(TrackerAction::Enter, false);
+
+  CHECK((hub.Song().HeldMask() & EPBM_ENTER) == 0);
+  CHECK((hub.Chain().HeldMask() & EPBM_ENTER) == 0);
+}
+
+TEST_CASE("UI2 tracker executor applies typed command then stores navigation") {
+  FakeGridPort port;
+  port.loaded.activePage = ui2::Ui2TrackerPage::Song;
+  ui2::Ui2TrackerCommandExecutor executor(port);
+
+  executor.Handle(TrackerAction::Enter, true);
+  const auto batch = executor.Handle(TrackerAction::Up, true);
+
+  REQUIRE(batch.count == 1);
+  CHECK(batch[0].type == ui2::Ui2TrackerCommandType::AdjustCell);
+  CHECK(port.appliedCount == 2);
+  CHECK(port.applied[1].type == ui2::Ui2TrackerCommandType::AdjustCell);
+  CHECK(port.storeCount == 2);
+  CHECK(port.navigation.activePage == ui2::Ui2TrackerPage::Song);
+}
+
+TEST_CASE("UI2 tracker executor activates navigation target before storing") {
+  FakeGridPort port;
+  ui2::Ui2TrackerCommandExecutor executor(port);
+
+  executor.Handle(TrackerAction::Nav, true);
+  const auto batch = executor.Handle(TrackerAction::Right, true);
+
+  REQUIRE(batch.count == 1);
+  CHECK(batch[0].type == ui2::Ui2TrackerCommandType::SwitchPage);
+  CHECK(executor.ActivePage() == ui2::Ui2TrackerPage::Chain);
+  CHECK(port.navigation.activePage == ui2::Ui2TrackerPage::Chain);
+  CHECK(port.applied[0].targetPage == ui2::Ui2TrackerPage::Chain);
+}

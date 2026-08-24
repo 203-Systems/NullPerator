@@ -175,7 +175,7 @@ UiBuildStatus UiProjectView::Build(const UiProjectViewData &data, UiPalette &,
   UiBottomBarModel bottom{.kind = UiBottomBarKind::Hidden};
   if (data.cursor == UiProjectCursor::Name) {
     bottom.kind = UiBottomBarKind::Actions;
-    bottom.actions.actions = {"NEW", "LOAD", "SAVE", "RENAME"};
+    bottom.actions.actions = {"NEW", "SAVE", "LOAD", "RENAME"};
     bottom.actions.count = 4;
     bottom.actions.active = std::min<std::uint8_t>(data.nameAction, 3);
   } else if (data.cursor == UiProjectCursor::SamplePool) {

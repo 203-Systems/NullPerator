@@ -28,8 +28,8 @@ enum class Ui2ProjectContentCursor : std::uint8_t {
 
 enum class Ui2ProjectNameAction : std::uint8_t {
   New = 0,
-  Load,
   Save,
+  Load,
   Rename,
   Count,
 };
@@ -232,10 +232,10 @@ private:
     switch (action) {
     case Ui2ProjectNameAction::New:
       return Ui2ProjectCommandType::NewProject;
-    case Ui2ProjectNameAction::Load:
-      return Ui2ProjectCommandType::LoadProject;
     case Ui2ProjectNameAction::Save:
       return Ui2ProjectCommandType::SaveProject;
+    case Ui2ProjectNameAction::Load:
+      return Ui2ProjectCommandType::LoadProject;
     case Ui2ProjectNameAction::Rename:
       return Ui2ProjectCommandType::RenameProject;
     case Ui2ProjectNameAction::Count:

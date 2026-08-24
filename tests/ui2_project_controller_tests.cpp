@@ -22,10 +22,10 @@ TEST_CASE("UI2 Project controller keeps content and name actions independent") {
   CHECK(controller.NameAction() == Ui2ProjectNameAction::New);
 
   controller.MoveRight();
-  CHECK(controller.NameAction() == Ui2ProjectNameAction::Load);
+  CHECK(controller.NameAction() == Ui2ProjectNameAction::Save);
   CHECK(controller.ContentCursor() == Ui2ProjectContentCursor::Name);
   controller.MoveRight();
-  CHECK(controller.NameAction() == Ui2ProjectNameAction::Save);
+  CHECK(controller.NameAction() == Ui2ProjectNameAction::Load);
   controller.MoveRight();
   CHECK(controller.NameAction() == Ui2ProjectNameAction::Rename);
   controller.MoveRight();
@@ -70,8 +70,8 @@ TEST_CASE("UI2 Project controller traverses only conceptual content rows") {
 TEST_CASE("UI2 Project Enter returns typed name commands in approved order") {
   Ui2ProjectController controller;
   constexpr std::array<Ui2ProjectCommandType, 4> commands{
-      Ui2ProjectCommandType::NewProject, Ui2ProjectCommandType::LoadProject,
-      Ui2ProjectCommandType::SaveProject,
+      Ui2ProjectCommandType::NewProject, Ui2ProjectCommandType::SaveProject,
+      Ui2ProjectCommandType::LoadProject,
       Ui2ProjectCommandType::RenameProject,
   };
 
