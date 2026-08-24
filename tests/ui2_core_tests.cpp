@@ -14,6 +14,7 @@
 #include "UI2/Views/Song/UiSongView.h"
 #include "UI2/Views/Phrase/UiPhraseView.h"
 #include "UI2/Views/Instrument/UiInstrumentView.h"
+#include "UI2/Views/Mixer/UiMixerView.h"
 #include "UI2/Views/Table/UiTableView.h"
 #include "Adapters/wasm/gui/WasmUiPresenter.h"
 #include "Application/UI2/Ui2ApplicationRuntime.h"
@@ -21,6 +22,7 @@
 #include "ui2_song_fixture.h"
 #include "ui2_phrase_fixture.h"
 #include "ui2_instrument_fixture.h"
+#include "ui2_mixer_fixture.h"
 #include "ui2_table_fixture.h"
 
 #include "doctest/doctest.h"
@@ -937,4 +939,74 @@ TEST_CASE("UI2 Instrument enter mode resolves both independent cursors") {
         palette.Index(ui2::UiColorToken::CursorPrimary));
   CHECK(surface.Pixel(91, 215) ==
         palette.Index(ui2::UiColorToken::CursorPrimary));
+}
+
+TEST_CASE("UI2 Mixer stereo meters use separate damage columns") {
+  CHECK(ui2::UiMixerView::MeterDamageRect(0, 0) ==
+        ui2::RectI16{7, 46, 7, 153});
+  CHECK(ui2::UiMixerView::MeterDamageRect(0, 1) ==
+        ui2::RectI16{17, 46, 7, 153});
+  CHECK(ui2::UiMixerView::MeterDamageRect(8, 0) ==
+        ui2::RectI16{209, 46, 7, 153});
+  CHECK(ui2::UiMixerView::MeterDamageRect(8, 1) ==
+        ui2::RectI16{219, 46, 7, 153});
+}
+
+TEST_CASE("UI2 Mixer delta rendering is pixel-identical to a full redraw") {
+  ui2::UiPalette palette;
+  ui2::UiMixerViewData previous = ui2::test::ApprovedMixerFixture();
+  ui2::UiFrameScene previousScene;
+  REQUIRE(ui2::UiMixerView::Build(previous, palette, previousScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(previousScene, surface, palette);
+  surface.ClearDirty();
+
+  ui2::UiMixerViewData current = previous;
+  current.vuLevelTop[3] = {71, 83};
+  current.volumes[3] = "7F";
+  current.selectedChannel = 3;
+  ui2::UiFrameScene currentScene;
+  REQUIRE(ui2::UiMixerView::Build(current, palette, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiMixerView::RenderDelta(previous, current, currentScene, surface,
+                                palette);
+
+  ui2::UiSurfaceStorage expectedStorage;
+  ui2::UiIndexedSurface expected(expectedStorage);
+  ui2::UiFrameRenderer::RenderStatic(currentScene, expected, palette);
+  CHECK(std::equal(surface.Pixels().begin(), surface.Pixels().end(),
+                   expected.Pixels().begin(), expected.Pixels().end()));
+  CHECK(surface.DirtyTiles().Any());
+}
+
+TEST_CASE("UI2 Mixer idle is clean and one meter change stays local") {
+  ui2::UiPalette palette;
+  ui2::UiMixerViewData previous = ui2::test::ApprovedMixerFixture();
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiMixerView::Build(previous, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+  surface.ClearDirty();
+  ui2::UiMixerView::RenderDelta(previous, previous, scene, surface, palette);
+  CHECK_FALSE(surface.DirtyTiles().Any());
+
+  ui2::UiMixerViewData current = previous;
+  current.vuLevelTop[6][1] = 91;
+  ui2::UiFrameScene currentScene;
+  REQUIRE(ui2::UiMixerView::Build(current, palette, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiMixerView::RenderDelta(previous, current, currentScene, surface,
+                                palette);
+  ui2::DirtyStripList strips;
+  REQUIRE(surface.DirtyTiles().Collect(strips));
+  std::uint32_t transferredPixels = 0;
+  for (const ui2::DirtyStrip strip : strips.Strips()) {
+    transferredPixels +=
+        static_cast<std::uint32_t>(strip.width) * strip.height;
+  }
+  CHECK(transferredPixels < 3'000);
 }

@@ -11,6 +11,7 @@ add_library(ui2
   Theme/UiPalette.cpp
   Views/Phrase/UiPhraseView.cpp
   Views/Instrument/UiInstrumentView.cpp
+  Views/Mixer/UiMixerView.cpp
   Views/Song/UiSongView.cpp
   Views/Table/UiTableView.cpp
   UiEngine.cpp)

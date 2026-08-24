@@ -57,6 +57,7 @@ add_executable(picoTracker_tests
   ../sources/UI2/Theme/UiPalette.cpp
   ../sources/UI2/UiEngine.cpp
   ../sources/UI2/Views/Instrument/UiInstrumentView.cpp
+  ../sources/UI2/Views/Mixer/UiMixerView.cpp
   ../sources/UI2/Views/Phrase/UiPhraseView.cpp
   ../sources/UI2/Views/Song/UiSongView.cpp
   ../sources/UI2/Views/Table/UiTableView.cpp
@@ -138,6 +139,23 @@ target_include_directories(ui2_instrument_snapshot_tool PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}
   ${CMAKE_CURRENT_LIST_DIR}/../sources)
 
+add_executable(ui2_mixer_snapshot_tool
+  ui2_mixer_snapshot_main.cpp
+  ../sources/UI2/Chrome/UiBarResolver.cpp
+  ../sources/UI2/Chrome/UiChromeRenderer.cpp
+  ../sources/UI2/Render/UiDirtyTiles.cpp
+  ../sources/UI2/Render/UiFrameRenderer.cpp
+  ../sources/UI2/Render/UiIndexedSurface.cpp
+  ../sources/UI2/Render/UiRasterizer.cpp
+  ../sources/UI2/Render/UiVuGradient.cpp
+  ../sources/UI2/Text/UiFont5x7.cpp
+  ../sources/UI2/Theme/UiPalette.cpp
+  ../sources/UI2/Views/Mixer/UiMixerView.cpp)
+
+target_include_directories(ui2_mixer_snapshot_tool PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}
+  ${CMAKE_CURRENT_LIST_DIR}/../sources)
+
 find_program(NODE_EXECUTABLE node)
 if(NODE_EXECUTABLE)
   add_test(NAME ui2_song_snapshot
@@ -192,4 +210,16 @@ if(NODE_EXECUTABLE)
     set_tests_properties(ui2_instrument_${INSTRUMENT_STATE}_golden PROPERTIES
       DEPENDS ui2_instrument_${INSTRUMENT_STATE}_snapshot)
   endforeach()
+
+  add_test(NAME ui2_mixer_snapshot
+    COMMAND ui2_mixer_snapshot_tool
+      "${CMAKE_CURRENT_BINARY_DIR}/mixer-actual.ppm")
+  add_test(NAME ui2_mixer_golden
+    COMMAND "${NODE_EXECUTABLE}"
+      "${CMAKE_CURRENT_LIST_DIR}/../web/tools/compare-ui2-snapshot.mjs"
+      --actual "${CMAKE_CURRENT_BINARY_DIR}/mixer-actual.ppm"
+      --golden "${CMAKE_CURRENT_LIST_DIR}/../web/e2e/ui2-golden.spec.js-snapshots/mixer.png"
+      --tolerance-region 7,46,219,153,1)
+  set_tests_properties(ui2_mixer_golden PROPERTIES
+    DEPENDS ui2_mixer_snapshot)
 endif()
