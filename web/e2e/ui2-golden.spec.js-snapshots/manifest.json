@@ -1,7 +1,7 @@
 {
   "format": 1,
   "source": "picotracker-240-code-layout.html",
-  "sourceSha256": "cf0fb4de28cf3a353fa39b6b70393870ae8e55c3dc8c2c4d88e428ea1ab9ec97",
+  "sourceSha256": "638749e61a83069117b416a417f1c6dfb16474a8015114d2ef743c4a5c5c50dd",
   "frameCount": 42,
   "frames": [
     {
@@ -344,7 +344,7 @@
       "file": "record.png",
       "width": 240,
       "height": 240,
-      "sha256": "d50ec8abb7552832ef873ebacf5411b2a6827728520438ff9620000c49144d6e"
+      "sha256": "4413bd097da3976c49198d2e1ec2d449954c0b8065c27d676eab6ae16e9e7e7b"
     },
     {
       "view": "dialog-message",
