@@ -40,7 +40,7 @@ struct UiProjectViewData {
   std::uint8_t selectorCount = 0;
   std::uint8_t selectorCurrent = 0;
   bool selectorWrap = false;
-  bool editHeld = false;
+  bool enterHeld = false;
   UiProjectCursor cursor = UiProjectCursor::Tempo;
   std::uint8_t nameAction = 0;
   std::uint8_t sampleAction = 0;

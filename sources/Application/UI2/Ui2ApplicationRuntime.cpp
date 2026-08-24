@@ -897,7 +897,7 @@ UiApplicationRuntime::ViewDataFor(const ProjectFrameState &state) {
   data.selectorCount = state.selectorCount;
   data.selectorCurrent = state.selectorCurrent;
   data.selectorWrap = state.selectorWrap;
-  data.editHeld = state.editHeld;
+  data.enterHeld = state.enterHeld;
   data.cursor = state.cursor;
   data.nameAction = state.nameAction;
   data.sampleAction = state.sampleAction;

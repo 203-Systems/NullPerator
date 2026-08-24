@@ -207,7 +207,7 @@ void Ui2TrackerApplication::HandleProject(TrackerAction action,
                                          bool pressed) {
   if (!projectInput_.Update(action, pressed))
     return;
-  project_.SetEditHeld(projectInput_.Held(TrackerAction::Edit));
+  project_.SetEnterHeld(projectInput_.Held(TrackerAction::Enter));
   if (!pressed)
     return;
 
@@ -221,15 +221,18 @@ void Ui2TrackerApplication::HandleProject(TrackerAction action,
   if (projectInput_.Held(TrackerAction::Edit)) {
     if (action == TrackerAction::Play)
       ActivatePage(UiApplicationPage::Record);
-    else if (action == TrackerAction::Left ||
-             action == TrackerAction::Right || action == TrackerAction::Up ||
-             action == TrackerAction::Down)
-      ExecuteProject(project_.Adjust(action));
     return;
   }
   if (projectInput_.Held(TrackerAction::Enter)) {
     if (action == TrackerAction::Enter)
       ExecuteProject(project_.Enter());
+    else if ((project_.ContentCursor() == Ui2ProjectContentCursor::Tempo ||
+              project_.ContentCursor() ==
+                  Ui2ProjectContentCursor::Transpose) &&
+             (action == TrackerAction::Left ||
+              action == TrackerAction::Right ||
+              action == TrackerAction::Up || action == TrackerAction::Down))
+      ExecuteProject(project_.Adjust(action));
     return;
   }
   if (projectInput_.AnyModifier())

@@ -35,17 +35,17 @@ void DrawVerticalArrow(BarBuilder &builder, std::int16_t x, std::int16_t y,
     const std::int16_t width = static_cast<std::int16_t>(1 + rank * 2);
     builder.Fill({static_cast<std::int16_t>(x + 2 - rank),
                   static_cast<std::int16_t>(y + row), width, 1},
-                 UiColorToken::TextNormal);
+                 UiColorToken::DerivedTextFaint);
   }
 }
 
 void DrawPlusMinus(BarBuilder &builder, std::int16_t x, std::int16_t y) {
   builder.Fill({static_cast<std::int16_t>(x + 2), y, 1, 5},
-               UiColorToken::TextNormal);
+               UiColorToken::TextColored);
   builder.Fill({x, static_cast<std::int16_t>(y + 2), 5, 1},
-               UiColorToken::TextNormal);
+               UiColorToken::TextColored);
   builder.Fill({x, static_cast<std::int16_t>(y + 6), 5, 1},
-               UiColorToken::TextNormal);
+               UiColorToken::TextColored);
 }
 
 } // namespace
@@ -306,13 +306,13 @@ UiBuildStatus UiChromeRenderer::BuildBottom(const UiBottomBarModel &model,
                   static_cast<unsigned>(model.adjustment.fineStep));
     std::snprintf(coarse.data(), coarse.size(), "%u",
                   static_cast<unsigned>(model.adjustment.coarseStep));
-    builder.Text("<", 24, 220, UiColorToken::TextNormal);
+    builder.Text("<", 24, 220, UiColorToken::DerivedTextFaint);
     DrawPlusMinus(builder, 54, 220);
-    builder.Text(fine.data(), 60, 220, UiColorToken::TextNormal);
-    builder.Text(">", 91, 220, UiColorToken::TextNormal);
+    builder.Text(fine.data(), 60, 220, UiColorToken::TextColored);
+    builder.Text(">", 91, 220, UiColorToken::DerivedTextFaint);
     DrawVerticalArrow(builder, 142, 222, false);
     DrawPlusMinus(builder, 170, 220);
-    builder.Text(coarse.data(), 176, 220, UiColorToken::TextNormal);
+    builder.Text(coarse.data(), 176, 220, UiColorToken::TextColored);
     DrawVerticalArrow(builder, 215, 222, true);
     break;
   }

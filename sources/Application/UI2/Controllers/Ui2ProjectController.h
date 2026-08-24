@@ -121,8 +121,8 @@ public:
     return sampleAction_;
   }
 
-  constexpr void SetEditHeld(bool held) { editHeld_ = held; }
-  [[nodiscard]] constexpr bool EditHeld() const { return editHeld_; }
+  constexpr void SetEnterHeld(bool held) { enterHeld_ = held; }
+  [[nodiscard]] constexpr bool EnterHeld() const { return enterHeld_; }
 
   // Vertical movement only changes the content cursor. Contextual action
   // choices remain owned by the controller and survive leaving their row.
@@ -347,7 +347,7 @@ private:
   Ui2ProjectRenderSelection renderSelection_ =
       Ui2ProjectRenderSelection::Mixdown;
   Ui2ProjectSampleAction sampleAction_ = Ui2ProjectSampleAction::Browse;
-  bool editHeld_ = false;
+  bool enterHeld_ = false;
 };
 
 static_assert(std::is_trivially_copyable_v<Ui2ProjectCommand>);

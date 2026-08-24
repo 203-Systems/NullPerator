@@ -272,7 +272,7 @@ struct UiProjectFrameState {
   std::uint8_t sampleAction = 0;
   std::uint8_t renderOption = 0;
   bool selectorWrap = false;
-  bool editHeld = false;
+  bool enterHeld = false;
   RectI16 cursorVisualRect{};
   bool cursorVisualOverride = false;
   bool cursorInkVisible = true;
