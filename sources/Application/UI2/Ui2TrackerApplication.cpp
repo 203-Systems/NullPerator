@@ -8,6 +8,7 @@
 
 #include "Application/Model/Config.h"
 #include "Application/Model/Groove.h"
+#include "Application/Model/Scale.h"
 #include "Application/Persistency/PersistencyService.h"
 #include "Application/Player/Player.h"
 #include "Services/Audio/Audio.h"
@@ -219,8 +220,9 @@ void Ui2TrackerApplication::HandleProject(TrackerAction action,
       ActivatePage(UiApplicationPage::Record);
     return;
   }
-  if (action == TrackerAction::Enter) {
-    ExecuteProject(project_.Enter());
+  if (projectInput_.Held(TrackerAction::Enter)) {
+    ExecuteProject(action == TrackerAction::Enter ? project_.Enter()
+                                                   : project_.Adjust(action));
     return;
   }
   if (projectInput_.AnyModifier())
@@ -367,6 +369,32 @@ void Ui2TrackerApplication::ExecuteProject(Ui2ProjectCommand command) {
   case Ui2ProjectCommandType::RemoveUnusedInstruments:
     session_.ProjectModel().PurgeInstruments();
     break;
+  case Ui2ProjectCommandType::AdjustTempo:
+  case Ui2ProjectCommandType::AdjustTranspose:
+  case Ui2ProjectCommandType::AdjustScale:
+  case Ui2ProjectCommandType::AdjustRoot: {
+    Project &project = session_.ProjectModel();
+    FourCC id = FourCC::VarTempo;
+    int minimum = MIN_TEMPO;
+    int maximum = MAX_TEMPO;
+    if (command.type == Ui2ProjectCommandType::AdjustTranspose) {
+      id = FourCC::VarTranspose;
+      minimum = -48;
+      maximum = 48;
+    } else if (command.type == Ui2ProjectCommandType::AdjustScale) {
+      id = FourCC::VarScale;
+      minimum = 0;
+      maximum = numScales - 1;
+    } else if (command.type == Ui2ProjectCommandType::AdjustRoot) {
+      id = FourCC::VarScaleRoot;
+      minimum = 0;
+      maximum = 11;
+    }
+    if (Variable *variable = project.FindVariable(id))
+      variable->SetInt(
+          std::clamp(variable->GetInt() + command.value, minimum, maximum));
+    break;
+  }
   case Ui2ProjectCommandType::NewProject:
   case Ui2ProjectCommandType::LoadProject:
   case Ui2ProjectCommandType::RenameProject:

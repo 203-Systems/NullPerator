@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include "Application/Input/TrackerInput.h"
+
 #include <cstdint>
 #include <type_traits>
 
@@ -61,10 +63,15 @@ enum class Ui2ProjectCommandType : std::uint8_t {
   RemoveUnusedInstruments,
   RenderMixdown,
   RenderStems,
+  AdjustTempo,
+  AdjustTranspose,
+  AdjustScale,
+  AdjustRoot,
 };
 
 struct Ui2ProjectCommand {
   Ui2ProjectCommandType type = Ui2ProjectCommandType::None;
+  std::int16_t value = 0;
 
   [[nodiscard]] constexpr bool HasValue() const {
     return type != Ui2ProjectCommandType::None;
@@ -175,6 +182,39 @@ public:
 
   [[nodiscard]] constexpr Ui2ProjectCommand Enter() const {
     return {.type = Bottom().selectedCommand};
+  }
+
+  [[nodiscard]] constexpr Ui2ProjectCommand
+  Adjust(TrackerAction action) const {
+    const bool decrease = action == TrackerAction::Left ||
+                          action == TrackerAction::Down;
+    if (action != TrackerAction::Left && action != TrackerAction::Right &&
+        action != TrackerAction::Up && action != TrackerAction::Down)
+      return {};
+    const bool vertical =
+        action == TrackerAction::Up || action == TrackerAction::Down;
+    const std::int16_t sign = decrease ? -1 : 1;
+    switch (cursor_) {
+    case Ui2ProjectContentCursor::Tempo:
+      return {.type = Ui2ProjectCommandType::AdjustTempo,
+              .value = static_cast<std::int16_t>(sign * (vertical ? 10 : 1))};
+    case Ui2ProjectContentCursor::Transpose:
+      return {.type = Ui2ProjectCommandType::AdjustTranspose,
+              .value = static_cast<std::int16_t>(sign * (vertical ? 12 : 1))};
+    case Ui2ProjectContentCursor::Scale:
+      return {.type = Ui2ProjectCommandType::AdjustScale,
+              .value = static_cast<std::int16_t>(sign * (vertical ? 10 : 1))};
+    case Ui2ProjectContentCursor::Root:
+      return {.type = Ui2ProjectCommandType::AdjustRoot, .value = sign};
+    case Ui2ProjectContentCursor::Name:
+    case Ui2ProjectContentCursor::SamplePool:
+    case Ui2ProjectContentCursor::Samples:
+    case Ui2ProjectContentCursor::Instruments:
+    case Ui2ProjectContentCursor::Render:
+    case Ui2ProjectContentCursor::Count:
+      return {};
+    }
+    return {};
   }
 
 private:

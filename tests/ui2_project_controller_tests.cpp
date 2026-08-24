@@ -146,3 +146,27 @@ TEST_CASE("UI2 Project controller sanitizes initial fixed-size state") {
   CHECK(std::is_trivially_copyable_v<Ui2ProjectController>);
   CHECK(sizeof(Ui2ProjectController) <= 4U);
 }
+
+TEST_CASE("UI2 Project value rows preserve legacy fine and coarse steps") {
+  Ui2ProjectController controller;
+  controller.MoveDown();
+  CHECK(controller.Adjust(TrackerAction::Right).type ==
+        Ui2ProjectCommandType::AdjustTempo);
+  CHECK(controller.Adjust(TrackerAction::Right).value == 1);
+  CHECK(controller.Adjust(TrackerAction::Up).value == 10);
+
+  controller.MoveDown();
+  CHECK(controller.Adjust(TrackerAction::Left).type ==
+        Ui2ProjectCommandType::AdjustTranspose);
+  CHECK(controller.Adjust(TrackerAction::Down).value == -12);
+
+  controller.MoveDown();
+  CHECK(controller.Adjust(TrackerAction::Up).type ==
+        Ui2ProjectCommandType::AdjustScale);
+  CHECK(controller.Adjust(TrackerAction::Up).value == 10);
+
+  controller.MoveDown();
+  CHECK(controller.Adjust(TrackerAction::Down).type ==
+        Ui2ProjectCommandType::AdjustRoot);
+  CHECK(controller.Adjust(TrackerAction::Down).value == -1);
+}
