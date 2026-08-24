@@ -104,8 +104,8 @@ test('Operator fixed WASD, JK, and XC controls reach C++ and preserve Node START
   await expect(page.getByRole('button', { name: 'SELECT', exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'POWER', exact: true })).toHaveCount(0)
 
-  for (const [key, action] of [['w', 3], ['a', 0], ['s', 1], ['d', 2], ['j', 6], ['k', 5]]) {
-    const control = page.locator(`[data-action="${({ w:'up', a:'left', s:'down', d:'right', j:'enter', k:'edit' })[key]}"]`)
+  for (const [key, action] of [['w', 3], ['a', 0], ['s', 1], ['d', 2], ['j', 5], ['k', 6]]) {
+    const control = page.locator(`[data-action="${({ w:'up', a:'left', s:'down', d:'right', j:'edit', k:'enter' })[key]}"]`)
     await page.keyboard.down(key)
     await expect.poll(() => actionMask(canvas)).toBe(String(1 << action))
     await expect(control).toHaveAttribute('aria-pressed', 'true')
@@ -136,9 +136,9 @@ test('Operator fixed WASD, JK, and XC controls reach C++ and preserve Node START
 
   await page.keyboard.down('x')
   await expect.poll(() => actionMask(canvas)).toBe(String(1 << 4))
-  await page.keyboard.down('j')
+  await page.keyboard.down('k')
   await expect.poll(() => actionMask(canvas)).toBe(String((1 << 4) | (1 << 6)))
-  await page.keyboard.up('j')
+  await page.keyboard.up('k')
   await expect.poll(() => actionMask(canvas)).toBe(String(1 << 4))
   await page.keyboard.up('x')
   await expect.poll(() => actionMask(canvas)).toBe('0')
@@ -158,9 +158,9 @@ test('Operator fixed WASD, JK, and XC controls reach C++ and preserve Node START
   await page.keyboard.down('x')
   await page.keyboard.down('c')
   await expect.poll(() => actionMask(canvas)).toBe(String((1 << 4) | (1 << 8)))
-  await page.keyboard.down('k')
+  await page.keyboard.down('j')
   await expect.poll(() => actionMask(canvas)).toBe(String((1 << 4) | (1 << 5)))
-  await page.keyboard.up('k')
+  await page.keyboard.up('j')
   await expect.poll(() => actionMask(canvas)).toBe(String(1 << 4))
   await page.keyboard.up('c')
   await expect.poll(() => actionMask(canvas)).toBe(String(1 << 4))

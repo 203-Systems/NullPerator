@@ -16,6 +16,8 @@ namespace ui2 {
 // metrics here prevents one tracker page from silently packing its 16 rows
 // more tightly than the others.
 struct UiTrackerGridMetrics {
+  // All tracker pages anchor hexadecimal row labels to this exact column.
+  static constexpr std::int16_t kRowLabelX = 7;
   static constexpr std::int16_t kHeaderTextY = 38;
   // Two visible pixels separate the 5x7 header glyphs from row 00.
   static constexpr std::int16_t kFirstRowTextY = 48;

@@ -45,6 +45,7 @@ public:
 
   void ProcessExpose();
   void ProcessQuit();
+  void SetUi2DisplayOwnership(bool ownsDisplay);
   bool HasPresentedFrame() const;
   static const std::uint8_t *CaptureFrameRgba();
   static const std::uint32_t *FrameSnapshotSequence();
@@ -54,6 +55,9 @@ public:
           std::span<const ui2::DirtyStrip> strips) override;
 
 private:
+  using RgbaFrame =
+      std::array<std::uint8_t, CanvasWidth * CanvasHeight * 4>;
+
   static SDL_Rect TransformRect(const GUIRect &rect);
   static std::uint32_t ClampColor(const GUIColor &color);
   void FillRect(const SDL_Rect &rect, std::uint32_t color);
@@ -62,7 +66,7 @@ private:
                  bool inverted);
   bool InitializePresenter();
   void DestroyPresenter();
-  bool PresentFrame();
+  bool PresentFrame(const RgbaFrame &frame);
   static bool CommitUi2Frame(void *context);
 
   SDL_Window *window_ = nullptr;
@@ -72,7 +76,8 @@ private:
   unsigned int vertexBuffer_ = 0;
   int positionLocation_ = -1;
   int textureLocation_ = -1;
-  std::array<std::uint8_t, CanvasWidth * CanvasHeight * 4> frame_{};
+  RgbaFrame frame_{};
+  RgbaFrame ui2Frame_{};
   WasmUiPresenter ui2Presenter_;
   std::recursive_mutex mutex_;
   std::uint32_t currentColor_ = 0xADADADFFu;
@@ -80,6 +85,7 @@ private:
   SDL_Rect dirtyRect_{0, 0, 0, 0};
   bool dirty_ = false;
   bool hasPresentedFrame_ = false;
+  bool ui2OwnsDisplay_ = false;
 
   static WasmGUIWindowImp *instance_;
 };

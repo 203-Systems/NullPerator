@@ -214,20 +214,21 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data,
   UiSceneBuilder<256, 1024> builder(scene.content);
   for (std::uint8_t track = 0; track < 8; ++track) {
     std::array<char, 3> label{'T', static_cast<char>('1' + track), 0};
-    builder.Text(label.data(), kTrackX[track], 38,
+    builder.Text(label.data(), kTrackX[track],
+                 UiTrackerGridMetrics::kHeaderTextY,
                  track == data.editTrack ? UiColorToken::TextColored
                                          : UiColorToken::TextDim);
   }
 
-  const std::int16_t editY = UiTrackerGridMetrics::RowTextY(data.editRow);
-  builder.Fill({5, editY, 213, 10}, UiColorToken::CursorRow);
+  builder.RowHighlight({5, UiTrackerGridMetrics::RowBoundsY(data.editRow),
+                        213, UiTrackerGridMetrics::kRowHeight});
   const RectI16 cursorRect = ResolvedCursorRect(data);
   const RectI16 targetRect = CursorTargetRect(data.editTrack, data.editRow);
   for (std::uint8_t row = 0; row < 16; ++row) {
     const std::int16_t y = UiTrackerGridMetrics::RowTextY(row);
     const auto rowLabel =
         HexByte(static_cast<std::uint8_t>(data.rowOffset + row));
-    builder.Text(rowLabel.data(), 7, y,
+    builder.Text(rowLabel.data(), UiTrackerGridMetrics::kRowLabelX, y,
                  row == data.editRow ? UiColorToken::TextColored
                                      : UiColorToken::DerivedTextFaint);
     for (std::uint8_t track = 0; track < 8; ++track) {

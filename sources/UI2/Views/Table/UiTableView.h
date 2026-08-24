@@ -28,6 +28,7 @@ struct UiTableViewData {
   std::uint8_t rowOffset = 0;
   std::uint8_t editRow = 0;
   std::uint8_t editColumn = 0;
+  std::uint8_t editDigit = 3;
   std::int8_t selectedTrack = 0;
   UiTableHeader activeHeader = UiTableHeader::None;
   RectI16 cursorVisualRect{};
@@ -39,6 +40,7 @@ struct UiTableViewData {
   bool cursorInkVisible = true;
   bool topMetaInkVisible = true;
   bool bottomTrackInkVisible = true;
+  bool enterDigitFocus = false;
   bool numberFocus = false;
   UiPowerState power = UiPowerState::BatteryNormal;
 };

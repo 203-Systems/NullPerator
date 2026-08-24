@@ -11,6 +11,48 @@ const createRuntimeWithoutMidi = (options) => createRuntime({
 })
 
 describe('WASM runtime lifecycle', () => {
+  it('synchronizes the requested UI2 renderer after C++ becomes ready', async () => {
+    const synchronize = vi.fn()
+    let state = 1
+    const runtime = createRuntimeManager({
+      crossOriginIsolated: true,
+      createModule: async () => ({
+        getState: () => state,
+        getBuildMetadataJson: () => '{}',
+        ui2: { synchronize },
+        requestShutdown: async () => { state = 4 },
+        terminate: async () => {},
+      }),
+    })
+
+    await runtime.start()
+
+    expect(synchronize).toHaveBeenCalledOnce()
+    await runtime.stop()
+  })
+
+  it('boots an acceptance preview into the requested native C++ view', async () => {
+    vi.stubGlobal('location', { search: '?ui2=1&views-test=1&view=chain' })
+    const request = vi.fn()
+    let state = 1
+    const runtime = createRuntimeManager({
+      crossOriginIsolated: true,
+      createModule: async () => ({
+        getState: () => state,
+        getBuildMetadataJson: () => '{}',
+        viewDiagnostics: { names: ['Song', 'Chain'], request },
+        requestShutdown: async () => { state = 4 },
+        terminate: async () => {},
+      }),
+    })
+
+    await runtime.start()
+
+    expect(request).toHaveBeenCalledWith(1)
+    await runtime.stop()
+    vi.unstubAllGlobals()
+  })
+
   it('flushes persistent storage after C++ stop and before terminating workers', async () => {
     const order = []
     let state = 1

@@ -57,11 +57,11 @@
   <div class="face-buttons">
     <button type="button" class="face enter" class:pressed={heldActions.includes('enter')} aria-label="ENTER" aria-pressed={heldActions.includes('enter')} data-action="enter" {disabled}
       onpointerdown={(e)=>press(e,'enter')} onpointerup={(e)=>release(e,'enter',true)} onpointercancel={cancel} onlostpointercapture={(e)=>release(e,'enter')} onclick={(e)=>activate(e,'enter')}>
-      <span class="switch"><span>↵</span></span><kbd>J</kbd><em>ENTER</em>
+      <span class="switch"><span>↵</span></span><kbd>K</kbd><em>ENTER</em>
     </button>
     <button type="button" class="face edit" class:pressed={heldActions.includes('edit')} aria-label="EDIT" aria-pressed={heldActions.includes('edit')} data-action="edit" {disabled}
       onpointerdown={(e)=>press(e,'edit')} onpointerup={(e)=>release(e,'edit',true)} onpointercancel={cancel} onlostpointercapture={(e)=>release(e,'edit')} onclick={(e)=>activate(e,'edit')}>
-      <span class="switch"><span>✦</span></span><kbd>K</kbd><em>EDIT</em>
+      <span class="switch"><span>✦</span></span><kbd>J</kbd><em>EDIT</em>
     </button>
   </div>
 

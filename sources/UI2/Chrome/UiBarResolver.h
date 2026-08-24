@@ -15,8 +15,8 @@ struct UiBarInputs {
   UiBottomBarModel pageDefault;
   const UiBottomBarModel *cursorContext = nullptr;
   const UiBottomBarModel *criticalModal = nullptr;
-  const UiTrackNotesModel *enterHeldTracks = nullptr;
-  bool enterHeldNumber = false;
+  const UiTrackNotesModel *editHeldTracks = nullptr;
+  bool editHeldNumber = false;
   bool navHeld = false;
   UiNavTarget navTarget = UiNavTarget::Song;
 };

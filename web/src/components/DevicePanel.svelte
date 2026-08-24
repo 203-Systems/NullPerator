@@ -85,8 +85,8 @@
 
   <footer class="keyboard-helper" aria-label="Keyboard shortcuts">
     <div><span class="key-cluster"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>Move</span></div>
-    <div><kbd>J</kbd><span>Enter</span></div>
-    <div><kbd>K</kbd><span>Edit</span></div>
+    <div><kbd>J</kbd><span>Edit</span></div>
+    <div><kbd>K</kbd><span>Enter</span></div>
     <div><kbd>X</kbd><span>Alt / chord</span></div>
     <div><kbd>C</kbd><span>Tap Play · Hold Nav</span></div>
   </footer>

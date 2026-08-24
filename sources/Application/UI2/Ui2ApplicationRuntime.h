@@ -9,6 +9,7 @@
 #include "UI2/Animation/UiAnimatedRect.h"
 #include "UI2/Render/UiFrameRenderer.h"
 #include "UI2/UiEngine.h"
+#include "UI2/Views/Chain/UiChainView.h"
 #include "UI2/Views/Phrase/UiPhraseView.h"
 #include "UI2/Views/Song/UiSongView.h"
 #include "UI2/Views/Table/UiTableView.h"
@@ -61,7 +62,7 @@ public:
   }
 
 private:
-  enum class RuntimePage : std::uint8_t { None, Song, Phrase, Table };
+  enum class RuntimePage : std::uint8_t { None, Song, Chain, Phrase, Table };
 
   struct SongFrameState {
     std::array<char, 17> name{};
@@ -92,6 +93,31 @@ private:
     bool operator==(const PhraseRowState &) const = default;
   };
 
+  struct ChainFrameState {
+    std::array<char, 3> number{};
+    std::array<char, 6> elapsed{};
+    std::array<std::uint8_t, 16> phrases{};
+    std::array<std::uint8_t, 16> transposes{};
+    std::array<std::array<char, 5>, 8> trackNotes{};
+    std::array<std::uint8_t, 2> vuLevelTop{148, 148};
+    std::uint8_t editRow = 0;
+    std::uint8_t editColumn = 0;
+    std::int8_t selectedTrack = 0;
+    RectI16 cursorVisualRect{};
+    RectI16 topMetaVisualRect{};
+    RectI16 bottomTrackVisualRect{};
+    bool cursorVisualOverride = false;
+    bool topMetaVisualOverride = false;
+    bool bottomTrackVisualOverride = false;
+    bool cursorInkVisible = true;
+    bool topMetaInkVisible = true;
+    bool bottomTrackInkVisible = true;
+    bool numberFocus = false;
+    UiPowerState power = UiPowerState::BatteryNormal;
+
+    bool operator==(const ChainFrameState &) const = default;
+  };
+
   enum class PhraseContext : std::uint8_t { Hidden, Instrument, Fx };
 
   struct PhraseFrameState {
@@ -104,6 +130,7 @@ private:
     std::array<char, 33> contextDescription{};
     std::uint8_t editRow = 0;
     std::uint8_t editColumn = 0;
+    std::uint8_t editDigit = 3;
     std::int8_t selectedTrack = 0;
     UiPhraseHeader activeHeader = UiPhraseHeader::None;
     PhraseContext context = PhraseContext::Hidden;
@@ -116,6 +143,7 @@ private:
     bool cursorInkVisible = true;
     bool topMetaInkVisible = true;
     bool bottomTrackInkVisible = true;
+    bool enterDigitFocus = false;
     bool numberFocus = false;
     UiPowerState power = UiPowerState::BatteryNormal;
 
@@ -142,6 +170,7 @@ private:
     std::array<char, 33> contextDescription{};
     std::uint8_t editRow = 0;
     std::uint8_t editColumn = 0;
+    std::uint8_t editDigit = 3;
     std::int8_t selectedTrack = 0;
     UiTableHeader activeHeader = UiTableHeader::None;
     PhraseContext context = PhraseContext::Hidden;
@@ -154,6 +183,7 @@ private:
     bool cursorInkVisible = true;
     bool topMetaInkVisible = true;
     bool bottomTrackInkVisible = true;
+    bool enterDigitFocus = false;
     bool numberFocus = false;
     UiPowerState power = UiPowerState::BatteryNormal;
 
@@ -161,13 +191,17 @@ private:
   };
 
   static UiSongViewData ViewDataFor(const SongFrameState &state);
+  static UiChainViewData ViewDataFor(const ChainFrameState &state);
   static UiPhraseViewData ViewDataFor(const PhraseFrameState &state);
   static UiTableViewData ViewDataFor(const TableFrameState &state);
   void CaptureSong(AppWindow &window, SongFrameState &state);
+  void CaptureChain(AppWindow &window, ChainFrameState &state);
   void CapturePhrase(AppWindow &window, PhraseFrameState &state);
   void CaptureTable(AppWindow &window, TableFrameState &state);
   [[nodiscard]] PresentResult PresentSong(AppWindow &window,
                                           std::uint32_t nowMs);
+  [[nodiscard]] PresentResult PresentChain(AppWindow &window,
+                                           std::uint32_t nowMs);
   [[nodiscard]] PresentResult PresentPhrase(AppWindow &window,
                                             std::uint32_t nowMs);
   [[nodiscard]] PresentResult PresentTable(AppWindow &window,
@@ -178,6 +212,8 @@ private:
   UiFrameScene scene_{};
   SongFrameState previousSong_{};
   SongFrameState currentSong_{};
+  ChainFrameState previousChain_{};
+  ChainFrameState currentChain_{};
   PhraseFrameState previousPhrase_{};
   PhraseFrameState currentPhrase_{};
   TableFrameState previousTable_{};

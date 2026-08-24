@@ -38,6 +38,11 @@ public:
     Accept(commands_.FillSelection(bounds, Index(fill), coverage));
   }
 
+  void RowHighlight(RectI16 bounds) {
+    RoundedFill(bounds, UiColorToken::CursorRow,
+                UiColorToken::DerivedCursorRowCorner);
+  }
+
   void VerticalPaletteRamp(RectI16 bounds, PaletteIndex firstColor) {
     Accept(commands_.FillVerticalPaletteRamp(bounds, firstColor));
   }

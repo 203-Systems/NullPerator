@@ -16,8 +16,8 @@ describe('tracker input state', () => {
     expect(DEFAULT_KEY_MAP.down.bindings).toContainEqual(['KeyS'])
     expect(DEFAULT_KEY_MAP.right.bindings).toContainEqual(['KeyD'])
     expect(DEFAULT_KEY_MAP.up.bindings).toContainEqual(['KeyW'])
-    expect(DEFAULT_KEY_MAP.enter.bindings).toEqual([['KeyJ']])
-    expect(DEFAULT_KEY_MAP.edit.bindings).toEqual([['KeyK']])
+    expect(DEFAULT_KEY_MAP.enter.bindings).toEqual([['KeyK']])
+    expect(DEFAULT_KEY_MAP.edit.bindings).toEqual([['KeyJ']])
     expect(DEFAULT_KEY_MAP.alt.bindings).toEqual([['KeyX']])
     expect(DEFAULT_KEY_MAP.play.bindings).toEqual([])
     expect(DEFAULT_KEY_MAP.nav.bindings).toEqual([])
@@ -55,12 +55,12 @@ describe('tracker input state', () => {
     const detach = input.attach({ target, document })
     const stalePageHide = listeners.get('pagehide')
 
-    input.press('enter', 'keyboard:KeyJ')
+    input.press('enter', 'keyboard:KeyK')
     stalePageHide()
     expect(input.getHeldActions()).toEqual([])
     expect(bridge.releaseAllActions).toHaveBeenCalledTimes(1)
 
-    input.press('edit', 'keyboard:KeyK')
+    input.press('edit', 'keyboard:KeyJ')
     detach()
     expect(listeners.has('pagehide')).toBe(false)
     expect(bridge.releaseAllActions).toHaveBeenCalledTimes(2)
@@ -88,7 +88,7 @@ describe('tracker input state', () => {
     const unsubscribe = input.subscribe((held) => snapshots.push([...held]))
 
     input.handleKeyDown({ code: 'KeyW', repeat: false, preventDefault() {} })
-    input.handleKeyDown({ code: 'KeyJ', repeat: false, preventDefault() {} })
+    input.handleKeyDown({ code: 'KeyK', repeat: false, preventDefault() {} })
     input.handleKeyUp({ code: 'KeyW', preventDefault() {} })
     input.releaseAll()
     unsubscribe()
@@ -221,9 +221,9 @@ describe('tracker input state', () => {
     const bridge = createBridge()
     const input = createInputStore(bridge)
     const altDown = { code: 'KeyX', repeat: false, preventDefault: vi.fn() }
-    const enterDown = { code: 'KeyJ', repeat: false, preventDefault: vi.fn() }
-    const repeatedEnter = { code: 'KeyJ', repeat: true, preventDefault: vi.fn() }
-    const enterUp = { code: 'KeyJ', preventDefault: vi.fn() }
+    const enterDown = { code: 'KeyK', repeat: false, preventDefault: vi.fn() }
+    const repeatedEnter = { code: 'KeyK', repeat: true, preventDefault: vi.fn() }
+    const enterUp = { code: 'KeyK', preventDefault: vi.fn() }
     const unrelated = { code: 'KeyZ', repeat: false, preventDefault: vi.fn() }
 
     input.handleKeyDown(altDown)

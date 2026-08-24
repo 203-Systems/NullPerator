@@ -174,6 +174,22 @@ export function createRuntimeManager(options = {}) {
     try {
       module = await createModule()
       await waitForCppReady(module)
+      // The application pthread initializes after the Emscripten factory
+      // resolves and resets adapter flags to their native defaults. Reapply
+      // the requested renderer only after C++ has acknowledged Ready.
+      module.ui2?.synchronize?.()
+      // Acceptance previews may boot directly into a native C++ view. The
+      // request still travels through WasmEventManager on the application
+      // pthread; this is only a deterministic WebUI entry point, not a mock.
+      const previewView = new URLSearchParams(
+        globalThis.location?.search ?? '',
+      ).get('view')?.trim().toLowerCase()
+      if (previewView && module.viewDiagnostics) {
+        const viewIndex = module.viewDiagnostics.names.findIndex(
+          (name) => name.toLowerCase().replaceAll(' ', '-') === previewView,
+        )
+        if (viewIndex >= 0) module.viewDiagnostics.request(viewIndex)
+      }
       const buildMetadata = module.getBuildMetadataJson
         ? JSON.parse(module.getBuildMetadataJson())
         : null

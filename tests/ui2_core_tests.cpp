@@ -426,8 +426,8 @@ TEST_CASE("UI2 bar resolver applies the documented central priority") {
       .pageDefault = page,
       .cursorContext = &cursor,
       .criticalModal = &modal,
-      .enterHeldTracks = &tracks,
-      .enterHeldNumber = true,
+      .editHeldTracks = &tracks,
+      .editHeldNumber = true,
       .navHeld = true,
   };
   const ui2::UiResolvedChrome resolved = ui2::UiBarResolver::Resolve(inputs);
@@ -884,7 +884,7 @@ TEST_CASE("UI2 Phrase dual cursor animation renders exact visual overrides") {
             {.title = "PHRASE", .meta = "3A", .metaX = 85}) ==
         ui2::RectI16{83, 9, 15, 9});
   CHECK(ui2::UiChromeRenderer::BottomTrackTargetRect(2) ==
-        ui2::RectI16{68, 211, 15, 9});
+        ui2::RectI16{68, 212, 15, 9});
 }
 
 TEST_CASE("UI2 Phrase idle is clean and a cursor move stays locally dirty") {
@@ -1243,10 +1243,12 @@ TEST_CASE("UI2 Groove idle is clean and a row move stays locally dirty") {
 }
 
 TEST_CASE("UI2 Chain keeps stereo VU channels physically separate") {
+  CHECK(ui2::UiChainView::RowDamageRect(0) ==
+        ui2::RectI16{5, 47, 213, 11});
   CHECK(ui2::UiChainView::VuDamageRect(0) ==
-        ui2::RectI16{219, 50, 7, 148});
+        ui2::RectI16{219, 47, 7, 153});
   CHECK(ui2::UiChainView::VuDamageRect(1) ==
-        ui2::RectI16{228, 50, 7, 148});
+        ui2::RectI16{228, 47, 7, 153});
 }
 
 TEST_CASE("UI2 Chain delta rendering is pixel-identical to a full redraw") {
@@ -1308,7 +1310,7 @@ TEST_CASE("UI2 Chain idle is clean and a cursor move stays locally dirty") {
     transferredPixels +=
         static_cast<std::uint32_t>(strip.width) * strip.height;
   }
-  CHECK(transferredPixels < 4'000);
+  CHECK(transferredPixels < 8'000);
 }
 
 TEST_CASE("UI2 Project resolves cursor-specific bottom bars") {

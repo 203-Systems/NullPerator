@@ -30,6 +30,9 @@ public:
 
   int RowForUi2() const { return row_; }
   int ColumnForUi2() const { return col_; }
+  int ParameterDigitForUi2() const {
+    return static_cast<int>(cmdEditField_.DigitForUi2());
+  }
 
 protected:
   void processNormalButtonMask(unsigned short mask);

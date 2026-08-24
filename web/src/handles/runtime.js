@@ -14,6 +14,11 @@ import { settingsStore } from '../stores/settings.js'
 const defaultModuleUrl = '/wasm/picotracker.js'
 const frameRgbaLength = 240 * 240 * 4
 
+// Keep public Emscripten artifacts outside Vite's module transform pipeline.
+// Vite 8 rejects dynamic imports from public/ even when the URL is supplied at
+// runtime; invoking the native importer indirectly leaves the request as-is.
+const importPublicModule = Function('url', 'return import(url)')
+
 function toMessage(module, pointer) {
   if (!pointer) return ''
   return module.UTF8ToString(pointer)
@@ -135,7 +140,7 @@ export async function createRuntime(options = {}) {
     throw new Error('Injected one-shot WASM load failure')
   }
 
-  const factory = moduleFactory ?? (await import(/* @vite-ignore */ moduleUrl)).default
+  const factory = moduleFactory ?? (await importPublicModule(moduleUrl)).default
   const workbenchSettings = options.settings ?? settingsStore.snapshot()
   const logs = options.logs ?? createLogStore(options.logOptions)
   const exposeLogsForTesting = new URLSearchParams(globalThis.location?.search ?? '').get('logs-test') === '1'
@@ -271,6 +276,10 @@ export async function createRuntime(options = {}) {
     ui2Enabled = Boolean(enabled)
     module._PicoTracker_Wasm_SetUi2Enabled(ui2Enabled)
   }
+  const synchronizeUi2Enabled = () => setUi2Enabled(ui2Enabled)
+  const getUi2Enabled = () => typeof module._PicoTracker_Wasm_GetUi2Enabled === 'function'
+    ? Boolean(module._PicoTracker_Wasm_GetUi2Enabled())
+    : ui2Enabled
   if (ui2Requested) setUi2Enabled(true)
   let logsHandle = null
   let storageTestHandle = null
@@ -425,7 +434,8 @@ export async function createRuntime(options = {}) {
     trace,
     ui2: Object.freeze({
       setEnabled: setUi2Enabled,
-      isEnabled: () => ui2Enabled,
+      isEnabled: getUi2Enabled,
+      synchronize: synchronizeUi2Enabled,
     }),
     viewDiagnostics: viewsTestHandle,
     getBuildMetadataJson() {

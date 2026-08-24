@@ -130,10 +130,13 @@ void WasmEventManager::PumpFrame() {
   if (!ui2Runtime_.has_value()) {
     ui2Runtime_.emplace(*wasmWindow);
   }
+  const auto ui2ShouldOwnDisplay = [&]() {
+    return ui2Enabled_.load(std::memory_order_acquire) &&
+           ui2Runtime_->Supports(*static_cast<AppWindow *>(window));
+  };
   const auto presentUi2 = [&]() {
-    const bool supported =
-        ui2Enabled_.load(std::memory_order_acquire) &&
-        ui2Runtime_->Supports(*static_cast<AppWindow *>(window));
+    const bool supported = ui2ShouldOwnDisplay();
+    wasmWindow->SetUi2DisplayOwnership(supported);
     if (!supported) {
       ui2Active_ = false;
       return;
@@ -144,11 +147,15 @@ void WasmEventManager::PumpFrame() {
         ui2Runtime_->Present(*static_cast<AppWindow *>(window));
     if (result == ui2::PresentResult::Failed) {
       ui2Enabled_.store(false, std::memory_order_release);
+      wasmWindow->SetUi2DisplayOwnership(false);
       ui2Active_ = false;
     } else if (result == ui2::PresentResult::Presented) {
       ui2Active_ = true;
     }
   };
+  // Establish ownership before legacy event/tick drawing. UI2 pages keep the
+  // legacy View alive for behavior, but only the UI2 presenter may publish.
+  wasmWindow->SetUi2DisplayOwnership(ui2ShouldOwnDisplay());
   if (booting_) {
     // The browser main and application pthread both get a scheduling turn
     // before the first expensive UI clock tick. This avoids startup races in

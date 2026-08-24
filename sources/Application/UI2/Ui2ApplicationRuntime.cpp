@@ -24,6 +24,7 @@ namespace ui2 {
 namespace {
 
 constexpr std::uint16_t kSongCursorDurationMs = 120;
+constexpr std::uint16_t kChainCursorDurationMs = 120;
 constexpr std::uint16_t kPhraseCursorDurationMs = 120;
 
 UiPowerState CurrentPowerState(bool playing) {
@@ -163,6 +164,7 @@ void CaptureHelpLegend(FourCC command, std::array<char, LeadSize> &lead,
 
 bool UiApplicationRuntime::Supports(const AppWindow &window) const {
   return (window.IsCurrentViewForUi2(VT_SONG) ||
+          window.IsCurrentViewForUi2(VT_CHAIN) ||
           window.IsCurrentViewForUi2(VT_PHRASE) ||
           window.IsCurrentViewForUi2(VT_TABLE) ||
           window.IsCurrentViewForUi2(VT_TABLE2)) &&
@@ -177,8 +179,11 @@ PresentResult UiApplicationRuntime::Present(AppWindow &window) {
   const RuntimePage page =
       window.IsCurrentViewForUi2(VT_SONG)
           ? RuntimePage::Song
-          : (window.IsCurrentViewForUi2(VT_PHRASE) ? RuntimePage::Phrase
-                                                   : RuntimePage::Table);
+          : (window.IsCurrentViewForUi2(VT_CHAIN)
+                 ? RuntimePage::Chain
+                 : (window.IsCurrentViewForUi2(VT_PHRASE)
+                        ? RuntimePage::Phrase
+                        : RuntimePage::Table));
   if (page != activePage_) {
     previousValid_ = false;
     cursorTargetValid_ = false;
@@ -189,6 +194,8 @@ PresentResult UiApplicationRuntime::Present(AppWindow &window) {
   switch (page) {
   case RuntimePage::Song:
     return PresentSong(window, nowMs);
+  case RuntimePage::Chain:
+    return PresentChain(window, nowMs);
   case RuntimePage::Phrase:
     return PresentPhrase(window, nowMs);
   case RuntimePage::Table:
@@ -263,6 +270,115 @@ UiSongViewData UiApplicationRuntime::ViewDataFor(const SongFrameState &state) {
   return data;
 }
 
+UiChainViewData
+UiApplicationRuntime::ViewDataFor(const ChainFrameState &state) {
+  UiChainViewData data;
+  data.number = state.number.data();
+  data.elapsed = state.elapsed.data();
+  data.phrases = state.phrases;
+  data.transposes = state.transposes;
+  for (std::size_t track = 0; track < state.trackNotes.size(); ++track) {
+    data.trackNotes[track] = state.trackNotes[track].data();
+  }
+  data.vuLevelTop = state.vuLevelTop;
+  data.editRow = state.editRow;
+  data.editColumn = state.editColumn;
+  data.selectedTrack = state.selectedTrack;
+  data.cursorVisualRect = state.cursorVisualRect;
+  data.topMetaVisualRect = state.topMetaVisualRect;
+  data.bottomTrackVisualRect = state.bottomTrackVisualRect;
+  data.cursorVisualOverride = state.cursorVisualOverride;
+  data.topMetaVisualOverride = state.topMetaVisualOverride;
+  data.bottomTrackVisualOverride = state.bottomTrackVisualOverride;
+  data.cursorInkVisible = state.cursorInkVisible;
+  data.topMetaInkVisible = state.topMetaInkVisible;
+  data.bottomTrackInkVisible = state.bottomTrackInkVisible;
+  data.numberFocus = state.numberFocus;
+  data.power = state.power;
+  return data;
+}
+
+PresentResult UiApplicationRuntime::PresentChain(AppWindow &window,
+                                                 std::uint32_t nowMs) {
+  CaptureChain(window, currentChain_);
+  if (currentChain_.numberFocus) {
+    const UiTopBarModel top{.title = "CHAIN",
+                            .meta = currentChain_.number.data()};
+    const RectI16 topTarget = UiChromeRenderer::MetaTargetRect(top);
+    const RectI16 bottomTarget =
+        UiChromeRenderer::BottomTrackTargetRect(currentChain_.selectedTrack);
+    if (!topMetaTargetValid_) {
+      cursors_.Snap(UiCursorRole::TopMeta, topTarget, nowMs);
+      topMetaTarget_ = topTarget;
+      topMetaTargetValid_ = true;
+    } else if (topTarget != topMetaTarget_) {
+      cursors_.Retarget(UiCursorRole::TopMeta, topTarget, nowMs,
+                        kChainCursorDurationMs);
+      topMetaTarget_ = topTarget;
+    }
+    if (!bottomTrackTargetValid_) {
+      cursors_.Snap(UiCursorRole::BottomTrack, bottomTarget, nowMs);
+      bottomTrackTarget_ = bottomTarget;
+      bottomTrackTargetValid_ = true;
+    } else if (bottomTarget != bottomTrackTarget_) {
+      cursors_.Retarget(UiCursorRole::BottomTrack, bottomTarget, nowMs,
+                        kChainCursorDurationMs);
+      bottomTrackTarget_ = bottomTarget;
+    }
+    currentChain_.topMetaVisualRect =
+        cursors_.Sample(UiCursorRole::TopMeta, nowMs);
+    currentChain_.bottomTrackVisualRect =
+        cursors_.Sample(UiCursorRole::BottomTrack, nowMs);
+    currentChain_.topMetaVisualOverride = true;
+    currentChain_.bottomTrackVisualOverride = true;
+    currentChain_.topMetaInkVisible =
+        !cursors_.Active(UiCursorRole::TopMeta, nowMs);
+    currentChain_.bottomTrackInkVisible =
+        !cursors_.Active(UiCursorRole::BottomTrack, nowMs);
+  } else {
+    topMetaTargetValid_ = false;
+    bottomTrackTargetValid_ = false;
+    const UiChainViewData capture = ViewDataFor(currentChain_);
+    const RectI16 target = UiChainView::CursorTargetRect(capture);
+    if (!cursorTargetValid_) {
+      cursors_.Snap(UiCursorRole::Content, target, nowMs);
+      cursorTarget_ = target;
+      cursorTargetValid_ = true;
+    } else if (target != cursorTarget_) {
+      cursors_.Retarget(UiCursorRole::Content, target, nowMs,
+                        kChainCursorDurationMs);
+      cursorTarget_ = target;
+    }
+    currentChain_.cursorVisualRect =
+        cursors_.Sample(UiCursorRole::Content, nowMs);
+    currentChain_.cursorVisualOverride = true;
+    currentChain_.cursorInkVisible =
+        !cursors_.Active(UiCursorRole::Content, nowMs);
+  }
+
+  if (previousValid_ && currentChain_ == previousChain_) {
+    return engine_.PresentDirty();
+  }
+  const UiChainViewData data = ViewDataFor(currentChain_);
+  if (UiChainView::Build(data, engine_.Palette(), scene_) !=
+      UiBuildStatus::Built) {
+    return PresentResult::Failed;
+  }
+  if (!previousValid_) {
+    UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
+  } else {
+    const UiChainViewData previousData = ViewDataFor(previousChain_);
+    UiChainView::RenderDelta(previousData, data, scene_, engine_.Surface(),
+                             engine_.Palette());
+  }
+  const PresentResult result = engine_.PresentDirty();
+  if (result == PresentResult::Presented) {
+    previousChain_ = currentChain_;
+    previousValid_ = true;
+  }
+  return result;
+}
+
 UiPhraseViewData
 UiApplicationRuntime::ViewDataFor(const PhraseFrameState &state) {
   UiPhraseViewData data;
@@ -315,6 +431,7 @@ UiApplicationRuntime::ViewDataFor(const PhraseFrameState &state) {
   }
   data.editRow = state.editRow;
   data.editColumn = state.editColumn;
+  data.editDigit = state.editDigit;
   data.selectedTrack = state.selectedTrack;
   data.activeHeader = state.activeHeader;
   data.cursorVisualRect = state.cursorVisualRect;
@@ -326,6 +443,7 @@ UiApplicationRuntime::ViewDataFor(const PhraseFrameState &state) {
   data.cursorInkVisible = state.cursorInkVisible;
   data.topMetaInkVisible = state.topMetaInkVisible;
   data.bottomTrackInkVisible = state.bottomTrackInkVisible;
+  data.enterDigitFocus = state.enterDigitFocus;
   data.numberFocus = state.numberFocus;
   data.power = state.power;
   return data;
@@ -453,6 +571,7 @@ UiApplicationRuntime::ViewDataFor(const TableFrameState &state) {
   }
   data.editRow = state.editRow;
   data.editColumn = state.editColumn;
+  data.editDigit = state.editDigit;
   data.selectedTrack = state.selectedTrack;
   data.activeHeader = state.activeHeader;
   data.cursorVisualRect = state.cursorVisualRect;
@@ -464,6 +583,7 @@ UiApplicationRuntime::ViewDataFor(const TableFrameState &state) {
   data.cursorInkVisible = state.cursorInkVisible;
   data.topMetaInkVisible = state.topMetaInkVisible;
   data.bottomTrackInkVisible = state.bottomTrackInkVisible;
+  data.enterDigitFocus = state.enterDigitFocus;
   data.numberFocus = state.numberFocus;
   data.power = state.power;
   return data;
@@ -624,6 +744,48 @@ void UiApplicationRuntime::CaptureSong(AppWindow &window,
       VuTopFromAmplitude(static_cast<std::uint16_t>(level & 0xFFFFU));
 }
 
+void UiApplicationRuntime::CaptureChain(AppWindow &window,
+                                        ChainFrameState &state) {
+  state = ChainFrameState{};
+  ViewData &viewData = window.ViewDataForUi2();
+  Player *player = Player::GetInstance();
+
+  const std::uint8_t chainNumber = static_cast<std::uint8_t>(
+      std::clamp(viewData.currentChain_, 0, CHAIN_COUNT - 1));
+  hex2char(chainNumber, state.number.data());
+  state.editRow = static_cast<std::uint8_t>(
+      std::clamp(viewData.chainRow_, 0, PHRASES_PER_CHAIN - 1));
+  state.editColumn =
+      static_cast<std::uint8_t>(std::clamp(viewData.chainCol_, 0, 1));
+  state.selectedTrack = static_cast<std::int8_t>(
+      std::clamp(viewData.songX_, 0, SONG_CHANNEL_COUNT - 1));
+  state.numberFocus = (window.ButtonMaskForUi2() & EPBM_EDIT) != 0U;
+
+  const int base = static_cast<int>(chainNumber) * PHRASES_PER_CHAIN;
+  for (std::uint8_t row = 0; row < PHRASES_PER_CHAIN; ++row) {
+    state.phrases[row] = viewData.song_->chain_.data_[base + row];
+    state.transposes[row] = viewData.song_->chain_.transpose_[base + row];
+  }
+
+  const bool playing = player != nullptr && player->IsRunning();
+  state.power = CurrentPowerState(playing);
+  FormatElapsed(player, playing, state.elapsed);
+  CaptureTrackNotes(player, playing, state.trackNotes);
+
+  const std::uint32_t level =
+      playing ? static_cast<std::uint32_t>(player->GetMasterLevel()) : 0U;
+  const auto scaleVu = [](std::uint8_t songTop) {
+    return static_cast<std::uint8_t>(
+        (static_cast<std::uint16_t>(songTop) * UiChainView::kMeterHeight +
+         76U) /
+        153U);
+  };
+  state.vuLevelTop[0] =
+      scaleVu(VuTopFromAmplitude(static_cast<std::uint16_t>(level >> 16U)));
+  state.vuLevelTop[1] = scaleVu(
+      VuTopFromAmplitude(static_cast<std::uint16_t>(level & 0xFFFFU)));
+}
+
 void UiApplicationRuntime::CapturePhrase(AppWindow &window,
                                          PhraseFrameState &state) {
   state = PhraseFrameState{};
@@ -641,7 +803,18 @@ void UiApplicationRuntime::CapturePhrase(AppWindow &window,
       static_cast<std::uint8_t>(std::clamp(window.PhraseColumnForUi2(), 0, 5));
   state.selectedTrack = static_cast<std::int8_t>(
       std::clamp(viewData.songX_, 0, SONG_CHANNEL_COUNT - 1));
-  state.numberFocus = (window.ButtonMaskForUi2() & EPBM_ENTER) != 0U;
+  const unsigned short phraseMask = window.ButtonMaskForUi2();
+  state.numberFocus = (phraseMask & EPBM_EDIT) != 0U;
+  state.editDigit = static_cast<std::uint8_t>(
+      std::clamp(window.PhraseParameterDigitForUi2(), 0, 3));
+  state.enterDigitFocus = !state.numberFocus &&
+                          (phraseMask & EPBM_ENTER) != 0U &&
+                          (state.editColumn == 3U || state.editColumn == 5U);
+  state.activeHeader =
+      state.editColumn == 0U   ? UiPhraseHeader::Note
+      : state.editColumn == 1U ? UiPhraseHeader::Instrument
+      : state.editColumn <= 3U ? UiPhraseHeader::Fx1
+                               : UiPhraseHeader::Fx2;
 
   const int base = static_cast<int>(phraseNumber) * STEPS_PER_PHRASE;
   for (std::uint8_t row = 0; row < STEPS_PER_PHRASE; ++row) {
@@ -691,8 +864,6 @@ void UiApplicationRuntime::CapturePhrase(AppWindow &window,
                     "INSTRUMENT %02X", instrumentId);
       const auto name = instruments[instrumentId]->GetDisplayName();
       CopyUpper(state.contextTail, name.c_str());
-      state.activeHeader = state.editColumn == 0U ? UiPhraseHeader::Note
-                                                  : UiPhraseHeader::Instrument;
     }
   } else {
     const bool firstFx = state.editColumn <= 3U;
@@ -700,7 +871,6 @@ void UiApplicationRuntime::CapturePhrase(AppWindow &window,
         firstFx ? phrase.cmd1_[selectedIndex] : phrase.cmd2_[selectedIndex];
     if (command != FourCC::InstrumentCommandNone) {
       state.context = PhraseContext::Fx;
-      state.activeHeader = firstFx ? UiPhraseHeader::Fx1 : UiPhraseHeader::Fx2;
       CaptureHelpLegend(command, state.contextLead, state.contextTail,
                         state.contextDescription);
     }
@@ -724,7 +894,17 @@ void UiApplicationRuntime::CaptureTable(AppWindow &window,
       std::clamp(window.TableColumnForUi2(), 0, TABLE_COLUMNS * 2 - 1));
   state.selectedTrack = static_cast<std::int8_t>(
       std::clamp(viewData.songX_, 0, SONG_CHANNEL_COUNT - 1));
-  state.numberFocus = (window.ButtonMaskForUi2() & EPBM_ENTER) != 0U;
+  const unsigned short tableMask = window.ButtonMaskForUi2();
+  state.numberFocus = (tableMask & EPBM_EDIT) != 0U;
+  state.editDigit = static_cast<std::uint8_t>(
+      std::clamp(window.TableParameterDigitForUi2(), 0, 3));
+  state.enterDigitFocus = !state.numberFocus &&
+                          (tableMask & EPBM_ENTER) != 0U &&
+                          (state.editColumn & 1U) != 0U;
+  const std::uint8_t group = state.editColumn / 2U;
+  state.activeHeader = group == 0U   ? UiTableHeader::Fx1
+                       : group == 1U ? UiTableHeader::Fx2
+                                     : UiTableHeader::Fx3;
 
   for (std::uint8_t row = 0; row < TABLE_STEPS; ++row) {
     FormatCommand(table.cmd1_[row], state.rows[row].fx1);
@@ -740,15 +920,11 @@ void UiApplicationRuntime::CaptureTable(AppWindow &window,
   FormatElapsed(player, playing, state.elapsed);
   CaptureTrackNotes(player, playing, state.trackNotes);
 
-  const std::uint8_t group = state.editColumn / 2U;
   const FourCC command = group == 0U   ? table.cmd1_[state.editRow]
                          : group == 1U ? table.cmd2_[state.editRow]
                                        : table.cmd3_[state.editRow];
   if (command != FourCC::InstrumentCommandNone) {
     state.context = PhraseContext::Fx;
-    state.activeHeader = group == 0U   ? UiTableHeader::Fx1
-                         : group == 1U ? UiTableHeader::Fx2
-                                       : UiTableHeader::Fx3;
     CaptureHelpLegend(command, state.contextLead, state.contextTail,
                       state.contextDescription);
   }

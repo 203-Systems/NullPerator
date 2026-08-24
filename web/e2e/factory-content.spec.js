@@ -233,13 +233,13 @@ test('real oneCycAc project imports, trims, plays, and survives reload plus runt
   await chord(page, 'c', 'w')
   await tap(page, 's')
   await tap(page, 's')
-  await chord(page, 'j', 'd')
+  await chord(page, 'k', 'd')
   await expectModel(page, { tempo: 164 })
   await tap(page, 'w')
   await tap(page, 'd')
 
   const beforeSave = await storageSnapshot(page)
-  await tap(page, 'j')
+  await tap(page, 'k')
 
   await expect.poll(
     async () => (await storageSnapshot(page)).mutationGeneration,
@@ -269,11 +269,11 @@ test('real oneCycAc project imports, trims, plays, and survives reload plus runt
   // renamed, known-good factory WAV. Preview is meaningful only when the
   // AudioWorklet gate is enabled; the default gate declares audio unavailable.
   for (let index = 0; index < 5; index += 1) await tap(page, 's')
-  await tap(page, 'j')
-  await chord(page, 'c', 'k')
+  await tap(page, 'k')
+  await chord(page, 'c', 'j')
   await tap(page, 's') // skip /data/samples' parent-directory entry
   if (workletMode) await tap(page, 'c')
-  await tap(page, 'j')
+  await tap(page, 'k')
   await expectModel(page, { sampleCount: 2 })
   await expect.poll(
     () => page.evaluate(
@@ -291,21 +291,21 @@ test('real oneCycAc project imports, trims, plays, and survives reload plus runt
 
   // Return to the project pool, choose the newly imported (sorted-last) WAV,
   // and enter SampleEditor through its real Edit action.
-  await chord(page, 'c', 'k')
+  await chord(page, 'c', 'j')
   await tap(page, 's')
-  await tap(page, 'j')
+  await tap(page, 'k')
 
   // name -> start; ENTER+UP changes the start frame from 0 to 1. Move through
   // end and the default Trim operation to Apply, then select Yes in the modal.
   await tap(page, 's')
-  await chord(page, 'j', 'w')
+  await chord(page, 'k', 'w')
   await tap(page, 's')
   await tap(page, 's')
   await tap(page, 'd')
   const beforeApply = await storageSnapshot(page)
-  await tap(page, 'j')
+  await tap(page, 'k')
   await tap(page, 'a')
-  await tap(page, 'j')
+  await tap(page, 'k')
   await expect.poll(
     async () => (await storageSnapshot(page)).mutationGeneration,
     { timeout: 10_000, message: 'SampleEditor Apply did not mutate its working WAV' },
@@ -318,7 +318,7 @@ test('real oneCycAc project imports, trims, plays, and survives reload plus runt
   await tap(page, 's')
   await tap(page, 'a')
   const beforeSampleSave = await storageSnapshot(page)
-  await tap(page, 'j')
+  await tap(page, 'k')
   await expect.poll(
     async () => (await storageSnapshot(page)).mutationGeneration,
     { timeout: 10_000, message: 'SampleEditor Save did not report its filesystem mutation' },
@@ -343,7 +343,7 @@ test('real oneCycAc project imports, trims, plays, and survives reload plus runt
   for (let index = 0; index < 5; index += 1) await tap(page, 'w')
   await tap(page, 'd')
   const beforeImportedProjectSave = await storageSnapshot(page)
-  await tap(page, 'j')
+  await tap(page, 'k')
   await expect.poll(
     async () => (await storageSnapshot(page)).mutationGeneration,
     { timeout: 10_000, message: 'Imported project Save did not report a mutation' },
@@ -373,7 +373,7 @@ test('real oneCycAc project imports, trims, plays, and survives reload plus runt
   // mode, preview the edited WAV once more; a bad header would open a modal.
   await chord(page, 'c', 'w')
   for (let index = 0; index < 6; index += 1) await tap(page, 's')
-  await tap(page, 'j')
+  await tap(page, 'k')
   await tap(page, 's')
   if (workletMode) await tap(page, 'c')
 

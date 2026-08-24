@@ -166,7 +166,7 @@ RectI16 UiChromeRenderer::BottomTrackTargetRect(std::int8_t track) {
   if (track < 0 || track >= 8)
     return {};
   const std::int16_t center = static_cast<std::int16_t>(15 + track * 30);
-  return {static_cast<std::int16_t>(center - 7), 211, 15, 9};
+  return {static_cast<std::int16_t>(center - 7), 212, 15, 9};
 }
 
 UiBuildStatus UiChromeRenderer::BuildBottom(const UiBottomBarModel &model,

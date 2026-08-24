@@ -10,12 +10,17 @@
 #include "UI2/Text/UiFont5x7.h"
 #include "UI2/Views/Tracker/UiTrackerGridMetrics.h"
 
+#include <algorithm>
 #include <array>
 
 namespace ui2 {
 namespace {
 
 constexpr std::array<std::int16_t, 6> kColumnX{28, 61, 88, 115, 148, 175};
+
+bool IsParameterColumn(std::uint8_t column) {
+  return column == 3U || column == 5U;
+}
 
 std::array<char, 3> HexByte(std::uint8_t value) {
   constexpr char digits[] = "0123456789ABCDEF";
@@ -89,6 +94,15 @@ RectI16 UiPhraseView::CursorTargetRect(const UiPhraseViewData &data) {
   if (data.editRow >= 16U || data.editColumn >= kColumnX.size())
     return {};
   const std::string_view value = data.rows[data.editRow][data.editColumn];
+  if (data.enterDigitFocus && IsParameterColumn(data.editColumn) &&
+      !value.empty()) {
+    const std::uint8_t digit = std::min<std::uint8_t>(
+        data.editDigit, static_cast<std::uint8_t>(value.size() - 1U));
+    return {static_cast<std::int16_t>(
+                kColumnX[data.editColumn] + digit * UiFont5x7::kAdvance - 2),
+            UiTrackerGridMetrics::RowBoundsY(data.editRow),
+            static_cast<std::int16_t>(UiFont5x7::kGlyphWidth + 4), 9};
+  }
   return {static_cast<std::int16_t>(kColumnX[data.editColumn] - 2),
           UiTrackerGridMetrics::RowBoundsY(data.editRow),
           static_cast<std::int16_t>(UiFont5x7::TextWidth(value.size()) + 4), 9};
@@ -201,18 +215,18 @@ UiBuildStatus UiPhraseView::Build(const UiPhraseViewData &data, UiPalette &,
       .metaInkVisible = data.topMetaInkVisible,
   };
   const UiBottomBarModel pageBottom{.kind = UiBottomBarKind::Hidden};
-  UiTrackNotesModel enterTracks;
-  enterTracks.notes = data.trackNotes;
-  enterTracks.selectedTrack = data.selectedTrack;
-  enterTracks.trackSelectionRect = data.bottomTrackVisualRect;
-  enterTracks.trackSelectionOverride = data.bottomTrackVisualOverride;
-  enterTracks.trackInkVisible = data.bottomTrackInkVisible;
+  UiTrackNotesModel editTracks;
+  editTracks.notes = data.trackNotes;
+  editTracks.selectedTrack = data.selectedTrack;
+  editTracks.trackSelectionRect = data.bottomTrackVisualRect;
+  editTracks.trackSelectionOverride = data.bottomTrackVisualOverride;
+  editTracks.trackInkVisible = data.bottomTrackInkVisible;
   const UiBarInputs barInputs{
       .pageTop = pageTop,
       .pageDefault = pageBottom,
       .cursorContext = data.numberFocus ? nullptr : &data.cursorBottom,
-      .enterHeldTracks = &enterTracks,
-      .enterHeldNumber = data.numberFocus,
+      .editHeldTracks = &editTracks,
+      .editHeldNumber = data.numberFocus,
   };
   const UiResolvedChrome chrome = UiBarResolver::Resolve(barInputs);
   const UiBuildStatus topStatus =
@@ -236,16 +250,15 @@ UiBuildStatus UiPhraseView::Build(const UiPhraseViewData &data, UiPalette &,
                HeaderColor(data.activeHeader, UiPhraseHeader::Fx2));
 
   if (!data.numberFocus && data.editRow < 16U) {
-    builder.Fill(
-        {5, UiTrackerGridMetrics::RowTextY(data.editRow), 230,
-         UiTrackerGridMetrics::kRowHeight},
-        UiColorToken::CursorRow);
+    builder.RowHighlight(
+        {5, UiTrackerGridMetrics::RowBoundsY(data.editRow), 230,
+         UiTrackerGridMetrics::kRowHeight});
   }
   for (std::uint8_t row = 0; row < 16U; ++row) {
     const std::int16_t y = UiTrackerGridMetrics::RowTextY(row);
     const auto rowLabel =
         HexByte(static_cast<std::uint8_t>(data.rowOffset + row));
-    builder.Text(rowLabel.data(), 7, y,
+    builder.Text(rowLabel.data(), UiTrackerGridMetrics::kRowLabelX, y,
                  !data.numberFocus && row == data.editRow
                      ? UiColorToken::TextColored
                      : UiColorToken::DerivedTextFaint);
@@ -262,10 +275,23 @@ UiBuildStatus UiPhraseView::Build(const UiPhraseViewData &data, UiPalette &,
     builder.Selection(cursor);
     if (data.cursorInkVisible && data.editRow < 16U &&
         data.editColumn < kColumnX.size()) {
-      builder.Text(data.rows[data.editRow][data.editColumn],
-                   kColumnX[data.editColumn],
-                   UiTrackerGridMetrics::RowTextY(data.editRow),
-                   UiColorToken::TextHighlighted);
+      const std::string_view value =
+          data.rows[data.editRow][data.editColumn];
+      if (data.enterDigitFocus && IsParameterColumn(data.editColumn) &&
+          !value.empty()) {
+        const std::uint8_t digit = std::min<std::uint8_t>(
+            data.editDigit, static_cast<std::uint8_t>(value.size() - 1U));
+        builder.Text(value.substr(digit, 1),
+                     static_cast<std::int16_t>(
+                         kColumnX[data.editColumn] +
+                         digit * UiFont5x7::kAdvance),
+                     UiTrackerGridMetrics::RowTextY(data.editRow),
+                     UiColorToken::TextHighlighted);
+      } else {
+        builder.Text(value, kColumnX[data.editColumn],
+                     UiTrackerGridMetrics::RowTextY(data.editRow),
+                     UiColorToken::TextHighlighted);
+      }
     }
   }
 

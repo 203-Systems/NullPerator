@@ -130,12 +130,20 @@ int AppWindow::PhraseColumnForUi2() const {
   return views_ == nullptr ? 0 : views_->phraseView.ColumnForUi2();
 }
 
+int AppWindow::PhraseParameterDigitForUi2() const {
+  return views_ == nullptr ? 0 : views_->phraseView.ParameterDigitForUi2();
+}
+
 int AppWindow::TableRowForUi2() const {
   return views_ == nullptr ? 0 : views_->tableView.RowForUi2();
 }
 
 int AppWindow::TableColumnForUi2() const {
   return views_ == nullptr ? 0 : views_->tableView.ColumnForUi2();
+}
+
+int AppWindow::TableParameterDigitForUi2() const {
+  return views_ == nullptr ? 0 : views_->tableView.ParameterDigitForUi2();
 }
 
 void AppWindow::defineColor(FourCC colorCode, GUIColor &color,

@@ -27,8 +27,8 @@ export const DEFAULT_KEY_MAP = Object.freeze({
   right: entry(ACTIONS.right, ['KeyD'], ['ArrowRight']),
   up: entry(ACTIONS.up, ['KeyW'], ['ArrowUp']),
   alt: entry(ACTIONS.alt, ['KeyX']),
-  edit: entry(ACTIONS.edit, ['KeyK']),
-  enter: entry(ACTIONS.enter, ['KeyJ']),
+  edit: entry(ACTIONS.edit, ['KeyJ']),
+  enter: entry(ACTIONS.enter, ['KeyK']),
   // NAV is not a standalone Node control. START provisionally holds it so
   // chords are ordered correctly, then converts a short standalone tap to
   // PLAY on release. No firmware view assigns an action to NAV by itself.

@@ -42,6 +42,7 @@ enum class UiColorToken : PaletteIndex {
   DerivedTextFaint,
   DerivedVuTrack,
   DerivedVuSafeLow,
+  DerivedCursorRowCorner,
   Count,
 };
 

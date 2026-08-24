@@ -8,12 +8,17 @@
 
 #include "UI2/Render/UiFrameRenderer.h"
 #include "UI2/Render/UiVuGradient.h"
+#include "UI2/Views/Tracker/UiTrackerGridMetrics.h"
 
 #include <algorithm>
 #include <array>
 
 namespace ui2 {
 namespace {
+
+// Chain's PH/TR pair shares Song's first two track anchors so navigation
+// between the pages does not make the content jump horizontally.
+constexpr std::array<std::int16_t, 2> kColumnX{28, 49};
 
 std::array<char, 3> HexByte(std::uint8_t value) {
   constexpr char digits[] = "0123456789ABCDEF";
@@ -24,7 +29,7 @@ RectI16 ResolvedCursorRect(const UiChainViewData &data) {
   if (data.cursorVisualOverride && !data.cursorVisualRect.Empty()) {
     return Intersect(data.cursorVisualRect, RectI16::Screen());
   }
-  return UiChainView::CursorTargetRect(data.editRow);
+  return UiChainView::CursorTargetRect(data);
 }
 
 RectI16 ExpandedCursorDamage(RectI16 rect) {
@@ -39,16 +44,17 @@ RectI16 ExpandedCursorDamage(RectI16 rect) {
 
 } // namespace
 
-RectI16 UiChainView::CursorTargetRect(std::uint8_t row) {
-  if (row >= 16U)
+RectI16 UiChainView::CursorTargetRect(const UiChainViewData &data) {
+  if (data.editRow >= 16U || data.editColumn >= 2U)
     return {};
-  return {31, static_cast<std::int16_t>(48 + row * 9), 15, 9};
+  return {static_cast<std::int16_t>(kColumnX[data.editColumn] - 2),
+          UiTrackerGridMetrics::RowBoundsY(data.editRow), 15, 9};
 }
 
 RectI16 UiChainView::RowDamageRect(std::uint8_t row) {
   if (row >= 16U)
     return {};
-  return {5, static_cast<std::int16_t>(47 + row * 9), 84, 11};
+  return UiTrackerGridMetrics::RowDamage(row, 213);
 }
 
 RectI16 UiChainView::VuDamageRect(std::uint8_t side) {
@@ -63,22 +69,33 @@ void UiChainView::RenderDelta(const UiChainViewData &previous,
                               const UiFrameScene &currentScene,
                               UiIndexedSurface &surface,
                               const UiPalette &palette) {
+  if (previous.numberFocus != current.numberFocus) {
+    UiFrameRenderer::RenderStatic(currentScene, surface, palette);
+    return;
+  }
   const auto render = [&](RectI16 rect) {
     UiFrameRenderer::RenderRegion(currentScene, surface, palette, rect);
   };
-  if (previous.number != current.number)
+  if (previous.number != current.number ||
+      previous.topMetaVisualRect != current.topMetaVisualRect ||
+      previous.topMetaVisualOverride != current.topMetaVisualOverride ||
+      previous.topMetaInkVisible != current.topMetaInkVisible)
     render({56, 0, 40, 34});
-  if (previous.power != current.power)
+  if (previous.power != current.power || previous.elapsed != current.elapsed)
     render({184, 0, 56, 34});
 
-  const RectI16 oldCursor = ResolvedCursorRect(previous);
-  const RectI16 newCursor = ResolvedCursorRect(current);
-  if (oldCursor != newCursor ||
-      previous.cursorInkVisible != current.cursorInkVisible) {
-    render(ExpandedCursorDamage(oldCursor));
-    render(ExpandedCursorDamage(newCursor));
-    render(RowDamageRect(previous.editRow));
-    render(RowDamageRect(current.editRow));
+  if (previous.editColumn != current.editColumn)
+    render({28, 34, 64, 14});
+  if (!current.numberFocus) {
+    const RectI16 oldCursor = ResolvedCursorRect(previous);
+    const RectI16 newCursor = ResolvedCursorRect(current);
+    if (oldCursor != newCursor ||
+        previous.cursorInkVisible != current.cursorInkVisible) {
+      render(ExpandedCursorDamage(oldCursor));
+      render(ExpandedCursorDamage(newCursor));
+      render(RowDamageRect(previous.editRow));
+      render(RowDamageRect(current.editRow));
+    }
   }
   for (std::uint8_t row = 0; row < 16U; ++row) {
     if (previous.phrases[row] != current.phrases[row] ||
@@ -86,10 +103,12 @@ void UiChainView::RenderDelta(const UiChainViewData &previous,
       render(RowDamageRect(row));
     }
   }
-  for (std::uint8_t track = 0; track < 8U; ++track) {
-    if (previous.trackNotes[track] != current.trackNotes[track]) {
-      render({static_cast<std::int16_t>(track * 30), 208, 30, 32});
-    }
+  if (previous.trackNotes != current.trackNotes ||
+      previous.selectedTrack != current.selectedTrack ||
+      previous.bottomTrackVisualRect != current.bottomTrackVisualRect ||
+      previous.bottomTrackVisualOverride != current.bottomTrackVisualOverride ||
+      previous.bottomTrackInkVisible != current.bottomTrackInkVisible) {
+    render({0, 208, 240, 32});
   }
   for (std::uint8_t side = 0; side < 2U; ++side) {
     if (previous.vuLevelTop[side] != current.vuLevelTop[side]) {
@@ -110,15 +129,33 @@ UiBuildStatus UiChainView::Build(const UiChainViewData &data,
   const UiTopBarModel top{
       .title = "CHAIN",
       .meta = data.number,
+      .elapsed = data.elapsed,
       .power = data.power,
+      .metaSelectionRect = data.topMetaVisualRect,
+      .metaSelectionOverride = data.topMetaVisualOverride,
+      .metaInkVisible = data.topMetaInkVisible,
   };
-  const UiBuildStatus topStatus = UiChromeRenderer::BuildTop(top, scene.top);
+  UiBottomBarModel pageBottom{.kind = UiBottomBarKind::TrackNotes};
+  pageBottom.trackNotes.notes = data.trackNotes;
+  UiTrackNotesModel editTracks;
+  editTracks.notes = data.trackNotes;
+  editTracks.selectedTrack = data.selectedTrack;
+  editTracks.trackSelectionRect = data.bottomTrackVisualRect;
+  editTracks.trackSelectionOverride = data.bottomTrackVisualOverride;
+  editTracks.trackInkVisible = data.bottomTrackInkVisible;
+  const UiBarInputs barInputs{
+      .pageTop = top,
+      .pageDefault = pageBottom,
+      .editHeldTracks = &editTracks,
+      .editHeldNumber = data.numberFocus,
+  };
+  const UiResolvedChrome chrome = UiBarResolver::Resolve(barInputs);
+  const UiBuildStatus topStatus =
+      UiChromeRenderer::BuildTop(chrome.top, scene.top);
   if (topStatus != UiBuildStatus::Built)
     return topStatus;
-  UiBottomBarModel bottom{.kind = UiBottomBarKind::TrackNotes};
-  bottom.trackNotes.notes = data.trackNotes;
   const UiBuildStatus bottomStatus =
-      UiChromeRenderer::BuildBottom(bottom, scene.bottom);
+      UiChromeRenderer::BuildBottom(chrome.bottom, scene.bottom);
   if (bottomStatus != UiBuildStatus::Built)
     return bottomStatus;
 
@@ -126,34 +163,51 @@ UiBuildStatus UiChainView::Build(const UiChainViewData &data,
     return UiBuildStatus::CommandOverflow;
   }
   UiSceneBuilder<256, 1024> builder(scene.content);
-  builder.Text("PH", 34, 39, UiColorToken::TextColored);
-  builder.Text("TR", 69, 39, UiColorToken::TextDim);
+  builder.Text("PH", kColumnX[0], UiTrackerGridMetrics::kHeaderTextY,
+               !data.numberFocus && data.editColumn == 0U
+                   ? UiColorToken::TextColored
+                   : UiColorToken::TextDim);
+  builder.Text("TR", kColumnX[1], UiTrackerGridMetrics::kHeaderTextY,
+               !data.numberFocus && data.editColumn == 1U
+                   ? UiColorToken::TextColored
+                   : UiColorToken::TextDim);
   const RectI16 cursor = ResolvedCursorRect(data);
+  if (!data.numberFocus && data.editRow < 16U) {
+    builder.RowHighlight({5, UiTrackerGridMetrics::RowBoundsY(data.editRow),
+                          213, UiTrackerGridMetrics::kRowHeight});
+  }
   for (std::uint8_t row = 0; row < 16U; ++row) {
-    const std::int16_t y = static_cast<std::int16_t>(49 + row * 9);
+    const std::int16_t y = UiTrackerGridMetrics::RowTextY(row);
     const auto rowText = HexByte(row);
-    builder.Text(rowText.data(), 8, y,
-                 row == data.editRow ? UiColorToken::TextColored
-                                     : UiColorToken::DerivedTextFaint);
+    builder.Text(rowText.data(), UiTrackerGridMetrics::kRowLabelX, y,
+                 !data.numberFocus && row == data.editRow
+                     ? UiColorToken::TextColored
+                     : UiColorToken::DerivedTextFaint);
     const auto phrase = HexByte(data.phrases[row]);
     const char *phraseText = data.phrases[row] == 0xFFU ? "--" : phrase.data();
-    builder.Text(phraseText, 33, y,
+    builder.Text(phraseText, kColumnX[0], y,
                  data.phrases[row] == 0xFFU ? UiColorToken::DerivedTextFaint
                                             : UiColorToken::TextNormal);
     const auto transpose = HexByte(data.transposes[row]);
     const char *transposeText =
         data.transposes[row] == 0xFFU ? "--" : transpose.data();
-    builder.Text(transposeText, 68, y,
+    builder.Text(transposeText, kColumnX[1], y,
                  data.transposes[row] == 0xFFU ? UiColorToken::DerivedTextFaint
                                                : UiColorToken::TextDim);
   }
-  builder.Selection(cursor);
-  if (data.cursorInkVisible && data.editRow < 16U) {
-    const auto phrase = HexByte(data.phrases[data.editRow]);
-    const char *display =
-        data.phrases[data.editRow] == 0xFFU ? "--" : phrase.data();
-    builder.Text(display, 33, static_cast<std::int16_t>(49 + data.editRow * 9),
-                 UiColorToken::TextHighlighted);
+  if (!data.numberFocus) {
+    builder.Selection(cursor);
+    if (data.cursorInkVisible && data.editRow < 16U &&
+        data.editColumn < 2U) {
+      const std::uint8_t value = data.editColumn == 0U
+                                     ? data.phrases[data.editRow]
+                                     : data.transposes[data.editRow];
+      const auto text = HexByte(value);
+      const char *display = value == 0xFFU ? "--" : text.data();
+      builder.Text(display, kColumnX[data.editColumn],
+                   UiTrackerGridMetrics::RowTextY(data.editRow),
+                   UiColorToken::TextHighlighted);
+    }
   }
   for (std::uint8_t side = 0; side < 2U; ++side) {
     const RectI16 meter = VuDamageRect(side);

@@ -32,6 +32,9 @@ public:
   // Editing remains owned by PhraseView; UI2 never mutates these fields.
   int RowForUi2() const { return row_; }
   int ColumnForUi2() const { return col_; }
+  int ParameterDigitForUi2() const {
+    return static_cast<int>(cmdEditField_.DigitForUi2());
+  }
 
 protected:
   void updateCursor(int dx, int dy);

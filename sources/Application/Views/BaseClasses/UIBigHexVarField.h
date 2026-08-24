@@ -22,6 +22,9 @@ public:
   virtual ~UIBigHexVarField(){};
   virtual void Draw(GUIWindow &w, int offset = 0);
   virtual void ProcessArrow(unsigned short mask);
+  // Left-to-right digit selected by ENTER+LEFT/RIGHT. UI2 reads this on the
+  // application thread and never mutates the field.
+  unsigned int DigitForUi2() const { return precision_ - position_; }
 
 private:
   unsigned int precision_;

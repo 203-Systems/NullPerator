@@ -91,7 +91,7 @@ unsigned int CompileShader(unsigned int type, const char *source) {
 WasmGUIWindowImp *WasmGUIWindowImp::instance_ = nullptr;
 
 WasmGUIWindowImp::WasmGUIWindowImp(GUICreateWindowParams &params)
-    : ui2Presenter_(frame_.data(), frame_.size(),
+    : ui2Presenter_(ui2Frame_.data(), ui2Frame_.size(),
                     &WasmGUIWindowImp::CommitUi2Frame, this) {
   (void)params;
   SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
@@ -111,6 +111,10 @@ WasmGUIWindowImp::WasmGUIWindowImp(GUICreateWindowParams &params)
   std::fill(frame_.begin(), frame_.end(), 0);
   for (std::size_t i = 3; i < frame_.size(); i += 4) {
     frame_[i] = 0xFF;
+  }
+  std::fill(ui2Frame_.begin(), ui2Frame_.end(), 0);
+  for (std::size_t i = 3; i < ui2Frame_.size(); i += 4) {
+    ui2Frame_[i] = 0xFF;
   }
   dirtyRect_ = {0, 0, CanvasWidth, CanvasHeight};
   dirty_ = true;
@@ -282,11 +286,18 @@ void WasmGUIWindowImp::Invalidate() {
 
 void WasmGUIWindowImp::Flush() {
   std::lock_guard<std::recursive_mutex> lock(mutex_);
+  // The legacy View still runs while UI2 owns the browser display so it can
+  // keep the existing input and model behavior. Its independent framebuffer
+  // stays warm for immediate fallback, but it must not replace the UI2 frame.
+  if (ui2OwnsDisplay_) {
+    InputFrameLatencyTracker::ObserveNoPresentation();
+    return;
+  }
   if (!dirty_ || context_ <= 0) {
     InputFrameLatencyTracker::ObserveNoPresentation();
     return;
   }
-  if (PresentFrame()) {
+  if (PresentFrame(frame_)) {
     // PresentFrame returns true only after explicit WebGL swap control commits
     // successfully. This is the presentation boundary, not DispatchEvent.
     InputFrameLatencyTracker::PresentedFrame();
@@ -335,6 +346,18 @@ void WasmGUIWindowImp::ProcessQuit() {
   _window->DispatchEvent(event);
 }
 
+void WasmGUIWindowImp::SetUi2DisplayOwnership(bool ownsDisplay) {
+  std::lock_guard<std::recursive_mutex> lock(mutex_);
+  if (ui2OwnsDisplay_ == ownsDisplay) return;
+  ui2OwnsDisplay_ = ownsDisplay;
+  if (!ownsDisplay) {
+    // The next legacy Flush uploads the complete warm framebuffer instead of
+    // leaving the last UI2 frame visible on an unsupported page.
+    dirtyRect_ = {0, 0, CanvasWidth, CanvasHeight};
+    dirty_ = true;
+  }
+}
+
 bool WasmGUIWindowImp::HasPresentedFrame() const { return hasPresentedFrame_; }
 
 ui2::PresentResult WasmGUIWindowImp::Present(
@@ -347,12 +370,12 @@ ui2::PresentResult WasmGUIWindowImp::Present(
 bool WasmGUIWindowImp::CommitUi2Frame(void *context) {
   auto *window = static_cast<WasmGUIWindowImp *>(context);
   if (window == nullptr || window->context_ <= 0) return false;
-  if (!window->PresentFrame()) {
+  if (!window->PresentFrame(window->ui2Frame_)) {
     InputFrameLatencyTracker::ObserveNoPresentation();
     return false;
   }
   InputFrameLatencyTracker::PresentedFrame();
-  frameSnapshot.Publish(window->frame_);
+  frameSnapshot.Publish(window->ui2Frame_);
   window->hasPresentedFrame_ = true;
   return true;
 }
@@ -441,7 +464,7 @@ void WasmGUIWindowImp::DestroyPresenter() {
   vertexBuffer_ = 0;
 }
 
-bool WasmGUIWindowImp::PresentFrame() {
+bool WasmGUIWindowImp::PresentFrame(const RgbaFrame &frame) {
   if (emscripten_webgl_make_context_current(context_) != EMSCRIPTEN_RESULT_SUCCESS) {
     return false;
   }
@@ -458,7 +481,7 @@ bool WasmGUIWindowImp::PresentFrame() {
   glActiveTexture(GL_TEXTURE0);
   glBindTexture(GL_TEXTURE_2D, texture_);
   glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, CanvasWidth, CanvasHeight, GL_RGBA,
-                  GL_UNSIGNED_BYTE, frame_.data());
+                  GL_UNSIGNED_BYTE, frame.data());
   glUniform1i(glGetUniformLocation(shaderProgram_, "u_texture"), 0);
   glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
   return glGetError() == GL_NO_ERROR &&

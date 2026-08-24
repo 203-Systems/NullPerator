@@ -204,8 +204,8 @@ UiBuildStatus UiInstrumentView::Build(const UiInstrumentViewData &data,
   const UiBarInputs inputs{
       .pageTop = pageTop,
       .pageDefault = bottom,
-      .enterHeldTracks = &tracks,
-      .enterHeldNumber = data.numberFocus,
+      .editHeldTracks = &tracks,
+      .editHeldNumber = data.numberFocus,
   };
   const UiResolvedChrome chrome = UiBarResolver::Resolve(inputs);
   const UiBuildStatus topStatus =
