@@ -175,9 +175,9 @@ private:
     case Ui2DeviceField::RemoteUi:
     case Ui2DeviceField::Resampler:
     case Ui2DeviceField::LineOut:
-      return true;
     case Ui2DeviceField::Volume:
     case Ui2DeviceField::Brightness:
+      return true;
     case Ui2DeviceField::Theme:
     case Ui2DeviceField::Font:
     case Ui2DeviceField::UpdateFirmware:

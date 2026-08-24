@@ -96,6 +96,33 @@ void FormatVolume(int value, std::array<char, 4> &text) {
   std::snprintf(text.data(), text.size(), "%d", std::clamp(value, 0, 999));
 }
 
+UiDeviceCursor DeviceCursorFor(Ui2DeviceField field) {
+  switch (field) {
+  case Ui2DeviceField::MidiDevice:
+    return UiDeviceCursor::MidiDevice;
+  case Ui2DeviceField::MidiSync:
+    return UiDeviceCursor::MidiSync;
+  case Ui2DeviceField::RemoteUi:
+    return UiDeviceCursor::RemoteUi;
+  case Ui2DeviceField::Resampler:
+    return UiDeviceCursor::Resampler;
+  case Ui2DeviceField::LineOut:
+    return UiDeviceCursor::LineOut;
+  case Ui2DeviceField::Volume:
+    return UiDeviceCursor::Volume;
+  case Ui2DeviceField::Brightness:
+    return UiDeviceCursor::Brightness;
+  case Ui2DeviceField::Theme:
+    return UiDeviceCursor::Theme;
+  case Ui2DeviceField::Font:
+    return UiDeviceCursor::Font;
+  case Ui2DeviceField::UpdateFirmware:
+  case Ui2DeviceField::Count:
+    return UiDeviceCursor::UpdateFirmware;
+  }
+  return UiDeviceCursor::MidiDevice;
+}
+
 template <typename Notes> void CaptureTrackNotes(Notes &notes) {
   Player *player = Player::GetInstance();
   const bool playing = PlayerRunning();
@@ -412,21 +439,105 @@ Ui2NativeApplicationStateSource::CaptureProject(UiProjectFrameState &state) {
 UiApplicationActivityState
 Ui2NativeApplicationStateSource::CaptureDevice(UiDeviceFrameState &state) {
   state = {};
-  CopyText(state.midiDevice, "OFF");
-  CopyText(state.midiSync, "OFF");
-  CopyText(state.remoteUi, "ON");
-  CopyText(state.resampler, "NONE");
-  CopyText(state.volume, "40");
-  CopyText(state.brightness, "FF");
+  constexpr const char *midiDevices[] = {"OFF", "MIDI"};
+  constexpr const char *boolean[] = {"OFF", "ON"};
+  constexpr const char *resamplers[] = {"NONE", "LINEAR", "SINC"};
+  constexpr const char *lineOutputs[] = {"HEADPHONE", "LINE"};
+  const auto currentText = [&](Ui2DeviceField field, const char *const *options,
+                               std::size_t count) {
+    const Ui2SelectorState selector = device_.Selector(field);
+    return options[std::min<std::size_t>(selector.current, count - 1U)];
+  };
+  CopyText(state.midiDevice,
+           currentText(Ui2DeviceField::MidiDevice, midiDevices, 2U));
+  CopyText(state.midiSync,
+           currentText(Ui2DeviceField::MidiSync, boolean, 2U));
+  CopyText(state.remoteUi,
+           currentText(Ui2DeviceField::RemoteUi, boolean, 2U));
+  CopyText(state.resampler,
+           currentText(Ui2DeviceField::Resampler, resamplers, 3U));
+  CopyText(state.lineOut,
+           currentText(Ui2DeviceField::LineOut, lineOutputs, 2U));
+  std::snprintf(state.volume.data(), state.volume.size(), "%u",
+                device_.Selector(Ui2DeviceField::Volume).current);
+  std::snprintf(state.brightness.data(), state.brightness.size(), "%02X",
+                device_.Selector(Ui2DeviceField::Brightness).current);
   CopyText(state.theme, "DEFAULT");
   CopyText(state.font, "REGULAR");
   CopyText(state.version, PROJECT_NUMBER);
+  state.cursor = DeviceCursorFor(device_.SelectedField());
+  state.showLineOut =
+      (device_.VisibleFields() &
+       (std::uint32_t{1}
+        << static_cast<std::uint8_t>(Ui2DeviceField::LineOut))) != 0U;
+  state.showUpdateFirmware =
+      (device_.VisibleFields() &
+       (std::uint32_t{1}
+        << static_cast<std::uint8_t>(Ui2DeviceField::UpdateFirmware))) != 0U;
+  const Ui2DeviceBottomState bottom = device_.Bottom();
+  if (bottom.kind == Ui2DeviceBottomKind::Selector) {
+    const char *const *options = boolean;
+    std::size_t optionCount = 2U;
+    if (device_.SelectedField() == Ui2DeviceField::MidiDevice) {
+      options = midiDevices;
+    } else if (device_.SelectedField() == Ui2DeviceField::Resampler) {
+      options = resamplers;
+      optionCount = 3U;
+    } else if (device_.SelectedField() == Ui2DeviceField::LineOut) {
+      options = lineOutputs;
+    }
+    if (device_.SelectedField() == Ui2DeviceField::Volume ||
+        device_.SelectedField() == Ui2DeviceField::Brightness) {
+      constexpr std::uint16_t visible = 5U;
+      const std::uint16_t maximum = static_cast<std::uint16_t>(bottom.count - 1U);
+      const std::uint16_t start = static_cast<std::uint16_t>(
+          std::min<std::uint16_t>(bottom.current > 2U ? bottom.current - 2U : 0U,
+                                  maximum >= visible - 1U
+                                      ? maximum - (visible - 1U)
+                                      : 0U));
+      state.selectorCount = static_cast<std::uint8_t>(
+          std::min<std::uint16_t>(visible, bottom.count));
+      state.selectorCurrent = static_cast<std::uint8_t>(bottom.current - start);
+      for (std::uint8_t index = 0; index < state.selectorCount; ++index) {
+        if (device_.SelectedField() == Ui2DeviceField::Brightness)
+          std::snprintf(state.selectorOptions[index].data(),
+                        state.selectorOptions[index].size(), "%02X",
+                        start + index);
+        else
+          std::snprintf(state.selectorOptions[index].data(),
+                        state.selectorOptions[index].size(), "%u",
+                        start + index);
+      }
+      optionCount = 0U;
+    } else {
+      state.selectorCount = static_cast<std::uint8_t>(optionCount);
+      state.selectorCurrent = static_cast<std::uint8_t>(
+          std::min<std::size_t>(bottom.current, optionCount - 1U));
+    }
+    state.selectorWrap = bottom.wrap;
+    for (std::size_t index = 0; index < optionCount; ++index)
+      CopyText(state.selectorOptions[index], options[index]);
+  }
+  const UiApplicationBatteryState battery = ReadBattery();
+  state.batteryPercent = battery.percentage;
+  state.batteryPercentValid = battery.available;
   return {.active = PlayerRunning()};
 }
 
 UiApplicationActivityState
 Ui2NativeApplicationStateSource::CaptureTheme(UiThemeFrameState &state) {
   state = {};
+  state.view.name = {'D', 'E', 'F', 'A', 'U', 'L', 'T', '\0'};
+  state.view.selectedColor = theme_.SelectedColor();
+  state.view.nameAction = static_cast<std::uint8_t>(theme_.NameAction());
+  return {.active = PlayerRunning()};
+}
+
+UiApplicationActivityState
+Ui2NativeApplicationStateSource::CaptureFont(UiFontFrameState &state) {
+  state = {};
+  const char *name = "REGULAR 5X7";
+  std::snprintf(state.font.data(), state.font.size(), "%s", name);
   return {.active = PlayerRunning()};
 }
 

@@ -7,6 +7,8 @@
 #pragma once
 
 #include "Application/UI2/Controllers/Ui2GrooveController.h"
+#include "Application/UI2/Controllers/Ui2DeviceController.h"
+#include "Application/UI2/Controllers/Ui2ThemeController.h"
 #include "Application/UI2/Controllers/Ui2ProjectController.h"
 #include "Application/UI2/Controllers/Ui2TrackerControllerHub.h"
 #include "Application/UI2/Ui2ApplicationStateSource.h"
@@ -24,9 +26,11 @@ public:
   Ui2NativeApplicationStateSource(TrackerApplicationSession &session,
                                   Ui2TrackerCommandExecutor &tracker,
                                   Ui2ProjectController &project,
-                                  Ui2GrooveController &groove)
+                                  Ui2GrooveController &groove,
+                                  Ui2DeviceController &device,
+                                  Ui2ThemeController &theme)
       : session_(session), tracker_(tracker), project_(project),
-        groove_(groove) {}
+        groove_(groove), device_(device), theme_(theme) {}
 
   void SetActivePage(UiApplicationPage page) { activePage_ = page; }
 
@@ -57,6 +61,8 @@ public:
   [[nodiscard]] UiApplicationActivityState
   CaptureTheme(UiThemeFrameState &state) override;
   [[nodiscard]] UiApplicationActivityState
+  CaptureFont(UiFontFrameState &state) override;
+  [[nodiscard]] UiApplicationActivityState
   CaptureBrowser(UiBrowserFrameState &state) override;
   [[nodiscard]] UiApplicationActivityState
   CaptureGroove(UiGrooveFrameState &state) override;
@@ -74,6 +80,8 @@ private:
   Ui2TrackerCommandExecutor &tracker_;
   Ui2ProjectController &project_;
   Ui2GrooveController &groove_;
+  Ui2DeviceController &device_;
+  Ui2ThemeController &theme_;
   UiApplicationPage activePage_ = UiApplicationPage::Song;
 };
 

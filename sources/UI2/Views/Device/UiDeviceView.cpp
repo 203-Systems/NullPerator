@@ -185,9 +185,9 @@ bool CursorUsesSelector(UiDeviceCursor cursor) {
   case UiDeviceCursor::LineOut:
   case UiDeviceCursor::RemoteUi:
   case UiDeviceCursor::Resampler:
-    return true;
   case UiDeviceCursor::Volume:
   case UiDeviceCursor::Brightness:
+    return true;
   case UiDeviceCursor::Theme:
   case UiDeviceCursor::Font:
   case UiDeviceCursor::UpdateFirmware:

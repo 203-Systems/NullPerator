@@ -24,6 +24,7 @@
 #include "UI2/Views/Song/UiSongView.h"
 #include "UI2/Views/Table/UiTableView.h"
 #include "UI2/Views/Theme/UiThemeView.h"
+#include "UI2/Views/Font/UiFontView.h"
 
 #include <array>
 #include <cstdint>
@@ -126,6 +127,7 @@ private:
   using DeviceFrameState = UiDeviceFrameState;
   using BrowserFrameState = UiBrowserFrameState;
   using ThemeFrameState = UiThemeFrameState;
+  using FontFrameState = UiFontFrameState;
   using RecordFrameState = UiRecordFrameState;
   using SampleEditorFrameState = UiSampleEditorFrameState;
   using SampleSlicesFrameState = UiSampleSlicesFrameState;
@@ -165,6 +167,8 @@ private:
                 std::is_trivially_destructible_v<BrowserFrameState>);
   static_assert(std::is_trivially_copyable_v<ThemeFrameState> &&
                 std::is_trivially_destructible_v<ThemeFrameState>);
+  static_assert(std::is_trivially_copyable_v<FontFrameState> &&
+                std::is_trivially_destructible_v<FontFrameState>);
   static_assert(std::is_trivially_copyable_v<RecordFrameState> &&
                 std::is_trivially_destructible_v<RecordFrameState>);
   static_assert(std::is_trivially_copyable_v<SampleEditorFrameState> &&
@@ -186,6 +190,7 @@ private:
     FramePair<ProjectFrameState> project;
     FramePair<DeviceFrameState> device;
     FramePair<ThemeFrameState> theme;
+    FramePair<FontFrameState> font;
     FramePair<BrowserFrameState> browser;
     FramePair<GrooveFrameState> groove;
     FramePair<MixerFrameState> mixer;
@@ -209,6 +214,7 @@ private:
   static UiProjectViewData ViewDataFor(const ProjectFrameState &state);
   static UiDeviceViewData ViewDataFor(const DeviceFrameState &state);
   static UiThemeViewData ViewDataFor(const ThemeFrameState &state);
+  static UiFontViewData ViewDataFor(const FontFrameState &state);
   static UiBrowserViewData ViewDataFor(const BrowserFrameState &state);
   static UiGrooveViewData ViewDataFor(const GrooveFrameState &state);
   static UiMixerViewData ViewDataFor(const MixerFrameState &state);
@@ -246,6 +252,8 @@ private:
                                             std::uint32_t nowMs);
   [[nodiscard]] PresentResult PresentTheme(IUiApplicationStateSource &source,
                                            std::uint32_t nowMs);
+  [[nodiscard]] PresentResult PresentFont(IUiApplicationStateSource &source,
+                                          std::uint32_t nowMs);
   [[nodiscard]] PresentResult PresentBrowser(IUiApplicationStateSource &source,
                                              std::uint32_t nowMs);
   [[nodiscard]] PresentResult PresentGroove(IUiApplicationStateSource &source,

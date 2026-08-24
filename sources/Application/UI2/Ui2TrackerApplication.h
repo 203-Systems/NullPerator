@@ -10,11 +10,16 @@
 #include "Application/Session/TrackerApplicationSession.h"
 #include "Application/UI2/Controllers/Ui2ControllerPrimitives.h"
 #include "Application/UI2/Controllers/Ui2GrooveController.h"
+#include "Application/UI2/Controllers/Ui2DeviceController.h"
+#include "Application/UI2/Controllers/Ui2ThemeController.h"
+#include "Application/UI2/Controllers/Ui2FontController.h"
 #include "Application/UI2/Controllers/Ui2ProjectController.h"
 #include "Application/UI2/Controllers/Ui2TrackerControllerHub.h"
 #include "Application/UI2/Ui2ApplicationRuntime.h"
 #include "Application/UI2/Ui2NativeApplicationStateSource.h"
 #include "Application/UI2/Ui2TrackerSessionModelPort.h"
+
+#include <array>
 
 namespace ui2 {
 
@@ -43,6 +48,11 @@ public:
 private:
   void HandleProject(TrackerAction action, bool pressed);
   void HandleGroove(TrackerAction action, bool pressed);
+  void HandleDevice(TrackerAction action, bool pressed);
+  void ExecuteDevice(Ui2DeviceCommand command);
+  void HandleTheme(TrackerAction action, bool pressed);
+  void ExecuteTheme(Ui2ThemeCommand command);
+  void HandleFont(TrackerAction action, bool pressed);
   void ExecuteProject(Ui2ProjectCommand command);
   void ExecuteGroove(Ui2GrooveCommand command);
   void SynchronizeGridPage();
@@ -52,11 +62,17 @@ private:
   Ui2TrackerCommandExecutor tracker_;
   Ui2ProjectController project_{};
   Ui2GrooveController groove_{};
+  Ui2DeviceController device_{};
+  Ui2ThemeController theme_{};
+  Ui2FontController font_{};
   Ui2ControllerInputState projectInput_{};
   Ui2NativeApplicationStateSource source_;
   UiApplicationRuntime runtime_;
   UiApplicationPage activePage_ = UiApplicationPage::Song;
   bool initialized_ = false;
+  std::array<UiApplicationPage,
+             static_cast<std::size_t>(TrackerAction::Count)>
+      pressOwners_{};
 };
 
 } // namespace ui2

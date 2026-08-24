@@ -20,6 +20,7 @@
 #include "UI2/Views/Project/UiProjectView.h"
 #include "UI2/Views/Table/UiTableView.h"
 #include "UI2/Views/Theme/UiThemeView.h"
+#include "UI2/Views/Font/UiFontView.h"
 
 #include <array>
 #include <cstdint>
@@ -39,6 +40,7 @@ enum class UiApplicationPage : std::uint8_t {
   Project,
   Device,
   Theme,
+  Font,
   Browser,
   Groove,
   Mixer,
@@ -324,6 +326,8 @@ struct UiThemeFrameState {
   bool operator==(const UiThemeFrameState &) const = default;
 };
 
+using UiFontFrameState = UiFontViewState;
+
 struct UiRecordFrameState {
   RecordViewUi2Snapshot snapshot{};
   RectI16 cursorVisualRect{};
@@ -369,6 +373,11 @@ public:
   CaptureDevice(UiDeviceFrameState &state) = 0;
   [[nodiscard]] virtual UiApplicationActivityState
   CaptureTheme(UiThemeFrameState &state) = 0;
+  [[nodiscard]] virtual UiApplicationActivityState
+  CaptureFont(UiFontFrameState &state) {
+    state = {};
+    return {};
+  }
   [[nodiscard]] virtual UiApplicationActivityState
   CaptureBrowser(UiBrowserFrameState &state) = 0;
   [[nodiscard]] virtual UiApplicationActivityState

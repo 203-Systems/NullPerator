@@ -48,6 +48,7 @@ Ui2TrackerPage TrackerPageFor(UiApplicationPage page) {
   case UiApplicationPage::None:
   case UiApplicationPage::Device:
   case UiApplicationPage::Theme:
+  case UiApplicationPage::Font:
   case UiApplicationPage::Browser:
   case UiApplicationPage::SampleEditor:
   case UiApplicationPage::SampleSlices:
@@ -60,7 +61,8 @@ Ui2TrackerPage TrackerPageFor(UiApplicationPage page) {
 
 Ui2TrackerApplication::Ui2TrackerApplication(IUiPresenter &presenter)
     : session_(UNNAMED_PROJECT_NAME), modelPort_(session_),
-      tracker_(modelPort_), source_(session_, tracker_, project_, groove_),
+      tracker_(modelPort_),
+      source_(session_, tracker_, project_, groove_, device_, theme_),
       runtime_(presenter) {}
 
 bool Ui2TrackerApplication::Init() {
@@ -98,6 +100,18 @@ bool Ui2TrackerApplication::Init() {
   }
 
   initialized_ = true;
+  device_.SetSelector(Ui2DeviceField::MidiDevice, {2U, 0U, false});
+  device_.SetSelector(Ui2DeviceField::MidiSync, {2U, 0U, false});
+  device_.SetSelector(Ui2DeviceField::RemoteUi, {2U, 1U, false});
+  device_.SetSelector(Ui2DeviceField::Resampler, {3U, 0U, true});
+  device_.SetSelector(Ui2DeviceField::LineOut, {2U, 0U, false});
+  device_.SetSelector(Ui2DeviceField::Volume, {101U, 40U, false});
+  device_.SetSelector(Ui2DeviceField::Brightness, {256U, 255U, false});
+  device_.SetVisibleFields(
+      Ui2DeviceController::AllFieldsMask &
+      ~(std::uint32_t{1} << static_cast<std::uint8_t>(Ui2DeviceField::LineOut)) &
+      ~(std::uint32_t{1}
+        << static_cast<std::uint8_t>(Ui2DeviceField::UpdateFirmware)));
   ActivatePage(UiApplicationPage::Song);
   return true;
 }
@@ -107,7 +121,20 @@ void Ui2TrackerApplication::DispatchTrackerAction(TrackerAction action,
   if (!initialized_ || action >= TrackerAction::Count)
     return;
 
-  switch (activePage_) {
+  const std::size_t actionIndex = static_cast<std::size_t>(action);
+  UiApplicationPage owner = activePage_;
+  if (pressed) {
+    if (pressOwners_[actionIndex] == UiApplicationPage::None)
+      pressOwners_[actionIndex] = activePage_;
+    owner = pressOwners_[actionIndex];
+  } else {
+    owner = pressOwners_[actionIndex] == UiApplicationPage::None
+                ? activePage_
+                : pressOwners_[actionIndex];
+    pressOwners_[actionIndex] = UiApplicationPage::None;
+  }
+
+  switch (owner) {
   case UiApplicationPage::Song:
   case UiApplicationPage::Chain:
   case UiApplicationPage::Phrase:
@@ -122,20 +149,24 @@ void Ui2TrackerApplication::DispatchTrackerAction(TrackerAction action,
     HandleGroove(action, pressed);
     break;
   case UiApplicationPage::Device:
-    if (pressed && action == TrackerAction::Down)
-      ActivatePage(UiApplicationPage::Project);
+    HandleDevice(action, pressed);
     break;
   case UiApplicationPage::Mixer:
     if (pressed && action == TrackerAction::Up)
       ActivatePage(UiApplicationPage::Song);
     break;
   case UiApplicationPage::Instrument:
-  case UiApplicationPage::Theme:
   case UiApplicationPage::Browser:
   case UiApplicationPage::SampleEditor:
   case UiApplicationPage::SampleSlices:
   case UiApplicationPage::Record:
   case UiApplicationPage::None:
+    break;
+  case UiApplicationPage::Theme:
+    HandleTheme(action, pressed);
+    break;
+  case UiApplicationPage::Font:
+    HandleFont(action, pressed);
     break;
   }
 }
@@ -213,6 +244,61 @@ void Ui2TrackerApplication::HandleProject(TrackerAction action,
 
 void Ui2TrackerApplication::HandleGroove(TrackerAction action, bool pressed) {
   ExecuteGroove(groove_.Handle(action, pressed));
+}
+
+void Ui2TrackerApplication::HandleDevice(TrackerAction action, bool pressed) {
+  ExecuteDevice(device_.Handle(action, pressed));
+  if (pressed && action == TrackerAction::Down &&
+      (device_.HeldMask() & TrackerActionBit(TrackerAction::Nav)) != 0U)
+    ActivatePage(UiApplicationPage::Project);
+}
+
+void Ui2TrackerApplication::ExecuteDevice(Ui2DeviceCommand command) {
+  switch (command.type) {
+  case Ui2DeviceCommandType::BrowseTheme:
+    ActivatePage(UiApplicationPage::Theme);
+    break;
+  case Ui2DeviceCommandType::BrowseFont:
+    ActivatePage(UiApplicationPage::Font);
+    break;
+  case Ui2DeviceCommandType::UpdateFirmware:
+  case Ui2DeviceCommandType::SetSelector:
+  case Ui2DeviceCommandType::None:
+    break;
+  }
+}
+
+void Ui2TrackerApplication::HandleFont(TrackerAction action, bool pressed) {
+  const Ui2FontCommand command = font_.Handle(action, pressed);
+  if (pressed && action == TrackerAction::Left &&
+      (font_.HeldMask() & TrackerActionBit(TrackerAction::Nav)) != 0U) {
+    ActivatePage(UiApplicationPage::Device);
+    return;
+  }
+  if (command.type == Ui2FontCommandType::BrowseFont)
+    ActivatePage(UiApplicationPage::Browser);
+}
+
+void Ui2TrackerApplication::HandleTheme(TrackerAction action, bool pressed) {
+  const Ui2ThemeCommand command = theme_.Handle(action, pressed);
+  if (pressed && action == TrackerAction::Left &&
+      (theme_.HeldMask() & TrackerActionBit(TrackerAction::Nav)) != 0U) {
+    ActivatePage(UiApplicationPage::Device);
+    return;
+  }
+  ExecuteTheme(command);
+}
+
+void Ui2TrackerApplication::ExecuteTheme(Ui2ThemeCommand command) {
+  switch (command.type) {
+  case Ui2ThemeCommandType::NewTheme:
+  case Ui2ThemeCommandType::LoadTheme:
+  case Ui2ThemeCommandType::SaveTheme:
+  case Ui2ThemeCommandType::RenameTheme:
+  case Ui2ThemeCommandType::ActivateColor:
+  case Ui2ThemeCommandType::None:
+    break;
+  }
 }
 
 void Ui2TrackerApplication::ExecuteProject(Ui2ProjectCommand command) {

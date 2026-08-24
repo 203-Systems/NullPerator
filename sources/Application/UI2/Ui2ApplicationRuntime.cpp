@@ -80,6 +80,9 @@ void UiApplicationRuntime::ActivatePage(RuntimePage page) {
   case RuntimePage::Theme:
     std::construct_at(&frames_.theme);
     break;
+  case RuntimePage::Font:
+    std::construct_at(&frames_.font);
+    break;
   case RuntimePage::Browser:
     std::construct_at(&frames_.browser);
     break;
@@ -217,6 +220,8 @@ PresentResult UiApplicationRuntime::Present(IUiApplicationStateSource &source) {
     return PresentDevice(source, nowMs);
   case RuntimePage::Theme:
     return PresentTheme(source, nowMs);
+  case RuntimePage::Font:
+    return PresentFont(source, nowMs);
   case RuntimePage::Browser:
     return PresentBrowser(source, nowMs);
   case RuntimePage::Groove:
@@ -1119,6 +1124,56 @@ UiApplicationRuntime::PresentTheme(IUiApplicationStateSource &source,
       UiThemeView::RenderDelta(ViewDataFor(previous), data, scene_,
                                engine_.Surface(), engine_.Palette());
     }
+    RenderDialogDelta();
+  }
+  const PresentResult result = engine_.PresentDirty();
+  if (result == PresentResult::Presented) {
+    previous = current;
+    previousValid_ = true;
+    CommitDialog();
+  }
+  return result;
+}
+
+UiFontViewData
+UiApplicationRuntime::ViewDataFor(const FontFrameState &state) {
+  return state.ToViewData();
+}
+
+PresentResult UiApplicationRuntime::PresentFont(
+    IUiApplicationStateSource &source, std::uint32_t nowMs) {
+  FontFrameState &current = frames_.font.current;
+  FontFrameState &previous = frames_.font.previous;
+  const UiApplicationActivityState activity = source.CaptureFont(current);
+  current.power = CurrentPowerState(source, activity.active);
+  const RectI16 target = UiFontView::CursorTargetRect();
+  if (!cursorTargetValid_) {
+    cursors_.Snap(UiCursorRole::Content, target, nowMs);
+    cursorTarget_ = target;
+    cursorTargetValid_ = true;
+  }
+  current.cursorVisualRect = cursors_.Sample(UiCursorRole::Content, nowMs);
+  current.cursorVisualOverride = true;
+  current.cursorInkVisible = !cursors_.Active(UiCursorRole::Content, nowMs);
+
+  const bool baseChanged = !previousValid_ || current != previous;
+  if (!baseChanged && !DialogChanged())
+    return engine_.PresentDirty();
+  if (CanCommitHiddenBaseWithoutRender()) {
+    previous = current;
+    return engine_.PresentDirty();
+  }
+  const UiFontViewData data = ViewDataFor(current);
+  if (UiFontView::Build(data, engine_.Palette(), scene_) !=
+          UiBuildStatus::Built ||
+      ApplyDialog() != UiBuildStatus::Built)
+    return PresentResult::Failed;
+  if (RequiresFullRebuild()) {
+    UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
+  } else {
+    if (baseChanged && !FullScreenDialogActive())
+      UiFontView::RenderDelta(ViewDataFor(previous), data, scene_,
+                              engine_.Surface(), engine_.Palette());
     RenderDialogDelta();
   }
   const PresentResult result = engine_.PresentDirty();
