@@ -13,6 +13,7 @@
 #include "Application/Model/Table.h"
 #include "BaseClasses/UIBigHexVarField.h"
 #include "ScreenView.h"
+#include "UiGridSelection.h"
 #include "ViewData.h"
 
 class TableView : public ScreenView {
@@ -33,6 +34,7 @@ public:
   int ParameterDigitForUi2() const {
     return static_cast<int>(cmdEditField_.DigitForUi2());
   }
+  UiGridSelection SelectionForUi2() const;
 
 protected:
   void processNormalButtonMask(unsigned short mask);
@@ -53,7 +55,7 @@ protected:
   void warpToNeighbour(int dir);
   bool isShowingHelpLegend() const;
 
-  GUIRect getSelectionRect();
+  GUIRect getSelectionRect() const;
 
 private:
   int8_t row_;

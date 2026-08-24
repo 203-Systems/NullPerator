@@ -16,6 +16,7 @@
 #include "System/Console/Trace.h"
 #include "System/FileSystem/FileSystem.h"
 #include "ThemeView.h"
+#include <cstring>
 #include <nanoprintf.h>
 
 #define LIST_WIDTH (SCREEN_WIDTH - 2)
@@ -26,6 +27,37 @@ ThemeImportView::ThemeImportView(GUIWindow &w, ViewData *viewData)
     : ScreenView(w, viewData) {}
 
 ThemeImportView::~ThemeImportView() {}
+
+Ui2BrowserSnapshot ThemeImportView::SnapshotForUi2() const {
+  Ui2BrowserSnapshot snapshot;
+  Ui2BrowserSnapshot::CopyText(snapshot.title, "THEMES");
+  snapshot.ConfigureWindow(fileIndexList_.size(), currentIndex_, topIndex_);
+
+  FileSystem *fs = FileSystem::GetInstance();
+  if (fs != nullptr) {
+    for (std::uint8_t row = 0; row < snapshot.visibleItemCount; ++row) {
+      const std::size_t listIndex = snapshot.topIndex + row;
+      const int fileIndex = fileIndexList_[listIndex];
+      char filename[PFILENAME_SIZE]{};
+      fs->getFileName(fileIndex, filename, sizeof(filename));
+      filename[sizeof(filename) - 1U] = '\0';
+      if (char *extension = std::strrchr(filename, '.'))
+        *extension = '\0';
+      Ui2BrowserSnapshot::CopyText(snapshot.items[row], filename);
+    }
+  }
+
+  npf_snprintf(snapshot.footer.data(), snapshot.footer.size(), "%u ITEM%s",
+               static_cast<unsigned int>(snapshot.totalItemCount),
+               snapshot.totalItemCount == 1U ? "" : "S");
+  Ui2BrowserSnapshot::CopyText(snapshot.actions[0], "CANCEL");
+  Ui2BrowserSnapshot::CopyText(snapshot.actions[1], "IMPORT");
+  snapshot.actionCount = 2U;
+  // This controller has no bottom-action focus: ENTER always imports the
+  // selected row and NAV+LEFT always cancels.
+  snapshot.activeAction = snapshot.hasSelection ? 1U : 0U;
+  return snapshot;
+}
 
 void ThemeImportView::Reset() {
   topIndex_ = 0;

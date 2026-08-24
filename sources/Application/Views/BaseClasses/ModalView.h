@@ -13,6 +13,8 @@
 #include "View.h"
 #include <stdint.h>
 
+struct Ui2DialogSnapshot;
+
 class ModalView : public View {
 public:
   ModalView(View &);
@@ -24,6 +26,10 @@ public:
 
   void EndModal(int returnCode);
   virtual void Destroy();
+
+  // Every concrete modal provides one fixed-capacity UI2 capture. Keeping the
+  // dispatch virtual here avoids RTTI/type probes in the application runtime.
+  [[nodiscard]] virtual Ui2DialogSnapshot SnapshotForUi2() const = 0;
 
 protected:
   void SetWindow(int width, int height);

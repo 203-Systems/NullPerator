@@ -17,6 +17,8 @@ void UiRasterizer::Render(UiCommandStream stream, UiIndexedSurface &surface,
     RectI16 bounds = command.bounds;
     bounds.x = static_cast<std::int16_t>(bounds.x + origin.x);
     bounds.y = static_cast<std::int16_t>(bounds.y + origin.y);
+    if (Intersect(bounds, clip).Empty())
+      continue;
     switch (command.kind) {
     case UiCommandKind::FillRect:
       surface.FillRect(bounds, command.color, clip);
@@ -36,14 +38,25 @@ void UiRasterizer::Render(UiCommandStream stream, UiIndexedSurface &surface,
                                 command.parameter, clip);
       }
       break;
-    case UiCommandKind::FillVerticalPaletteRamp:
-      for (std::int16_t row = 0; row < bounds.height; ++row) {
+    case UiCommandKind::FillVerticalPaletteRamp: {
+      // Damage rendering frequently clips a tall VU command to a one-tile
+      // band. Walk only the visible rows so an ESP32 does not pay O(full
+      // meter height) for every small level change.
+      const RectI16 visibleRamp = Intersect(bounds, clip);
+      if (visibleRamp.Empty())
+        break;
+      const std::int16_t firstRow =
+          static_cast<std::int16_t>(visibleRamp.y - bounds.y);
+      const std::int16_t lastRow =
+          static_cast<std::int16_t>(visibleRamp.Bottom() - bounds.y);
+      for (std::int16_t row = firstRow; row < lastRow; ++row) {
         surface.FillRect(
             {bounds.x, static_cast<std::int16_t>(bounds.y + row), bounds.width,
              1},
             static_cast<PaletteIndex>(command.color + row), clip);
       }
       break;
+    }
     case UiCommandKind::SparseCoverageMask: {
       if (palette == nullptr || bounds.width <= 0 || bounds.height <= 0 ||
           command.payload > stream.text.size() ||

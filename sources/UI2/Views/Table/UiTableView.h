@@ -32,6 +32,7 @@ struct UiTableViewData {
   std::int8_t selectedTrack = 0;
   UiTableHeader activeHeader = UiTableHeader::None;
   RectI16 cursorVisualRect{};
+  RectI16 selectionVisualRect{};
   RectI16 topMetaVisualRect{};
   RectI16 bottomTrackVisualRect{};
   bool cursorVisualOverride = false;
@@ -54,6 +55,10 @@ public:
                           const UiFrameScene &currentScene,
                           UiIndexedSurface &surface, const UiPalette &palette);
   [[nodiscard]] static RectI16 CursorTargetRect(const UiTableViewData &data);
+  [[nodiscard]] static RectI16 SelectionTargetRect(std::int16_t left,
+                                                   std::int16_t top,
+                                                   std::int16_t right,
+                                                   std::int16_t bottom);
   [[nodiscard]] static RectI16 RowDamageRect(std::uint8_t row);
 
 private:

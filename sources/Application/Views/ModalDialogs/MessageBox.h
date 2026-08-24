@@ -11,6 +11,7 @@
 #define _MESSAGE_BOX_H_
 
 #include "Application/Views/BaseClasses/ModalView.h"
+#include "Ui2DialogSnapshot.h"
 #include <string>
 
 #ifdef MessageBox
@@ -41,6 +42,8 @@ public:
   virtual void OnFocus();
   virtual void ProcessButtonMask(unsigned short mask, bool pressed);
   virtual void AnimationUpdate(){};
+
+  [[nodiscard]] Ui2DialogSnapshot SnapshotForUi2() const override;
 
 protected:
   MessageBox(View &view, const char *message, int btnFlags = MBBF_OK);

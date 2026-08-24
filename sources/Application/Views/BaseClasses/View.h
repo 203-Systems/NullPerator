@@ -125,6 +125,7 @@ public:
   void Redraw();
 
   bool isDirty() { return isDirty_; };
+  ViewMode ModeForUi2() const { return viewMode_; }
 
   // Override in subclasses
 

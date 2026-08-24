@@ -25,6 +25,7 @@ public:
   virtual void Destroy() override;
 
   virtual void DrawView();
+  [[nodiscard]] Ui2DialogSnapshot SnapshotForUi2() const override;
 };
 
 #endif

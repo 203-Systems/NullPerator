@@ -50,6 +50,7 @@ public:
   void FinalizeRmsBuild();
 
   uint8_t *WaveformCache();
+  const uint8_t *WaveformCache() const;
   void InvalidateWaveform();
   void SetWaveformValid(bool valid);
   void RequestFullRedraw();

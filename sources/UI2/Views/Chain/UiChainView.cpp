@@ -51,6 +51,24 @@ RectI16 UiChainView::CursorTargetRect(const UiChainViewData &data) {
           UiTrackerGridMetrics::RowBoundsY(data.editRow), 15, 9};
 }
 
+RectI16 UiChainView::SelectionTargetRect(std::int16_t left, std::int16_t top,
+                                         std::int16_t right,
+                                         std::int16_t bottom) {
+  left = std::clamp<std::int16_t>(left, 0, 1);
+  right = std::clamp<std::int16_t>(right, 0, 1);
+  top = std::clamp<std::int16_t>(top, 0, 15);
+  bottom = std::clamp<std::int16_t>(bottom, 0, 15);
+  if (left > right)
+    std::swap(left, right);
+  if (top > bottom)
+    std::swap(top, bottom);
+  const auto cell = [](std::int16_t column, std::int16_t row) {
+    return RectI16{static_cast<std::int16_t>(kColumnX[column] - 2),
+                   UiTrackerGridMetrics::RowBoundsY(row), 15, 9};
+  };
+  return Union(cell(left, top), cell(right, bottom));
+}
+
 RectI16 UiChainView::RowDamageRect(std::uint8_t row) {
   if (row >= 16U)
     return {};
@@ -86,6 +104,12 @@ void UiChainView::RenderDelta(const UiChainViewData &previous,
 
   if (previous.editColumn != current.editColumn)
     render({28, 34, 64, 14});
+  if (previous.selectionVisualRect != current.selectionVisualRect) {
+    render(previous.selectionVisualRect);
+    render(current.selectionVisualRect);
+    render(RowDamageRect(previous.editRow));
+    render(RowDamageRect(current.editRow));
+  }
   if (!current.numberFocus) {
     const RectI16 oldCursor = ResolvedCursorRect(previous);
     const RectI16 newCursor = ResolvedCursorRect(current);
@@ -172,7 +196,9 @@ UiBuildStatus UiChainView::Build(const UiChainViewData &data,
                    ? UiColorToken::TextColored
                    : UiColorToken::TextDim);
   const RectI16 cursor = ResolvedCursorRect(data);
-  if (!data.numberFocus && data.editRow < 16U) {
+  if (!data.numberFocus && !data.selectionVisualRect.Empty()) {
+    builder.RowHighlight(data.selectionVisualRect);
+  } else if (!data.numberFocus && data.editRow < 16U) {
     builder.RowHighlight({5, UiTrackerGridMetrics::RowBoundsY(data.editRow),
                           213, UiTrackerGridMetrics::kRowHeight});
   }

@@ -10,6 +10,7 @@
 #include "UI2/Render/UiVuGradient.h"
 #include "UI2/Views/Tracker/UiTrackerGridMetrics.h"
 
+#include <algorithm>
 #include <array>
 
 namespace ui2 {
@@ -51,6 +52,29 @@ RectI16 UiSongView::CursorTargetRect(std::uint8_t track, std::uint8_t row) {
   if (track >= 8U || row >= 16U) return {};
   return {static_cast<std::int16_t>(kTrackX[track] - 2),
           UiTrackerGridMetrics::RowBoundsY(row), 15, 9};
+}
+
+RectI16 UiSongView::SelectionTargetRect(std::int16_t left, std::int16_t top,
+                                        std::int16_t right,
+                                        std::int16_t bottom,
+                                        std::uint8_t rowOffset) {
+  left = std::clamp<std::int16_t>(left, 0, 7);
+  right = std::clamp<std::int16_t>(right, 0, 7);
+  if (left > right)
+    std::swap(left, right);
+  if (top > bottom)
+    std::swap(top, bottom);
+  const std::int16_t firstVisible = rowOffset;
+  const std::int16_t lastVisible = static_cast<std::int16_t>(rowOffset + 15U);
+  top = std::max(top, firstVisible);
+  bottom = std::min(bottom, lastVisible);
+  if (top > bottom)
+    return {};
+  return Union(CursorTargetRect(static_cast<std::uint8_t>(left),
+                                static_cast<std::uint8_t>(top - firstVisible)),
+               CursorTargetRect(
+                   static_cast<std::uint8_t>(right),
+                   static_cast<std::uint8_t>(bottom - firstVisible)));
 }
 
 RectI16 UiSongView::PlaybackTickRect(std::uint8_t track, std::uint8_t row) {
@@ -104,11 +128,18 @@ void UiSongView::RenderDelta(const UiSongViewData &previous,
     UiFrameRenderer::RenderRegion(currentScene, surface, palette, rect);
   };
 
+  if (previous.liveMode != current.liveMode) render({0, 0, 61, 34});
   if (previous.name != current.name) render({59, 0, 132, 34});
   if (previous.elapsed != current.elapsed) render({190, 0, 50, 34});
 
   const RectI16 previousCursor = ResolvedCursorRect(previous);
   const RectI16 currentCursor = ResolvedCursorRect(current);
+  if (previous.selectionVisualRect != current.selectionVisualRect) {
+    render(previous.selectionVisualRect);
+    render(current.selectionVisualRect);
+    render(RowDamageRect(previous.editRow));
+    render(RowDamageRect(current.editRow));
+  }
   if (previousCursor != currentCursor ||
       previous.cursorInkVisible != current.cursorInkVisible) {
     render(ExpandedCursorDamage(previousCursor));
@@ -194,7 +225,7 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data,
   scene.bottomBackground = UiColorToken::SurfaceBottomBar;
 
   const UiTopBarModel top{
-      .title = "SONG",
+      .title = data.liveMode ? "LIVE" : "SONG",
       .meta = data.name,
       .elapsed = data.elapsed,
       .metaX = 61,
@@ -220,8 +251,12 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data,
                                          : UiColorToken::TextDim);
   }
 
-  builder.RowHighlight({5, UiTrackerGridMetrics::RowBoundsY(data.editRow),
-                        213, UiTrackerGridMetrics::kRowHeight});
+  if (!data.selectionVisualRect.Empty()) {
+    builder.RowHighlight(data.selectionVisualRect);
+  } else {
+    builder.RowHighlight({5, UiTrackerGridMetrics::RowBoundsY(data.editRow),
+                          213, UiTrackerGridMetrics::kRowHeight});
+  }
   const RectI16 cursorRect = ResolvedCursorRect(data);
   const RectI16 targetRect = CursorTargetRect(data.editTrack, data.editRow);
   for (std::uint8_t row = 0; row < 16; ++row) {

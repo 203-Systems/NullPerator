@@ -19,6 +19,7 @@
 #include "Application/Views/ModalDialogs/MessageBox.h"
 #include "System/Console/Trace.h"
 #include <algorithm>
+#include <cstdio>
 #include <nanoprintf.h>
 
 namespace {
@@ -48,6 +49,95 @@ SampleSlicesView::SampleSlicesView(GUIWindow &w, ViewData *data)
 }
 
 SampleSlicesView::~SampleSlicesView() { stopPreview(); }
+
+SampleSlicesViewUi2Snapshot SampleSlicesView::SnapshotForUi2() const {
+  SampleSlicesViewUi2Snapshot snapshot;
+  auto &sliceIndexVariable = const_cast<WatchedVariable &>(sliceIndexVar_);
+  auto &sliceStartVariable = const_cast<WatchedVariable &>(sliceStartVar_);
+  auto &autoSliceVariable = const_cast<Variable &>(autoSliceCountVar_);
+
+  const int selected = std::clamp(
+      sliceIndexVariable.GetInt(), 0,
+      static_cast<int>(SampleInstrument::MaxSlices) - 1);
+  snapshot.selectedSlice = static_cast<std::uint8_t>(selected);
+  snapshot.autoSliceCount = static_cast<std::uint8_t>(std::clamp(
+      autoSliceVariable.GetInt(), 0,
+      static_cast<int>(SampleInstrument::MaxSlices)));
+
+  std::uint8_t activeSlices = 0;
+  if (instrument_ != nullptr) {
+    for (std::size_t index = 0; index < SampleInstrument::MaxSlices; ++index) {
+      if (instrument_->IsSliceDefined(index))
+        ++activeSlices;
+    }
+  }
+  std::snprintf(snapshot.sliceCount.data(), snapshot.sliceCount.size(), "%02u",
+                static_cast<unsigned int>(activeSlices));
+  std::snprintf(snapshot.slice.data(), snapshot.slice.size(), "%02u / %02u",
+                activeSlices == 0U
+                    ? 0U
+                    : static_cast<unsigned int>(snapshot.selectedSlice + 1U),
+                static_cast<unsigned int>(activeSlices));
+  std::snprintf(snapshot.start.data(), snapshot.start.size(), "%07X",
+                static_cast<unsigned int>(
+                    std::max(0, sliceStartVariable.GetInt())));
+  const std::uint32_t zoom =
+      graphField_.ZoomLevel() < 31U
+          ? (static_cast<std::uint32_t>(1U) << graphField_.ZoomLevel())
+          : 1U;
+  std::snprintf(snapshot.zoom.data(), snapshot.zoom.size(), "%uX",
+                static_cast<unsigned int>(zoom));
+
+  snapshot.waveformReady = graphField_.WaveformValid();
+  if (snapshot.waveformReady) {
+    snapshot.waveform.Capture(graphField_.WaveformCache(),
+                              GraphField::CacheSize, GraphField::BitmapHeight,
+                              78);
+  }
+
+  const std::uint32_t viewStart = graphField_.ViewStart();
+  const std::uint32_t viewEnd = graphField_.ViewEnd();
+  const auto markerVisible = [&](std::uint32_t sample) {
+    return viewEnd > viewStart && sample >= viewStart && sample < viewEnd;
+  };
+  if (instrument_ != nullptr && sampleSize_ > 0U) {
+    for (std::size_t index = 0; index < SampleInstrument::MaxSlices; ++index) {
+      if (!instrument_->IsSliceDefined(index))
+        continue;
+      const std::uint32_t start = instrument_->GetSlicePoint(index);
+      if (!markerVisible(start))
+        continue;
+      snapshot.markers.Push(
+          Ui2WaveformX(start, viewStart, viewEnd),
+          Ui2WaveformMarkerKind::Slice,
+          index == static_cast<std::size_t>(snapshot.selectedSlice));
+    }
+  }
+  if (previewCursorVisible_ && markerVisible(previewPlayheadSample_)) {
+    snapshot.markers.Push(
+        Ui2WaveformX(previewPlayheadSample_, viewStart, viewEnd),
+        Ui2WaveformMarkerKind::Playhead, false);
+  }
+
+  snapshot.hasSample = instrument_ != nullptr && sampleSize_ > 0U;
+  snapshot.previewActive = previewActive_;
+  snapshot.previewPlayheadVisible = previewCursorVisible_;
+  switch (GetFocusIndex()) {
+  case 0:
+    snapshot.focus = SampleSlicesViewUi2Focus::Waveform;
+    break;
+  case 3:
+    snapshot.focus = SampleSlicesViewUi2Focus::AutoSliceCount;
+    break;
+  case 4:
+    snapshot.focus = SampleSlicesViewUi2Focus::AutoSlice;
+    break;
+  default:
+    snapshot.focus = SampleSlicesViewUi2Focus::Unknown;
+    break;
+  }
+  return snapshot;
+}
 
 void SampleSlicesView::Reset() {
   stopPreview();

@@ -17,6 +17,7 @@ namespace ui2 {
 namespace {
 
 constexpr std::array<std::int16_t, 6> kColumnX{28, 61, 88, 115, 148, 175};
+constexpr std::array<std::uint8_t, 6> kColumnCharacters{4, 3, 3, 4, 3, 4};
 
 bool IsParameterColumn(std::uint8_t column) {
   return column == 3U || column == 5U;
@@ -108,6 +109,29 @@ RectI16 UiPhraseView::CursorTargetRect(const UiPhraseViewData &data) {
           static_cast<std::int16_t>(UiFont5x7::TextWidth(value.size()) + 4), 9};
 }
 
+RectI16 UiPhraseView::SelectionTargetRect(std::int16_t left,
+                                          std::int16_t top,
+                                          std::int16_t right,
+                                          std::int16_t bottom) {
+  left = std::clamp<std::int16_t>(left, 0, 5);
+  right = std::clamp<std::int16_t>(right, 0, 5);
+  top = std::clamp<std::int16_t>(top, 0, 15);
+  bottom = std::clamp<std::int16_t>(bottom, 0, 15);
+  if (left > right)
+    std::swap(left, right);
+  if (top > bottom)
+    std::swap(top, bottom);
+  const auto cell = [](std::int16_t column, std::int16_t row) {
+    return RectI16{
+        static_cast<std::int16_t>(kColumnX[column] - 2),
+        UiTrackerGridMetrics::RowBoundsY(row),
+        static_cast<std::int16_t>(
+            UiFont5x7::TextWidth(kColumnCharacters[column]) + 4),
+        9};
+  };
+  return Union(cell(left, top), cell(right, bottom));
+}
+
 RectI16 UiPhraseView::RowDamageRect(std::uint8_t row) {
   if (row >= 16U)
     return {};
@@ -148,6 +172,12 @@ void UiPhraseView::RenderDelta(const UiPhraseViewData &previous,
   std::array<bool, 16> rowRendered{};
   const RectI16 previousCursor = ResolvedCursorRect(previous);
   const RectI16 currentCursor = ResolvedCursorRect(current);
+  if (previous.selectionVisualRect != current.selectionVisualRect) {
+    render(previous.selectionVisualRect);
+    render(current.selectionVisualRect);
+    render(RowDamageRect(previous.editRow));
+    render(RowDamageRect(current.editRow));
+  }
   if (previousCursor != currentCursor ||
       previous.cursorInkVisible != current.cursorInkVisible) {
     render(ExpandedCursorDamage(previousCursor));
@@ -249,7 +279,9 @@ UiBuildStatus UiPhraseView::Build(const UiPhraseViewData &data, UiPalette &,
   builder.Text("FX2", kColumnX[4], UiTrackerGridMetrics::kHeaderTextY,
                HeaderColor(data.activeHeader, UiPhraseHeader::Fx2));
 
-  if (!data.numberFocus && data.editRow < 16U) {
+  if (!data.numberFocus && !data.selectionVisualRect.Empty()) {
+    builder.RowHighlight(data.selectionVisualRect);
+  } else if (!data.numberFocus && data.editRow < 16U) {
     builder.RowHighlight(
         {5, UiTrackerGridMetrics::RowBoundsY(data.editRow), 230,
          UiTrackerGridMetrics::kRowHeight});

@@ -95,6 +95,8 @@ uint32_t GraphField::ViewEnd() const { return viewEnd_; }
 
 uint8_t *GraphField::WaveformCache() { return waveformCache_; }
 
+const uint8_t *GraphField::WaveformCache() const { return waveformCache_; }
+
 bool GraphField::WaveformValid() const { return waveformValid_; }
 
 bool GraphField::UpdateZoomWindow(uint32_t centerSample) {

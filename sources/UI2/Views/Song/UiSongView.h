@@ -29,11 +29,13 @@ struct UiSongViewData {
   std::uint8_t editRow = 8;
   std::uint8_t editTrack = 0;
   RectI16 cursorVisualRect{};
+  RectI16 selectionVisualRect{};
   bool cursorVisualOverride = false;
   bool cursorInkVisible = true;
   bool showVu = true;
   bool showBottom = true;
   bool playing = true;
+  bool liveMode = false;
   UiPowerState power = UiPowerState::Playing;
 };
 
@@ -51,6 +53,11 @@ public:
                                               std::uint8_t row);
   [[nodiscard]] static RectI16 CursorTargetRect(std::uint8_t track,
                                                 std::uint8_t row);
+  [[nodiscard]] static RectI16 SelectionTargetRect(std::int16_t left,
+                                                   std::int16_t top,
+                                                   std::int16_t right,
+                                                   std::int16_t bottom,
+                                                   std::uint8_t rowOffset);
   [[nodiscard]] static RectI16 PlaybackTickRect(std::uint8_t track,
                                                 std::uint8_t row);
   [[nodiscard]] static RectI16 RowDamageRect(std::uint8_t row);

@@ -11,7 +11,10 @@
 #include "UI2/Scene/UiFrameScene.h"
 #include "UI2/Theme/UiPalette.h"
 
+#include <array>
+#include <cstddef>
 #include <string_view>
+#include <type_traits>
 
 namespace ui2 {
 
@@ -22,6 +25,25 @@ struct UiFontViewData {
   bool cursorInkVisible = true;
   UiPowerState power = UiPowerState::BatteryNormal;
 };
+
+// Fixed-capacity counterpart to UiFontViewData for firmware/WASM retained
+// frames. ToViewData only borrows this object's internal font buffer.
+struct UiFontViewState {
+  static constexpr std::size_t FontCapacity = 41;
+
+  std::array<char, FontCapacity> font{
+      'R', 'E', 'G', 'U', 'L', 'A', 'R', ' ', '5', 'X', '7', '\0'};
+  RectI16 cursorVisualRect{};
+  bool cursorVisualOverride = false;
+  bool cursorInkVisible = true;
+  UiPowerState power = UiPowerState::BatteryNormal;
+
+  [[nodiscard]] UiFontViewData ToViewData() const;
+  bool operator==(const UiFontViewState &) const = default;
+};
+
+static_assert(std::is_trivially_copyable_v<UiFontViewState>);
+static_assert(std::is_trivially_destructible_v<UiFontViewState>);
 
 class UiFontView {
 public:

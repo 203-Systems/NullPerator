@@ -26,9 +26,82 @@
 #include "Foundation/Variables/Variable.h"
 #include "Foundation/Variables/WatchedVariable.h"
 #include "ViewData.h"
+#include <array>
 #include <cstddef>
+#include <cstdint>
 
 class SampleInstrument;
+
+enum class InstrumentViewUi2Kind : std::uint8_t {
+  None,
+  Sample,
+  Midi,
+  Sid,
+  Opal,
+};
+
+enum class InstrumentViewUi2Focus : std::uint8_t {
+  None,
+  Name,
+  Type,
+  Field,
+  Operator1,
+  Operator2,
+  Unmapped,
+};
+
+struct InstrumentViewUi2Choice {
+  const char *const *options = nullptr;
+  std::uint8_t count = 0;
+  std::uint8_t current = 0;
+  bool wrap = false;
+
+  [[nodiscard]] const char *Value() const {
+    return options != nullptr && current < count ? options[current] : "";
+  }
+};
+
+struct InstrumentViewUi2Field {
+  static constexpr std::size_t LabelCapacity = 16;
+  static constexpr std::size_t ValueCapacity = 24;
+
+  std::array<char, LabelCapacity> label{};
+  std::array<char, ValueCapacity> value{};
+  std::int16_t y = 0;
+};
+
+struct InstrumentViewUi2OperatorRow {
+  static constexpr std::size_t LabelCapacity = 16;
+  static constexpr std::size_t ValueCapacity = 8;
+
+  std::array<char, LabelCapacity> label{};
+  std::array<char, ValueCapacity> op1{};
+  std::array<char, ValueCapacity> op2{};
+};
+
+// Allocation-free bridge from the mutable legacy InstrumentView to UI2. All
+// displayed text is copied into bounded storage. The only borrowed pointers
+// are the process-lifetime InstrumentTypeNames option table.
+struct InstrumentViewUi2Snapshot {
+  static constexpr std::size_t MaxFields = 16;
+  static constexpr std::size_t MaxOperatorRows = 6;
+
+  InstrumentViewUi2Choice type{};
+  std::array<char, 3> number{};
+  std::array<char, MAX_INSTRUMENT_NAME_LENGTH + 1> name{};
+  InstrumentViewUi2Kind kind = InstrumentViewUi2Kind::None;
+  std::array<InstrumentViewUi2Field, MaxFields> fields{};
+  std::array<InstrumentViewUi2OperatorRow, MaxOperatorRows> operators{};
+  std::uint8_t fieldCount = 0;
+  std::uint8_t operatorCount = 0;
+  InstrumentViewUi2Focus focus = InstrumentViewUi2Focus::None;
+  std::uint8_t selectedField = 0;
+  std::uint8_t selectedOperator = 0;
+  std::uint8_t nameAction = 0;
+};
+
+static_assert(sizeof(InstrumentViewUi2Snapshot) <= 1024,
+              "Instrument UI2 snapshot must stay cheap enough for ESP32");
 
 class InstrumentView : public FieldView, public I_Observer {
 public:
@@ -46,6 +119,7 @@ public:
   bool checkInstrumentModified();
   void resetInstrumentToDefaults();
   void applyProposedTypeChangeUI();
+  [[nodiscard]] InstrumentViewUi2Snapshot SnapshotForUi2();
 
 protected:
   GUIPoint GetAnchor();

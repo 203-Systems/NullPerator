@@ -14,6 +14,7 @@
 #include "Externals/etl/include/etl/stack.h"
 #include "Externals/etl/include/etl/vector.h"
 #include "System/FileSystem/FileSystem.h"
+#include "Ui2BrowserSnapshot.h"
 #include "ViewData.h"
 #include <string>
 
@@ -26,6 +27,8 @@ public:
   virtual void DrawView();
   virtual void OnPlayerUpdate(PlayerEventType, unsigned int tick = 0);
   virtual void OnFocus();
+
+  [[nodiscard]] Ui2BrowserSnapshot SnapshotForUi2() const;
 
   // Static method to set which view will open the ImportView
   static void SetSourceViewType(ViewType vt);

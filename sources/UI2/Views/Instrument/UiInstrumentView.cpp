@@ -64,6 +64,23 @@ RectI16 UiInstrumentView::CursorTargetRect(const UiInstrumentViewData &data) {
     return {7, 41, 226, 9};
   case UiInstrumentCursor::Type:
     return {7, 53, 226, 9};
+  case UiInstrumentCursor::Field:
+    if (data.selectedField < data.fieldCount) {
+      return {7,
+              static_cast<std::int16_t>(data.fields[data.selectedField].y - 1),
+              226, 9};
+    }
+    return {};
+  case UiInstrumentCursor::Operator1:
+  case UiInstrumentCursor::Operator2:
+    if (data.selectedOperator < data.operatorCount) {
+      const std::int16_t y =
+          static_cast<std::int16_t>(143 + data.selectedOperator * 9);
+      return {static_cast<std::int16_t>(
+                  data.cursor == UiInstrumentCursor::Operator1 ? 139 : 185),
+              y, 40, 9};
+    }
+    return {};
   case UiInstrumentCursor::None:
     return {};
   }
@@ -156,6 +173,9 @@ void UiInstrumentView::RenderDelta(const UiInstrumentViewData &previous,
     }
   }
   if (previous.cursor != current.cursor ||
+      previous.selectedField != current.selectedField ||
+      previous.selectedOperator != current.selectedOperator ||
+      previous.nameAction != current.nameAction ||
       previous.trackNotes != current.trackNotes ||
       previous.selectedTrack != current.selectedTrack ||
       previous.bottomTrackVisualRect != current.bottomTrackVisualRect ||
@@ -189,6 +209,7 @@ UiBuildStatus UiInstrumentView::Build(const UiInstrumentViewData &data,
     bottom.kind = UiBottomBarKind::Actions;
     bottom.actions.actions = {"LOAD", "SAVE", "RENAME", {}};
     bottom.actions.count = 3;
+    bottom.actions.active = std::min<std::uint8_t>(data.nameAction, 2);
   } else if (data.cursor == UiInstrumentCursor::Type) {
     bottom.kind = UiBottomBarKind::Selector;
     bottom.selector.options = kTypeOptions;
@@ -262,14 +283,32 @@ UiBuildStatus UiInstrumentView::Build(const UiInstrumentViewData &data,
 
   if (!data.numberFocus && data.cursor != UiInstrumentCursor::None) {
     const RectI16 cursor = ResolvedCursorRect(data);
-    builder.Selection(cursor);
+    if (!cursor.Empty())
+      builder.Selection(cursor);
     if (data.cursorInkVisible) {
       if (data.cursor == UiInstrumentCursor::Name) {
         builder.Text("NAME", 9, 42, UiColorToken::TextHighlighted);
         builder.Text(data.name, 92, 42, UiColorToken::TextHighlighted);
-      } else {
+      } else if (data.cursor == UiInstrumentCursor::Type) {
         builder.Text("TYPE", 9, 54, UiColorToken::TextHighlighted);
         builder.Text(TypeName(data.kind), 92, 54, UiColorToken::TextHighlighted);
+      } else if (data.cursor == UiInstrumentCursor::Field &&
+                 data.selectedField < data.fieldCount) {
+        const UiInstrumentField &field = data.fields[data.selectedField];
+        builder.Text(field.label, 9, field.y, UiColorToken::TextHighlighted);
+        builder.Text(field.value, 92, field.y, UiColorToken::TextHighlighted);
+      } else if ((data.cursor == UiInstrumentCursor::Operator1 ||
+                  data.cursor == UiInstrumentCursor::Operator2) &&
+                 data.selectedOperator < data.operatorCount) {
+        const std::int16_t y =
+            static_cast<std::int16_t>(144 + data.selectedOperator * 9);
+        const UiInstrumentOperatorRow &row =
+            data.operators[data.selectedOperator];
+        if (data.cursor == UiInstrumentCursor::Operator1) {
+          builder.Text(row.op1, 144, y, UiColorToken::TextHighlighted);
+        } else {
+          builder.Text(row.op2, 190, y, UiColorToken::TextHighlighted);
+        }
       }
     }
   }

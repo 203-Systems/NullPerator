@@ -234,7 +234,7 @@ void SongView::OnFocus() {
   }
 };
 
-GUIRect SongView::getSelectionRect() {
+GUIRect SongView::getSelectionRect() const {
 
   GUIRect selRect(clipboard_.x_, clipboard_.y_ + clipboard_.offset_,
                   viewData_->songX_,
@@ -242,6 +242,23 @@ GUIRect SongView::getSelectionRect() {
 
   selRect.Normalize();
   return selRect;
+}
+
+UiGridSelection SongView::SelectionForUi2() const {
+  if (!clipboard_.active_)
+    return {};
+  const GUIRect rect = getSelectionRect();
+  return {.active = true,
+          .left = static_cast<std::int16_t>(rect.Left()),
+          .top = static_cast<std::int16_t>(rect.Top()),
+          .right = static_cast<std::int16_t>(rect.Right()),
+          .bottom = static_cast<std::int16_t>(rect.Bottom()),
+          .anchorColumn = static_cast<std::int16_t>(clipboard_.x_),
+          .anchorRow = static_cast<std::int16_t>(clipboard_.y_ +
+                                                clipboard_.offset_),
+          .activeColumn = static_cast<std::int16_t>(viewData_->songX_),
+          .activeRow = static_cast<std::int16_t>(viewData_->songY_ +
+                                                viewData_->songOffset_)};
 }
 
 /******************************************************

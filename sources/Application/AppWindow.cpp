@@ -146,6 +146,33 @@ int AppWindow::TableParameterDigitForUi2() const {
   return views_ == nullptr ? 0 : views_->tableView.ParameterDigitForUi2();
 }
 
+int AppWindow::GrooveRowForUi2() const {
+  return views_ == nullptr ? 0 : views_->grooveView.PositionForUi2();
+}
+
+InstrumentViewUi2Snapshot AppWindow::InstrumentSnapshotForUi2() {
+  return views_ == nullptr ? InstrumentViewUi2Snapshot{}
+                           : views_->instrumentView.SnapshotForUi2();
+}
+
+UiGridSelection AppWindow::GridSelectionForUi2() const {
+  if (views_ == nullptr || _currentView == nullptr)
+    return {};
+  switch (_currentView->viewType_) {
+  case VT_SONG:
+    return views_->songView.SelectionForUi2();
+  case VT_CHAIN:
+    return views_->chainView.SelectionForUi2();
+  case VT_PHRASE:
+    return views_->phraseView.SelectionForUi2();
+  case VT_TABLE:
+  case VT_TABLE2:
+    return views_->tableView.SelectionForUi2();
+  default:
+    return {};
+  }
+}
+
 void AppWindow::defineColor(FourCC colorCode, GUIColor &color,
                             int paletteIndex) {
 

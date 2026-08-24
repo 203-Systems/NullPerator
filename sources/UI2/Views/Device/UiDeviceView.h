@@ -12,14 +12,29 @@
 #include "UI2/Scene/UiFrameScene.h"
 #include "UI2/Theme/UiPalette.h"
 
+#include <array>
 #include <cstdint>
 #include <string_view>
 
 namespace ui2 {
 
+enum class UiDeviceCursor : std::uint8_t {
+  MidiDevice,
+  MidiSync,
+  LineOut,
+  RemoteUi,
+  Resampler,
+  Volume,
+  Brightness,
+  Theme,
+  Font,
+  UpdateFirmware,
+};
+
 struct UiDeviceViewData {
   std::string_view midiDevice = "OFF";
   std::string_view midiSync = "OFF";
+  std::string_view lineOut = "LINE LEVEL";
   std::string_view remoteUi = "ON";
   std::string_view resampler = "NONE";
   std::string_view volume = "40";
@@ -27,7 +42,17 @@ struct UiDeviceViewData {
   std::string_view theme = "DEFAULT";
   std::string_view font = "REGULAR";
   std::string_view version = "VERSION 2.3 BETA";
+  std::array<std::string_view, 8> selectorOptions{};
+  std::uint8_t selectorCount = 0;
+  std::uint8_t selectorCurrent = 0;
+  bool selectorWrap = false;
+  bool showLineOut = false;
+  bool showVolume = true;
+  bool showTheme = true;
+  bool showFont = true;
+  bool showUpdateFirmware = false;
   std::uint8_t batteryPercent = 60;
+  UiDeviceCursor cursor = UiDeviceCursor::MidiDevice;
   RectI16 cursorVisualRect{};
   bool cursorVisualOverride = false;
   bool cursorInkVisible = true;
@@ -43,14 +68,12 @@ public:
                           const UiDeviceViewData &current,
                           const UiFrameScene &currentScene,
                           UiIndexedSurface &surface, const UiPalette &palette);
-  [[nodiscard]] static constexpr RectI16 CursorTargetRect() {
-    return {7, 53, 226, 9};
-  }
-  [[nodiscard]] static constexpr std::int16_t
-  RevealCursor(std::int16_t currentOffset) {
-    return UiVerticalList::Reveal(currentOffset, CursorTargetRect(), 34, 208,
-                                  203);
-  }
+  [[nodiscard]] static RectI16
+  CursorTargetRect(const UiDeviceViewData &data);
+  [[nodiscard]] static std::int16_t
+  ContentBottom(const UiDeviceViewData &data);
+  [[nodiscard]] static std::int16_t
+  RevealCursor(std::int16_t currentOffset, const UiDeviceViewData &data);
   [[nodiscard]] static RectI16 FieldDamageRect(std::int16_t y);
 };
 

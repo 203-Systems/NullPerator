@@ -156,11 +156,26 @@ void TableView::cutPosition() {
   cutSelection();
 };
 
-GUIRect TableView::getSelectionRect() {
+GUIRect TableView::getSelectionRect() const {
   GUIRect r(clipboard_.col_, clipboard_.row_, col_, row_);
   r.Normalize();
   return r;
 };
+
+UiGridSelection TableView::SelectionForUi2() const {
+  if (!clipboard_.active_)
+    return {};
+  const GUIRect rect = getSelectionRect();
+  return {.active = true,
+          .left = static_cast<std::int16_t>(rect.Left()),
+          .top = static_cast<std::int16_t>(rect.Top()),
+          .right = static_cast<std::int16_t>(rect.Right()),
+          .bottom = static_cast<std::int16_t>(rect.Bottom()),
+          .anchorColumn = static_cast<std::int16_t>(clipboard_.col_),
+          .anchorRow = static_cast<std::int16_t>(clipboard_.row_),
+          .activeColumn = static_cast<std::int16_t>(col_),
+          .activeRow = static_cast<std::int16_t>(row_)};
+}
 
 void TableView::fillClipboardData() {
 

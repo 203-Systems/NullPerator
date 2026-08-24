@@ -11,6 +11,7 @@
 #define _THEME_VIEW_H_
 
 #include "Application/Model/Config.h"
+#include "Application/UI2/Ui2SettingsSnapshots.h"
 #include "Application/Views/BaseClasses/ModalView.h"
 #include "Application/Views/UIController.h"
 #include "BaseClasses/UIActionField.h"
@@ -44,6 +45,9 @@ public:
   void Update(Observable &, I_ObservableData *);
 
   void AnimationUpdate() override;
+
+  [[nodiscard]] ThemeViewUi2Snapshot SnapshotForUi2() const;
+  [[nodiscard]] FontViewUi2Snapshot FontSnapshotForUi2() const;
 
   // For storing export theme name during modal callbacks
   etl::string<MAX_INSTRUMENT_NAME_LENGTH> exportThemeName_;

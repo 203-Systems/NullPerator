@@ -19,7 +19,14 @@
 namespace ui2 {
 
 enum class UiInstrumentKind : std::uint8_t { None, Sample, Midi, Sid, Opal };
-enum class UiInstrumentCursor : std::uint8_t { None, Name, Type };
+enum class UiInstrumentCursor : std::uint8_t {
+  None,
+  Name,
+  Type,
+  Field,
+  Operator1,
+  Operator2,
+};
 
 struct UiInstrumentField {
   std::string_view label;
@@ -44,6 +51,9 @@ struct UiInstrumentViewData {
   std::uint8_t fieldCount = 0;
   std::array<UiInstrumentOperatorRow, 6> operators{};
   std::uint8_t operatorCount = 0;
+  std::uint8_t selectedField = 0;
+  std::uint8_t selectedOperator = 0;
+  std::uint8_t nameAction = 0;
   std::array<std::string_view, 8> trackNotes{};
   std::int8_t selectedTrack = 0;
   UiInstrumentCursor cursor = UiInstrumentCursor::Type;

@@ -30,6 +30,7 @@
 #include "UI2/Views/Theme/UiThemeView.h"
 #include "UI2/Views/Tracker/UiTrackerGridMetrics.h"
 #include "Adapters/wasm/gui/WasmUiPresenter.h"
+#include "Application/UI2/Ui2SettingsAdapters.h"
 #include "Application/UI2/Ui2ApplicationRuntime.h"
 
 #include "ui2_song_fixture.h"
@@ -116,6 +117,30 @@ struct Rgb565WriteProbe {
   std::size_t calls = 0;
   std::size_t failOnCall = 0;
 };
+
+template <typename Data, typename Build, typename RenderDelta>
+void CheckDeltaMatchesFullFrame(const Data &previous, const Data &current,
+                                Build build, RenderDelta renderDelta) {
+  ui2::UiPalette palette;
+  ui2::UiFrameScene previousScene;
+  REQUIRE(build(previous, palette, previousScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage deltaStorage;
+  ui2::UiIndexedSurface delta(deltaStorage);
+  ui2::UiFrameRenderer::RenderStatic(previousScene, delta, palette);
+  delta.ClearDirty();
+
+  ui2::UiFrameScene currentScene;
+  REQUIRE(build(current, palette, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  renderDelta(previous, current, currentScene, delta, palette);
+
+  ui2::UiSurfaceStorage fullStorage;
+  ui2::UiIndexedSurface full(fullStorage);
+  ui2::UiFrameRenderer::RenderStatic(currentScene, full, palette);
+  CHECK(std::equal(delta.Pixels().begin(), delta.Pixels().end(),
+                   full.Pixels().begin(), full.Pixels().end()));
+}
 
 } // namespace
 
@@ -237,6 +262,21 @@ TEST_CASE("UI2 rasterizer preserves original corners through layer clips") {
   CHECK(surface.Pixel(8, 2) == 3);
 }
 
+TEST_CASE("UI2 clipped palette ramps preserve absolute row colors") {
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  surface.Clear(0);
+  surface.ClearDirty();
+  ui2::UiCommandList<1> commands;
+  REQUIRE(commands.FillVerticalPaletteRamp({3, 10, 2, 20}, 40));
+  ui2::UiRasterizer::Render(commands.Stream(), surface, nullptr, {},
+                            {0, 17, 20, 2});
+  CHECK(surface.Pixel(3, 16) == 0);
+  CHECK(surface.Pixel(3, 17) == 47);
+  CHECK(surface.Pixel(4, 18) == 48);
+  CHECK(surface.Pixel(3, 19) == 0);
+}
+
 TEST_CASE("UI2 semantic palette reproduces approved coverage composites") {
   ui2::UiPalette palette;
   CHECK(palette.Get(palette.Index(ui2::UiColorToken::SurfaceBackground)) ==
@@ -334,7 +374,62 @@ TEST_CASE("UI2 tracker pages share one ten-pixel vertical rhythm") {
   }
 }
 
-TEST_CASE("UI2 vertical list reveals items while bars remain fixed") {
+TEST_CASE("UI2 tracker selections resolve to one clipped rounded region") {
+  CHECK(ui2::UiSongView::SelectionTargetRect(1, 18, 3, 21, 16) ==
+        ui2::RectI16{47, 67, 57, 39});
+  CHECK(ui2::UiSongView::SelectionTargetRect(0, 0, 7, 15, 16).Empty());
+  CHECK(ui2::UiChainView::SelectionTargetRect(0, 2, 1, 4) ==
+        ui2::RectI16{26, 67, 36, 29});
+  CHECK(ui2::UiPhraseView::SelectionTargetRect(1, 1, 4, 3) ==
+        ui2::RectI16{59, 57, 108, 29});
+  // Legacy Table selection may transiently report column 6. UI2 clips that
+  // endpoint to the sixth visible value column without escaping the screen.
+  CHECK(ui2::UiTableView::SelectionTargetRect(2, 0, 6, 15) ==
+        ui2::RectI16{90, 47, 119, 159});
+}
+
+TEST_CASE("UI2 tracker selection deltas match complete redraws") {
+  {
+    const ui2::UiSongViewData previous = ui2::test::ApprovedSongFixture();
+    ui2::UiSongViewData current = previous;
+    current.selectionVisualRect =
+        ui2::UiSongView::SelectionTargetRect(0, 8, 3, 11, 0);
+    CheckDeltaMatchesFullFrame(
+        previous, current, ui2::UiSongView::Build,
+        ui2::UiSongView::RenderDelta);
+  }
+  {
+    const ui2::UiChainViewData previous = ui2::test::ApprovedChainFixture();
+    ui2::UiChainViewData current = previous;
+    current.selectionVisualRect =
+        ui2::UiChainView::SelectionTargetRect(0, 0, 1, 5);
+    CheckDeltaMatchesFullFrame(
+        previous, current, ui2::UiChainView::Build,
+        ui2::UiChainView::RenderDelta);
+  }
+  {
+    const ui2::UiPhraseViewData previous =
+        ui2::test::ApprovedPhraseFixture("note");
+    ui2::UiPhraseViewData current = previous;
+    current.selectionVisualRect =
+        ui2::UiPhraseView::SelectionTargetRect(1, 2, 5, 6);
+    CheckDeltaMatchesFullFrame(
+        previous, current, ui2::UiPhraseView::Build,
+        ui2::UiPhraseView::RenderDelta);
+  }
+  {
+    const ui2::UiTableViewData previous =
+        ui2::test::ApprovedTableFixture("phrase");
+    ui2::UiTableViewData current = previous;
+    current.selectionVisualRect =
+        ui2::UiTableView::SelectionTargetRect(0, 4, 5, 9);
+    CheckDeltaMatchesFullFrame(
+        previous, current, ui2::UiTableView::Build,
+        ui2::UiTableView::RenderDelta);
+  }
+}
+
+TEST_CASE("UI2 vertical list reveals items and reconciles contextual bars") {
   ui2::UiThemeViewData previous;
   ui2::UiThemeViewData current = previous;
   current.selectedColor = 18;
@@ -359,12 +454,15 @@ TEST_CASE("UI2 vertical list reveals items while bars remain fixed") {
   ui2::UiSurfaceStorage expectedStorage;
   ui2::UiIndexedSurface expected(expectedStorage);
   ui2::UiFrameRenderer::RenderStatic(currentScene, expected, palette);
-  CHECK(std::equal(surface.Pixels().begin(), surface.Pixels().end(),
-                   expected.Pixels().begin(), expected.Pixels().end()));
+  const auto mismatch =
+      std::mismatch(surface.Pixels().begin(), surface.Pixels().end(),
+                    expected.Pixels().begin(), expected.Pixels().end());
+  CAPTURE(std::distance(surface.Pixels().begin(), mismatch.first));
+  CHECK(mismatch.first == surface.Pixels().end());
   CHECK(surface.Pixel(0, 0) ==
         palette.Index(ui2::UiColorToken::SurfaceTopBar));
   CHECK(surface.Pixel(0, 239) ==
-        palette.Index(ui2::UiColorToken::SurfaceBottomBar));
+        palette.Index(ui2::UiColorToken::SurfaceBackground));
 }
 
 TEST_CASE("UI2 sparse coverage masks copy bounded data and decode columns") {
@@ -701,6 +799,24 @@ TEST_CASE("UI2 Song damage geometry keeps stereo VU channels separate") {
   CHECK(ui2::Intersect(ui2::UiSongView::RowDamageRect(15),
                       ui2::RectI16::Screen()) ==
         ui2::UiSongView::RowDamageRect(15));
+}
+
+TEST_CASE("UI2 Song LIVE title is part of the shared delta-rendered scene") {
+  const ui2::UiSongViewData previous = ui2::test::ApprovedSongFixture();
+  ui2::UiSongViewData current = previous;
+  current.liveMode = true;
+
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiSongView::Build(current, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  constexpr std::array<char, 4> live{'L', 'I', 'V', 'E'};
+  const auto topText = scene.top.Stream().text;
+  CHECK(std::search(topText.begin(), topText.end(), live.begin(), live.end()) !=
+        topText.end());
+
+  CheckDeltaMatchesFullFrame(previous, current, ui2::UiSongView::Build,
+                             ui2::UiSongView::RenderDelta);
 }
 
 TEST_CASE("UI2 Song delta rendering is pixel-identical to a full redraw") {
@@ -1112,6 +1228,53 @@ TEST_CASE("UI2 Instrument enter mode resolves both independent cursors") {
         palette.Index(ui2::UiColorToken::CursorPrimary));
 }
 
+TEST_CASE("UI2 Instrument exposes fixed cursor targets for fields and OPAL operators") {
+  ui2::UiInstrumentViewData sample =
+      ui2::test::ApprovedInstrumentFixture("sample");
+  sample.cursor = ui2::UiInstrumentCursor::Field;
+  sample.selectedField = 3;
+  CHECK(ui2::UiInstrumentView::CursorTargetRect(sample) ==
+        ui2::RectI16{7, 95, 226, 9});
+
+  ui2::UiInstrumentViewData opal =
+      ui2::test::ApprovedInstrumentFixture("opal");
+  opal.selectedOperator = 2;
+  opal.cursor = ui2::UiInstrumentCursor::Operator1;
+  CHECK(ui2::UiInstrumentView::CursorTargetRect(opal) ==
+        ui2::RectI16{139, 161, 40, 9});
+  opal.cursor = ui2::UiInstrumentCursor::Operator2;
+  CHECK(ui2::UiInstrumentView::CursorTargetRect(opal) ==
+        ui2::RectI16{185, 161, 40, 9});
+}
+
+TEST_CASE("UI2 Instrument field focus delta is pixel-identical to a full redraw") {
+  ui2::UiPalette palette;
+  ui2::UiInstrumentViewData previous =
+      ui2::test::ApprovedInstrumentFixture("sample");
+  ui2::UiFrameScene previousScene;
+  REQUIRE(ui2::UiInstrumentView::Build(previous, palette, previousScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(previousScene, surface, palette);
+  surface.ClearDirty();
+
+  ui2::UiInstrumentViewData current = previous;
+  current.cursor = ui2::UiInstrumentCursor::Field;
+  current.selectedField = 4;
+  ui2::UiFrameScene currentScene;
+  REQUIRE(ui2::UiInstrumentView::Build(current, palette, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiInstrumentView::RenderDelta(previous, current, currentScene, surface,
+                                     palette);
+
+  ui2::UiSurfaceStorage expectedStorage;
+  ui2::UiIndexedSurface expected(expectedStorage);
+  ui2::UiFrameRenderer::RenderStatic(currentScene, expected, palette);
+  CHECK(std::equal(surface.Pixels().begin(), surface.Pixels().end(),
+                   expected.Pixels().begin(), expected.Pixels().end()));
+}
+
 TEST_CASE("UI2 Mixer stereo meters use separate damage columns") {
   CHECK(ui2::UiMixerView::MeterDamageRect(0, 0) ==
         ui2::RectI16{7, 46, 7, 153});
@@ -1121,6 +1284,13 @@ TEST_CASE("UI2 Mixer stereo meters use separate damage columns") {
         ui2::RectI16{209, 46, 7, 153});
   CHECK(ui2::UiMixerView::MeterDamageRect(8, 1) ==
         ui2::RectI16{219, 46, 7, 153});
+  CHECK(ui2::UiMixerView::MeterLevelDamageRect(0, 0, 30, 37) ==
+        ui2::RectI16{7, 76, 7, 7});
+  CHECK(ui2::UiMixerView::MeterLevelDamageRect(0, 1, 37, 30) ==
+        ui2::RectI16{17, 76, 7, 7});
+  CHECK(ui2::UiMixerView::MeterLevelDamageRect(0, 0, 37, 37).Empty());
+  CHECK(ui2::UiMixerView::MeterLevelDamageRect(8, 1, 200, 152) ==
+        ui2::RectI16{219, 198, 7, 1});
 }
 
 TEST_CASE("UI2 Mixer delta rendering is pixel-identical to a full redraw") {
@@ -1180,6 +1350,51 @@ TEST_CASE("UI2 Mixer idle is clean and one meter change stays local") {
         static_cast<std::uint32_t>(strip.width) * strip.height;
   }
   CHECK(transferredPixels < 3'000);
+}
+
+TEST_CASE("UI2 Mixer all stereo meters can advance within one frame budget") {
+  ui2::UiPalette palette;
+  ui2::UiMixerViewData previous = ui2::test::ApprovedMixerFixture();
+  ui2::UiFrameScene previousScene;
+  REQUIRE(ui2::UiMixerView::Build(previous, palette, previousScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(previousScene, surface, palette);
+  surface.ClearDirty();
+
+  ui2::UiMixerViewData current = previous;
+  for (std::uint8_t channel = 0; channel < ui2::UiMixerView::kChannelCount;
+       ++channel) {
+    for (std::uint8_t side = 0; side < 2U; ++side) {
+      const std::uint8_t previousTop = previous.vuLevelTop[channel][side];
+      current.vuLevelTop[channel][side] =
+          previousTop < ui2::UiMixerView::kMeterHeight
+              ? static_cast<std::uint8_t>(previousTop + 1U)
+              : static_cast<std::uint8_t>(previousTop - 1U);
+    }
+  }
+  ui2::UiFrameScene currentScene;
+  REQUIRE(ui2::UiMixerView::Build(current, palette, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiMixerView::RenderDelta(previous, current, currentScene, surface,
+                                palette);
+
+  ui2::UiSurfaceStorage expectedStorage;
+  ui2::UiIndexedSurface expected(expectedStorage);
+  ui2::UiFrameRenderer::RenderStatic(currentScene, expected, palette);
+  CHECK(std::equal(surface.Pixels().begin(), surface.Pixels().end(),
+                   expected.Pixels().begin(), expected.Pixels().end()));
+
+  ui2::DirtyStripList strips;
+  REQUIRE(surface.DirtyTiles().Collect(strips));
+  std::uint32_t transferredPixels = 0;
+  for (const ui2::DirtyStrip strip : strips.Strips()) {
+    transferredPixels +=
+        static_cast<std::uint32_t>(strip.width) * strip.height;
+  }
+  CHECK(transferredPixels <= 4'608);
+  CHECK(transferredPixels <= 240U * 240U / 12U);
 }
 
 TEST_CASE("UI2 Groove delta rendering is pixel-identical to a full redraw") {
@@ -1334,6 +1549,33 @@ TEST_CASE("UI2 Project resolves cursor-specific bottom bars") {
   CHECK(scene.bottomVisible);
 }
 
+TEST_CASE("UI2 Project exposes every approved conceptual row and action bar") {
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  ui2::UiProjectViewData data;
+  constexpr std::array playback{
+      ui2::UiProjectCursor::Tempo, ui2::UiProjectCursor::Transpose,
+      ui2::UiProjectCursor::Scale, ui2::UiProjectCursor::Root};
+  for (const auto cursor : playback) {
+    data.cursor = cursor;
+    CHECK_FALSE(ui2::UiProjectView::CursorTargetRect(cursor).Empty());
+    REQUIRE(ui2::UiProjectView::Build(data, palette, scene) ==
+            ui2::UiBuildStatus::Built);
+    CHECK_FALSE(scene.bottomVisible);
+  }
+  constexpr std::array contextual{
+      ui2::UiProjectCursor::Name, ui2::UiProjectCursor::SamplePool,
+      ui2::UiProjectCursor::Samples, ui2::UiProjectCursor::Instruments,
+      ui2::UiProjectCursor::Render};
+  for (const auto cursor : contextual) {
+    data.cursor = cursor;
+    CHECK_FALSE(ui2::UiProjectView::CursorTargetRect(cursor).Empty());
+    REQUIRE(ui2::UiProjectView::Build(data, palette, scene) ==
+            ui2::UiBuildStatus::Built);
+    CHECK(scene.bottomVisible);
+  }
+}
+
 TEST_CASE("UI2 Project delta rendering is pixel-identical to a full redraw") {
   ui2::UiPalette palette;
   ui2::UiProjectViewData previous =
@@ -1443,15 +1685,128 @@ TEST_CASE("UI2 Device idle frame stays clean") {
   CHECK_FALSE(surface.DirtyTiles().Any());
 }
 
+TEST_CASE("UI2 Device represents all approved rows and reveals optional rows") {
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  ui2::UiDeviceViewData data;
+  data.showLineOut = true;
+  data.showUpdateFirmware = true;
+  data.selectorOptions = {"OFF", "TRS", "USB", "TRS+USB"};
+  data.selectorCount = 4;
+  data.selectorCurrent = 2;
+  constexpr std::array cursors{
+      ui2::UiDeviceCursor::MidiDevice,
+      ui2::UiDeviceCursor::MidiSync,
+      ui2::UiDeviceCursor::LineOut,
+      ui2::UiDeviceCursor::RemoteUi,
+      ui2::UiDeviceCursor::Resampler,
+      ui2::UiDeviceCursor::Volume,
+      ui2::UiDeviceCursor::Brightness,
+      ui2::UiDeviceCursor::Theme,
+      ui2::UiDeviceCursor::Font,
+      ui2::UiDeviceCursor::UpdateFirmware};
+  for (const auto cursor : cursors) {
+    data.cursor = cursor;
+    CHECK_FALSE(ui2::UiDeviceView::CursorTargetRect(data).Empty());
+    REQUIRE(ui2::UiDeviceView::Build(data, palette, scene) ==
+            ui2::UiBuildStatus::Built);
+  }
+  data.cursor = ui2::UiDeviceCursor::UpdateFirmware;
+  data.scrollOffset = ui2::UiDeviceView::RevealCursor(0, data);
+  CHECK(data.scrollOffset > 0);
+  REQUIRE(ui2::UiDeviceView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK(scene.contentOffsetY == data.scrollOffset);
+}
+
 TEST_CASE("UI2 Theme and Font remain separate page contracts") {
   ui2::UiPalette palette;
   ui2::UiFrameScene scene;
-  REQUIRE(ui2::UiThemeView::Build({}, palette, scene) ==
+  ui2::UiThemeViewData theme;
+  theme.nameAction = 3;
+  REQUIRE(ui2::UiThemeView::Build(theme, palette, scene) ==
           ui2::UiBuildStatus::Built);
   CHECK(scene.bottomVisible);
+
+  theme.selectedColor = 0;
+  REQUIRE(ui2::UiThemeView::Build(theme, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK_FALSE(scene.bottomVisible);
+
   REQUIRE(ui2::UiFontView::Build({}, palette, scene) ==
           ui2::UiBuildStatus::Built);
   CHECK_FALSE(scene.bottomVisible);
+}
+
+TEST_CASE("UI2 Theme and Font adapters retain owned fixed-capacity text") {
+  ThemeViewUi2Snapshot themeSnapshot;
+  constexpr std::array themeName{'N', 'I', 'G', 'H', 'T', '\0'};
+  std::copy(themeName.begin(), themeName.end(), themeSnapshot.name.begin());
+  themeSnapshot.focus = ThemeViewUi2Focus::Color;
+  themeSnapshot.selectedColor = 11;
+  themeSnapshot.nameAction = 2;
+
+  const ui2::UiThemeViewState themeState =
+      ui2::MakeUiThemeViewState(themeSnapshot,
+                                ui2::UiPowerState::BatteryHigh);
+  themeSnapshot.name[0] = 'X';
+  const ui2::UiThemeViewData themeData = themeState.ToViewData();
+  CHECK(themeData.name == "NIGHT");
+  CHECK(themeData.selectedColor == 11);
+  CHECK(themeData.nameAction == 2);
+  CHECK(themeData.power == ui2::UiPowerState::BatteryHigh);
+
+  FontViewUi2Snapshot fontSnapshot;
+  constexpr std::array fontName{'W', 'I', 'D', 'E', '\0'};
+  std::copy(fontName.begin(), fontName.end(), fontSnapshot.font.begin());
+  const ui2::UiFontViewState fontState =
+      ui2::MakeUiFontViewState(fontSnapshot,
+                               ui2::UiPowerState::Charging);
+  fontSnapshot.font[0] = 'X';
+  const ui2::UiFontViewData fontData = fontState.ToViewData();
+  CHECK(fontData.font == "WIDE");
+  CHECK(fontData.power == ui2::UiPowerState::Charging);
+}
+
+TEST_CASE("UI2 Theme palette synchronization is explicit and reversible") {
+  ThemeViewUi2Snapshot snapshot;
+  for (std::size_t index = 0; index < snapshot.colors.size(); ++index) {
+    snapshot.colors[index] =
+        static_cast<std::uint32_t>(0x010203U + index * 0x070B0DU) &
+        0x00FFFFFFU;
+  }
+
+  ui2::UiPalette palette;
+  const ui2::Rgb888 before = palette.Get(0);
+  const auto state = ui2::MakeUiThemeViewState(snapshot);
+  CHECK(state.ToViewData().name == "");
+  CHECK(palette.Get(0) == before);
+
+  ui2::ApplyThemeSnapshotToPalette(snapshot, palette);
+  for (std::size_t index = 0; index < snapshot.colors.size(); ++index) {
+    const std::uint32_t packed = snapshot.colors[index];
+    const ui2::Rgb888 expected{
+        static_cast<std::uint8_t>(packed >> 16U),
+        static_cast<std::uint8_t>(packed >> 8U),
+        static_cast<std::uint8_t>(packed)};
+    CHECK(palette.Get(static_cast<ui2::PaletteIndex>(index)) == expected);
+  }
+
+  ThemeViewUi2Snapshot roundTrip;
+  ui2::CopyPaletteToThemeSnapshot(palette, roundTrip);
+  CHECK(roundTrip.colors == snapshot.colors);
+}
+
+TEST_CASE("UI2 Theme bottom action changes use a pixel-identical delta") {
+  ui2::UiThemeViewData previous;
+  ui2::UiThemeViewData current = previous;
+  current.nameAction = 3;
+  CheckDeltaMatchesFullFrame(previous, current, ui2::UiThemeView::Build,
+                            ui2::UiThemeView::RenderDelta);
+
+  current.selectedColor = 0;
+  CheckDeltaMatchesFullFrame(previous, current, ui2::UiThemeView::Build,
+                            ui2::UiThemeView::RenderDelta);
 }
 
 TEST_CASE("UI2 Theme delta rendering is pixel-identical to a full redraw") {
@@ -1522,10 +1877,91 @@ TEST_CASE("UI2 shared browser delta is pixel-identical across page variants") {
 
   ui2::UiBrowserViewData current =
       ui2::test::ApprovedBrowserFixture("projects");
-  current.item = "LIVE SET";
+  current.items[0] = "LIVE SET";
   current.cursorVisualOverride = true;
   current.cursorVisualRect = {7, 49, 226, 11};
   current.cursorInkVisible = false;
+  ui2::UiFrameScene currentScene;
+  REQUIRE(ui2::UiBrowserView::Build(current, palette, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiBrowserView::RenderDelta(previous, current, currentScene, surface,
+                                  palette);
+
+  ui2::UiSurfaceStorage expectedStorage;
+  ui2::UiIndexedSurface expected(expectedStorage);
+  ui2::UiFrameRenderer::RenderStatic(currentScene, expected, palette);
+  CHECK(std::equal(surface.Pixels().begin(), surface.Pixels().end(),
+                   expected.Pixels().begin(), expected.Pixels().end()));
+}
+
+TEST_CASE("UI2 shared browser uses a bounded visible window and scroll thumb") {
+  ui2::UiPalette palette;
+  ui2::UiBrowserViewData data =
+      ui2::test::ApprovedBrowserFixture("instrument-import");
+  data.items[0] = "[..]";
+  data.items[1] = "BASS.PTI";
+  data.items[2] = "LEAD.PTI";
+  data.visibleItemCount = 3;
+  data.selectedRow = 2;
+  data.topIndex = 7;
+  data.totalItemCount = 30;
+
+  CHECK(ui2::UiBrowserView::CursorTargetRect(data.selectedRow) ==
+        ui2::RectI16{7, 65, 226, 11});
+  const ui2::RectI16 thumb = ui2::UiBrowserView::ScrollThumbRect(data);
+  CHECK_FALSE(thumb.Empty());
+  CHECK(thumb.x == 235);
+  CHECK(thumb.y > 43);
+
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiBrowserView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+  CHECK(surface.Pixel(8, 70) ==
+        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::CursorPrimary));
+  CHECK(surface.Pixel(235, thumb.y + thumb.height / 2) ==
+        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextColored));
+}
+
+TEST_CASE("UI2 shared browser clamps malformed action metadata") {
+  ui2::UiBrowserViewData data =
+      ui2::test::ApprovedBrowserFixture("projects");
+  data.actions = {"LOAD", "DELETE", "RENAME"};
+  data.actionCount = 0xFFU;
+  data.activeAction = 0xFFU;
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiBrowserView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK_FALSE(scene.bottom.Overflowed());
+  CHECK(scene.bottom.Size() == 3);
+}
+
+TEST_CASE("UI2 shared browser redraws a scrolled window pixel-identically") {
+  ui2::UiPalette palette;
+  ui2::UiBrowserViewData previous =
+      ui2::test::ApprovedBrowserFixture("projects");
+  previous.items[1] = "LIVE SET";
+  previous.items[2] = "NEW JAM";
+  previous.visibleItemCount = 3;
+  previous.totalItemCount = 20;
+
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiBrowserView::Build(previous, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+  surface.ClearDirty();
+
+  ui2::UiBrowserViewData current = previous;
+  current.items[0] = "LIVE SET";
+  current.items[1] = "NEW JAM";
+  current.items[2] = "AMBIENT";
+  current.selectedRow = 2;
+  current.topIndex = 1;
   ui2::UiFrameScene currentScene;
   REQUIRE(ui2::UiBrowserView::Build(current, palette, currentScene) ==
           ui2::UiBuildStatus::Built);

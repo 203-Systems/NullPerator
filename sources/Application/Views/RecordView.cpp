@@ -17,6 +17,9 @@
 #include "ViewData.h"
 
 #include "Adapters/picoTracker/audio/record.h"
+#include <algorithm>
+#include <cctype>
+#include <cstdio>
 
 static constexpr uint32_t kMaxRecordDurationMs = 30000;
 
@@ -58,6 +61,73 @@ RecordView::RecordView(GUIWindow &w, ViewData *data) : FieldView(w, data) {
 }
 
 RecordView::~RecordView() {}
+
+RecordViewUi2Snapshot RecordView::SnapshotForUi2() const {
+  RecordViewUi2Snapshot snapshot;
+  Config *config = Config::GetInstance();
+  Variable *source = config == nullptr
+                         ? nullptr
+                         : config->FindVariable(FourCC::VarRecordSource);
+  Variable *lineGain = config == nullptr
+                           ? nullptr
+                           : config->FindVariable(FourCC::VarRecordLineGain);
+  Variable *micGain = config == nullptr
+                          ? nullptr
+                          : config->FindVariable(FourCC::VarRecordMicGain);
+
+  if (source != nullptr) {
+    const int current = source->GetInt();
+    snapshot.sourceIndex = static_cast<std::uint8_t>(std::clamp(current, 0, 3));
+    const char *const *options = source->GetListPointer();
+    const std::uint8_t count = source->GetListSize();
+    if (options != nullptr && current >= 0 && current < count) {
+      const char *value = options[current];
+      std::size_t index = 0;
+      while (value != nullptr && value[index] != '\0' &&
+             index + 1U < snapshot.source.size()) {
+        snapshot.source[index] = static_cast<char>(
+            std::toupper(static_cast<unsigned char>(value[index])));
+        ++index;
+      }
+    }
+  }
+  if (snapshot.source[0] == '\0')
+    std::snprintf(snapshot.source.data(), snapshot.source.size(), "UNKNOWN");
+
+  if (lineGain != nullptr)
+    snapshot.lineGainDb = static_cast<std::int8_t>(lineGain->GetInt());
+  if (micGain != nullptr)
+    snapshot.micGainDb = static_cast<std::int8_t>(micGain->GetInt());
+  std::snprintf(snapshot.lineGain.data(), snapshot.lineGain.size(), "%d DB",
+                static_cast<int>(snapshot.lineGainDb));
+  std::snprintf(snapshot.micGain.data(), snapshot.micGain.size(), "%d DB",
+                static_cast<int>(snapshot.micGainDb));
+
+  const std::uint32_t totalSeconds = recordingDuration_ / 1000U;
+  std::snprintf(snapshot.elapsed.data(), snapshot.elapsed.size(), "%02u:%02u",
+                static_cast<unsigned int>((totalSeconds / 60U) % 100U),
+                static_cast<unsigned int>(totalSeconds % 60U));
+  snapshot.savingPercent = GetSavingProgressPercent();
+  snapshot.state = uiSavingActive_    ? RecordViewUi2State::Saving
+                   : uiRecordingActive_ ? RecordViewUi2State::Recording
+                                        : RecordViewUi2State::Idle;
+
+  switch (GetFocusIndex()) {
+  case 0:
+    snapshot.focus = RecordViewUi2Focus::Source;
+    break;
+  case 1:
+    snapshot.focus = RecordViewUi2Focus::LineGain;
+    break;
+  case 2:
+    snapshot.focus = RecordViewUi2Focus::MicGain;
+    break;
+  default:
+    snapshot.focus = RecordViewUi2Focus::Unknown;
+    break;
+  }
+  return snapshot;
+}
 
 void RecordView::Reset() {
   uiRecordingActive_ = false;

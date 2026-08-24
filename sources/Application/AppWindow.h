@@ -38,6 +38,8 @@
 
 class View;
 struct AppWindowViews;
+struct UiGridSelection;
+struct InstrumentViewUi2Snapshot;
 
 class AppWindow : public GUIWindow, I_Observer, Status {
 protected:
@@ -81,6 +83,9 @@ public:
   int TableRowForUi2() const;
   int TableColumnForUi2() const;
   int TableParameterDigitForUi2() const;
+  int GrooveRowForUi2() const;
+  InstrumentViewUi2Snapshot InstrumentSnapshotForUi2();
+  UiGridSelection GridSelectionForUi2() const;
   unsigned short ButtonMaskForUi2() const { return _mask; }
 
 #if defined(__EMSCRIPTEN__)

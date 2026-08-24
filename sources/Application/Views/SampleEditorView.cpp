@@ -30,6 +30,7 @@
 #include "ViewUtils.h"
 #include <algorithm>
 #include <cstdint>
+#include <cstdio>
 #include <cstring>
 
 SampleEditProgressDisplay *sampleEditProgressDisplay = nullptr;
@@ -74,6 +75,110 @@ SampleEditorView::SampleEditorView(GUIWindow &w, ViewData *data)
 }
 
 SampleEditorView::~SampleEditorView() {}
+
+SampleEditorViewUi2Snapshot SampleEditorView::SnapshotForUi2() const {
+  SampleEditorViewUi2Snapshot snapshot;
+
+  // Variable's historical getters are not const even though they only read.
+  // Keep that API debt at this boundary rather than exposing Variable to UI2.
+  auto &nameVariable =
+      const_cast<StringVariable<MAX_INSTRUMENT_FILENAME_LENGTH> &>(
+          filenameVar_);
+  const auto name = nameVariable.GetString();
+  CopyUi2SnapshotText(snapshot.name, name.c_str());
+  std::snprintf(snapshot.start.data(), snapshot.start.size(), "%07X",
+                static_cast<unsigned int>(start_));
+  std::snprintf(snapshot.end.data(), snapshot.end.size(), "%07X",
+                static_cast<unsigned int>(end_));
+
+  auto &operationVariable = const_cast<Variable &>(operationVar_);
+  const auto operation = operationVariable.GetString();
+  CopyUi2SnapshotText(snapshot.operation, operation.c_str());
+
+  snapshot.waveformReady = graphField_.WaveformValid();
+  if (snapshot.waveformReady) {
+    snapshot.waveform.Capture(graphField_.WaveformCache(),
+                              GraphField::CacheSize, GraphField::BitmapHeight,
+                              72);
+  }
+
+  const std::uint32_t viewStart = graphField_.ViewStart();
+  const std::uint32_t viewEnd = graphField_.ViewEnd();
+  const auto markerVisible = [&](std::uint32_t sample) {
+    return viewEnd > viewStart && sample >= viewStart && sample < viewEnd;
+  };
+  if (tempSampleSize_ > 0U && markerVisible(start_)) {
+    snapshot.markers.Push(Ui2WaveformX(start_, viewStart, viewEnd),
+                          Ui2WaveformMarkerKind::Start,
+                          selectedMarker_ == MarkerStart);
+  }
+  if (tempSampleSize_ > 0U && markerVisible(end_)) {
+    snapshot.markers.Push(Ui2WaveformX(end_, viewStart, viewEnd),
+                          Ui2WaveformMarkerKind::End,
+                          selectedMarker_ == MarkerEnd);
+  }
+  if (isPlaying_ && tempSampleSize_ > 0U) {
+    std::uint32_t playhead =
+        static_cast<std::uint32_t>(playbackPosition_ * tempSampleSize_);
+    if (playhead >= tempSampleSize_)
+      playhead = tempSampleSize_ - 1U;
+    if (markerVisible(playhead)) {
+      snapshot.markers.Push(Ui2WaveformX(playhead, viewStart, viewEnd),
+                            Ui2WaveformMarkerKind::Playhead, false);
+    }
+  }
+
+  snapshot.projectPool =
+      viewData_ != nullptr && viewData_->isShowingSampleEditorProjectPool;
+  snapshot.playing = isPlaying_;
+  snapshot.singleCycle = isSingleCycle_;
+  const int focus = GetFocusIndex();
+  switch (focus) {
+  case 0:
+    snapshot.focus = SampleEditorViewUi2Focus::Name;
+    break;
+  case 1:
+    snapshot.focus = SampleEditorViewUi2Focus::Start;
+    if (!bigHexVarField_.empty())
+      snapshot.focusDigit =
+          static_cast<std::uint8_t>(bigHexVarField_[0].DigitForUi2());
+    break;
+  case 2:
+    snapshot.focus = SampleEditorViewUi2Focus::End;
+    if (bigHexVarField_.size() > 1U)
+      snapshot.focusDigit =
+          static_cast<std::uint8_t>(bigHexVarField_[1].DigitForUi2());
+    break;
+  case 3:
+    snapshot.focus = SampleEditorViewUi2Focus::Operation;
+    break;
+  case 4:
+    snapshot.focus = SampleEditorViewUi2Focus::Apply;
+    break;
+  case 5:
+    snapshot.focus = SampleEditorViewUi2Focus::Save;
+    break;
+  case 6:
+    snapshot.focus = snapshot.projectPool
+                         ? SampleEditorViewUi2Focus::Discard
+                         : SampleEditorViewUi2Focus::SaveAndLoad;
+    break;
+  case 7:
+    snapshot.focus = snapshot.projectPool
+                         ? SampleEditorViewUi2Focus::Waveform
+                         : SampleEditorViewUi2Focus::Discard;
+    break;
+  case 8:
+    snapshot.focus = snapshot.projectPool
+                         ? SampleEditorViewUi2Focus::Unknown
+                         : SampleEditorViewUi2Focus::Waveform;
+    break;
+  default:
+    snapshot.focus = SampleEditorViewUi2Focus::Unknown;
+    break;
+  }
+  return snapshot;
+}
 
 void SampleEditorView::Reset() {
   fullWaveformRedraw_ = false;

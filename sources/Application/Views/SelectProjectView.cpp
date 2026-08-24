@@ -12,6 +12,10 @@
 #include "Application/Views/ModalDialogs/MessageBox.h"
 #include "BaseClasses/ViewEvent.h"
 
+#include <algorithm>
+#include <cstring>
+#include <nanoprintf.h>
+
 #define LIST_PAGE_SIZE (SCREEN_HEIGHT - 4)
 #define LIST_WIDTH 26
 #define INVALID_PROJECT_NAME "INVALID NAME"
@@ -49,6 +53,52 @@ SelectProjectView::SelectProjectView(GUIWindow &w, ViewData *viewData)
     : ScreenView(w, viewData) {}
 
 SelectProjectView::~SelectProjectView() {}
+
+Ui2BrowserSnapshot SelectProjectView::SnapshotForUi2() const {
+  Ui2BrowserSnapshot snapshot;
+  Ui2BrowserSnapshot::CopyText(snapshot.title, "BROWSE");
+  snapshot.ConfigureWindow(fileIndexList_.size(), currentIndex_, topIndex_);
+
+  char currentProject[MAX_PROJECT_NAME_LENGTH + 1]{};
+  if (viewData_ != nullptr && viewData_->project_ != nullptr) {
+    if (Variable *name =
+            viewData_->project_->FindVariable(FourCC::VarProjectName)) {
+      const auto value = name->GetString();
+      npf_snprintf(currentProject, sizeof(currentProject), "%s",
+                   value.c_str());
+    }
+  }
+
+  FileSystem *fs = FileSystem::GetInstance();
+  if (fs != nullptr) {
+    for (std::uint8_t row = 0; row < snapshot.visibleItemCount; ++row) {
+      const std::size_t listIndex = snapshot.topIndex + row;
+      const int fileIndex = fileIndexList_[listIndex];
+      char filename[MAX_PROJECT_NAME_LENGTH + 1]{};
+      if (fs->getFileType(fileIndex) == PFT_DIR)
+        fs->getFileName(fileIndex, filename, sizeof(filename));
+      filename[sizeof(filename) - 1U] = '\0';
+      if (filename[0] == '\0')
+        std::strcpy(filename, INVALID_PROJECT_NAME);
+
+      char display[MAX_PROJECT_NAME_LENGTH + 2U]{};
+      npf_snprintf(display, sizeof(display), "%s%s",
+                   std::strcmp(filename, currentProject) == 0 ? "*" : "",
+                   filename);
+      Ui2BrowserSnapshot::CopyText(snapshot.items[row], display);
+    }
+  }
+
+  npf_snprintf(snapshot.footer.data(), snapshot.footer.size(), "%u ITEM%s",
+               static_cast<unsigned int>(snapshot.totalItemCount),
+               snapshot.totalItemCount == 1U ? "" : "S");
+  Ui2BrowserSnapshot::CopyText(snapshot.actions[0], "LOAD");
+  Ui2BrowserSnapshot::CopyText(snapshot.actions[1], "DELETE");
+  snapshot.actionCount = numButtons_;
+  snapshot.activeAction = static_cast<std::uint8_t>(
+      std::clamp(selectedButton_, 0, numButtons_ - 1));
+  return snapshot;
+}
 
 void SelectProjectView::Reset() {
   topIndex_ = 0;

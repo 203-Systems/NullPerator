@@ -17,6 +17,8 @@
 #include "ModalDialogs/MessageBox.h"
 #include "System/FileSystem/FileSystem.h"
 #include "ViewUtils.h"
+#include <algorithm>
+#include <cstdint>
 #include <memory>
 #include <nanoprintf.h>
 
@@ -45,12 +47,109 @@ enum ProjectPoolButton : uint8_t {
   kProjectButtonVolume,
   kProjectPoolButtonCount,
 };
+
+template <std::size_t Size>
+void SetHexMeta(std::array<char, Size> &destination, int value) {
+  static constexpr char kHex[] = "0123456789ABCDEF";
+  destination.fill('\0');
+  const unsigned int byte = static_cast<unsigned int>(value) & 0xFFU;
+  if constexpr (Size >= 3U) {
+    destination[0] = kHex[(byte >> 4U) & 0x0FU];
+    destination[1] = kHex[byte & 0x0FU];
+  }
+}
 } // namespace
 
 ImportView::ImportView(GUIWindow &w, ViewData *viewData)
     : ScreenView(w, viewData) {}
 
 ImportView::~ImportView() {}
+
+Ui2BrowserSnapshot ImportView::SnapshotForUi2() const {
+  Ui2BrowserSnapshot snapshot;
+  Ui2BrowserSnapshot::CopyText(snapshot.title,
+                               inProjectSampleDir_ ? "SAMPLES" : "IMPORT");
+  SetHexMeta(snapshot.meta, toInstr_);
+  snapshot.ConfigureWindow(fileIndexList_.size(), currentIndex_, topIndex_);
+
+  FileSystem *fs = FileSystem::GetInstance();
+  if (fs != nullptr) {
+    for (std::uint8_t row = 0; row < snapshot.visibleItemCount; ++row) {
+      const std::size_t listIndex = snapshot.topIndex + row;
+      const int fileIndex = fileIndexList_[listIndex];
+      char filename[PFILENAME_SIZE]{};
+      fs->getFileName(fileIndex, filename, sizeof(filename));
+      filename[sizeof(filename) - 1U] = '\0';
+
+      char display[PFILENAME_SIZE + 2U]{};
+      if (fs->getFileType(fileIndex) == PFT_DIR) {
+        npf_snprintf(display, sizeof(display), "/%s", filename);
+      } else {
+        char marker = ' ';
+        if (inProjectSampleDir_ && viewData_ != nullptr &&
+            viewData_->project_ != nullptr &&
+            viewData_->project_->SampleInUse(
+                etl::string<MAX_INSTRUMENT_FILENAME_LENGTH>(filename))) {
+          marker = '*';
+        } else if (IS_SINGLE_CYCLE(fs->getFileSize(fileIndex))) {
+          marker = '~';
+        }
+        npf_snprintf(display, sizeof(display), "%c%s", marker, filename);
+      }
+      Ui2BrowserSnapshot::CopyText(snapshot.items[row], display);
+    }
+  }
+
+  std::uint32_t availableSpace = 0U;
+  if (SamplePool::GetInstance() != nullptr) {
+    availableSpace =
+        SamplePool::GetInstance()->GetAvailableSampleStorageSpace();
+  }
+  std::uint32_t selectedSize = 0U;
+  if (fs != nullptr && snapshot.hasSelection) {
+    const int fileIndex =
+        fileIndexList_[static_cast<std::size_t>(snapshot.topIndex) +
+                       snapshot.selectedRow];
+    if (fs->getFileType(fileIndex) == PFT_FILE) {
+      selectedSize = static_cast<std::uint32_t>(std::min<std::uint64_t>(
+          fs->getFileSize(fileIndex), UINT32_MAX));
+    }
+  }
+  npf_snprintf(snapshot.footer.data(), snapshot.footer.size(), "SIZE %u / %u",
+               static_cast<unsigned int>(selectedSize),
+               static_cast<unsigned int>(availableSpace));
+
+  int previewVolume = 0;
+  if (viewData_ != nullptr && viewData_->project_ != nullptr) {
+    if (Variable *volume =
+            viewData_->project_->FindVariable(FourCC::VarPreviewVolume)) {
+      previewVolume = volume->GetInt();
+    }
+  }
+  char volumeAction[12]{};
+  npf_snprintf(volumeAction, sizeof(volumeAction), "VOL:%2d", previewVolume);
+
+  if (inProjectSampleDir_) {
+    if (!snapshot.hasSelection)
+      return snapshot;
+    Ui2BrowserSnapshot::CopyText(snapshot.actions[0], "EDIT");
+    // Removal is present in the legacy focus ring but deliberately disabled
+    // on Pico, so expose that real state instead of advertising DELETE.
+    Ui2BrowserSnapshot::CopyText(snapshot.actions[1], "N/A");
+    Ui2BrowserSnapshot::CopyText(snapshot.actions[2], volumeAction);
+    snapshot.actionCount = kProjectPoolButtonCount;
+    snapshot.activeAction = static_cast<std::uint8_t>(
+        std::clamp<int>(selectedButton_, 0, kProjectPoolButtonCount - 1));
+  } else {
+    Ui2BrowserSnapshot::CopyText(snapshot.actions[0], "IMPORT");
+    Ui2BrowserSnapshot::CopyText(snapshot.actions[1], "EDIT");
+    Ui2BrowserSnapshot::CopyText(snapshot.actions[2], volumeAction);
+    snapshot.actionCount = kImportButtonCount;
+    snapshot.activeAction = static_cast<std::uint8_t>(
+        std::clamp<int>(selectedButton_, 0, kImportButtonCount - 1));
+  }
+  return snapshot;
+}
 
 void ImportView::Reset() {
   topIndex_ = 0;

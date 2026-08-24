@@ -7,11 +7,14 @@
 #include "Application/UI2/Ui2ApplicationRuntime.h"
 
 #include "Application/AppWindow.h"
+#include "Application/Model/Groove.h"
 #include "Application/Model/Project.h"
 #include "Application/Model/Table.h"
 #include "Application/Player/Player.h"
 #include "Application/Utils/HelpLegend.h"
 #include "Application/Utils/char.h"
+#include "Application/Views/UiGridSelection.h"
+#include "Application/Views/InstrumentView.h"
 #include "Application/Views/ViewData.h"
 #include "System/System/System.h"
 
@@ -19,6 +22,7 @@
 #include <cctype>
 #include <cstdio>
 #include <cstring>
+#include <memory>
 
 namespace ui2 {
 namespace {
@@ -26,12 +30,16 @@ namespace {
 constexpr std::uint16_t kSongCursorDurationMs = 120;
 constexpr std::uint16_t kChainCursorDurationMs = 120;
 constexpr std::uint16_t kPhraseCursorDurationMs = 120;
+constexpr std::uint16_t kGrooveCursorDurationMs = 120;
 
 UiPowerState CurrentPowerState(bool playing) {
   if (playing)
     return UiPowerState::Playing;
+  System *system = System::GetInstance();
+  if (system == nullptr)
+    return UiPowerState::BatteryNormal;
   BatteryState battery{};
-  System::GetInstance()->GetBatteryState(battery);
+  system->GetBatteryState(battery);
   if (battery.error)
     return UiPowerState::BatteryNormal;
   if (battery.charging)
@@ -94,6 +102,19 @@ void FormatNote(std::uint8_t value, std::array<char, 5> &text) {
     std::snprintf(text.data(), text.size(), "%c%c%d", pitch[0], pitch[1],
                   octave);
   }
+}
+
+void FormatVolume(int value, std::array<char, 4> &text) {
+  value = std::clamp(value, 0, 999);
+  text.fill(0);
+  if (value >= 100) {
+    text[0] = static_cast<char>('0' + value / 100);
+    text[1] = static_cast<char>('0' + (value / 10) % 10);
+    text[2] = static_cast<char>('0' + value % 10);
+    return;
+  }
+  text[0] = static_cast<char>('0' + value / 10);
+  text[1] = static_cast<char>('0' + value % 10);
 }
 
 void FormatCommand(FourCC command, std::array<char, 4> &text) {
@@ -162,12 +183,48 @@ void CaptureHelpLegend(FourCC command, std::array<char, LeadSize> &lead,
 
 } // namespace
 
+void UiApplicationRuntime::ActivatePage(RuntimePage page) {
+  switch (page) {
+  case RuntimePage::Song:
+    std::construct_at(&frames_.song);
+    break;
+  case RuntimePage::Chain:
+    std::construct_at(&frames_.chain);
+    break;
+  case RuntimePage::Phrase:
+    std::construct_at(&frames_.phrase);
+    break;
+  case RuntimePage::Table:
+    std::construct_at(&frames_.table);
+    break;
+  case RuntimePage::Instrument:
+    std::construct_at(&frames_.instrument);
+    break;
+  case RuntimePage::Groove:
+    std::construct_at(&frames_.groove);
+    break;
+  case RuntimePage::Mixer:
+    std::construct_at(&frames_.mixer);
+    break;
+  case RuntimePage::None:
+    break;
+  }
+  previousValid_ = false;
+  cursorTargetValid_ = false;
+  topMetaTargetValid_ = false;
+  bottomTrackTargetValid_ = false;
+  activePage_ = page;
+}
+
 bool UiApplicationRuntime::Supports(const AppWindow &window) const {
   return (window.IsCurrentViewForUi2(VT_SONG) ||
           window.IsCurrentViewForUi2(VT_CHAIN) ||
           window.IsCurrentViewForUi2(VT_PHRASE) ||
           window.IsCurrentViewForUi2(VT_TABLE) ||
-          window.IsCurrentViewForUi2(VT_TABLE2)) &&
+          window.IsCurrentViewForUi2(VT_TABLE2) ||
+          window.IsCurrentViewForUi2(VT_INSTRUMENT) ||
+          window.IsCurrentViewForUi2(VT_GROOVE) ||
+          window.IsCurrentViewForUi2(VT_MIXER)) &&
          !window.HasModalForUi2();
 }
 
@@ -176,21 +233,21 @@ PresentResult UiApplicationRuntime::Present(AppWindow &window) {
     return PresentResult::Deferred;
   System *system = System::GetInstance();
   const std::uint32_t nowMs = system == nullptr ? 0U : system->Millis();
-  const RuntimePage page =
-      window.IsCurrentViewForUi2(VT_SONG)
-          ? RuntimePage::Song
-          : (window.IsCurrentViewForUi2(VT_CHAIN)
-                 ? RuntimePage::Chain
-                 : (window.IsCurrentViewForUi2(VT_PHRASE)
-                        ? RuntimePage::Phrase
-                        : RuntimePage::Table));
-  if (page != activePage_) {
-    previousValid_ = false;
-    cursorTargetValid_ = false;
-    topMetaTargetValid_ = false;
-    bottomTrackTargetValid_ = false;
-    activePage_ = page;
-  }
+  RuntimePage page = RuntimePage::Table;
+  if (window.IsCurrentViewForUi2(VT_SONG))
+    page = RuntimePage::Song;
+  else if (window.IsCurrentViewForUi2(VT_CHAIN))
+    page = RuntimePage::Chain;
+  else if (window.IsCurrentViewForUi2(VT_PHRASE))
+    page = RuntimePage::Phrase;
+  else if (window.IsCurrentViewForUi2(VT_INSTRUMENT))
+    page = RuntimePage::Instrument;
+  else if (window.IsCurrentViewForUi2(VT_GROOVE))
+    page = RuntimePage::Groove;
+  else if (window.IsCurrentViewForUi2(VT_MIXER))
+    page = RuntimePage::Mixer;
+  if (page != activePage_)
+    ActivatePage(page);
   switch (page) {
   case RuntimePage::Song:
     return PresentSong(window, nowMs);
@@ -200,6 +257,12 @@ PresentResult UiApplicationRuntime::Present(AppWindow &window) {
     return PresentPhrase(window, nowMs);
   case RuntimePage::Table:
     return PresentTable(window, nowMs);
+  case RuntimePage::Instrument:
+    return PresentInstrument(window, nowMs);
+  case RuntimePage::Groove:
+    return PresentGroove(window, nowMs);
+  case RuntimePage::Mixer:
+    return PresentMixer(window);
   case RuntimePage::None:
     return PresentResult::Deferred;
   }
@@ -208,9 +271,11 @@ PresentResult UiApplicationRuntime::Present(AppWindow &window) {
 
 PresentResult UiApplicationRuntime::PresentSong(AppWindow &window,
                                                 std::uint32_t nowMs) {
-  CaptureSong(window, currentSong_);
-  const RectI16 target = UiSongView::CursorTargetRect(currentSong_.editTrack,
-                                                      currentSong_.editRow);
+  SongFrameState &current = frames_.song.current;
+  SongFrameState &previous = frames_.song.previous;
+  CaptureSong(window, current);
+  const RectI16 target =
+      UiSongView::CursorTargetRect(current.editTrack, current.editRow);
   if (!cursorTargetValid_) {
     cursors_.Snap(UiCursorRole::Content, target, nowMs);
     cursorTarget_ = target;
@@ -220,15 +285,14 @@ PresentResult UiApplicationRuntime::PresentSong(AppWindow &window,
                       kSongCursorDurationMs);
     cursorTarget_ = target;
   }
-  currentSong_.cursorVisualRect = cursors_.Sample(UiCursorRole::Content, nowMs);
-  currentSong_.cursorVisualOverride = true;
-  currentSong_.cursorInkVisible =
-      !cursors_.Active(UiCursorRole::Content, nowMs);
-  if (previousValid_ && currentSong_ == previousSong_) {
+  current.cursorVisualRect = cursors_.Sample(UiCursorRole::Content, nowMs);
+  current.cursorVisualOverride = true;
+  current.cursorInkVisible = !cursors_.Active(UiCursorRole::Content, nowMs);
+  if (previousValid_ && current == previous) {
     return engine_.PresentDirty();
   }
 
-  const UiSongViewData data = ViewDataFor(currentSong_);
+  const UiSongViewData data = ViewDataFor(current);
   if (UiSongView::Build(data, engine_.Palette(), scene_) !=
       UiBuildStatus::Built) {
     return PresentResult::Failed;
@@ -236,14 +300,14 @@ PresentResult UiApplicationRuntime::PresentSong(AppWindow &window,
   if (!previousValid_) {
     UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
   } else {
-    const UiSongViewData previousData = ViewDataFor(previousSong_);
+    const UiSongViewData previousData = ViewDataFor(previous);
     UiSongView::RenderDelta(previousData, data, scene_, engine_.Surface(),
                             engine_.Palette());
   }
 
   const PresentResult result = engine_.PresentDirty();
   if (result == PresentResult::Presented) {
-    previousSong_ = currentSong_;
+    previous = current;
     previousValid_ = true;
   }
   return result;
@@ -263,9 +327,11 @@ UiSongViewData UiApplicationRuntime::ViewDataFor(const SongFrameState &state) {
   data.editRow = state.editRow;
   data.editTrack = state.editTrack;
   data.cursorVisualRect = state.cursorVisualRect;
+  data.selectionVisualRect = state.selectionVisualRect;
   data.cursorVisualOverride = state.cursorVisualOverride;
   data.cursorInkVisible = state.cursorInkVisible;
   data.playing = state.playing;
+  data.liveMode = state.liveMode;
   data.power = state.power;
   return data;
 }
@@ -285,6 +351,7 @@ UiApplicationRuntime::ViewDataFor(const ChainFrameState &state) {
   data.editColumn = state.editColumn;
   data.selectedTrack = state.selectedTrack;
   data.cursorVisualRect = state.cursorVisualRect;
+  data.selectionVisualRect = state.selectionVisualRect;
   data.topMetaVisualRect = state.topMetaVisualRect;
   data.bottomTrackVisualRect = state.bottomTrackVisualRect;
   data.cursorVisualOverride = state.cursorVisualOverride;
@@ -300,13 +367,15 @@ UiApplicationRuntime::ViewDataFor(const ChainFrameState &state) {
 
 PresentResult UiApplicationRuntime::PresentChain(AppWindow &window,
                                                  std::uint32_t nowMs) {
-  CaptureChain(window, currentChain_);
-  if (currentChain_.numberFocus) {
+  ChainFrameState &current = frames_.chain.current;
+  ChainFrameState &previous = frames_.chain.previous;
+  CaptureChain(window, current);
+  if (current.numberFocus) {
     const UiTopBarModel top{.title = "CHAIN",
-                            .meta = currentChain_.number.data()};
+                            .meta = current.number.data()};
     const RectI16 topTarget = UiChromeRenderer::MetaTargetRect(top);
     const RectI16 bottomTarget =
-        UiChromeRenderer::BottomTrackTargetRect(currentChain_.selectedTrack);
+        UiChromeRenderer::BottomTrackTargetRect(current.selectedTrack);
     if (!topMetaTargetValid_) {
       cursors_.Snap(UiCursorRole::TopMeta, topTarget, nowMs);
       topMetaTarget_ = topTarget;
@@ -325,20 +394,18 @@ PresentResult UiApplicationRuntime::PresentChain(AppWindow &window,
                         kChainCursorDurationMs);
       bottomTrackTarget_ = bottomTarget;
     }
-    currentChain_.topMetaVisualRect =
-        cursors_.Sample(UiCursorRole::TopMeta, nowMs);
-    currentChain_.bottomTrackVisualRect =
+    current.topMetaVisualRect = cursors_.Sample(UiCursorRole::TopMeta, nowMs);
+    current.bottomTrackVisualRect =
         cursors_.Sample(UiCursorRole::BottomTrack, nowMs);
-    currentChain_.topMetaVisualOverride = true;
-    currentChain_.bottomTrackVisualOverride = true;
-    currentChain_.topMetaInkVisible =
-        !cursors_.Active(UiCursorRole::TopMeta, nowMs);
-    currentChain_.bottomTrackInkVisible =
+    current.topMetaVisualOverride = true;
+    current.bottomTrackVisualOverride = true;
+    current.topMetaInkVisible = !cursors_.Active(UiCursorRole::TopMeta, nowMs);
+    current.bottomTrackInkVisible =
         !cursors_.Active(UiCursorRole::BottomTrack, nowMs);
   } else {
     topMetaTargetValid_ = false;
     bottomTrackTargetValid_ = false;
-    const UiChainViewData capture = ViewDataFor(currentChain_);
+    const UiChainViewData capture = ViewDataFor(current);
     const RectI16 target = UiChainView::CursorTargetRect(capture);
     if (!cursorTargetValid_) {
       cursors_.Snap(UiCursorRole::Content, target, nowMs);
@@ -349,17 +416,15 @@ PresentResult UiApplicationRuntime::PresentChain(AppWindow &window,
                         kChainCursorDurationMs);
       cursorTarget_ = target;
     }
-    currentChain_.cursorVisualRect =
-        cursors_.Sample(UiCursorRole::Content, nowMs);
-    currentChain_.cursorVisualOverride = true;
-    currentChain_.cursorInkVisible =
-        !cursors_.Active(UiCursorRole::Content, nowMs);
+    current.cursorVisualRect = cursors_.Sample(UiCursorRole::Content, nowMs);
+    current.cursorVisualOverride = true;
+    current.cursorInkVisible = !cursors_.Active(UiCursorRole::Content, nowMs);
   }
 
-  if (previousValid_ && currentChain_ == previousChain_) {
+  if (previousValid_ && current == previous) {
     return engine_.PresentDirty();
   }
-  const UiChainViewData data = ViewDataFor(currentChain_);
+  const UiChainViewData data = ViewDataFor(current);
   if (UiChainView::Build(data, engine_.Palette(), scene_) !=
       UiBuildStatus::Built) {
     return PresentResult::Failed;
@@ -367,13 +432,13 @@ PresentResult UiApplicationRuntime::PresentChain(AppWindow &window,
   if (!previousValid_) {
     UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
   } else {
-    const UiChainViewData previousData = ViewDataFor(previousChain_);
+    const UiChainViewData previousData = ViewDataFor(previous);
     UiChainView::RenderDelta(previousData, data, scene_, engine_.Surface(),
                              engine_.Palette());
   }
   const PresentResult result = engine_.PresentDirty();
   if (result == PresentResult::Presented) {
-    previousChain_ = currentChain_;
+    previous = current;
     previousValid_ = true;
   }
   return result;
@@ -435,6 +500,7 @@ UiApplicationRuntime::ViewDataFor(const PhraseFrameState &state) {
   data.selectedTrack = state.selectedTrack;
   data.activeHeader = state.activeHeader;
   data.cursorVisualRect = state.cursorVisualRect;
+  data.selectionVisualRect = state.selectionVisualRect;
   data.topMetaVisualRect = state.topMetaVisualRect;
   data.bottomTrackVisualRect = state.bottomTrackVisualRect;
   data.cursorVisualOverride = state.cursorVisualOverride;
@@ -451,13 +517,15 @@ UiApplicationRuntime::ViewDataFor(const PhraseFrameState &state) {
 
 PresentResult UiApplicationRuntime::PresentPhrase(AppWindow &window,
                                                   std::uint32_t nowMs) {
-  CapturePhrase(window, currentPhrase_);
-  if (currentPhrase_.numberFocus) {
+  PhraseFrameState &current = frames_.phrase.current;
+  PhraseFrameState &previous = frames_.phrase.previous;
+  CapturePhrase(window, current);
+  if (current.numberFocus) {
     const UiTopBarModel top{
-        .title = "PHRASE", .meta = currentPhrase_.number.data(), .metaX = 85};
+        .title = "PHRASE", .meta = current.number.data(), .metaX = 85};
     const RectI16 topTarget = UiChromeRenderer::MetaTargetRect(top);
     const RectI16 bottomTarget =
-        UiChromeRenderer::BottomTrackTargetRect(currentPhrase_.selectedTrack);
+        UiChromeRenderer::BottomTrackTargetRect(current.selectedTrack);
     if (!topMetaTargetValid_) {
       cursors_.Snap(UiCursorRole::TopMeta, topTarget, nowMs);
       topMetaTarget_ = topTarget;
@@ -476,20 +544,18 @@ PresentResult UiApplicationRuntime::PresentPhrase(AppWindow &window,
                         kPhraseCursorDurationMs);
       bottomTrackTarget_ = bottomTarget;
     }
-    currentPhrase_.topMetaVisualRect =
-        cursors_.Sample(UiCursorRole::TopMeta, nowMs);
-    currentPhrase_.bottomTrackVisualRect =
+    current.topMetaVisualRect = cursors_.Sample(UiCursorRole::TopMeta, nowMs);
+    current.bottomTrackVisualRect =
         cursors_.Sample(UiCursorRole::BottomTrack, nowMs);
-    currentPhrase_.topMetaVisualOverride = true;
-    currentPhrase_.bottomTrackVisualOverride = true;
-    currentPhrase_.topMetaInkVisible =
-        !cursors_.Active(UiCursorRole::TopMeta, nowMs);
-    currentPhrase_.bottomTrackInkVisible =
+    current.topMetaVisualOverride = true;
+    current.bottomTrackVisualOverride = true;
+    current.topMetaInkVisible = !cursors_.Active(UiCursorRole::TopMeta, nowMs);
+    current.bottomTrackInkVisible =
         !cursors_.Active(UiCursorRole::BottomTrack, nowMs);
   } else {
     topMetaTargetValid_ = false;
     bottomTrackTargetValid_ = false;
-    const UiPhraseViewData capture = ViewDataFor(currentPhrase_);
+    const UiPhraseViewData capture = ViewDataFor(current);
     const RectI16 target = UiPhraseView::CursorTargetRect(capture);
     if (!cursorTargetValid_) {
       cursors_.Snap(UiCursorRole::Content, target, nowMs);
@@ -500,17 +566,15 @@ PresentResult UiApplicationRuntime::PresentPhrase(AppWindow &window,
                         kPhraseCursorDurationMs);
       cursorTarget_ = target;
     }
-    currentPhrase_.cursorVisualRect =
-        cursors_.Sample(UiCursorRole::Content, nowMs);
-    currentPhrase_.cursorVisualOverride = true;
-    currentPhrase_.cursorInkVisible =
-        !cursors_.Active(UiCursorRole::Content, nowMs);
+    current.cursorVisualRect = cursors_.Sample(UiCursorRole::Content, nowMs);
+    current.cursorVisualOverride = true;
+    current.cursorInkVisible = !cursors_.Active(UiCursorRole::Content, nowMs);
   }
 
-  if (previousValid_ && currentPhrase_ == previousPhrase_) {
+  if (previousValid_ && current == previous) {
     return engine_.PresentDirty();
   }
-  const UiPhraseViewData data = ViewDataFor(currentPhrase_);
+  const UiPhraseViewData data = ViewDataFor(current);
   if (UiPhraseView::Build(data, engine_.Palette(), scene_) !=
       UiBuildStatus::Built) {
     return PresentResult::Failed;
@@ -518,13 +582,13 @@ PresentResult UiApplicationRuntime::PresentPhrase(AppWindow &window,
   if (!previousValid_) {
     UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
   } else {
-    const UiPhraseViewData previousData = ViewDataFor(previousPhrase_);
+    const UiPhraseViewData previousData = ViewDataFor(previous);
     UiPhraseView::RenderDelta(previousData, data, scene_, engine_.Surface(),
                               engine_.Palette());
   }
   const PresentResult result = engine_.PresentDirty();
   if (result == PresentResult::Presented) {
-    previousPhrase_ = currentPhrase_;
+    previous = current;
     previousValid_ = true;
   }
   return result;
@@ -575,6 +639,7 @@ UiApplicationRuntime::ViewDataFor(const TableFrameState &state) {
   data.selectedTrack = state.selectedTrack;
   data.activeHeader = state.activeHeader;
   data.cursorVisualRect = state.cursorVisualRect;
+  data.selectionVisualRect = state.selectionVisualRect;
   data.topMetaVisualRect = state.topMetaVisualRect;
   data.bottomTrackVisualRect = state.bottomTrackVisualRect;
   data.cursorVisualOverride = state.cursorVisualOverride;
@@ -591,13 +656,15 @@ UiApplicationRuntime::ViewDataFor(const TableFrameState &state) {
 
 PresentResult UiApplicationRuntime::PresentTable(AppWindow &window,
                                                  std::uint32_t nowMs) {
-  CaptureTable(window, currentTable_);
-  if (currentTable_.numberFocus) {
+  TableFrameState &current = frames_.table.current;
+  TableFrameState &previous = frames_.table.previous;
+  CaptureTable(window, current);
+  if (current.numberFocus) {
     const UiTopBarModel top{.title = "TABLE",
-                            .meta = currentTable_.number.data()};
+                            .meta = current.number.data()};
     const RectI16 topTarget = UiChromeRenderer::MetaTargetRect(top);
     const RectI16 bottomTarget =
-        UiChromeRenderer::BottomTrackTargetRect(currentTable_.selectedTrack);
+        UiChromeRenderer::BottomTrackTargetRect(current.selectedTrack);
     if (!topMetaTargetValid_) {
       cursors_.Snap(UiCursorRole::TopMeta, topTarget, nowMs);
       topMetaTarget_ = topTarget;
@@ -616,20 +683,18 @@ PresentResult UiApplicationRuntime::PresentTable(AppWindow &window,
                         kPhraseCursorDurationMs);
       bottomTrackTarget_ = bottomTarget;
     }
-    currentTable_.topMetaVisualRect =
-        cursors_.Sample(UiCursorRole::TopMeta, nowMs);
-    currentTable_.bottomTrackVisualRect =
+    current.topMetaVisualRect = cursors_.Sample(UiCursorRole::TopMeta, nowMs);
+    current.bottomTrackVisualRect =
         cursors_.Sample(UiCursorRole::BottomTrack, nowMs);
-    currentTable_.topMetaVisualOverride = true;
-    currentTable_.bottomTrackVisualOverride = true;
-    currentTable_.topMetaInkVisible =
-        !cursors_.Active(UiCursorRole::TopMeta, nowMs);
-    currentTable_.bottomTrackInkVisible =
+    current.topMetaVisualOverride = true;
+    current.bottomTrackVisualOverride = true;
+    current.topMetaInkVisible = !cursors_.Active(UiCursorRole::TopMeta, nowMs);
+    current.bottomTrackInkVisible =
         !cursors_.Active(UiCursorRole::BottomTrack, nowMs);
   } else {
     topMetaTargetValid_ = false;
     bottomTrackTargetValid_ = false;
-    const UiTableViewData capture = ViewDataFor(currentTable_);
+    const UiTableViewData capture = ViewDataFor(current);
     const RectI16 target = UiTableView::CursorTargetRect(capture);
     if (!cursorTargetValid_) {
       cursors_.Snap(UiCursorRole::Content, target, nowMs);
@@ -640,16 +705,14 @@ PresentResult UiApplicationRuntime::PresentTable(AppWindow &window,
                         kPhraseCursorDurationMs);
       cursorTarget_ = target;
     }
-    currentTable_.cursorVisualRect =
-        cursors_.Sample(UiCursorRole::Content, nowMs);
-    currentTable_.cursorVisualOverride = true;
-    currentTable_.cursorInkVisible =
-        !cursors_.Active(UiCursorRole::Content, nowMs);
+    current.cursorVisualRect = cursors_.Sample(UiCursorRole::Content, nowMs);
+    current.cursorVisualOverride = true;
+    current.cursorInkVisible = !cursors_.Active(UiCursorRole::Content, nowMs);
   }
-  if (previousValid_ && currentTable_ == previousTable_) {
+  if (previousValid_ && current == previous) {
     return engine_.PresentDirty();
   }
-  const UiTableViewData data = ViewDataFor(currentTable_);
+  const UiTableViewData data = ViewDataFor(current);
   if (UiTableView::Build(data, engine_.Palette(), scene_) !=
       UiBuildStatus::Built) {
     return PresentResult::Failed;
@@ -657,13 +720,231 @@ PresentResult UiApplicationRuntime::PresentTable(AppWindow &window,
   if (!previousValid_) {
     UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
   } else {
-    const UiTableViewData previousData = ViewDataFor(previousTable_);
+    const UiTableViewData previousData = ViewDataFor(previous);
     UiTableView::RenderDelta(previousData, data, scene_, engine_.Surface(),
                              engine_.Palette());
   }
   const PresentResult result = engine_.PresentDirty();
   if (result == PresentResult::Presented) {
-    previousTable_ = currentTable_;
+    previous = current;
+    previousValid_ = true;
+  }
+  return result;
+}
+
+UiInstrumentViewData
+UiApplicationRuntime::ViewDataFor(const InstrumentFrameState &state) {
+  UiInstrumentViewData data;
+  data.number = state.number.data();
+  data.elapsed = state.elapsed.data();
+  data.name = state.name.data();
+  data.kind = state.kind;
+  data.fieldCount = state.fieldCount;
+  for (std::size_t index = 0; index < state.fieldCount; ++index) {
+    data.fields[index] = {state.fields[index].label.data(),
+                          state.fields[index].value.data(),
+                          state.fields[index].y};
+  }
+  data.operatorCount = state.operatorCount;
+  for (std::size_t index = 0; index < state.operatorCount; ++index) {
+    data.operators[index] = {state.operators[index].label.data(),
+                             state.operators[index].op1.data(),
+                             state.operators[index].op2.data()};
+  }
+  for (std::size_t track = 0; track < state.trackNotes.size(); ++track)
+    data.trackNotes[track] = state.trackNotes[track].data();
+  data.selectedField = state.selectedField;
+  data.selectedOperator = state.selectedOperator;
+  data.nameAction = state.nameAction;
+  data.selectedTrack = state.selectedTrack;
+  data.cursor = state.cursor;
+  data.cursorVisualRect = state.cursorVisualRect;
+  data.topMetaVisualRect = state.topMetaVisualRect;
+  data.bottomTrackVisualRect = state.bottomTrackVisualRect;
+  data.cursorVisualOverride = state.cursorVisualOverride;
+  data.topMetaVisualOverride = state.topMetaVisualOverride;
+  data.bottomTrackVisualOverride = state.bottomTrackVisualOverride;
+  data.cursorInkVisible = state.cursorInkVisible;
+  data.topMetaInkVisible = state.topMetaInkVisible;
+  data.bottomTrackInkVisible = state.bottomTrackInkVisible;
+  data.numberFocus = state.numberFocus;
+  data.scrollOffset = state.scrollOffset;
+  data.power = state.power;
+  return data;
+}
+
+PresentResult UiApplicationRuntime::PresentInstrument(AppWindow &window,
+                                                       std::uint32_t nowMs) {
+  InstrumentFrameState &current = frames_.instrument.current;
+  InstrumentFrameState &previous = frames_.instrument.previous;
+  const std::int16_t previousScroll =
+      previousValid_ ? previous.scrollOffset : 0;
+  CaptureInstrument(window, current);
+  if (current.numberFocus) {
+    current.scrollOffset = previousScroll;
+    const UiTopBarModel top{.title = "INST", .meta = current.number.data()};
+    const RectI16 topTarget = UiChromeRenderer::MetaTargetRect(top);
+    const RectI16 bottomTarget =
+        UiChromeRenderer::BottomTrackTargetRect(current.selectedTrack);
+    if (!topMetaTargetValid_) {
+      cursors_.Snap(UiCursorRole::TopMeta, topTarget, nowMs);
+      topMetaTarget_ = topTarget;
+      topMetaTargetValid_ = true;
+    } else if (topTarget != topMetaTarget_) {
+      cursors_.Retarget(UiCursorRole::TopMeta, topTarget, nowMs,
+                        kPhraseCursorDurationMs);
+      topMetaTarget_ = topTarget;
+    }
+    if (!bottomTrackTargetValid_) {
+      cursors_.Snap(UiCursorRole::BottomTrack, bottomTarget, nowMs);
+      bottomTrackTarget_ = bottomTarget;
+      bottomTrackTargetValid_ = true;
+    } else if (bottomTarget != bottomTrackTarget_) {
+      cursors_.Retarget(UiCursorRole::BottomTrack, bottomTarget, nowMs,
+                        kPhraseCursorDurationMs);
+      bottomTrackTarget_ = bottomTarget;
+    }
+    current.topMetaVisualRect = cursors_.Sample(UiCursorRole::TopMeta, nowMs);
+    current.bottomTrackVisualRect =
+        cursors_.Sample(UiCursorRole::BottomTrack, nowMs);
+    current.topMetaVisualOverride = true;
+    current.bottomTrackVisualOverride = true;
+    current.topMetaInkVisible = !cursors_.Active(UiCursorRole::TopMeta, nowMs);
+    current.bottomTrackInkVisible =
+        !cursors_.Active(UiCursorRole::BottomTrack, nowMs);
+  } else {
+    topMetaTargetValid_ = false;
+    bottomTrackTargetValid_ = false;
+    UiInstrumentViewData capture = ViewDataFor(current);
+    current.scrollOffset =
+        UiInstrumentView::RevealCursor(previousScroll, capture);
+    capture.scrollOffset = current.scrollOffset;
+    const RectI16 target = UiInstrumentView::CursorTargetRect(capture);
+    if (!cursorTargetValid_) {
+      cursors_.Snap(UiCursorRole::Content, target, nowMs);
+      cursorTarget_ = target;
+      cursorTargetValid_ = true;
+    } else if (target != cursorTarget_) {
+      cursors_.Retarget(UiCursorRole::Content, target, nowMs,
+                        kPhraseCursorDurationMs);
+      cursorTarget_ = target;
+    }
+    current.cursorVisualRect = cursors_.Sample(UiCursorRole::Content, nowMs);
+    current.cursorVisualOverride = !target.Empty();
+    current.cursorInkVisible = !cursors_.Active(UiCursorRole::Content, nowMs);
+  }
+
+  if (previousValid_ && current == previous)
+    return engine_.PresentDirty();
+  const UiInstrumentViewData data = ViewDataFor(current);
+  if (UiInstrumentView::Build(data, engine_.Palette(), scene_) !=
+      UiBuildStatus::Built) {
+    return PresentResult::Failed;
+  }
+  if (!previousValid_) {
+    UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
+  } else {
+    const UiInstrumentViewData previousData = ViewDataFor(previous);
+    UiInstrumentView::RenderDelta(previousData, data, scene_, engine_.Surface(),
+                                  engine_.Palette());
+  }
+  const PresentResult result = engine_.PresentDirty();
+  if (result == PresentResult::Presented) {
+    previous = current;
+    previousValid_ = true;
+  }
+  return result;
+}
+
+UiGrooveViewData
+UiApplicationRuntime::ViewDataFor(const GrooveFrameState &state) {
+  UiGrooveViewData data;
+  data.number = state.number.data();
+  data.steps = state.steps;
+  data.editRow = state.editRow;
+  data.cursorVisualRect = state.cursorVisualRect;
+  data.cursorVisualOverride = state.cursorVisualOverride;
+  data.cursorInkVisible = state.cursorInkVisible;
+  data.power = state.power;
+  return data;
+}
+
+PresentResult UiApplicationRuntime::PresentGroove(AppWindow &window,
+                                                  std::uint32_t nowMs) {
+  GrooveFrameState &current = frames_.groove.current;
+  GrooveFrameState &previous = frames_.groove.previous;
+  CaptureGroove(window, current);
+  const RectI16 target = UiGrooveView::CursorTargetRect(current.editRow);
+  if (!cursorTargetValid_) {
+    cursors_.Snap(UiCursorRole::Content, target, nowMs);
+    cursorTarget_ = target;
+    cursorTargetValid_ = true;
+  } else if (target != cursorTarget_) {
+    cursors_.Retarget(UiCursorRole::Content, target, nowMs,
+                      kGrooveCursorDurationMs);
+    cursorTarget_ = target;
+  }
+  current.cursorVisualRect = cursors_.Sample(UiCursorRole::Content, nowMs);
+  current.cursorVisualOverride = true;
+  current.cursorInkVisible = !cursors_.Active(UiCursorRole::Content, nowMs);
+
+  if (previousValid_ && current == previous) {
+    return engine_.PresentDirty();
+  }
+  const UiGrooveViewData data = ViewDataFor(current);
+  if (UiGrooveView::Build(data, engine_.Palette(), scene_) !=
+      UiBuildStatus::Built) {
+    return PresentResult::Failed;
+  }
+  if (!previousValid_) {
+    UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
+  } else {
+    const UiGrooveViewData previousData = ViewDataFor(previous);
+    UiGrooveView::RenderDelta(previousData, data, scene_, engine_.Surface(),
+                              engine_.Palette());
+  }
+  const PresentResult result = engine_.PresentDirty();
+  if (result == PresentResult::Presented) {
+    previous = current;
+    previousValid_ = true;
+  }
+  return result;
+}
+
+UiMixerViewData
+UiApplicationRuntime::ViewDataFor(const MixerFrameState &state) {
+  UiMixerViewData data;
+  data.vuLevelTop = state.vuLevelTop;
+  for (std::size_t channel = 0; channel < data.volumes.size(); ++channel) {
+    data.volumes[channel] = state.volumes[channel].data();
+  }
+  data.selectedChannel = state.selectedChannel;
+  data.power = state.power;
+  return data;
+}
+
+PresentResult UiApplicationRuntime::PresentMixer(AppWindow &window) {
+  MixerFrameState &current = frames_.mixer.current;
+  MixerFrameState &previous = frames_.mixer.previous;
+  CaptureMixer(window, current);
+  if (previousValid_ && current == previous) {
+    return engine_.PresentDirty();
+  }
+  const UiMixerViewData data = ViewDataFor(current);
+  if (UiMixerView::Build(data, engine_.Palette(), scene_) !=
+      UiBuildStatus::Built) {
+    return PresentResult::Failed;
+  }
+  if (!previousValid_) {
+    UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
+  } else {
+    const UiMixerViewData previousData = ViewDataFor(previous);
+    UiMixerView::RenderDelta(previousData, data, scene_, engine_.Surface(),
+                             engine_.Palette());
+  }
+  const PresentResult result = engine_.PresentDirty();
+  if (result == PresentResult::Presented) {
+    previous = current;
     previousValid_ = true;
   }
   return result;
@@ -683,6 +964,12 @@ void UiApplicationRuntime::CaptureSong(AppWindow &window,
 
   const int firstRow = std::clamp(viewData.songOffset_, 0, SONG_ROW_COUNT - 16);
   state.rowOffset = static_cast<std::uint8_t>(firstRow);
+  const UiGridSelection selection = window.GridSelectionForUi2();
+  if (selection.active) {
+    state.selectionVisualRect = UiSongView::SelectionTargetRect(
+        selection.left, selection.top, selection.right, selection.bottom,
+        state.rowOffset);
+  }
   for (std::uint8_t row = 0; row < 16U; ++row) {
     const int sourceRow = firstRow + row;
     for (std::uint8_t track = 0; track < SONG_CHANNEL_COUNT; ++track) {
@@ -692,6 +979,8 @@ void UiApplicationRuntime::CaptureSong(AppWindow &window,
   }
 
   state.playing = player != nullptr && player->IsRunning();
+  state.liveMode =
+      player != nullptr && player->GetSequencerMode() == SM_LIVE;
   state.power = CurrentPowerState(state.playing);
   const int elapsed =
       state.playing ? std::max(0, static_cast<int>(player->GetPlayTime())) : 0;
@@ -759,7 +1048,13 @@ void UiApplicationRuntime::CaptureChain(AppWindow &window,
       static_cast<std::uint8_t>(std::clamp(viewData.chainCol_, 0, 1));
   state.selectedTrack = static_cast<std::int8_t>(
       std::clamp(viewData.songX_, 0, SONG_CHANNEL_COUNT - 1));
-  state.numberFocus = (window.ButtonMaskForUi2() & EPBM_EDIT) != 0U;
+  const UiGridSelection selection = window.GridSelectionForUi2();
+  if (selection.active) {
+    state.selectionVisualRect = UiChainView::SelectionTargetRect(
+        selection.left, selection.top, selection.right, selection.bottom);
+  }
+  state.numberFocus = !selection.active &&
+                      (window.ButtonMaskForUi2() & EPBM_EDIT) != 0U;
 
   const int base = static_cast<int>(chainNumber) * PHRASES_PER_CHAIN;
   for (std::uint8_t row = 0; row < PHRASES_PER_CHAIN; ++row) {
@@ -804,7 +1099,12 @@ void UiApplicationRuntime::CapturePhrase(AppWindow &window,
   state.selectedTrack = static_cast<std::int8_t>(
       std::clamp(viewData.songX_, 0, SONG_CHANNEL_COUNT - 1));
   const unsigned short phraseMask = window.ButtonMaskForUi2();
-  state.numberFocus = (phraseMask & EPBM_EDIT) != 0U;
+  const UiGridSelection selection = window.GridSelectionForUi2();
+  if (selection.active) {
+    state.selectionVisualRect = UiPhraseView::SelectionTargetRect(
+        selection.left, selection.top, selection.right, selection.bottom);
+  }
+  state.numberFocus = !selection.active && (phraseMask & EPBM_EDIT) != 0U;
   state.editDigit = static_cast<std::uint8_t>(
       std::clamp(window.PhraseParameterDigitForUi2(), 0, 3));
   state.enterDigitFocus = !state.numberFocus &&
@@ -895,7 +1195,12 @@ void UiApplicationRuntime::CaptureTable(AppWindow &window,
   state.selectedTrack = static_cast<std::int8_t>(
       std::clamp(viewData.songX_, 0, SONG_CHANNEL_COUNT - 1));
   const unsigned short tableMask = window.ButtonMaskForUi2();
-  state.numberFocus = (tableMask & EPBM_EDIT) != 0U;
+  const UiGridSelection selection = window.GridSelectionForUi2();
+  if (selection.active) {
+    state.selectionVisualRect = UiTableView::SelectionTargetRect(
+        selection.left, selection.top, selection.right, selection.bottom);
+  }
+  state.numberFocus = !selection.active && (tableMask & EPBM_EDIT) != 0U;
   state.editDigit = static_cast<std::uint8_t>(
       std::clamp(window.TableParameterDigitForUi2(), 0, 3));
   state.enterDigitFocus = !state.numberFocus &&
@@ -928,6 +1233,147 @@ void UiApplicationRuntime::CaptureTable(AppWindow &window,
     CaptureHelpLegend(command, state.contextLead, state.contextTail,
                       state.contextDescription);
   }
+}
+
+void UiApplicationRuntime::CaptureInstrument(AppWindow &window,
+                                             InstrumentFrameState &state) {
+  state = InstrumentFrameState{};
+  const InstrumentViewUi2Snapshot snapshot =
+      window.InstrumentSnapshotForUi2();
+  CopyText(state.number, snapshot.number.data());
+  CopyText(state.name, snapshot.name.data());
+  switch (snapshot.kind) {
+  case InstrumentViewUi2Kind::None:
+    state.kind = UiInstrumentKind::None;
+    break;
+  case InstrumentViewUi2Kind::Sample:
+    state.kind = UiInstrumentKind::Sample;
+    break;
+  case InstrumentViewUi2Kind::Midi:
+    state.kind = UiInstrumentKind::Midi;
+    break;
+  case InstrumentViewUi2Kind::Sid:
+    state.kind = UiInstrumentKind::Sid;
+    break;
+  case InstrumentViewUi2Kind::Opal:
+    state.kind = UiInstrumentKind::Opal;
+    break;
+  }
+  state.fieldCount = std::min<std::uint8_t>(
+      snapshot.fieldCount, static_cast<std::uint8_t>(state.fields.size()));
+  for (std::uint8_t index = 0; index < state.fieldCount; ++index) {
+    CopyText(state.fields[index].label, snapshot.fields[index].label.data());
+    CopyText(state.fields[index].value, snapshot.fields[index].value.data());
+    state.fields[index].y = snapshot.fields[index].y;
+  }
+  state.operatorCount = std::min<std::uint8_t>(
+      snapshot.operatorCount,
+      static_cast<std::uint8_t>(state.operators.size()));
+  for (std::uint8_t index = 0; index < state.operatorCount; ++index) {
+    CopyText(state.operators[index].label,
+             snapshot.operators[index].label.data());
+    CopyText(state.operators[index].op1,
+             snapshot.operators[index].op1.data());
+    CopyText(state.operators[index].op2,
+             snapshot.operators[index].op2.data());
+  }
+  state.selectedField = snapshot.selectedField;
+  state.selectedOperator = snapshot.selectedOperator;
+  state.nameAction = snapshot.nameAction;
+  switch (snapshot.focus) {
+  case InstrumentViewUi2Focus::Name:
+    state.cursor = UiInstrumentCursor::Name;
+    break;
+  case InstrumentViewUi2Focus::Type:
+    state.cursor = UiInstrumentCursor::Type;
+    break;
+  case InstrumentViewUi2Focus::Field:
+    state.cursor = UiInstrumentCursor::Field;
+    break;
+  case InstrumentViewUi2Focus::Operator1:
+    state.cursor = UiInstrumentCursor::Operator1;
+    break;
+  case InstrumentViewUi2Focus::Operator2:
+    state.cursor = UiInstrumentCursor::Operator2;
+    break;
+  case InstrumentViewUi2Focus::None:
+  case InstrumentViewUi2Focus::Unmapped:
+    state.cursor = UiInstrumentCursor::None;
+    break;
+  }
+
+  ViewData &viewData = window.ViewDataForUi2();
+  Player *player = Player::GetInstance();
+  const bool playing = player != nullptr && player->IsRunning();
+  state.selectedTrack = static_cast<std::int8_t>(
+      std::clamp(viewData.songX_, 0, SONG_CHANNEL_COUNT - 1));
+  state.numberFocus =
+      (window.ButtonMaskForUi2() & EPBM_EDIT) != 0U;
+  state.power = CurrentPowerState(playing);
+  FormatElapsed(player, playing, state.elapsed);
+  CaptureTrackNotes(player, playing, state.trackNotes);
+}
+
+void UiApplicationRuntime::CaptureGroove(AppWindow &window,
+                                         GrooveFrameState &state) {
+  state = GrooveFrameState{};
+  ViewData &viewData = window.ViewDataForUi2();
+  Player *player = Player::GetInstance();
+
+  const int grooveNumber =
+      std::clamp(viewData.currentGroove_, 0, MAX_GROOVES - 1);
+  hex2char(static_cast<std::uint8_t>(grooveNumber), state.number.data());
+  const unsigned char *steps =
+      Groove::GetInstance()->GetGrooveData(grooveNumber);
+  std::copy_n(steps, state.steps.size(), state.steps.begin());
+  state.editRow = static_cast<std::uint8_t>(
+      std::clamp(window.GrooveRowForUi2(), 0, 15));
+
+  const bool playing = player != nullptr && player->IsRunning();
+  state.power = CurrentPowerState(playing);
+}
+
+void UiApplicationRuntime::CaptureMixer(AppWindow &window,
+                                        MixerFrameState &state) {
+  state = MixerFrameState{};
+  for (auto &channel : state.vuLevelTop)
+    channel = {UiMixerView::kMeterHeight, UiMixerView::kMeterHeight};
+
+  ViewData &viewData = window.ViewDataForUi2();
+  Project &project = *viewData.project_;
+  Player *player = Player::GetInstance();
+  state.selectedChannel = static_cast<std::int8_t>(
+      std::clamp(viewData.songX_, 0, SONG_CHANNEL_COUNT));
+
+  for (std::uint8_t channel = 0; channel < SONG_CHANNEL_COUNT; ++channel) {
+    FormatVolume(project.GetChannelVolume(channel), state.volumes[channel]);
+  }
+  FormatVolume(project.GetMasterVolume(), state.volumes[SONG_CHANNEL_COUNT]);
+
+  const bool playing = player != nullptr && player->IsRunning();
+  state.power = CurrentPowerState(playing);
+  if (player == nullptr)
+    return;
+
+  const auto captureStereoLevel = [&](std::uint8_t channel,
+                                      std::uint32_t level) {
+    state.vuLevelTop[channel][0] = VuTopFromAmplitude(
+        static_cast<std::uint16_t>(level >> 16U));
+    state.vuLevelTop[channel][1] =
+        VuTopFromAmplitude(static_cast<std::uint16_t>(level & 0xFFFFU));
+  };
+  const etl::array<stereosample, SONG_CHANNEL_COUNT> *levels =
+      player->GetMixerLevels();
+  if (levels != nullptr) {
+    for (std::uint8_t channel = 0; channel < SONG_CHANNEL_COUNT; ++channel) {
+      if (!player->IsChannelMuted(channel)) {
+        captureStereoLevel(channel,
+                           static_cast<std::uint32_t>(levels->at(channel)));
+      }
+    }
+  }
+  captureStereoLevel(SONG_CHANNEL_COUNT,
+                     static_cast<std::uint32_t>(player->GetMasterLevel()));
 }
 
 } // namespace ui2

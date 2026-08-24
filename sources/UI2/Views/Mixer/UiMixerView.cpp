@@ -39,6 +39,23 @@ RectI16 UiMixerView::MeterDamageRect(std::uint8_t channel, std::uint8_t side) {
           kMeterTop, 7, kMeterHeight};
 }
 
+RectI16 UiMixerView::MeterLevelDamageRect(std::uint8_t channel,
+                                          std::uint8_t side,
+                                          std::uint8_t previousLevelTop,
+                                          std::uint8_t currentLevelTop) {
+  const RectI16 meter = MeterDamageRect(channel, side);
+  if (meter.Empty())
+    return {};
+  const std::int16_t previous =
+      std::min<std::int16_t>(previousLevelTop, kMeterHeight);
+  const std::int16_t current =
+      std::min<std::int16_t>(currentLevelTop, kMeterHeight);
+  const std::int16_t top = std::min(previous, current);
+  const std::int16_t bottom = std::max(previous, current);
+  return {meter.x, static_cast<std::int16_t>(meter.y + top), meter.width,
+          static_cast<std::int16_t>(bottom - top)};
+}
+
 RectI16 UiMixerView::ValueDamageRect(std::uint8_t channel) {
   return CenteredDamage(channel, 205, 11);
 }
@@ -63,7 +80,9 @@ void UiMixerView::RenderDelta(const UiMixerViewData &previous,
     for (std::uint8_t side = 0; side < 2U; ++side) {
       if (previous.vuLevelTop[channel][side] !=
           current.vuLevelTop[channel][side]) {
-        render(MeterDamageRect(channel, side));
+        render(MeterLevelDamageRect(channel, side,
+                                    previous.vuLevelTop[channel][side],
+                                    current.vuLevelTop[channel][side]));
       }
     }
     if (previous.volumes[channel] != current.volumes[channel]) {

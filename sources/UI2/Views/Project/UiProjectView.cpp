@@ -9,6 +9,7 @@
 #include "UI2/Render/UiFrameRenderer.h"
 #include "UI2/Text/UiFont5x7.h"
 
+#include <algorithm>
 #include <array>
 
 namespace ui2 {
@@ -60,8 +61,24 @@ void DrawSelectedInk(UiSceneBuilder<256, 1024> &builder,
     builder.Text("TEMPO", 9, 70, UiColorToken::TextHighlighted);
     builder.Text(data.tempo, 92, 70, UiColorToken::TextHighlighted);
     break;
+  case UiProjectCursor::Transpose:
+    builder.Text("TRANSPOSE", 9, 81, UiColorToken::TextHighlighted);
+    builder.Text(data.transpose, 92, 81, UiColorToken::TextHighlighted);
+    break;
+  case UiProjectCursor::Scale:
+    builder.Text("SCALE", 9, 92, UiColorToken::TextHighlighted);
+    builder.Text(data.scale, 92, 92, UiColorToken::TextHighlighted);
+    break;
+  case UiProjectCursor::Root:
+    builder.Text("ROOT", 9, 103, UiColorToken::TextHighlighted);
+    builder.Text(data.root, 92, 103, UiColorToken::TextHighlighted);
+    break;
+  case UiProjectCursor::SamplePool:
   case UiProjectCursor::Samples:
     builder.Text("SAMPLES", 9, 132, UiColorToken::TextHighlighted);
+    break;
+  case UiProjectCursor::Instruments:
+    builder.Text("INSTRUMENTS", 9, 143, UiColorToken::TextHighlighted);
     break;
   case UiProjectCursor::Render:
     builder.Text("RENDER", 9, 172, UiColorToken::TextHighlighted);
@@ -77,8 +94,17 @@ RectI16 UiProjectView::CursorTargetRect(UiProjectCursor cursor) {
     return {7, 41, 226, 9};
   case UiProjectCursor::Tempo:
     return {7, 69, 226, 9};
+  case UiProjectCursor::Transpose:
+    return {7, 80, 226, 9};
+  case UiProjectCursor::Scale:
+    return {7, 91, 226, 9};
+  case UiProjectCursor::Root:
+    return {7, 102, 226, 9};
+  case UiProjectCursor::SamplePool:
   case UiProjectCursor::Samples:
     return {7, 131, 226, 9};
+  case UiProjectCursor::Instruments:
+    return {7, 142, 226, 9};
   case UiProjectCursor::Render:
     return {7, 171, 226, 9};
   }
@@ -119,12 +145,16 @@ void UiProjectView::RenderDelta(const UiProjectViewData &previous,
   const RectI16 oldCursor = contentRect(ResolvedCursorRect(previous));
   const RectI16 newCursor = contentRect(ResolvedCursorRect(current));
   if (!contentRedrawn && (oldCursor != newCursor ||
+                          previous.cursor != current.cursor ||
                           previous.cursorInkVisible !=
                               current.cursorInkVisible)) {
     render(ExpandedCursorDamage(oldCursor));
     render(ExpandedCursorDamage(newCursor));
-    render({0, 208, 240, 32});
   }
+  if (previous.cursor != current.cursor ||
+      previous.nameAction != current.nameAction ||
+      previous.renderOption != current.renderOption)
+    render({0, 208, 240, 32});
 }
 
 UiBuildStatus UiProjectView::Build(const UiProjectViewData &data, UiPalette &,
@@ -132,7 +162,8 @@ UiBuildStatus UiProjectView::Build(const UiProjectViewData &data, UiPalette &,
   scene.Clear();
   scene.topHeight = 34;
   scene.bottomTop = 208;
-  scene.contentOffsetY = UiVerticalList::Clamp(data.scrollOffset, 208, 181);
+  scene.contentOffsetY =
+      UiVerticalList::Clamp(data.scrollOffset, 208, ContentBottom());
   scene.topBackground = UiColorToken::SurfaceTopBar;
   scene.bottomBackground = UiColorToken::SurfaceBottomBar;
 
@@ -146,14 +177,23 @@ UiBuildStatus UiProjectView::Build(const UiProjectViewData &data, UiPalette &,
     bottom.kind = UiBottomBarKind::Actions;
     bottom.actions.actions = {"NEW", "LOAD", "SAVE", "RENAME"};
     bottom.actions.count = 4;
+    bottom.actions.active = std::min<std::uint8_t>(data.nameAction, 3);
+  } else if (data.cursor == UiProjectCursor::SamplePool) {
+    bottom.kind = UiBottomBarKind::Actions;
+    bottom.actions.actions = {"BROWSE", {}, {}, {}};
+    bottom.actions.count = 1;
   } else if (data.cursor == UiProjectCursor::Samples) {
+    bottom.kind = UiBottomBarKind::Actions;
+    bottom.actions.actions = {"REMOVE UNUSED", {}, {}, {}};
+    bottom.actions.count = 1;
+  } else if (data.cursor == UiProjectCursor::Instruments) {
     bottom.kind = UiBottomBarKind::Actions;
     bottom.actions.actions = {"REMOVE UNUSED", {}, {}, {}};
     bottom.actions.count = 1;
   } else if (data.cursor == UiProjectCursor::Render) {
     bottom.kind = UiBottomBarKind::Selector;
     bottom.selector.options = kRenderOptions;
-    bottom.selector.current = 0;
+    bottom.selector.current = std::min<std::uint8_t>(data.renderOption, 1);
   }
   scene.bottomVisible = bottom.kind != UiBottomBarKind::Hidden;
   const UiBuildStatus bottomStatus =

@@ -11,6 +11,7 @@
 #define _CHAIN_VIEW_H_
 
 #include "ScreenView.h"
+#include "UiGridSelection.h"
 #include "ViewData.h"
 
 class ChainView : public ScreenView {
@@ -22,6 +23,8 @@ public:
   virtual void OnFocus();
   virtual void OnPlayerUpdate(PlayerEventType, unsigned int tick = 0);
   virtual void AnimationUpdate();
+
+  UiGridSelection SelectionForUi2() const;
 
 protected:
   void updateCursor(int dx, int dy);
@@ -35,7 +38,7 @@ protected:
   void pasteLastPhrase();
   void extendSelection();
 
-  GUIRect getSelectionRect();
+  GUIRect getSelectionRect() const;
   void fillClipboardData();
   void copySelection();
   void cutSelection();

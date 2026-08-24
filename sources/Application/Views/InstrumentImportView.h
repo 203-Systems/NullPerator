@@ -12,6 +12,7 @@
 
 #include "ScreenView.h"
 #include "System/FileSystem/FileSystem.h"
+#include "Ui2BrowserSnapshot.h"
 #include "ViewData.h"
 #include <string>
 
@@ -24,6 +25,8 @@ public:
   virtual void DrawView();
   virtual void OnPlayerUpdate(PlayerEventType, unsigned int tick = 0);
   virtual void OnFocus();
+
+  [[nodiscard]] Ui2BrowserSnapshot SnapshotForUi2() const;
 
 protected:
   void setCurrentFolder(FileSystem *fs, const char *name);

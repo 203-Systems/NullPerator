@@ -9,6 +9,8 @@
 #include "UI2/Render/UiFrameRenderer.h"
 #include "UI2/Theme/UiThemeSchema.h"
 
+#include <algorithm>
+
 namespace ui2 {
 namespace {
 
@@ -20,6 +22,19 @@ RectI16 ResolvedCursorRect(const UiThemeViewData &data) {
 }
 
 } // namespace
+
+UiThemeViewData UiThemeViewState::ToViewData() const {
+  UiThemeViewData data;
+  data.name = name.data();
+  data.selectedColor = selectedColor;
+  data.nameAction = nameAction;
+  data.scrollOffset = scrollOffset;
+  data.cursorVisualRect = cursorVisualRect;
+  data.cursorVisualOverride = cursorVisualOverride;
+  data.cursorInkVisible = cursorInkVisible;
+  data.power = power;
+  return data;
+}
 
 RectI16 UiThemeView::CursorTargetRect(const UiThemeViewData &data) {
   if (data.selectedColor < 0) return CursorTargetRect();
@@ -42,18 +57,22 @@ void UiThemeView::RenderDelta(const UiThemeViewData &previous,
   };
   if (previous.power != current.power)
     render({184, 0, 56, 34});
-  if (previous.scrollOffset != current.scrollOffset) {
+  const bool contentRedrawn = previous.scrollOffset != current.scrollOffset;
+  if (contentRedrawn) {
     render({0, 34, 240, 174});
-    return;
   }
-  if (previous.name != current.name)
+  if (!contentRedrawn && previous.name != current.name)
     render(UiVerticalList::VisualRect({5, 40, 230, 11},
                                       current.scrollOffset));
-  if (ResolvedCursorRect(previous) != ResolvedCursorRect(current) ||
-      previous.cursorInkVisible != current.cursorInkVisible) {
+  if (!contentRedrawn &&
+      (ResolvedCursorRect(previous) != ResolvedCursorRect(current) ||
+       previous.cursorInkVisible != current.cursorInkVisible)) {
     render(UiVerticalList::VisualRect({5, 40, 230, kContentBottom - 40},
                                       current.scrollOffset));
   }
+  if (previous.selectedColor != current.selectedColor ||
+      previous.nameAction != current.nameAction)
+    render({0, 208, 240, 32});
 }
 
 UiBuildStatus UiThemeView::Build(const UiThemeViewData &data, UiPalette &,
@@ -61,7 +80,7 @@ UiBuildStatus UiThemeView::Build(const UiThemeViewData &data, UiPalette &,
   scene.Clear();
   scene.topHeight = 34;
   scene.bottomTop = 208;
-  scene.bottomVisible = true;
+  scene.bottomVisible = data.selectedColor < 0;
   scene.contentOffsetY = UiVerticalList::Clamp(data.scrollOffset,
                                                 kRevealBottom,
                                                 kContentBottom);
@@ -71,9 +90,14 @@ UiBuildStatus UiThemeView::Build(const UiThemeViewData &data, UiPalette &,
   const UiBuildStatus topStatus = UiChromeRenderer::BuildTop(top, scene.top);
   if (topStatus != UiBuildStatus::Built)
     return topStatus;
-  UiBottomBarModel bottom{.kind = UiBottomBarKind::Actions};
-  bottom.actions.actions = {"NEW", "LOAD", "SAVE", "RENAME"};
-  bottom.actions.count = 4;
+  UiBottomBarModel bottom{.kind = scene.bottomVisible
+                                      ? UiBottomBarKind::Actions
+                                      : UiBottomBarKind::Hidden};
+  if (scene.bottomVisible) {
+    bottom.actions.actions = {"NEW", "LOAD", "SAVE", "RENAME"};
+    bottom.actions.count = 4;
+    bottom.actions.active = std::min<std::uint8_t>(data.nameAction, 3);
+  }
   const UiBuildStatus bottomStatus =
       UiChromeRenderer::BuildBottom(bottom, scene.bottom);
   if (bottomStatus != UiBuildStatus::Built)

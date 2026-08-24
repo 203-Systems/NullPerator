@@ -17,7 +17,17 @@
 
 namespace ui2 {
 
-enum class UiProjectCursor : std::uint8_t { Name, Tempo, Samples, Render };
+enum class UiProjectCursor : std::uint8_t {
+  Name,
+  Tempo,
+  Transpose,
+  Scale,
+  Root,
+  SamplePool,
+  Samples,
+  Instruments,
+  Render,
+};
 
 struct UiProjectViewData {
   std::string_view name = "ONECYCAC";
@@ -26,6 +36,8 @@ struct UiProjectViewData {
   std::string_view scale = "CHROMATIC";
   std::string_view root = "C";
   UiProjectCursor cursor = UiProjectCursor::Tempo;
+  std::uint8_t nameAction = 0;
+  std::uint8_t renderOption = 0;
   RectI16 cursorVisualRect{};
   bool cursorVisualOverride = false;
   bool cursorInkVisible = true;
@@ -42,10 +54,11 @@ public:
                           const UiFrameScene &currentScene,
                           UiIndexedSurface &surface, const UiPalette &palette);
   [[nodiscard]] static RectI16 CursorTargetRect(UiProjectCursor cursor);
+  [[nodiscard]] static constexpr std::int16_t ContentBottom() { return 181; }
   [[nodiscard]] static std::int16_t
   RevealCursor(std::int16_t currentOffset, UiProjectCursor cursor) {
     return UiVerticalList::Reveal(currentOffset, CursorTargetRect(cursor), 34,
-                                  208, 181);
+                                  208, ContentBottom());
   }
   [[nodiscard]] static RectI16 FieldDamageRect(std::int16_t y);
 };

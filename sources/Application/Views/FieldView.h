@@ -24,6 +24,7 @@ public:
   UIField *GetFocus();
   void ClearFocus();
   int GetFocusIndex();
+  int GetFocusIndex() const;
   void SetSize(int size);
 
   etl::list<UIField *, 64> fieldList_; // adjust to maximum fields on one screen

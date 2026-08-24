@@ -18,6 +18,51 @@
 #include "Foundation/Observable.h"
 #include "ViewData.h"
 
+#include <array>
+#include <cstdint>
+
+struct DeviceViewUi2Choice {
+  const char *const *options = nullptr;
+  std::uint8_t count = 0;
+  std::uint8_t current = 0;
+  bool wrap = false;
+
+  [[nodiscard]] const char *Value() const {
+    return options != nullptr && current < count ? options[current] : "";
+  }
+};
+
+enum class DeviceViewUi2Focus : std::uint8_t {
+  MidiDevice,
+  MidiSync,
+  LineOut,
+  RemoteUi,
+  Resampler,
+  Brightness,
+  Volume,
+  Theme,
+  UpdateFirmware,
+  Unknown,
+};
+
+// Compact, allocation-free representation of all settings consumed by UI2.
+// Option pointers refer to Config's static string tables.
+struct DeviceViewUi2Snapshot {
+  DeviceViewUi2Choice midiDevice{};
+  DeviceViewUi2Choice midiSync{};
+  DeviceViewUi2Choice lineOut{};
+  DeviceViewUi2Choice remoteUi{};
+  DeviceViewUi2Choice resampler{};
+  DeviceViewUi2Choice font{};
+  std::array<char, MAX_VARIABLE_STRING_LENGTH + 1> theme{};
+  std::array<char, 32> version{};
+  std::uint8_t brightness = 0;
+  std::uint8_t volume = 0;
+  DeviceViewUi2Focus focus = DeviceViewUi2Focus::Unknown;
+
+  [[nodiscard]] DeviceViewUi2Choice FocusedChoice() const;
+};
+
 class DeviceView : public FieldView, public I_Observer {
 public:
   DeviceView(GUIWindow &w, ViewData *data);
@@ -29,6 +74,8 @@ public:
   virtual void OnFocus(){};
   virtual bool ShouldDrawPlayTime() const override;
   void OnFocusLost() override;
+
+  [[nodiscard]] DeviceViewUi2Snapshot SnapshotForUi2() const;
 
   // Observer for action callback
 

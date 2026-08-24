@@ -14,6 +14,7 @@
 #include "Application/Views/BaseClasses/UIActionField.h"
 #include "Application/Views/BaseClasses/UITextField.h"
 #include "Application/Views/ModalDialogs/MessageBox.h" // For button constants
+#include "Application/Views/ModalDialogs/Ui2DialogSnapshot.h"
 #include "Externals/etl/include/etl/string.h"
 #include "Foundation/Observable.h"
 #include "Foundation/Variables/StringVariable.h"
@@ -34,6 +35,8 @@ public:
   virtual void OnFocus();
   virtual void AnimationUpdate(){};
   virtual void OnPlayerUpdate(PlayerEventType, unsigned int){};
+
+  [[nodiscard]] Ui2DialogSnapshot SnapshotForUi2() const override;
 
   // Observer implementation
   virtual void Update(Observable &o, I_ObservableData *d);

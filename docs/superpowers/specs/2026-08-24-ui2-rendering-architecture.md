@@ -174,12 +174,12 @@ directly.
 - Pressing and holding Nav may expand the Bottom Bar to show navigation and
   mixer information. Expansion is a height/reveal animation, not a page
   relayout.
-- In Phrase, Table, Instrument, and other numbered pages, holding Enter moves
-  the active bubble to the number in the Top Bar. Enter+Up/Down changes the
-  page number. Enter+Left/Right changes the current track.
-- During that Enter-held state, the Bottom Bar temporarily becomes the same
+- In Phrase, Table, Instrument, and other numbered pages, holding Edit moves
+  the active bubble to the number in the Top Bar. Edit+Up/Down changes the
+  page number. Edit+Left/Right changes the current track.
+- During that EDIT-held state, the Bottom Bar temporarily becomes the same
   eight-track note bar used by Song. Its cursor bubble surrounds the selected
-  `T#`. Releasing Enter restores the bar requested by the current cell.
+  `T#`. Releasing Edit restores the bar requested by the current cell.
 
 ## 3. Motion specification
 
@@ -271,7 +271,7 @@ struct CursorTarget {
 - Page transitions own the whole content layer, so the cursor rides with that
   page. A cursor does not animate independently between two different pages.
 - Top-number focus and Bottom-Bar track focus are separate cursor targets. The
-  Enter-held mode activates both semantic states, but only the currently
+  EDIT-held mode activates both semantic states, but only the currently
   changing target receives the stronger pulse if a pulse is enabled.
 - No continuous idle pulse is required. Static screens should become fully
   idle.
@@ -346,7 +346,7 @@ Resolution priority is deterministic:
 
 1. Critical/full-screen modal.
 2. Nav held: Nav cross in Top Bar and expanded Nav/Mixer Bottom Bar.
-3. Enter held on a numbered page: focused Top Bar number and Track Notes
+3. EDIT held on a numbered page: focused Top Bar number and Track Notes
    Bottom Bar with selected `T#`.
 4. View/cursor contextual request: help, actions, or selector.
 5. View default.
@@ -892,7 +892,7 @@ Add a design-review mode to the workbench only for orchestration:
 - choose any registered page and state;
 - show multiple exact 240x240 canvases on a large review canvas;
 - select 1x/2x/integer zoom;
-- choose battery, playback, Nav, Enter-held, cursor, and Bottom Bar states;
+- choose battery, playback, Nav, EDIT-held, cursor, and Bottom Bar states;
 - capture fixed timestamps from a transition;
 - inspect semantic palette tokens;
 - compare golden frames.
@@ -919,11 +919,11 @@ struct InputPresentationState {
 For numbered pages:
 
 ```text
-Enter press        -> Top Bar number bubble becomes active;
+Edit press         -> Top Bar number bubble becomes active;
                       Bottom Bar changes to Track Notes;
-Enter + Up/Down    -> change page number;
-Enter + Left/Right -> change current track and move the T# bubble;
-Enter release      -> restore cursor-context Bottom Bar and cell cursor.
+Edit + Up/Down     -> change page number;
+Edit + Left/Right  -> change current track and move the T# bubble;
+Edit release       -> restore cursor-context Bottom Bar and cell cursor.
 ```
 
 The view-switch event gains an optional transition hint:
@@ -990,7 +990,7 @@ they exercise:
 
 - dense 8-track and 16-row data;
 - contextual help and hidden bars;
-- Enter-held number/track mode;
+- EDIT-held number/track mode; ENTER remains the per-value digit modifier;
 - selectors and name actions;
 - stereo VU meters and gradients;
 - page transitions and cursor resizing.
@@ -1034,7 +1034,7 @@ Every output is exactly 240 by 240. At minimum capture:
 - every cursor column type;
 - empty/non-empty contextual Bottom Bars;
 - action and selector bars;
-- Enter-held number and track switch state;
+- EDIT-held number and track switch state;
 - playback cursor overlap state;
 - Top Bar battery/play/Nav states;
 - all instrument types;
@@ -1061,8 +1061,8 @@ Snapshot transition progress at deterministic times such as 0, 33, 66, 99,
 ### 11.3 State and input tests
 
 - Chrome priority is tested as a pure function.
-- Enter-held Up/Down and Left/Right produce the correct model and chrome state.
-- Releasing Enter restores the correct contextual Bottom Bar.
+- EDIT-held Up/Down and Left/Right produce the correct model and chrome state.
+- Releasing Edit restores the correct contextual Bottom Bar.
 - Selectors honor their per-field wrap flag.
 - Song and Phrase playback cursors remain independent per track.
 - UI animation never changes tracker data by itself.
@@ -1071,7 +1071,7 @@ Snapshot transition progress at deterministic times such as 0, 33, 66, 99,
 
 - Record compose time, dirty pixels, transfer bytes, transfer time, and missed
   UI deadlines.
-- Run audio while repeatedly navigating and opening Nav/Enter-held bars.
+- Run audio while repeatedly navigating and opening Nav/EDIT-held bars.
 - Run maximum VU activity and cursor repeat simultaneously.
 - Verify no audio underrun, watchdog reset, heap growth, or visible tearing.
 - Capture the physical panel at 1x to review pixel corners and low-contrast row
@@ -1098,7 +1098,7 @@ Implementation should not start across all pages at once. Approval is split:
 
 1. Static Song/Phrase/Table/Instrument/Mixer frames.
 2. Page slide with Top/Bottom text fade.
-3. Cursor motion and Enter-held number/track state.
+3. Cursor motion and EDIT-held number/track state.
 4. Nav cross and expanding Bottom Bar.
 5. Semantic palette and physical-screen contrast.
 6. ESP32-S3 timing and memory measurements.

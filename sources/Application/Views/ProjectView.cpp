@@ -25,6 +25,23 @@
 #include "System/System/System.h"
 #include <nanoprintf.h>
 
+namespace {
+
+ProjectViewUi2Choice ChoiceForUi2(Variable *variable) {
+  ProjectViewUi2Choice choice;
+  if (variable == nullptr || variable->GetType() != Variable::CHAR_LIST)
+    return choice;
+  choice.options = variable->GetListPointer();
+  choice.count = variable->GetListSize();
+  const int current = variable->GetInt();
+  choice.current = current >= 0 && current < choice.count
+                       ? static_cast<std::uint8_t>(current)
+                       : 0;
+  return choice;
+}
+
+} // namespace
+
 static void CreateNewProjectCallback(View &v, ModalView &dialog) {
   if (dialog.GetReturnCode() == MBL_YES) {
     // first clear out any existing "unnamed" project
@@ -235,6 +252,102 @@ ProjectView::ProjectView(GUIWindow &w, ViewData *data) : FieldView(w, data) {
 }
 
 ProjectView::~ProjectView() {}
+
+ProjectViewUi2Snapshot ProjectView::SnapshotForUi2() const {
+  ProjectViewUi2Snapshot snapshot;
+  const auto name = nameField_->GetString();
+  npf_snprintf(snapshot.name.data(), snapshot.name.size(), "%s", name.c_str());
+
+  if (Variable *value = project_->FindVariable(FourCC::VarTempo))
+    snapshot.tempo = static_cast<std::int16_t>(value->GetInt());
+#if !defined(ADV) && !defined(NODE)
+  if (Variable *value = project_->FindVariable(FourCC::VarMasterVolume))
+    snapshot.masterVolume = static_cast<std::int16_t>(value->GetInt());
+#endif
+  if (Variable *value = project_->FindVariable(FourCC::VarTranspose))
+    snapshot.transpose = static_cast<std::int8_t>(value->GetInt());
+  snapshot.scale = ChoiceForUi2(project_->FindVariable(FourCC::VarScale));
+  snapshot.root = ChoiceForUi2(project_->FindVariable(FourCC::VarScaleRoot));
+
+  switch (GetFocusIndex()) {
+  case 0:
+    snapshot.focus = ProjectViewUi2Focus::Name;
+    break;
+  case 1:
+    snapshot.focus = ProjectViewUi2Focus::Browse;
+    break;
+  case 2:
+    snapshot.focus = ProjectViewUi2Focus::Save;
+    break;
+  case 3:
+    snapshot.focus = ProjectViewUi2Focus::NewProject;
+    break;
+  case 4:
+    snapshot.focus = ProjectViewUi2Focus::RandomName;
+    break;
+  case 5:
+    snapshot.focus = ProjectViewUi2Focus::Tempo;
+    break;
+#if !defined(ADV) && !defined(NODE)
+  case 6:
+    snapshot.focus = ProjectViewUi2Focus::MasterVolume;
+    break;
+  case 7:
+    snapshot.focus = ProjectViewUi2Focus::Transpose;
+    break;
+  case 8:
+    snapshot.focus = ProjectViewUi2Focus::Scale;
+    break;
+  case 9:
+    snapshot.focus = ProjectViewUi2Focus::Root;
+    break;
+  case 10:
+    snapshot.focus = ProjectViewUi2Focus::SamplePool;
+    break;
+  case 11:
+    snapshot.focus = ProjectViewUi2Focus::PurgeSamples;
+    break;
+  case 12:
+    snapshot.focus = ProjectViewUi2Focus::PurgeInstruments;
+    break;
+  case 14:
+    snapshot.focus = ProjectViewUi2Focus::RenderMixdown;
+    break;
+  case 15:
+    snapshot.focus = ProjectViewUi2Focus::RenderStems;
+    break;
+#else
+  case 6:
+    snapshot.focus = ProjectViewUi2Focus::Transpose;
+    break;
+  case 7:
+    snapshot.focus = ProjectViewUi2Focus::Scale;
+    break;
+  case 8:
+    snapshot.focus = ProjectViewUi2Focus::Root;
+    break;
+  case 9:
+    snapshot.focus = ProjectViewUi2Focus::SamplePool;
+    break;
+  case 10:
+    snapshot.focus = ProjectViewUi2Focus::PurgeSamples;
+    break;
+  case 11:
+    snapshot.focus = ProjectViewUi2Focus::PurgeInstruments;
+    break;
+  case 13:
+    snapshot.focus = ProjectViewUi2Focus::RenderMixdown;
+    break;
+  case 14:
+    snapshot.focus = ProjectViewUi2Focus::RenderStems;
+    break;
+#endif
+  default:
+    snapshot.focus = ProjectViewUi2Focus::Unknown;
+    break;
+  }
+  return snapshot;
+}
 
 void ProjectView::ProcessButtonMask(unsigned short mask, bool pressed) {
 

@@ -47,6 +47,21 @@ TextInputModalView::TextInputModalView(
 
 TextInputModalView::~TextInputModalView() {}
 
+Ui2DialogSnapshot TextInputModalView::SnapshotForUi2() const {
+  Ui2DialogSnapshot snapshot;
+  snapshot.kind = ui2::UiDialogKind::TextInput;
+  snapshot.SetTitle(title_.c_str());
+  snapshot.SetLabel(prompt_.c_str());
+
+  // UITextField's historical getter is not const even though it only reads
+  // the bound StringVariable. Keep that API debt at this capture boundary.
+  auto &textField =
+      const_cast<UITextField<MAX_TEXT_INPUT_LENGTH> &>(textField_);
+  const auto value = textField.GetString();
+  snapshot.SetValue(value.c_str());
+  return snapshot;
+}
+
 void TextInputModalView::DrawView() {
   // Calculate window size based on title and prompt
   int titleSize = title_.size();

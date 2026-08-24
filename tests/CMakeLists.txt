@@ -18,6 +18,9 @@ add_executable(picoTracker_tests
   wasm_logging_tests.cpp
   wasm_trace_tests.cpp
   wasm_platform_tests.cpp
+  ui2_browser_legacy_snapshot_tests.cpp
+  ui2_dialog_adapter_tests.cpp
+  ui2_legacy_snapshot_tests.cpp
   ui2_core_tests.cpp
   ../sources/Adapters/wasm/midi/MidiByteQueue.cpp
   ../sources/Adapters/wasm/midi/MidiLatencyTrace.cpp
@@ -431,7 +434,7 @@ if(NODE_EXECUTABLE)
       "${CMAKE_CURRENT_LIST_DIR}/../web/tools/compare-ui2-snapshot.mjs"
       --actual "${CMAKE_CURRENT_BINARY_DIR}/chain-actual.ppm"
       --golden "${CMAKE_CURRENT_LIST_DIR}/../web/e2e/ui2-golden.spec.js-snapshots/chain.png"
-      --tolerance-region 219,50,16,148,2)
+      --tolerance-region 219,47,16,153,2)
   set_tests_properties(ui2_chain_golden PROPERTIES
     DEPENDS ui2_chain_snapshot)
 

@@ -26,11 +26,355 @@
 #include "ModalDialogs/TextInputModalView.h"
 #include "System/System/System.h"
 #include <Application/Utils/stringutils.h>
+#include <array>
 #include <cstdint>
 #include <nanoprintf.h>
 
 static constexpr InstrumentType kMaxSelectableInstrumentType =
     static_cast<InstrumentType>(IT_LAST - 1);
+
+namespace {
+
+template <std::size_t Capacity>
+void CopyUi2Text(std::array<char, Capacity> &destination, const char *source,
+                 bool normalizeFilename = false) {
+  destination.fill('\0');
+  if (source == nullptr || Capacity == 0)
+    return;
+  std::size_t output = 0;
+  while (*source != '\0' && output + 1 < Capacity) {
+    unsigned char character = static_cast<unsigned char>(*source++);
+    if (normalizeFilename && character == '_')
+      character = ' ';
+    if (character >= 'a' && character <= 'z')
+      character = static_cast<unsigned char>(character - ('a' - 'A'));
+    destination[output++] = static_cast<char>(character);
+  }
+}
+
+Variable *FindUi2Variable(I_Instrument *instrument, FourCC::enum_type id) {
+  return instrument != nullptr ? instrument->FindVariable(id) : nullptr;
+}
+
+int Ui2Int(I_Instrument *instrument, FourCC::enum_type id,
+           int fallback = 0) {
+  Variable *variable = FindUi2Variable(instrument, id);
+  return variable != nullptr ? variable->GetInt() : fallback;
+}
+
+const char *Ui2Bool(bool value) { return value ? "TRUE" : "FALSE"; }
+
+template <std::size_t Capacity>
+void CopyUi2VariableText(std::array<char, Capacity> &destination,
+                         I_Instrument *instrument, FourCC::enum_type id,
+                         const char *fallback = "--") {
+  Variable *variable = FindUi2Variable(instrument, id);
+  if (variable == nullptr) {
+    CopyUi2Text(destination, fallback);
+    return;
+  }
+  const auto value = variable->GetString();
+  CopyUi2Text(destination, value.empty() ? fallback : value.c_str());
+}
+
+InstrumentViewUi2Field &AddUi2Field(InstrumentViewUi2Snapshot &snapshot,
+                                    const char *label, const char *value,
+                                    std::int16_t y) {
+  InstrumentViewUi2Field &field = snapshot.fields[snapshot.fieldCount++];
+  CopyUi2Text(field.label, label);
+  CopyUi2Text(field.value, value);
+  field.y = y;
+  return field;
+}
+
+InstrumentViewUi2OperatorRow &
+AddUi2Operator(InstrumentViewUi2Snapshot &snapshot, const char *label,
+               const char *op1, const char *op2) {
+  InstrumentViewUi2OperatorRow &row =
+      snapshot.operators[snapshot.operatorCount++];
+  CopyUi2Text(row.label, label);
+  CopyUi2Text(row.op1, op1);
+  CopyUi2Text(row.op2, op2);
+  return row;
+}
+
+const char *Ui2LoopName(int value) {
+  switch (value) {
+  case SILM_ONESHOT:
+    return "ONE SHOT";
+  case SILM_LOOP:
+    return "FORWARD";
+  case SILM_LOOP_PINGPONG:
+    return "PING PONG";
+  case SILM_OSC:
+    return "OSCILLATOR";
+  case SILM_LOOPSYNC:
+    return "LOOP SYNC";
+  default:
+    return "--";
+  }
+}
+
+const char *Ui2SidWaveformName(int value) {
+  switch (value) {
+  case DWF_NONE:
+    return "--";
+  case DWF_TRI:
+    return "A";
+  case DWF_SAW:
+    return "/";
+  case DWF_TRI_SAW:
+    return "A/";
+  case DWF_SQ:
+    return "PULSE";
+  case DWF_TRI_SQ:
+    return "A PULSE";
+  case DWF_SAW_SQ:
+    return "/ PULSE";
+  case DWF_TRI_SAW_SQ:
+    return "A/ PULSE";
+  case DWF_NOISE:
+    return "NOISE";
+  default:
+    return "--";
+  }
+}
+
+const char *Ui2OpalAlgorithmName(int value) {
+  return value == 0 ? "1*2" : value == 1 ? "1+2" : "--";
+}
+
+const char *Ui2OpalWaveName(int value) {
+  static constexpr std::array<const char *, 8> names{
+      "SINE", "HALF", "ABS", "PULS", "EVEN", "AB-E", "SQR", "DSQR"};
+  return value >= 0 && value < static_cast<int>(names.size()) ? names[value]
+                                                              : "--";
+}
+
+const char *Ui2OpalKeyscaleName(int value) {
+  static constexpr std::array<const char *, 4> names{"0", "1.5", "3", "6"};
+  return value >= 0 && value < static_cast<int>(names.size()) ? names[value]
+                                                              : "--";
+}
+
+void Ui2Binary(char *destination, std::size_t capacity, unsigned int value,
+               unsigned int width) {
+  if (destination == nullptr || capacity == 0)
+    return;
+  const unsigned int digits =
+      width < capacity ? width : static_cast<unsigned int>(capacity - 1);
+  for (unsigned int index = 0; index < digits; ++index) {
+    const unsigned int bit = digits - index - 1;
+    destination[index] = (value & (1U << bit)) != 0U ? '1' : '0';
+  }
+  destination[digits] = '\0';
+}
+
+void Ui2Note(char *destination, std::size_t capacity, int note) {
+  static constexpr std::array<const char *, 12> names{
+      "C",  "C#", "D",  "D#", "E",  "F",
+      "F#", "G",  "G#", "A",  "A#", "B"};
+  if (destination == nullptr || capacity == 0)
+    return;
+  if (note < 0) {
+    npf_snprintf(destination, capacity, "--");
+    return;
+  }
+  npf_snprintf(destination, capacity, "%s%d", names[note % 12], note / 12 - 2);
+}
+
+void ResolveUi2Focus(InstrumentViewUi2Snapshot &snapshot,
+                     FourCC::enum_type focusId) {
+  snapshot.focus = InstrumentViewUi2Focus::Unmapped;
+  switch (focusId) {
+  case FourCC::VarInstrumentType:
+    snapshot.focus = InstrumentViewUi2Focus::Type;
+    return;
+  case FourCC::InstrumentName:
+    snapshot.focus = InstrumentViewUi2Focus::Name;
+    snapshot.nameAction = 2;
+    return;
+  case FourCC::ActionImport:
+    snapshot.focus = InstrumentViewUi2Focus::Name;
+    snapshot.nameAction = 0;
+    return;
+  case FourCC::ActionExport:
+    snapshot.focus = InstrumentViewUi2Focus::Name;
+    snapshot.nameAction = 1;
+    return;
+  default:
+    break;
+  }
+
+  const auto selectField = [&](std::uint8_t index) {
+    snapshot.focus = InstrumentViewUi2Focus::Field;
+    snapshot.selectedField = index;
+  };
+  const auto selectOperator = [&](std::uint8_t index, bool second) {
+    snapshot.focus = second ? InstrumentViewUi2Focus::Operator2
+                            : InstrumentViewUi2Focus::Operator1;
+    snapshot.selectedOperator = index;
+  };
+
+  switch (snapshot.kind) {
+  case InstrumentViewUi2Kind::Sample:
+    switch (focusId) {
+    case FourCC::SampleInstrumentSample:
+      selectField(0);
+      break;
+    case FourCC::ActionShowSampleSlices:
+      selectField(1);
+      break;
+    case FourCC::SampleInstrumentVolume:
+      selectField(2);
+      break;
+    case FourCC::SampleInstrumentPan:
+      selectField(3);
+      break;
+    case FourCC::SampleInstrumentRootNote:
+      selectField(4);
+      break;
+    case FourCC::SampleInstrumentFineTune:
+      selectField(5);
+      break;
+    case FourCC::SampleInstrumentCrushVolume:
+      selectField(6);
+      break;
+    case FourCC::SampleInstrumentCrush:
+      selectField(7);
+      break;
+    case FourCC::SampleInstrumentDownsample:
+      selectField(8);
+      break;
+    case FourCC::SampleInstrumentFilterCutOff:
+    case FourCC::SampleInstrumentFilterResonance:
+    case FourCC::SampleInstrumentFilterType:
+    case FourCC::SampleInstrumentFilterMode:
+      selectField(9);
+      break;
+    case FourCC::SampleInstrumentLoopMode:
+      selectField(10);
+      break;
+    default:
+      break;
+    }
+    return;
+  case InstrumentViewUi2Kind::Midi:
+    switch (focusId) {
+    case FourCC::MidiInstrumentChannel:
+      selectField(0);
+      break;
+    case FourCC::MidiInstrumentVolume:
+      selectField(1);
+      break;
+    case FourCC::MidiInstrumentNoteLength:
+      selectField(2);
+      break;
+    case FourCC::MidiInstrumentProgram:
+      selectField(3);
+      break;
+    case FourCC::MidiInstrumentTableAutomation:
+      selectField(4);
+      break;
+    case FourCC::MidiInstrumentTable:
+      selectField(5);
+      break;
+    default:
+      break;
+    }
+    return;
+  case InstrumentViewUi2Kind::Sid:
+    switch (focusId) {
+    case FourCC::SIDInstrumentOSCNumber:
+    case FourCC::SIDInstrumentPulseWidth:
+      selectField(0);
+      break;
+    case FourCC::SIDInstrumentWaveform:
+      selectField(1);
+      break;
+    case FourCC::SIDInstrumentVSync:
+      selectField(2);
+      break;
+    case FourCC::SIDInstrumentRingModulator:
+      selectField(3);
+      break;
+    case FourCC::SIDInstrumentADSR:
+      selectField(4);
+      break;
+    case FourCC::SIDInstrumentFilterOn:
+    case FourCC::SIDInstrument1FilterCut:
+    case FourCC::SIDInstrument2FilterCut:
+      selectField(5);
+      break;
+    case FourCC::SIDInstrument1FilterResonance:
+    case FourCC::SIDInstrument2FilterResonance:
+      selectField(6);
+      break;
+    case FourCC::SIDInstrument1FilterMode:
+    case FourCC::SIDInstrument2FilterMode:
+      selectField(7);
+      break;
+    default:
+      break;
+    }
+    return;
+  case InstrumentViewUi2Kind::Opal:
+    switch (focusId) {
+    case FourCC::OPALInstrumentAlgorithm:
+      selectField(0);
+      break;
+    case FourCC::OPALInstrumentDeepTremeloVibrato:
+      selectField(1);
+      break;
+    case FourCC::OPALInstrumentFeedback:
+      selectField(2);
+      break;
+    case FourCC::OPALInstrumentOp1Level:
+      selectOperator(0, false);
+      break;
+    case FourCC::OPALInstrumentOp2Level:
+      selectOperator(0, true);
+      break;
+    case FourCC::OPALInstrumentOp1Multiplier:
+      selectOperator(1, false);
+      break;
+    case FourCC::OPALInstrumentOp2Multiplier:
+      selectOperator(1, true);
+      break;
+    case FourCC::OPALInstrumentOp1ADSR:
+      selectOperator(2, false);
+      break;
+    case FourCC::OPALInstrumentOp2ADSR:
+      selectOperator(2, true);
+      break;
+    case FourCC::OPALInstrumentOp1WaveShape:
+      selectOperator(3, false);
+      break;
+    case FourCC::OPALInstrumentOp2WaveShape:
+      selectOperator(3, true);
+      break;
+    case FourCC::OPALInstrumentOp1TremVibSusKSR:
+      selectOperator(4, false);
+      break;
+    case FourCC::OPALInstrumentOp2TremVibSusKSR:
+      selectOperator(4, true);
+      break;
+    case FourCC::OPALInstrumentOp1KeyScaleLevel:
+      selectOperator(5, false);
+      break;
+    case FourCC::OPALInstrumentOp2KeyScaleLevel:
+      selectOperator(5, true);
+      break;
+    default:
+      break;
+    }
+    return;
+  case InstrumentViewUi2Kind::None:
+    return;
+  }
+}
+
+} // namespace
 
 InstrumentView::InstrumentView(GUIWindow &w, ViewData *data)
     : FieldView(w, data), instrumentType_(FourCC::VarInstrumentType,
@@ -75,6 +419,220 @@ InstrumentView::InstrumentView(GUIWindow &w, ViewData *data)
 }
 
 InstrumentView::~InstrumentView() {}
+
+InstrumentViewUi2Snapshot InstrumentView::SnapshotForUi2() {
+  InstrumentViewUi2Snapshot snapshot;
+  snapshot.type.options = InstrumentTypeNames;
+  snapshot.type.count = IT_LAST;
+  snapshot.type.wrap = true;
+
+  I_Instrument *instrument = getInstrument();
+  if (instrument == nullptr) {
+    CopyUi2Text(snapshot.number, "00");
+    CopyUi2Text(snapshot.name, "--");
+    snapshot.focus = InstrumentViewUi2Focus::Unmapped;
+    return snapshot;
+  }
+
+  const InstrumentType type = instrument->GetType();
+  snapshot.type.current = static_cast<std::uint8_t>(type);
+  snapshot.kind = static_cast<InstrumentViewUi2Kind>(type);
+  npf_snprintf(snapshot.number.data(), snapshot.number.size(), "%02X",
+               viewData_->currentInstrumentID_ & 0xFF);
+  if (type == IT_NONE) {
+    CopyUi2Text(snapshot.name, "--");
+  } else {
+    const auto displayName = instrument->GetDisplayName();
+    CopyUi2Text(snapshot.name,
+                displayName.empty() ? "--" : displayName.c_str(), true);
+  }
+
+  char value[InstrumentViewUi2Field::ValueCapacity]{};
+  switch (type) {
+  case IT_NONE:
+    break;
+  case IT_SAMPLE: {
+    SampleInstrument *sample = static_cast<SampleInstrument *>(instrument);
+    const auto filename = sample->GetSampleFileName();
+    InstrumentViewUi2Field &sampleField =
+        AddUi2Field(snapshot, "SAMPLE", "--", 66);
+    CopyUi2Text(sampleField.value,
+                filename.empty() ? "--" : filename.c_str(), true);
+
+    int sliceCount = 0;
+    for (std::size_t index = 0; index < SampleInstrument::MaxSlices; ++index) {
+      if (sample->IsSliceDefined(index))
+        ++sliceCount;
+    }
+    if (sliceCount <= 1) {
+      npf_snprintf(value, sizeof(value), "OFF / ADJUST");
+    } else {
+      npf_snprintf(value, sizeof(value), "%d / ADJUST", sliceCount);
+    }
+    AddUi2Field(snapshot, "SLICES", value, 76);
+    npf_snprintf(value, sizeof(value), "%02X",
+                 Ui2Int(instrument, FourCC::SampleInstrumentVolume) & 0xFF);
+    AddUi2Field(snapshot, "VOLUME", value, 86);
+    npf_snprintf(value, sizeof(value), "%02X",
+                 Ui2Int(instrument, FourCC::SampleInstrumentPan) & 0xFF);
+    AddUi2Field(snapshot, "PAN", value, 96);
+    Ui2Note(value, sizeof(value),
+            Ui2Int(instrument, FourCC::SampleInstrumentRootNote));
+    AddUi2Field(snapshot, "ROOT NOTE", value, 106);
+    npf_snprintf(value, sizeof(value), "%02X",
+                 Ui2Int(instrument, FourCC::SampleInstrumentFineTune) & 0xFF);
+    AddUi2Field(snapshot, "DETUNE", value, 116);
+    npf_snprintf(
+        value, sizeof(value), "%02X",
+        Ui2Int(instrument, FourCC::SampleInstrumentCrushVolume) & 0xFF);
+    AddUi2Field(snapshot, "DRIVE", value, 126);
+    npf_snprintf(value, sizeof(value), "%d",
+                 Ui2Int(instrument, FourCC::SampleInstrumentCrush));
+    AddUi2Field(snapshot, "CRUSH", value, 136);
+    npf_snprintf(value, sizeof(value), "%d",
+                 Ui2Int(instrument, FourCC::SampleInstrumentDownsample));
+    AddUi2Field(snapshot, "DOWNSAMPLE", value, 146);
+    npf_snprintf(
+        value, sizeof(value), "LP / %02X %02X",
+        Ui2Int(instrument, FourCC::SampleInstrumentFilterCutOff) & 0xFF,
+        Ui2Int(instrument, FourCC::SampleInstrumentFilterResonance) & 0xFF);
+    AddUi2Field(snapshot, "FILTER", value, 156);
+    AddUi2Field(snapshot, "LOOP",
+                Ui2LoopName(
+                    Ui2Int(instrument, FourCC::SampleInstrumentLoopMode)),
+                166);
+    break;
+  }
+  case IT_MIDI:
+    npf_snprintf(value, sizeof(value), "%02d",
+                 Ui2Int(instrument, FourCC::MidiInstrumentChannel) + 1);
+    AddUi2Field(snapshot, "CHANNEL", value, 66);
+    npf_snprintf(value, sizeof(value), "%02X",
+                 Ui2Int(instrument, FourCC::MidiInstrumentVolume) & 0xFF);
+    AddUi2Field(snapshot, "VOLUME", value, 76);
+    npf_snprintf(value, sizeof(value), "%02X",
+                 Ui2Int(instrument, FourCC::MidiInstrumentNoteLength) & 0xFF);
+    AddUi2Field(snapshot, "LENGTH", value, 86);
+    if (Ui2Int(instrument, FourCC::MidiInstrumentProgram, VAR_OFF) == VAR_OFF) {
+      npf_snprintf(value, sizeof(value), "--");
+    } else {
+      npf_snprintf(value, sizeof(value), "%02X",
+                   Ui2Int(instrument, FourCC::MidiInstrumentProgram) & 0xFF);
+    }
+    AddUi2Field(snapshot, "PROGRAM", value, 96);
+    AddUi2Field(
+        snapshot, "AUTOMATION",
+        Ui2Bool(Ui2Int(instrument, FourCC::MidiInstrumentTableAutomation) != 0),
+        106);
+    if (Ui2Int(instrument, FourCC::MidiInstrumentTable, VAR_OFF) == VAR_OFF) {
+      npf_snprintf(value, sizeof(value), "--");
+    } else {
+      npf_snprintf(value, sizeof(value), "%02X",
+                   Ui2Int(instrument, FourCC::MidiInstrumentTable) & 0xFF);
+    }
+    AddUi2Field(snapshot, "TABLE", value, 116);
+    break;
+  case IT_SID: {
+    SIDInstrument *sid = static_cast<SIDInstrument *>(instrument);
+    npf_snprintf(value, sizeof(value), "PULSEWIDTH %03X",
+                 Ui2Int(instrument, FourCC::SIDInstrumentPulseWidth) & 0xFFF);
+    AddUi2Field(snapshot, "OSCILLATOR", value, 66);
+    AddUi2Field(
+        snapshot, "WAVEFORM",
+        Ui2SidWaveformName(
+            Ui2Int(instrument, FourCC::SIDInstrumentWaveform)),
+        76);
+    AddUi2Field(snapshot, "OSC SYNC",
+                Ui2Bool(Ui2Int(instrument, FourCC::SIDInstrumentVSync) != 0),
+                86);
+    AddUi2Field(
+        snapshot, "RING MOD",
+        Ui2Bool(Ui2Int(instrument, FourCC::SIDInstrumentRingModulator) != 0),
+        96);
+    npf_snprintf(value, sizeof(value), "%04X",
+                 Ui2Int(instrument, FourCC::SIDInstrumentADSR) & 0xFFFF);
+    AddUi2Field(snapshot, "ENV ADSR", value, 106);
+    const bool firstChip = sid->GetChip() == SID1;
+    const FourCC::enum_type cutoff = firstChip
+                                         ? FourCC::SIDInstrument1FilterCut
+                                         : FourCC::SIDInstrument2FilterCut;
+    const FourCC::enum_type resonance =
+        firstChip ? FourCC::SIDInstrument1FilterResonance
+                  : FourCC::SIDInstrument2FilterResonance;
+    const FourCC::enum_type mode = firstChip
+                                       ? FourCC::SIDInstrument1FilterMode
+                                       : FourCC::SIDInstrument2FilterMode;
+    npf_snprintf(value, sizeof(value), "CUTOFF %03X",
+                 Ui2Int(instrument, cutoff) & 0x7FF);
+    AddUi2Field(snapshot, "FILTER", value, 116);
+    npf_snprintf(value, sizeof(value), "%X",
+                 Ui2Int(instrument, resonance) & 0xF);
+    AddUi2Field(snapshot, "RESONANCE", value, 126);
+    InstrumentViewUi2Field &modeField =
+        AddUi2Field(snapshot, "MODE", "--", 136);
+    CopyUi2VariableText(modeField.value, instrument, mode);
+    break;
+  }
+  case IT_OPAL: {
+    AddUi2Field(snapshot, "ALGORITHM",
+                Ui2OpalAlgorithmName(
+                    Ui2Int(instrument, FourCC::OPALInstrumentAlgorithm)),
+                82);
+    InstrumentViewUi2Field &deep =
+        AddUi2Field(snapshot, "DEEP TREM/VIB", "00", 93);
+    Ui2Binary(deep.value.data(), deep.value.size(),
+              Ui2Int(instrument, FourCC::OPALInstrumentDeepTremeloVibrato), 2);
+    npf_snprintf(value, sizeof(value), "%X",
+                 Ui2Int(instrument, FourCC::OPALInstrumentFeedback) & 0x7);
+    AddUi2Field(snapshot, "FEEDBACK", value, 104);
+
+    char op1[InstrumentViewUi2OperatorRow::ValueCapacity]{};
+    char op2[InstrumentViewUi2OperatorRow::ValueCapacity]{};
+    npf_snprintf(op1, sizeof(op1), "%02X",
+                 Ui2Int(instrument, FourCC::OPALInstrumentOp1Level) & 0x3F);
+    npf_snprintf(op2, sizeof(op2), "%02X",
+                 Ui2Int(instrument, FourCC::OPALInstrumentOp2Level) & 0x3F);
+    AddUi2Operator(snapshot, "LEVEL", op1, op2);
+    npf_snprintf(op1, sizeof(op1), "%X",
+                 Ui2Int(instrument, FourCC::OPALInstrumentOp1Multiplier) & 0xF);
+    npf_snprintf(op2, sizeof(op2), "%X",
+                 Ui2Int(instrument, FourCC::OPALInstrumentOp2Multiplier) & 0xF);
+    AddUi2Operator(snapshot, "MULTIPLIER", op1, op2);
+    npf_snprintf(op1, sizeof(op1), "%04X",
+                 Ui2Int(instrument, FourCC::OPALInstrumentOp1ADSR) & 0xFFFF);
+    npf_snprintf(op2, sizeof(op2), "%04X",
+                 Ui2Int(instrument, FourCC::OPALInstrumentOp2ADSR) & 0xFFFF);
+    AddUi2Operator(snapshot, "A/D/S/R", op1, op2);
+    AddUi2Operator(
+        snapshot, "SHAPE",
+        Ui2OpalWaveName(
+            Ui2Int(instrument, FourCC::OPALInstrumentOp1WaveShape)),
+        Ui2OpalWaveName(
+            Ui2Int(instrument, FourCC::OPALInstrumentOp2WaveShape)));
+    Ui2Binary(op1, sizeof(op1),
+              Ui2Int(instrument, FourCC::OPALInstrumentOp1TremVibSusKSR), 4);
+    Ui2Binary(op2, sizeof(op2),
+              Ui2Int(instrument, FourCC::OPALInstrumentOp2TremVibSusKSR), 4);
+    AddUi2Operator(snapshot, "TR/VB/SU/KSR", op1, op2);
+    AddUi2Operator(
+        snapshot, "KEYSCALE",
+        Ui2OpalKeyscaleName(
+            Ui2Int(instrument, FourCC::OPALInstrumentOp1KeyScaleLevel)),
+        Ui2OpalKeyscaleName(
+            Ui2Int(instrument, FourCC::OPALInstrumentOp2KeyScaleLevel)));
+    break;
+  }
+  case IT_LAST:
+    snapshot.kind = InstrumentViewUi2Kind::None;
+    break;
+  }
+
+  UIField *focusField = GetFocus();
+  ResolveUi2Focus(snapshot,
+                  focusField != nullptr ? getFieldID(focusField).get_enum()
+                                        : FourCC::Default);
+  return snapshot;
+}
 
 GUIPoint InstrumentView::GetAnchor() { return GUIPoint(1, 4); }
 

@@ -11,6 +11,7 @@
 #define _SONG_VIEW_H_
 
 #include "ScreenView.h"
+#include "UiGridSelection.h"
 
 class SongView;
 
@@ -27,6 +28,8 @@ public:
   virtual void OnFocus();
   virtual void AnimationUpdate();
 
+  UiGridSelection SelectionForUi2() const;
+
 protected:
   void processNormalButtonMask(unsigned int mask);
   void processSelectionButtonMask(unsigned int mask);
@@ -40,7 +43,7 @@ protected:
   void clonePosition();
   void pasteLast();
   void fillClipboardData();
-  GUIRect getSelectionRect();
+  GUIRect getSelectionRect() const;
   void copySelection();
   void pasteClipboard();
   void cutSelection();

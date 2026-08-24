@@ -10,12 +10,16 @@
 #include "UI2/Render/UiFrameRenderer.h"
 #include "UI2/UiEngine.h"
 #include "UI2/Views/Chain/UiChainView.h"
+#include "UI2/Views/Groove/UiGrooveView.h"
+#include "UI2/Views/Instrument/UiInstrumentView.h"
+#include "UI2/Views/Mixer/UiMixerView.h"
 #include "UI2/Views/Phrase/UiPhraseView.h"
 #include "UI2/Views/Song/UiSongView.h"
 #include "UI2/Views/Table/UiTableView.h"
 
 #include <array>
 #include <cstdint>
+#include <type_traits>
 
 class AppWindow;
 
@@ -62,10 +66,19 @@ public:
   }
 
 private:
-  enum class RuntimePage : std::uint8_t { None, Song, Chain, Phrase, Table };
+  enum class RuntimePage : std::uint8_t {
+    None,
+    Song,
+    Chain,
+    Phrase,
+    Table,
+    Instrument,
+    Groove,
+    Mixer
+  };
 
   struct SongFrameState {
-    std::array<char, 17> name{};
+    std::array<char, 21> name{};
     std::array<char, 6> elapsed{};
     std::array<std::array<std::uint8_t, 8>, 16> rows{};
     std::array<std::array<char, 5>, 8> notes{};
@@ -75,9 +88,11 @@ private:
     std::uint8_t editRow = 0;
     std::uint8_t editTrack = 0;
     RectI16 cursorVisualRect{};
+    RectI16 selectionVisualRect{};
     bool cursorVisualOverride = false;
     bool cursorInkVisible = true;
     bool playing = false;
+    bool liveMode = false;
     UiPowerState power = UiPowerState::BatteryNormal;
 
     bool operator==(const SongFrameState &) const = default;
@@ -104,6 +119,7 @@ private:
     std::uint8_t editColumn = 0;
     std::int8_t selectedTrack = 0;
     RectI16 cursorVisualRect{};
+    RectI16 selectionVisualRect{};
     RectI16 topMetaVisualRect{};
     RectI16 bottomTrackVisualRect{};
     bool cursorVisualOverride = false;
@@ -135,6 +151,7 @@ private:
     UiPhraseHeader activeHeader = UiPhraseHeader::None;
     PhraseContext context = PhraseContext::Hidden;
     RectI16 cursorVisualRect{};
+    RectI16 selectionVisualRect{};
     RectI16 topMetaVisualRect{};
     RectI16 bottomTrackVisualRect{};
     bool cursorVisualOverride = false;
@@ -175,6 +192,7 @@ private:
     UiTableHeader activeHeader = UiTableHeader::None;
     PhraseContext context = PhraseContext::Hidden;
     RectI16 cursorVisualRect{};
+    RectI16 selectionVisualRect{};
     RectI16 topMetaVisualRect{};
     RectI16 bottomTrackVisualRect{};
     bool cursorVisualOverride = false;
@@ -190,14 +208,126 @@ private:
     bool operator==(const TableFrameState &) const = default;
   };
 
+  struct GrooveFrameState {
+    std::array<char, 3> number{};
+    std::array<std::uint8_t, 16> steps{};
+    std::uint8_t editRow = 0;
+    RectI16 cursorVisualRect{};
+    bool cursorVisualOverride = false;
+    bool cursorInkVisible = true;
+    UiPowerState power = UiPowerState::BatteryNormal;
+
+    bool operator==(const GrooveFrameState &) const = default;
+  };
+
+  struct InstrumentFieldState {
+    std::array<char, 16> label{};
+    std::array<char, 24> value{};
+    std::int16_t y = 0;
+    bool operator==(const InstrumentFieldState &) const = default;
+  };
+
+  struct InstrumentOperatorState {
+    std::array<char, 16> label{};
+    std::array<char, 8> op1{};
+    std::array<char, 8> op2{};
+    bool operator==(const InstrumentOperatorState &) const = default;
+  };
+
+  struct InstrumentFrameState {
+    std::array<char, 3> number{};
+    std::array<char, 6> elapsed{};
+    std::array<char, 17> name{};
+    std::array<InstrumentFieldState, 16> fields{};
+    std::array<InstrumentOperatorState, 6> operators{};
+    std::array<std::array<char, 5>, 8> trackNotes{};
+    std::uint8_t fieldCount = 0;
+    std::uint8_t operatorCount = 0;
+    std::uint8_t selectedField = 0;
+    std::uint8_t selectedOperator = 0;
+    std::uint8_t nameAction = 0;
+    std::int8_t selectedTrack = 0;
+    UiInstrumentKind kind = UiInstrumentKind::None;
+    UiInstrumentCursor cursor = UiInstrumentCursor::None;
+    RectI16 cursorVisualRect{};
+    RectI16 topMetaVisualRect{};
+    RectI16 bottomTrackVisualRect{};
+    bool cursorVisualOverride = false;
+    bool topMetaVisualOverride = false;
+    bool bottomTrackVisualOverride = false;
+    bool cursorInkVisible = true;
+    bool topMetaInkVisible = true;
+    bool bottomTrackInkVisible = true;
+    bool numberFocus = false;
+    std::int16_t scrollOffset = 0;
+    UiPowerState power = UiPowerState::BatteryNormal;
+
+    bool operator==(const InstrumentFrameState &) const = default;
+  };
+
+  struct MixerFrameState {
+    std::array<std::array<std::uint8_t, 2>, 9> vuLevelTop{};
+    std::array<std::array<char, 4>, 9> volumes{};
+    std::int8_t selectedChannel = 0;
+    UiPowerState power = UiPowerState::BatteryNormal;
+
+    bool operator==(const MixerFrameState &) const = default;
+  };
+
+  template <typename State> struct FramePair {
+    State previous{};
+    State current{};
+  };
+
+  static_assert(std::is_trivially_copyable_v<SongFrameState> &&
+                std::is_trivially_destructible_v<SongFrameState>);
+  static_assert(std::is_trivially_copyable_v<ChainFrameState> &&
+                std::is_trivially_destructible_v<ChainFrameState>);
+  static_assert(std::is_trivially_copyable_v<PhraseFrameState> &&
+                std::is_trivially_destructible_v<PhraseFrameState>);
+  static_assert(std::is_trivially_copyable_v<TableFrameState> &&
+                std::is_trivially_destructible_v<TableFrameState>);
+  static_assert(std::is_trivially_copyable_v<GrooveFrameState> &&
+                std::is_trivially_destructible_v<GrooveFrameState>);
+  static_assert(std::is_trivially_copyable_v<InstrumentFrameState> &&
+                std::is_trivially_destructible_v<InstrumentFrameState>);
+  static_assert(std::is_trivially_copyable_v<MixerFrameState> &&
+                std::is_trivially_destructible_v<MixerFrameState>);
+
+  // Exactly one member is active, selected by activePage_. Every frame state
+  // is fixed-capacity and trivially destructible, so changing page can begin
+  // the next pair's lifetime in place without heap allocation.
+  union FrameStorage {
+    FramePair<SongFrameState> song;
+    FramePair<ChainFrameState> chain;
+    FramePair<PhraseFrameState> phrase;
+    FramePair<TableFrameState> table;
+    FramePair<InstrumentFrameState> instrument;
+    FramePair<GrooveFrameState> groove;
+    FramePair<MixerFrameState> mixer;
+
+    FrameStorage() noexcept {}
+    ~FrameStorage() noexcept {}
+  };
+
+  static_assert(sizeof(FrameStorage) < 2'100);
+
   static UiSongViewData ViewDataFor(const SongFrameState &state);
   static UiChainViewData ViewDataFor(const ChainFrameState &state);
   static UiPhraseViewData ViewDataFor(const PhraseFrameState &state);
   static UiTableViewData ViewDataFor(const TableFrameState &state);
+  static UiInstrumentViewData
+  ViewDataFor(const InstrumentFrameState &state);
+  static UiGrooveViewData ViewDataFor(const GrooveFrameState &state);
+  static UiMixerViewData ViewDataFor(const MixerFrameState &state);
   void CaptureSong(AppWindow &window, SongFrameState &state);
   void CaptureChain(AppWindow &window, ChainFrameState &state);
   void CapturePhrase(AppWindow &window, PhraseFrameState &state);
   void CaptureTable(AppWindow &window, TableFrameState &state);
+  void CaptureInstrument(AppWindow &window, InstrumentFrameState &state);
+  void CaptureGroove(AppWindow &window, GrooveFrameState &state);
+  void CaptureMixer(AppWindow &window, MixerFrameState &state);
+  void ActivatePage(RuntimePage page);
   [[nodiscard]] PresentResult PresentSong(AppWindow &window,
                                           std::uint32_t nowMs);
   [[nodiscard]] PresentResult PresentChain(AppWindow &window,
@@ -206,18 +336,16 @@ private:
                                             std::uint32_t nowMs);
   [[nodiscard]] PresentResult PresentTable(AppWindow &window,
                                            std::uint32_t nowMs);
+  [[nodiscard]] PresentResult PresentInstrument(AppWindow &window,
+                                                std::uint32_t nowMs);
+  [[nodiscard]] PresentResult PresentGroove(AppWindow &window,
+                                            std::uint32_t nowMs);
+  [[nodiscard]] PresentResult PresentMixer(AppWindow &window);
 
   UiEngineStorage engineStorage_{};
   UiEngine engine_;
   UiFrameScene scene_{};
-  SongFrameState previousSong_{};
-  SongFrameState currentSong_{};
-  ChainFrameState previousChain_{};
-  ChainFrameState currentChain_{};
-  PhraseFrameState previousPhrase_{};
-  PhraseFrameState currentPhrase_{};
-  TableFrameState previousTable_{};
-  TableFrameState currentTable_{};
+  FrameStorage frames_{};
   UiCursorAnimatorSet cursors_{};
   RectI16 cursorTarget_{};
   RectI16 topMetaTarget_{};

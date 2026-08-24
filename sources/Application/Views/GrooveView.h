@@ -22,6 +22,7 @@ public:
   virtual void DrawView();
   virtual void OnPlayerUpdate(PlayerEventType, unsigned int tick = 0);
   virtual void OnFocus();
+  int PositionForUi2() const { return position_; }
 
 protected:
   void updateCursorValue(int val, bool sync = false);

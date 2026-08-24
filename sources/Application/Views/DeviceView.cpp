@@ -25,6 +25,24 @@
 
 #define ACTION_BOOTSEL MAKE_FOURCC('B', 'O', 'O', 'T')
 
+namespace {
+
+DeviceViewUi2Choice ChoiceForUi2(Variable *variable, bool wrap = false) {
+  DeviceViewUi2Choice choice;
+  if (variable == nullptr || variable->GetType() != Variable::CHAR_LIST)
+    return choice;
+  choice.options = variable->GetListPointer();
+  choice.count = variable->GetListSize();
+  const int current = variable->GetInt();
+  choice.current = current >= 0 && current < choice.count
+                       ? static_cast<std::uint8_t>(current)
+                       : 0;
+  choice.wrap = wrap;
+  return choice;
+}
+
+} // namespace
+
 static void BootselCallback(View &v, ModalView &dialog) {
   if (dialog.GetReturnCode() == MBL_YES) {
     System *sys = System::GetInstance();
@@ -107,6 +125,103 @@ DeviceView::DeviceView(GUIWindow &w, ViewData *data) : FieldView(w, data) {
 bool DeviceView::ShouldDrawPlayTime() const { return false; }
 
 DeviceView::~DeviceView() {}
+
+DeviceViewUi2Choice DeviceViewUi2Snapshot::FocusedChoice() const {
+  switch (focus) {
+  case DeviceViewUi2Focus::MidiDevice:
+    return midiDevice;
+  case DeviceViewUi2Focus::MidiSync:
+    return midiSync;
+  case DeviceViewUi2Focus::LineOut:
+    return lineOut;
+  case DeviceViewUi2Focus::RemoteUi:
+    return remoteUi;
+  case DeviceViewUi2Focus::Resampler:
+    return resampler;
+  case DeviceViewUi2Focus::Brightness:
+  case DeviceViewUi2Focus::Volume:
+  case DeviceViewUi2Focus::Theme:
+  case DeviceViewUi2Focus::UpdateFirmware:
+  case DeviceViewUi2Focus::Unknown:
+    return {};
+  }
+  return {};
+}
+
+DeviceViewUi2Snapshot DeviceView::SnapshotForUi2() const {
+  DeviceViewUi2Snapshot snapshot;
+  Config *config = Config::GetInstance();
+  snapshot.midiDevice =
+      ChoiceForUi2(config->FindVariable(FourCC::VarMidiDevice));
+  snapshot.midiSync =
+      ChoiceForUi2(config->FindVariable(FourCC::VarMidiSync));
+  snapshot.lineOut = ChoiceForUi2(config->FindVariable(FourCC::VarLineOut));
+  snapshot.remoteUi =
+      ChoiceForUi2(config->FindVariable(FourCC::VarRemoteUI));
+  snapshot.resampler =
+      ChoiceForUi2(config->FindVariable(FourCC::VarImportResampler));
+  snapshot.font = ChoiceForUi2(config->FindVariable(FourCC::VarUIFont));
+  if (Variable *value = config->FindVariable(FourCC::VarBacklightLevel))
+    snapshot.brightness = static_cast<std::uint8_t>(value->GetInt());
+  if (Variable *value = config->FindVariable(FourCC::VarOutputVolume))
+    snapshot.volume = static_cast<std::uint8_t>(value->GetInt());
+  if (Variable *value = config->FindVariable(FourCC::VarThemeName)) {
+    const auto theme = value->GetString();
+    npf_snprintf(snapshot.theme.data(), snapshot.theme.size(), "%s",
+                 theme.c_str());
+  }
+  npf_snprintf(snapshot.version.data(), snapshot.version.size(),
+               "VERSION %s%s_%s", PROJECT_NUMBER, PROJECT_RELEASE,
+               BUILD_COUNT);
+
+  switch (GetFocusIndex()) {
+  case 0:
+    snapshot.focus = DeviceViewUi2Focus::MidiDevice;
+    break;
+  case 1:
+    snapshot.focus = DeviceViewUi2Focus::MidiSync;
+    break;
+#if !defined(ADV) && !defined(NODE)
+  case 2:
+    snapshot.focus = DeviceViewUi2Focus::LineOut;
+    break;
+  case 3:
+    snapshot.focus = DeviceViewUi2Focus::RemoteUi;
+    break;
+  case 4:
+    snapshot.focus = DeviceViewUi2Focus::Resampler;
+    break;
+  case 5:
+    snapshot.focus = DeviceViewUi2Focus::Brightness;
+    break;
+#else
+  case 2:
+    snapshot.focus = DeviceViewUi2Focus::RemoteUi;
+    break;
+  case 3:
+    snapshot.focus = DeviceViewUi2Focus::Resampler;
+    break;
+  case 4:
+    snapshot.focus = DeviceViewUi2Focus::Brightness;
+    break;
+  case 5:
+    snapshot.focus = DeviceViewUi2Focus::Volume;
+    break;
+#endif
+  case 6:
+    snapshot.focus = DeviceViewUi2Focus::Theme;
+    break;
+#ifndef NODE
+  case 7:
+    snapshot.focus = DeviceViewUi2Focus::UpdateFirmware;
+    break;
+#endif
+  default:
+    snapshot.focus = DeviceViewUi2Focus::Unknown;
+    break;
+  }
+  return snapshot;
+}
 
 void DeviceView::ProcessButtonMask(unsigned short mask, bool pressed) {
 

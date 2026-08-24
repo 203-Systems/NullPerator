@@ -11,6 +11,7 @@
 #include "Application/Player/Player.h"
 #include "Application/Views/BaseClasses/View.h"
 #include "UIFramework/BasicDatas/GUIPoint.h"
+#include <algorithm>
 #include <cstdint>
 #include <new>
 #include <stdio.h>
@@ -48,6 +49,33 @@ RenderProgressModal::RenderProgressModal(
 }
 
 RenderProgressModal::~RenderProgressModal() {}
+
+Ui2DialogSnapshot RenderProgressModal::SnapshotForUi2() const {
+  Ui2DialogSnapshot snapshot;
+  snapshot.kind = ui2::UiDialogKind::RenderProgress;
+  snapshot.SetTitle(title_.c_str());
+  snapshot.SetLabel(message_.c_str());
+
+  char display[Ui2DialogSnapshot::ElapsedCapacity]{};
+  if (progressDisplayMode_ == ProgressDisplayMode::SongPercent) {
+    const int percent = calculateSongRenderPercent();
+    std::snprintf(display, sizeof(display), "%d%%", percent);
+    snapshot.SetProgressPercent(percent);
+  } else {
+    const auto elapsedSeconds = static_cast<std::uint32_t>(
+        std::max(0.0f, totalSamples_) / static_cast<float>(SAMPLE_RATE));
+    const auto minutes = (elapsedSeconds / 60U) % 100U;
+    const auto seconds = elapsedSeconds % 60U;
+    std::snprintf(display, sizeof(display), "%02u:%02u",
+                  static_cast<unsigned int>(minutes),
+                  static_cast<unsigned int>(seconds));
+    // Elapsed-time renders have no determinate percentage. Only claim a full
+    // bar once the legacy modal has observed completion.
+    snapshot.SetProgressPercent(renderComplete_ ? 100 : 0);
+  }
+  snapshot.SetElapsed(display);
+  return snapshot;
+}
 
 void RenderProgressModal::Destroy() {
   this->~RenderProgressModal();

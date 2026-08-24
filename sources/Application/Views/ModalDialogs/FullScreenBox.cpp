@@ -49,6 +49,12 @@ FullScreenBox::FullScreenBox(View &view, const char *messageLine1,
 
 FullScreenBox::~FullScreenBox(){};
 
+Ui2DialogSnapshot FullScreenBox::SnapshotForUi2() const {
+  Ui2DialogSnapshot snapshot = MessageBox::SnapshotForUi2();
+  snapshot.kind = ui2::UiDialogKind::FullScreen;
+  return snapshot;
+}
+
 void FullScreenBox::Destroy() {
   this->~FullScreenBox();
   inUse = false;

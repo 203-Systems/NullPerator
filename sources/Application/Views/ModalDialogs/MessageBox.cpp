@@ -71,6 +71,14 @@ MessageBox::MessageBox(View &view, const char *messageLine1,
 
 MessageBox::~MessageBox(){};
 
+Ui2DialogSnapshot MessageBox::SnapshotForUi2() const {
+  Ui2DialogSnapshot snapshot;
+  snapshot.kind = ui2::UiDialogKind::Message;
+  snapshot.SetTitle(line1_.c_str());
+  snapshot.SetLabel(line2_.c_str());
+  return snapshot;
+}
+
 void MessageBox::Destroy() {
   this->~MessageBox();
   inUse_ = false;

@@ -12,6 +12,7 @@
 
 #include "BaseClasses/UIBigHexVarField.h"
 #include "ScreenView.h"
+#include "UiGridSelection.h"
 #include "ViewData.h"
 
 class PhraseView : public ScreenView {
@@ -35,6 +36,7 @@ public:
   int ParameterDigitForUi2() const {
     return static_cast<int>(cmdEditField_.DigitForUi2());
   }
+  UiGridSelection SelectionForUi2() const;
 
 protected:
   void updateCursor(int dx, int dy);
@@ -48,7 +50,7 @@ protected:
 
   void extendSelection();
 
-  GUIRect getSelectionRect();
+  GUIRect getSelectionRect() const;
   void fillClipboardData();
   void copySelection();
   void cutSelection();

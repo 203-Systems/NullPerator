@@ -31,6 +31,16 @@ void DrawSection(UiSceneBuilder<256, 1024> &builder, std::string_view label,
 
 } // namespace
 
+UiFontViewData UiFontViewState::ToViewData() const {
+  UiFontViewData data;
+  data.font = font.data();
+  data.cursorVisualRect = cursorVisualRect;
+  data.cursorVisualOverride = cursorVisualOverride;
+  data.cursorInkVisible = cursorInkVisible;
+  data.power = power;
+  return data;
+}
+
 void UiFontView::RenderDelta(const UiFontViewData &previous,
                              const UiFontViewData &current,
                              const UiFrameScene &currentScene,

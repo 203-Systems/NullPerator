@@ -12,6 +12,7 @@
 
 #include "Application/Player/Player.h"
 #include "Application/Views/BaseClasses/ModalView.h"
+#include "Application/Views/ModalDialogs/Ui2DialogSnapshot.h"
 #include <cstdint>
 #include <etl/string.h>
 
@@ -43,6 +44,8 @@ public:
   virtual void OnFocus();
   virtual void ProcessButtonMask(unsigned short mask, bool pressed);
   virtual void AnimationUpdate();
+
+  [[nodiscard]] Ui2DialogSnapshot SnapshotForUi2() const override;
 
 private:
   RenderProgressModal(const RenderProgressModal &) = delete;

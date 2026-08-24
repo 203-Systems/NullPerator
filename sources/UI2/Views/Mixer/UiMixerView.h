@@ -38,6 +38,10 @@ public:
                           UiIndexedSurface &surface, const UiPalette &palette);
   [[nodiscard]] static RectI16 MeterDamageRect(std::uint8_t channel,
                                                std::uint8_t side);
+  [[nodiscard]] static RectI16
+  MeterLevelDamageRect(std::uint8_t channel, std::uint8_t side,
+                       std::uint8_t previousLevelTop,
+                       std::uint8_t currentLevelTop);
   [[nodiscard]] static RectI16 ValueDamageRect(std::uint8_t channel);
   [[nodiscard]] static RectI16 LabelDamageRect(std::uint8_t channel);
 };

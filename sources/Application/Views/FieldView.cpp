@@ -309,6 +309,10 @@ void FieldView::ProcessButtonMask(unsigned short mask, bool pressed) {
 }
 
 int FieldView::GetFocusIndex() {
+  return static_cast<const FieldView &>(*this).GetFocusIndex();
+}
+
+int FieldView::GetFocusIndex() const {
 
   int focusIndex = 0;
   auto it = fieldList_.begin();

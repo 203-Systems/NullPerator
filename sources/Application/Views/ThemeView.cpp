@@ -16,6 +16,8 @@
 #include "System/Console/Trace.h"
 #include "System/FileSystem/FileSystem.h"
 #include <Application/Model/ThemeConstants.h>
+#include <array>
+#include <cstdio>
 #include <stdint.h>
 
 #define FONT_FIELD_LINE 6
@@ -27,6 +29,75 @@ constexpr uint8_t COLOR_COMPONENT_X_COL_POS[COLOR_COMPONENT_COUNT] = {16, 8, 0};
 constexpr uint8_t COLOR_COMPONENT_X_OFFSETS[COLOR_COMPONENT_COUNT] = {
     COLOR_LABEL_WIDTH, COLOR_LABEL_WIDTH + COMPONENT_SPACING,
     COLOR_LABEL_WIDTH + 2 * COMPONENT_SPACING};
+
+namespace {
+
+std::uint32_t ThemeColorForUi2(Config *config, FourCC id) {
+  Variable *value = config == nullptr ? nullptr : config->FindVariable(id);
+  return value == nullptr
+             ? 0U
+             : static_cast<std::uint32_t>(value->GetInt()) & 0x00FFFFFFU;
+}
+
+// A legacy file has twelve named colors. Copying repeated source values into
+// separate semantic slots is only the compatibility import step; after that,
+// every entry in ThemeViewUi2Snapshot::colors remains independently editable.
+void CaptureSemanticColors(
+    Config *config,
+    std::array<std::uint32_t, ThemeViewUi2Snapshot::ColorCount> &colors) {
+  const std::uint32_t foreground =
+      ThemeColorForUi2(config, FourCC::VarFGColor);
+  const std::uint32_t background =
+      ThemeColorForUi2(config, FourCC::VarBGColor);
+  const std::uint32_t console =
+      ThemeColorForUi2(config, FourCC::VarConsoleColor);
+  const std::uint32_t cursor =
+      ThemeColorForUi2(config, FourCC::VarCursorColor);
+  const std::uint32_t info = ThemeColorForUi2(config, FourCC::VarInfoColor);
+  const std::uint32_t warning =
+      ThemeColorForUi2(config, FourCC::VarWarnColor);
+  const std::uint32_t error =
+      ThemeColorForUi2(config, FourCC::VarErrorColor);
+
+  colors = {
+      background, // surface.bg
+      console,    // surface.top_bar
+      console,    // surface.bottom_bar
+      foreground, // text.normal
+      ThemeColorForUi2(config, FourCC::VarEmphasisColor), // text.dim
+      background, // text.highlighted
+      ThemeColorForUi2(config, FourCC::VarHI2Color), // text.colored
+      cursor, // cursor.primary
+      ThemeColorForUi2(config, FourCC::VarAccentAltColor), // cursor.row
+      ThemeColorForUi2(config, FourCC::VarAccentColor), // playback.active
+      info,       // system.info
+      warning,    // system.warning
+      error,      // system.error
+      foreground, // battery.normal
+      info,       // battery.charging
+      error,      // battery.low
+      info,       // vu.safe
+      warning,    // vu.warning
+      error,      // vu.peak
+  };
+}
+
+constexpr std::array<std::int8_t, COLOR_COUNT> kLegacyColorToUi2{
+    3,  // Foreground -> text.normal
+    0,  // Background -> surface.bg
+    4,  // Highlight1 -> text.dim
+    6,  // Highlight2 -> text.colored
+    1,  // Console -> surface.top_bar
+    7,  // Cursor -> cursor.primary
+    10, // Info -> system.info
+    11, // Warning -> system.warning
+    12, // Error -> system.error
+    9,  // Accent -> playback.active
+    8,  // AccentAlt -> cursor.row
+    4,  // Emphasis -> text.dim
+};
+
+} // namespace
 
 ThemeView::ThemeView(GUIWindow &w, ViewData *data)
     : FieldView(w, data), themeNameVar_(FourCC::ActionThemeName,
@@ -147,6 +218,55 @@ ThemeView::ThemeView(GUIWindow &w, ViewData *data)
 }
 
 ThemeView::~ThemeView() {}
+
+ThemeViewUi2Snapshot ThemeView::SnapshotForUi2() const {
+  ThemeViewUi2Snapshot snapshot;
+  const auto name = themeNameField_->GetString();
+  std::snprintf(snapshot.name.data(), snapshot.name.size(), "%s",
+                name.c_str());
+  CaptureSemanticColors(Config::GetInstance(), snapshot.colors);
+
+  const int focusIndex = GetFocusIndex();
+  if (focusIndex == 0) {
+    snapshot.focus = ThemeViewUi2Focus::Name;
+    snapshot.nameAction = 3; // RENAME
+  } else if (focusIndex == 1) {
+    snapshot.focus = ThemeViewUi2Focus::Name;
+    snapshot.nameAction = 1; // legacy Import -> LOAD
+  } else if (focusIndex == 2) {
+    snapshot.focus = ThemeViewUi2Focus::Name;
+    snapshot.nameAction = 2; // legacy Export -> SAVE
+  } else if (focusIndex == 3) {
+    snapshot.focus = ThemeViewUi2Focus::Font;
+  } else if (focusIndex >= 5) {
+    const int componentOffset = focusIndex - 5;
+    const int legacyColor = componentOffset / 5;
+    const int component = componentOffset % 5;
+    if (legacyColor >= 0 && legacyColor < COLOR_COUNT && component < 3) {
+      snapshot.focus = ThemeViewUi2Focus::Color;
+      snapshot.selectedColor = kLegacyColorToUi2[legacyColor];
+    }
+  }
+  return snapshot;
+}
+
+FontViewUi2Snapshot ThemeView::FontSnapshotForUi2() const {
+  FontViewUi2Snapshot snapshot;
+  Variable *font = Config::GetInstance()->FindVariable(FourCC::VarUIFont);
+  if (font == nullptr || font->GetType() != Variable::CHAR_LIST)
+    return snapshot;
+
+  snapshot.count = font->GetListSize();
+  const int selected = font->GetInt();
+  if (selected >= 0 && selected < snapshot.count)
+    snapshot.current = static_cast<std::uint8_t>(selected);
+  const char *const *options = font->GetListPointer();
+  const char *value = options != nullptr && snapshot.current < snapshot.count
+                          ? options[snapshot.current]
+                          : "";
+  std::snprintf(snapshot.font.data(), snapshot.font.size(), "%s", value);
+  return snapshot;
+}
 
 void ThemeView::Reset() {
   exportThemeName_.clear();

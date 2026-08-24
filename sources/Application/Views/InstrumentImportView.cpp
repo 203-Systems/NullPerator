@@ -12,12 +12,34 @@
 #include "Application/Instruments/I_Instrument.h"
 #include "Application/Persistency/PersistencyService.h"
 #include "ModalDialogs/MessageBox.h"
+#include <cstring>
 #include <memory>
 #include <nanoprintf.h>
 
 #define LIST_WIDTH (SCREEN_WIDTH - 2)
 // -4 to allow for title, filesize & spacers
 #define LIST_PAGE_SIZE (SCREEN_HEIGHT - 4)
+
+namespace {
+
+template <std::size_t Size>
+void SetInstrumentHexMeta(std::array<char, Size> &destination, int value) {
+  static constexpr char kHex[] = "0123456789ABCDEF";
+  destination.fill('\0');
+  const unsigned int byte = static_cast<unsigned int>(value) & 0xFFU;
+  if constexpr (Size >= 3U) {
+    destination[0] = kHex[(byte >> 4U) & 0x0FU];
+    destination[1] = kHex[byte & 0x0FU];
+  }
+}
+
+void SetItemCountFooter(Ui2BrowserSnapshot &snapshot) {
+  npf_snprintf(snapshot.footer.data(), snapshot.footer.size(), "%u ITEM%s",
+               static_cast<unsigned int>(snapshot.totalItemCount),
+               snapshot.totalItemCount == 1U ? "" : "S");
+}
+
+} // namespace
 
 InstrumentImportView::InstrumentImportView(GUIWindow &w, ViewData *viewData)
     : ScreenView(w, viewData) {
@@ -26,6 +48,58 @@ InstrumentImportView::InstrumentImportView(GUIWindow &w, ViewData *viewData)
 }
 
 InstrumentImportView::~InstrumentImportView() {}
+
+Ui2BrowserSnapshot InstrumentImportView::SnapshotForUi2() const {
+  Ui2BrowserSnapshot snapshot;
+  Ui2BrowserSnapshot::CopyText(snapshot.title, "IMPORT");
+  const int targetInstrument = viewData_ != nullptr
+                                   ? viewData_->currentInstrumentID_
+                                   : toInstrID_;
+  SetInstrumentHexMeta(snapshot.meta, targetInstrument);
+  snapshot.ConfigureWindow(fileIndexList_.size(), currentIndex_, topIndex_);
+
+  FileSystem *fs = FileSystem::GetInstance();
+  bool selectedIsDirectory = false;
+  bool selectedCanOpen = false;
+  if (fs != nullptr) {
+    for (std::uint8_t row = 0; row < snapshot.visibleItemCount; ++row) {
+      const std::size_t listIndex = snapshot.topIndex + row;
+      const int fileIndex = fileIndexList_[listIndex];
+      char filename[PFILENAME_SIZE]{};
+      fs->getFileName(fileIndex, filename, sizeof(filename));
+      filename[sizeof(filename) - 1U] = '\0';
+      const bool isDirectory = fs->getFileType(fileIndex) == PFT_DIR;
+      char display[PFILENAME_SIZE + 3U]{};
+      if (isDirectory) {
+        npf_snprintf(display, sizeof(display), "[%s]", filename);
+      } else {
+        npf_snprintf(display, sizeof(display), "%s", filename);
+      }
+      Ui2BrowserSnapshot::CopyText(snapshot.items[row], display);
+      if (row == snapshot.selectedRow) {
+        selectedIsDirectory = isDirectory;
+        selectedCanOpen = isDirectory && std::strcmp(filename, ".") != 0 &&
+                          std::strcmp(filename, "..") != 0;
+      }
+    }
+  }
+  SetItemCountFooter(snapshot);
+
+  Ui2BrowserSnapshot::CopyText(snapshot.actions[0], "CANCEL");
+  snapshot.actionCount = 1U;
+  snapshot.activeAction = 0U;
+  if (snapshot.hasSelection) {
+    if (!selectedIsDirectory || selectedCanOpen) {
+      Ui2BrowserSnapshot::CopyText(snapshot.actions[1],
+                                   selectedIsDirectory ? "OPEN" : "IMPORT");
+      snapshot.actionCount = 2U;
+      // There is no legacy bottom-action focus. The selected entry's
+      // executable action is the primary affordance; CANCEL remains NAV+LEFT.
+      snapshot.activeAction = 1U;
+    }
+  }
+  return snapshot;
+}
 
 void InstrumentImportView::Reset() {
   topIndex_ = 0;
