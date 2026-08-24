@@ -58,6 +58,20 @@ Rgb888 UiPalette::Composite(Rgb888 source, std::uint8_t alpha,
           channel(source.blue, destination.blue)};
 }
 
+Rgb888 UiPalette::CompositeQuarter(Rgb888 source, std::uint8_t quarters,
+                                   Rgb888 destination) {
+  const auto channel = [quarters](std::uint8_t sourceValue,
+                                  std::uint8_t destinationValue) {
+    const std::uint16_t value =
+        static_cast<std::uint16_t>(sourceValue) * quarters +
+        static_cast<std::uint16_t>(destinationValue) * (4U - quarters);
+    return static_cast<std::uint8_t>((value + 2U) / 4U);
+  };
+  return {channel(source.red, destination.red),
+          channel(source.green, destination.green),
+          channel(source.blue, destination.blue)};
+}
+
 void UiPalette::RebuildCoverage() {
   constexpr std::uint8_t kApprovedCoverage = 0x6B;
   const std::array<Rgb888, 2> sources{
@@ -72,6 +86,16 @@ void UiPalette::RebuildCoverage() {
       SetRaw(derived,
              Composite(sources[coverage], kApprovedCoverage,
                        Get(static_cast<PaletteIndex>(destination))));
+      for (std::size_t level = 0; level < 3; ++level) {
+        const PaletteIndex antialias = static_cast<PaletteIndex>(
+            kAntialiasStart +
+            (coverage * 3U + level) * kThemeColorCount +
+            destination);
+        SetRaw(antialias,
+               CompositeQuarter(sources[coverage],
+                                static_cast<std::uint8_t>(level + 1U),
+                                Get(static_cast<PaletteIndex>(destination))));
+      }
     }
   }
 }
@@ -84,6 +108,22 @@ PaletteIndex UiPalette::CoverageIndex(UiCoverage coverage,
   return coverage == UiCoverage::Cursor
              ? Index(UiColorToken::CursorPrimary)
              : Index(UiColorToken::PlaybackActive);
+}
+
+PaletteIndex UiPalette::AntialiasIndex(UiCoverage coverage,
+                                       PaletteIndex destination,
+                                       std::uint8_t quarterCoverage) const {
+  if (quarterCoverage == 0) return destination;
+  if (quarterCoverage >= 4 || destination >= kThemeColorCount) {
+    return coverage == UiCoverage::Cursor
+               ? Index(UiColorToken::CursorPrimary)
+               : Index(UiColorToken::PlaybackActive);
+  }
+  return static_cast<PaletteIndex>(
+      kAntialiasStart +
+      (static_cast<std::size_t>(coverage) * 3U + quarterCoverage - 1U) *
+          kThemeColorCount +
+      destination);
 }
 
 Rgb888 UiPalette::Get(PaletteIndex index) const { return colors_[index]; }

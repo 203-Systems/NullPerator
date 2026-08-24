@@ -59,6 +59,9 @@ public:
   [[nodiscard]] std::uint32_t Rgba8888(PaletteIndex index) const;
   [[nodiscard]] PaletteIndex CoverageIndex(UiCoverage coverage,
                                             PaletteIndex destination) const;
+  [[nodiscard]] PaletteIndex AntialiasIndex(UiCoverage coverage,
+                                             PaletteIndex destination,
+                                             std::uint8_t quarterCoverage) const;
 
   [[nodiscard]] static constexpr std::uint16_t PackRgb565(Rgb888 color) {
     return static_cast<std::uint16_t>(
@@ -71,11 +74,17 @@ private:
   static constexpr std::size_t kThemeColorCount =
       static_cast<std::size_t>(UiColorToken::Count);
   static constexpr PaletteIndex kCoverageStart = 32;
+  static constexpr PaletteIndex kAntialiasStart =
+      kCoverageStart + 2 * kThemeColorCount;
+  static_assert(kAntialiasStart + 2 * 3 * kThemeColorCount <= kColorCount);
 
   void SetRaw(PaletteIndex index, Rgb888 color);
   void RebuildCoverage();
   [[nodiscard]] static Rgb888 Composite(Rgb888 source, std::uint8_t alpha,
                                         Rgb888 destination);
+  [[nodiscard]] static Rgb888 CompositeQuarter(Rgb888 source,
+                                               std::uint8_t quarters,
+                                               Rgb888 destination);
 
   std::array<Rgb888, kColorCount> colors_{};
   std::array<std::uint16_t, kColorCount> rgb565_{};

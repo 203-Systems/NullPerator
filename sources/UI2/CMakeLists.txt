@@ -20,6 +20,7 @@ add_library(ui2
   Views/Song/UiSongView.cpp
   Views/Project/UiProjectView.cpp
   Views/Record/UiRecordView.cpp
+  Views/Sample/UiSampleViews.cpp
   Views/Table/UiTableView.cpp
   Views/Theme/UiThemeView.cpp
   UiEngine.cpp)

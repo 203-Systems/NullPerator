@@ -22,6 +22,7 @@ enum class UiCommandKind : std::uint8_t {
   FillRoundedRect,
   FillCoverageRoundedRect,
   FillVerticalPaletteRamp,
+  SparseCoverageMask,
   Text,
 };
 
@@ -66,6 +67,34 @@ public:
                                              PaletteIndex firstColor) {
     return Push({bounds, 0, UiCommandKind::FillVerticalPaletteRamp,
                  firstColor, firstColor, 0});
+  }
+
+  // Each raster column stores startY, length, then four 2-bit coverage levels
+  // per byte. An empty column is {0xFF, 0}. The command list copies the mask,
+  // so views never retain model-owned pointers or allocate during rendering.
+  [[nodiscard]] bool SparseCoverageMask(RectI16 bounds,
+                                        std::span<const std::uint8_t> encoded,
+                                        PaletteIndex background,
+                                        UiCoverage coverage) {
+    constexpr std::size_t kLengthBytes = 2;
+    if (encoded.size() > 0xFFFFU ||
+        encoded.size() + kLengthBytes > TextCapacity - textSize_) {
+      overflowed_ = true;
+      return false;
+    }
+    const std::uint16_t offset = static_cast<std::uint16_t>(textSize_);
+    const std::uint16_t length = static_cast<std::uint16_t>(encoded.size());
+    text_[textSize_++] = static_cast<char>(length & 0xFFU);
+    text_[textSize_++] = static_cast<char>(length >> 8U);
+    for (const std::uint8_t value : encoded) {
+      text_[textSize_++] = static_cast<char>(value);
+    }
+    if (!Push({bounds, offset, UiCommandKind::SparseCoverageMask, background,
+               static_cast<PaletteIndex>(coverage), 0})) {
+      textSize_ = offset;
+      return false;
+    }
+    return true;
   }
 
   [[nodiscard]] bool Text(PointI16 origin, std::string_view text,

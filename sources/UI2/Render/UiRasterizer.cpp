@@ -44,6 +44,52 @@ void UiRasterizer::Render(UiCommandStream stream, UiIndexedSurface &surface,
             static_cast<PaletteIndex>(command.color + row), clip);
       }
       break;
+    case UiCommandKind::SparseCoverageMask: {
+      if (palette == nullptr || bounds.width <= 0 || bounds.height <= 0 ||
+          command.payload > stream.text.size() ||
+          stream.text.size() - command.payload < 2U) {
+        break;
+      }
+      const auto byteAt = [&](std::size_t index) {
+        return static_cast<std::uint8_t>(stream.text[index]);
+      };
+      const std::size_t length = byteAt(command.payload) |
+                                 (byteAt(command.payload + 1U) << 8U);
+      std::size_t cursor = command.payload + 2U;
+      if (length > stream.text.size() - cursor) break;
+      const std::size_t end = cursor + length;
+      for (std::int16_t column = 0; column < command.bounds.width; ++column) {
+        if (end - cursor < 2U) break;
+        const std::uint8_t startY = byteAt(cursor++);
+        const std::uint8_t runLength = byteAt(cursor++);
+        if (startY == 0xFFU && runLength == 0U) continue;
+        if (startY >= command.bounds.height || runLength == 0U ||
+            runLength > command.bounds.height - startY) {
+          break;
+        }
+        const std::size_t packedLength = (runLength + 3U) / 4U;
+        if (packedLength > end - cursor) break;
+        const std::int16_t x =
+            static_cast<std::int16_t>(bounds.x + column);
+        for (std::uint8_t row = 0; row < runLength; ++row) {
+          const std::uint8_t packed = byteAt(cursor + row / 4U);
+          const std::uint8_t quarterCoverage = static_cast<std::uint8_t>(
+              ((packed >> ((row % 4U) * 2U)) & 0x03U) + 1U);
+          const std::int16_t y =
+              static_cast<std::int16_t>(bounds.y + startY + row);
+          if (x >= clip.x && y >= clip.y && x < clip.Right() &&
+              y < clip.Bottom()) {
+            surface.SetPixel(
+                x, y,
+                palette->AntialiasIndex(
+                    static_cast<UiCoverage>(command.auxiliaryColor),
+                    command.color, quarterCoverage));
+          }
+        }
+        cursor += packedLength;
+      }
+      break;
+    }
     case UiCommandKind::Text: {
       const std::size_t length = command.auxiliaryColor;
       if (command.payload > stream.text.size() ||

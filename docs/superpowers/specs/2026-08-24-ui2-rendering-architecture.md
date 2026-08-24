@@ -639,32 +639,35 @@ order, so the renderer does not allocate or sort.
 enum class UiCommandKind : std::uint8_t {
   FillRect,
   FillRoundedRect,
-  GlyphRun,
-  VuMeter,
-  Battery,
-  PushClip,
-  PopClip,
+  FillCoverageRoundedRect,
+  FillVerticalPaletteRamp,
+  SparseCoverageMask,
+  Text,
 };
 
 struct UiCommand {
-  UiCommandKind kind;
-  PaletteToken token;
   RectI16 bounds;
-  std::uint16_t payload_offset;
+  std::uint16_t payload;
+  UiCommandKind kind;
+  PaletteIndex color;
+  PaletteIndex auxiliary_color;
+  std::uint8_t parameter;
 };
 
 template <std::size_t MaxCommands, std::size_t TextBytes>
 class UiCommandList {
   std::array<UiCommand, MaxCommands> commands_;
   std::array<char, TextBytes> text_;
-  std::uint16_t command_count_;
-  std::uint16_t text_size_;
+  std::size_t command_count_;
+  std::size_t text_size_;
 };
 ```
 
-Recommended limits are established by measurement of the most complex page,
-then guarded by assertions and tests. Overflow must produce a visible
-diagnostic in debug builds, never heap fallback.
+The measured current limits are 256 commands plus 1,024 copied payload bytes
+for content, and 64 commands plus 256 bytes for each bar. One content scene is
+4,632 bytes on the 64-bit Host. Limits are guarded by assertions and tests.
+Overflow returns `UiBuildStatus::CommandOverflow`; it never falls back to the
+heap.
 
 ### 6.5 Layer and transition ownership
 
@@ -741,6 +744,22 @@ radius 2 corner coverage, conceptual
 Coverage colors are precomputed from `cursor.primary` and the known underlying
 surface. Horizontal and vertical edges remain 100% coverage and therefore
 crisp.
+
+### 6.8 Waveform coverage masks
+
+Sample Editor and Sample Slices use four-level antialiased waveforms without a
+general vector renderer or per-frame floating point. The sample decimator
+builds a bounded column packet only when the waveform revision changes. Each
+column contains `start_y`, `length`, then four 2-bit coverage values per byte;
+an empty column is `{0xFF, 0}`. `UiCommandList` copies this packet into its
+fixed payload pool.
+
+The rasterizer walks only covered columns and resolves 25%, 50%, 75%, or 100%
+coverage through derived semantic palette slots. Theme changes therefore
+recolor waveforms automatically. The approved 222-column fixtures require 741
+bytes for Sample Editor and 830 bytes for Sample Slices, both inside the
+existing 1,024-byte content pool. No extra scene memory or heap allocation is
+required.
 
 ## 7. Scheduler and ESP32-S3 performance
 

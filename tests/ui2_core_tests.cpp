@@ -5,6 +5,7 @@
 #include "UI2/Render/IUiPresenter.h"
 #include "UI2/Render/UiDirtyTiles.h"
 #include "UI2/Render/UiIndexedSurface.h"
+#include "UI2/Render/UiRasterizer.h"
 #include "UI2/Render/UiRgb565Presenter.h"
 #include "UI2/Render/UiVuGradient.h"
 #include "UI2/Scene/UiCommandList.h"
@@ -22,6 +23,7 @@
 #include "UI2/Views/Mixer/UiMixerView.h"
 #include "UI2/Views/Project/UiProjectView.h"
 #include "UI2/Views/Record/UiRecordView.h"
+#include "UI2/Views/Sample/UiSampleViews.h"
 #include "UI2/Views/Table/UiTableView.h"
 #include "UI2/Views/Theme/UiThemeView.h"
 #include "Adapters/wasm/gui/WasmUiPresenter.h"
@@ -36,6 +38,7 @@
 #include "ui2_instrument_fixture.h"
 #include "ui2_mixer_fixture.h"
 #include "ui2_project_fixture.h"
+#include "ui2_sample_fixture.h"
 #include "ui2_table_fixture.h"
 
 #include "doctest/doctest.h"
@@ -243,6 +246,60 @@ TEST_CASE("UI2 semantic palette reproduces approved coverage composites") {
             ui2::UiCoverage::Playback,
             palette.Index(ui2::UiColorToken::CursorRow))) ==
         ui2::Rgb888{0x38, 0x6E, 0x50});
+}
+
+TEST_CASE("UI2 semantic palette reproduces exact quarter coverage colors") {
+  ui2::UiPalette palette;
+  const ui2::PaletteIndex background =
+      palette.Index(ui2::UiColorToken::VuTrack);
+  CHECK(palette.Get(
+            palette.AntialiasIndex(ui2::UiCoverage::Cursor, background, 1)) ==
+        ui2::Rgb888{0x17, 0x43, 0x45});
+  CHECK(palette.Get(
+            palette.AntialiasIndex(ui2::UiCoverage::Cursor, background, 2)) ==
+        ui2::Rgb888{0x26, 0x76, 0x7B});
+  CHECK(palette.Get(
+            palette.AntialiasIndex(ui2::UiCoverage::Cursor, background, 3)) ==
+        ui2::Rgb888{0x36, 0xA9, 0xB2});
+  CHECK(palette.Get(
+            palette.AntialiasIndex(ui2::UiCoverage::Playback, background, 3)) ==
+        ui2::Rgb888{0x50, 0xB1, 0x77});
+}
+
+TEST_CASE("UI2 sparse coverage masks copy bounded data and decode columns") {
+  ui2::UiPalette palette;
+  ui2::UiContentScene scene;
+  ui2::UiSceneBuilder<256, 1024> builder(scene);
+  builder.Fill({10, 10, 20, 10}, ui2::UiColorToken::VuTrack);
+  std::array<std::uint8_t, 11> encoded{
+      0x00, 0x01, 0x00, 0x02, 0x04, 0x39,
+      0xFF, 0x00, 0x05, 0x02, 0x07};
+  builder.SparseCoverageMask({10, 10, 4, 10}, encoded,
+                             ui2::UiCoverage::Cursor,
+                             ui2::UiColorToken::VuTrack);
+  REQUIRE(builder.Ok());
+  encoded.fill(0);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  surface.Clear(palette.Index(ui2::UiColorToken::SurfaceField));
+  ui2::UiRasterizer::Render(scene.Stream(), surface, &palette);
+  const ui2::PaletteIndex background =
+      palette.Index(ui2::UiColorToken::VuTrack);
+  CHECK(surface.Pixel(10, 10) ==
+        palette.AntialiasIndex(ui2::UiCoverage::Cursor, background, 1));
+  CHECK(surface.Pixel(11, 12) ==
+        palette.AntialiasIndex(ui2::UiCoverage::Cursor, background, 2));
+  CHECK(surface.Pixel(11, 13) ==
+        palette.AntialiasIndex(ui2::UiCoverage::Cursor, background, 3));
+  CHECK(surface.Pixel(11, 14) ==
+        palette.Index(ui2::UiColorToken::CursorPrimary));
+  CHECK(surface.Pixel(11, 15) ==
+        palette.AntialiasIndex(ui2::UiCoverage::Cursor, background, 1));
+  CHECK(surface.Pixel(12, 10) == background);
+  CHECK(surface.Pixel(13, 15) ==
+        palette.Index(ui2::UiColorToken::CursorPrimary));
+  CHECK(surface.Pixel(13, 16) ==
+        palette.AntialiasIndex(ui2::UiCoverage::Cursor, background, 2));
 }
 
 TEST_CASE("UI2 VU gradient uses fixed palette slots without RGB framebuffer") {
@@ -1459,4 +1516,100 @@ TEST_CASE("UI2 Record idle is clean and animated cursor damage stays local") {
         static_cast<std::uint32_t>(strip.width) * strip.height;
   }
   CHECK(transferredPixels < 240U * 240U / 4U);
+}
+
+TEST_CASE("UI2 Sample Editor delta is pixel-identical to a full redraw") {
+  ui2::UiPalette palette;
+  ui2::UiSampleEditorViewData previous =
+      ui2::test::ApprovedSampleEditorFixture();
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiSampleEditorView::Build(previous, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+  surface.ClearDirty();
+
+  ui2::UiSampleEditorViewData current = previous;
+  current.name = "LIVE TAKE";
+  current.start = "000128";
+  current.end = "000512";
+  current.loop = "PINGPONG";
+  current.gain = "+3 DB";
+  current.waveformRevision += 1;
+  current.power = ui2::UiPowerState::BatteryLow;
+  current.cursorVisualOverride = true;
+  current.cursorVisualRect = {7, 155, 226, 9};
+  current.cursorInkVisible = false;
+  ui2::UiFrameScene currentScene;
+  REQUIRE(ui2::UiSampleEditorView::Build(current, palette, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSampleEditorView::RenderDelta(previous, current, currentScene,
+                                       surface, palette);
+  ui2::UiSurfaceStorage expectedStorage;
+  ui2::UiIndexedSurface expected(expectedStorage);
+  ui2::UiFrameRenderer::RenderStatic(currentScene, expected, palette);
+  CHECK(std::equal(surface.Pixels().begin(), surface.Pixels().end(),
+                   expected.Pixels().begin(), expected.Pixels().end()));
+}
+
+TEST_CASE("UI2 Sample Slices delta is pixel-identical to a full redraw") {
+  ui2::UiPalette palette;
+  ui2::UiSampleSlicesViewData previous =
+      ui2::test::ApprovedSampleSlicesFixture();
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiSampleSlicesView::Build(previous, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+  surface.ClearDirty();
+
+  ui2::UiSampleSlicesViewData current = previous;
+  current.sliceCount = "08";
+  current.slice = "03 / 08";
+  current.start = "000119";
+  current.zoom = "2X";
+  current.selectedMarker = 3;
+  current.waveformRevision += 1;
+  current.cursorVisualOverride = true;
+  current.cursorVisualRect = {7, 149, 226, 9};
+  current.cursorInkVisible = false;
+  ui2::UiFrameScene currentScene;
+  REQUIRE(ui2::UiSampleSlicesView::Build(current, palette, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSampleSlicesView::RenderDelta(previous, current, currentScene,
+                                       surface, palette);
+  ui2::UiSurfaceStorage expectedStorage;
+  ui2::UiIndexedSurface expected(expectedStorage);
+  ui2::UiFrameRenderer::RenderStatic(currentScene, expected, palette);
+  CHECK(std::equal(surface.Pixels().begin(), surface.Pixels().end(),
+                   expected.Pixels().begin(), expected.Pixels().end()));
+}
+
+TEST_CASE("UI2 Sample pages remain clean while their state is idle") {
+  ui2::UiPalette palette;
+  ui2::UiSampleEditorViewData editor =
+      ui2::test::ApprovedSampleEditorFixture();
+  ui2::UiFrameScene editorScene;
+  REQUIRE(ui2::UiSampleEditorView::Build(editor, palette, editorScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(editorScene, surface, palette);
+  surface.ClearDirty();
+  ui2::UiSampleEditorView::RenderDelta(editor, editor, editorScene, surface,
+                                       palette);
+  CHECK_FALSE(surface.DirtyTiles().Any());
+
+  ui2::UiSampleSlicesViewData slices =
+      ui2::test::ApprovedSampleSlicesFixture();
+  ui2::UiFrameScene sliceScene;
+  REQUIRE(ui2::UiSampleSlicesView::Build(slices, palette, sliceScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiFrameRenderer::RenderStatic(sliceScene, surface, palette);
+  surface.ClearDirty();
+  ui2::UiSampleSlicesView::RenderDelta(slices, slices, sliceScene, surface,
+                                       palette);
+  CHECK_FALSE(surface.DirtyTiles().Any());
 }

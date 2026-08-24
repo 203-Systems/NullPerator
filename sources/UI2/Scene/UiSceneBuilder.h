@@ -42,6 +42,13 @@ public:
     Accept(commands_.FillVerticalPaletteRamp(bounds, firstColor));
   }
 
+  void SparseCoverageMask(RectI16 bounds,
+                          std::span<const std::uint8_t> encoded,
+                          UiCoverage coverage, UiColorToken background) {
+    Accept(commands_.SparseCoverageMask(bounds, encoded, Index(background),
+                                        coverage));
+  }
+
   void Text(std::string_view text, std::int16_t x, std::int16_t y,
             UiColorToken color, std::uint8_t scale = 1) {
     Accept(commands_.Text({x, y}, text, Index(color), scale));
