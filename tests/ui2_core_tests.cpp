@@ -12,6 +12,7 @@
 #include "UI2/UiEngine.h"
 #include "UI2/Render/UiFrameRenderer.h"
 #include "UI2/Views/Chain/UiChainView.h"
+#include "UI2/Views/Device/UiDeviceView.h"
 #include "UI2/Views/Groove/UiGrooveView.h"
 #include "UI2/Views/Song/UiSongView.h"
 #include "UI2/Views/Phrase/UiPhraseView.h"
@@ -24,6 +25,7 @@
 
 #include "ui2_song_fixture.h"
 #include "ui2_chain_fixture.h"
+#include "ui2_device_fixture.h"
 #include "ui2_groove_fixture.h"
 #include "ui2_phrase_fixture.h"
 #include "ui2_instrument_fixture.h"
@@ -1228,4 +1230,50 @@ TEST_CASE("UI2 Project idle is clean and animated cursor damage stays local") {
         static_cast<std::uint32_t>(strip.width) * strip.height;
   }
   CHECK(transferredPixels < 240U * 240U / 4U);
+}
+
+TEST_CASE("UI2 Device delta rendering is pixel-identical to a full redraw") {
+  ui2::UiPalette palette;
+  ui2::UiDeviceViewData previous = ui2::test::ApprovedDeviceFixture();
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiDeviceView::Build(previous, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+  surface.ClearDirty();
+
+  ui2::UiDeviceViewData current = previous;
+  current.midiDevice = "ON";
+  current.volume = "55";
+  current.theme = "NIGHT";
+  current.batteryPercent = 82;
+  current.cursorVisualOverride = true;
+  current.cursorVisualRect = {7, 59, 226, 9};
+  current.cursorInkVisible = false;
+  ui2::UiFrameScene currentScene;
+  REQUIRE(ui2::UiDeviceView::Build(current, palette, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiDeviceView::RenderDelta(previous, current, currentScene, surface,
+                                 palette);
+
+  ui2::UiSurfaceStorage expectedStorage;
+  ui2::UiIndexedSurface expected(expectedStorage);
+  ui2::UiFrameRenderer::RenderStatic(currentScene, expected, palette);
+  CHECK(std::equal(surface.Pixels().begin(), surface.Pixels().end(),
+                   expected.Pixels().begin(), expected.Pixels().end()));
+}
+
+TEST_CASE("UI2 Device idle frame stays clean") {
+  ui2::UiPalette palette;
+  ui2::UiDeviceViewData data = ui2::test::ApprovedDeviceFixture();
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiDeviceView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+  surface.ClearDirty();
+  ui2::UiDeviceView::RenderDelta(data, data, scene, surface, palette);
+  CHECK_FALSE(surface.DirtyTiles().Any());
 }

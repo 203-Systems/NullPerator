@@ -10,6 +10,7 @@ add_library(ui2
   Text/UiFont5x7.cpp
   Theme/UiPalette.cpp
   Views/Chain/UiChainView.cpp
+  Views/Device/UiDeviceView.cpp
   Views/Groove/UiGrooveView.cpp
   Views/Phrase/UiPhraseView.cpp
   Views/Instrument/UiInstrumentView.cpp
