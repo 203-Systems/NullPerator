@@ -228,7 +228,9 @@ void Ui2TrackerApplication::HandleProject(TrackerAction action,
       ExecuteProject(project_.Enter());
     else if ((project_.ContentCursor() == Ui2ProjectContentCursor::Tempo ||
               project_.ContentCursor() ==
-                  Ui2ProjectContentCursor::Transpose) &&
+                  Ui2ProjectContentCursor::Transpose ||
+              project_.ContentCursor() == Ui2ProjectContentCursor::Scale ||
+              project_.ContentCursor() == Ui2ProjectContentCursor::Root) &&
              (action == TrackerAction::Left ||
               action == TrackerAction::Right ||
               action == TrackerAction::Up || action == TrackerAction::Down))
