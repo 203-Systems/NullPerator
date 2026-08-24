@@ -88,7 +88,7 @@ Ui2BrowserSnapshot InstrumentImportView::SnapshotForUi2() const {
   Ui2BrowserSnapshot::CopyText(snapshot.actions[0], "CANCEL");
   snapshot.actionCount = 1U;
   snapshot.activeAction = 0U;
-  if (snapshot.hasSelection) {
+  if (snapshot.hasSelection && fs != nullptr) {
     if (!selectedIsDirectory || selectedCanOpen) {
       Ui2BrowserSnapshot::CopyText(snapshot.actions[1],
                                    selectedIsDirectory ? "OPEN" : "IMPORT");
@@ -116,13 +116,14 @@ void InstrumentImportView::ProcessButtonMask(unsigned short mask,
 
   if (mask & EPBM_PLAY) {
     auto fs = FileSystem::GetInstance();
-    char name[PFILENAME_SIZE];
 
-    if (currentIndex_ < fileIndexList_.size()) {
+    if (fs != nullptr && currentIndex_ < fileIndexList_.size()) {
       unsigned fileIndex = fileIndexList_[currentIndex_];
+      char name[PFILENAME_SIZE]{};
       fs->getFileName(fileIndex, name, PFILENAME_SIZE);
+      name[PFILENAME_SIZE - 1U] = '\0';
 
-      if (mask & EPBM_ALT) {
+      if ((mask & EPBM_ALT) && fs->getFileType(fileIndex) == PFT_FILE) {
         Trace::Log("INSTRUMENTIMPORT", "SHIFT play - import");
         importInstrument(name);
       } else {
@@ -148,18 +149,24 @@ void InstrumentImportView::ProcessButtonMask(unsigned short mask,
     if (mask & EPBM_ENTER) {
       auto fs = FileSystem::GetInstance();
 
-      if (currentIndex_ < fileIndexList_.size()) {
+      if (fs != nullptr && currentIndex_ < fileIndexList_.size()) {
         unsigned fileIndex = fileIndexList_[currentIndex_];
-        char name[PFILENAME_SIZE];
+        char name[PFILENAME_SIZE]{};
         fs->getFileName(fileIndex, name, PFILENAME_SIZE);
+        name[PFILENAME_SIZE - 1U] = '\0';
 
         // Only allow navigation into directories, not to parent directory
-        if (fs->getFileType(fileIndex) == PFT_DIR && strcmp(name, ".") != 0 &&
-            strcmp(name, "..") != 0) {
-          setCurrentFolder(fs, name);
-          isDirty_ = true;
-          topIndex_ = 0; // need to reset when entering a dir as prev dir may
-                         // have been already scrolled down
+        if (fs->getFileType(fileIndex) == PFT_DIR) {
+          if (strcmp(name, ".") != 0 && strcmp(name, "..") != 0) {
+            setCurrentFolder(fs, name);
+            isDirty_ = true;
+            topIndex_ = 0; // need to reset when entering a dir as prev dir may
+                           // have been already scrolled down
+          }
+        } else {
+          // IMPORT is the primary action advertised by the UI2 Bottom Bar, so
+          // a normal ENTER must execute it. ALT+PLAY remains as a shortcut.
+          importInstrument(name);
         }
       }
     }

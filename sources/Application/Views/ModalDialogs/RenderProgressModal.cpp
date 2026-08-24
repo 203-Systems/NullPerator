@@ -74,6 +74,9 @@ Ui2DialogSnapshot RenderProgressModal::SnapshotForUi2() const {
     snapshot.SetProgressPercent(renderComplete_ ? 100 : 0);
   }
   snapshot.SetElapsed(display);
+  snapshot.PushAction(renderComplete_ ? ui2::UiDialogAction::Ok
+                                      : ui2::UiDialogAction::Cancel);
+  snapshot.SetSelectedAction(0, true);
   return snapshot;
 }
 

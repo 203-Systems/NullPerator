@@ -1,7 +1,11 @@
 #include "Application/Views/Ui2BrowserSnapshot.h"
+#include "UI2/Text/UiFont5x7.h"
 
 #include "doctest/doctest.h"
 
+#include <algorithm>
+#include <array>
+#include <cstdint>
 #include <string>
 
 TEST_CASE("UI2 browser snapshot owns and bounds all renderer text") {
@@ -65,4 +69,14 @@ TEST_CASE("UI2 browser snapshot clamps malformed action metadata") {
   const ui2::UiBrowserViewData data = snapshot.ViewData();
   CHECK(data.actionCount == Ui2BrowserSnapshot::ActionCapacity);
   CHECK(data.activeAction == Ui2BrowserSnapshot::ActionCapacity - 1U);
+}
+
+TEST_CASE("UI2 browser marker glyphs have explicit 5x7 ink") {
+  constexpr std::array markers{'*', '~', '[', ']'};
+  for (const char marker : markers) {
+    const ui2::UiFont5x7::Rows rows = ui2::UiFont5x7::Glyph(marker);
+    CHECK(std::any_of(rows.begin(), rows.end(),
+                      [](std::uint8_t row) { return row != 0U; }));
+  }
+  CHECK(ui2::UiFont5x7::Glyph('[') != ui2::UiFont5x7::Glyph(']'));
 }

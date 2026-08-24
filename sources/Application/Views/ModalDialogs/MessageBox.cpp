@@ -14,6 +14,11 @@
 
 static const char *buttonText[MBL_LAST] = {"Ok", "Yes", "Cancel", "No"};
 
+static_assert(MBL_OK == static_cast<int>(ui2::UiDialogAction::Ok));
+static_assert(MBL_YES == static_cast<int>(ui2::UiDialogAction::Yes));
+static_assert(MBL_CANCEL == static_cast<int>(ui2::UiDialogAction::Cancel));
+static_assert(MBL_NO == static_cast<int>(ui2::UiDialogAction::No));
+
 bool MessageBox::inUse_ = false;
 alignas(MessageBox) static unsigned char MessageBoxStorage[sizeof(MessageBox)];
 void *MessageBox::storage_ = MessageBoxStorage;
@@ -76,6 +81,13 @@ Ui2DialogSnapshot MessageBox::SnapshotForUi2() const {
   snapshot.kind = ui2::UiDialogKind::Message;
   snapshot.SetTitle(line1_.c_str());
   snapshot.SetLabel(line2_.c_str());
+  for (int index = 0; index < buttonCount_; ++index) {
+    const int button = button_[index];
+    if (button >= MBL_OK && button < MBL_LAST) {
+      snapshot.PushAction(static_cast<ui2::UiDialogAction>(button));
+    }
+  }
+  snapshot.SetSelectedAction(selected_, true);
   return snapshot;
 }
 

@@ -29,12 +29,34 @@ struct Ui2DialogSnapshot {
   std::array<char, TextCapacity> label{};
   std::array<char, ValueCapacity> value{};
   std::array<char, ElapsedCapacity> elapsed{};
+  std::array<ui2::UiDialogAction, ui2::kUiDialogActionCapacity> actions{};
   std::uint8_t progressWidth = 0;
+  std::uint8_t actionCount = 0;
+  std::uint8_t selectedAction = 0;
+  bool actionsFocused = true;
+
+  bool operator==(const Ui2DialogSnapshot &) const = default;
 
   void SetTitle(std::string_view text) { Copy(title, text); }
   void SetLabel(std::string_view text) { Copy(label, text); }
   void SetValue(std::string_view text) { Copy(value, text); }
   void SetElapsed(std::string_view text) { Copy(elapsed, text); }
+
+  void PushAction(ui2::UiDialogAction action) {
+    if (actionCount >= actions.size())
+      return;
+    actions[actionCount++] = action;
+  }
+
+  void SetSelectedAction(int selected, bool focused) {
+    actionsFocused = focused;
+    if (actionCount == 0U) {
+      selectedAction = 0U;
+      return;
+    }
+    selectedAction = static_cast<std::uint8_t>(
+        std::clamp(selected, 0, static_cast<int>(actionCount) - 1));
+  }
 
   void SetProgressPercent(int percent) {
     const int bounded = std::clamp(percent, 0, 100);
@@ -50,6 +72,10 @@ struct Ui2DialogSnapshot {
         .value = CStringView(value),
         .elapsed = CStringView(elapsed),
         .progressWidth = progressWidth,
+        .actions = actions,
+        .actionCount = actionCount,
+        .selectedAction = selectedAction,
+        .actionsFocused = actionsFocused,
     };
   }
 
@@ -72,4 +98,4 @@ private:
 };
 
 static_assert(std::is_trivially_copyable_v<Ui2DialogSnapshot>);
-static_assert(sizeof(Ui2DialogSnapshot) <= 96U);
+static_assert(sizeof(Ui2DialogSnapshot) <= 104U);

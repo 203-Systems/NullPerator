@@ -13,13 +13,28 @@ int main(int argc, char **argv) {
   ui2::UiDialogViewData dialog;
   if (state == "message") {
     dialog.kind = ui2::UiDialogKind::Message;
+    dialog.title = "DIAGNOSTIC MESSAGE";
+    dialog.label = {};
+    dialog.actions = {ui2::UiDialogAction::Ok, ui2::UiDialogAction::Cancel,
+                      ui2::UiDialogAction::Yes, ui2::UiDialogAction::No};
+    dialog.actionCount = 2;
   } else if (state == "input") {
     dialog.kind = ui2::UiDialogKind::TextInput;
     dialog.title = "DIAGNOSTIC TEXT";
+    dialog.actions = {ui2::UiDialogAction::Ok, ui2::UiDialogAction::Cancel,
+                      ui2::UiDialogAction::Yes, ui2::UiDialogAction::No};
+    dialog.actionCount = 2;
+    dialog.actionsFocused = false;
   } else if (state == "render") {
     dialog.kind = ui2::UiDialogKind::RenderProgress;
+    dialog.title = "DIAGNOSTIC";
+    dialog.label = "RENDERING";
+    dialog.actions[0] = ui2::UiDialogAction::Cancel;
+    dialog.actionCount = 1;
   } else if (state == "full") {
     dialog.kind = ui2::UiDialogKind::FullScreen;
+    dialog.title = "DIAGNOSTIC";
+    dialog.label = "FULL SCREEN";
   } else {
     return 3;
   }

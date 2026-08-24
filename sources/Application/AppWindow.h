@@ -12,11 +12,14 @@
 
 #include "Application/Views/BaseClasses/View.h"
 #include "Application/Views/ViewData.h"
+#include "Application/UI2/Ui2ModalInputGate.h"
 #include "Foundation/Observable.h"
 #include "System/Process/SysMutex.h"
 #include "System/io/Status.h"
 #include "UIFramework/SimpleBaseClasses/GUIWindow.h"
 #include <UIFramework/SimpleBaseClasses/EventManager.h>
+
+#include <cstdint>
 
 #define PROP_INVERT 0x80
 #define CHAR_WIDTH 10
@@ -40,6 +43,9 @@ class View;
 struct AppWindowViews;
 struct UiGridSelection;
 struct InstrumentViewUi2Snapshot;
+struct DeviceViewUi2Snapshot;
+struct Ui2BrowserSnapshot;
+struct Ui2DialogSnapshot;
 
 class AppWindow : public GUIWindow, I_Observer, Status {
 protected:
@@ -85,8 +91,14 @@ public:
   int TableParameterDigitForUi2() const;
   int GrooveRowForUi2() const;
   InstrumentViewUi2Snapshot InstrumentSnapshotForUi2();
+  DeviceViewUi2Snapshot DeviceSnapshotForUi2() const;
+  Ui2BrowserSnapshot BrowserSnapshotForUi2() const;
+  Ui2DialogSnapshot ModalSnapshotForUi2() const;
+  std::uint32_t ModalInstanceIdForUi2() const;
   UiGridSelection GridSelectionForUi2() const;
-  unsigned short ButtonMaskForUi2() const { return _mask; }
+  unsigned short ButtonMaskForUi2() const {
+    return ui2ModalInputGate_.EffectiveMask(_mask, HasModalForUi2());
+  }
 
 #if defined(__EMSCRIPTEN__)
   // Acceptance diagnostics are requested from browser main but executed by
@@ -139,6 +151,7 @@ private:
   bool _closeProject;
   bool _shouldQuit;
   unsigned short _mask;
+  Ui2ModalInputGate ui2ModalInputGate_;
   unsigned long _lastA;
   unsigned long _lastB;
   char _statusLine[80];

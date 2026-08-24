@@ -14,6 +14,7 @@
 #include "Application/Utils/HelpLegend.h"
 #include "Application/Utils/char.h"
 #include "Application/Views/UiGridSelection.h"
+#include "Application/Views/DeviceView.h"
 #include "Application/Views/InstrumentView.h"
 #include "Application/Views/ViewData.h"
 #include "System/System/System.h"
@@ -31,25 +32,7 @@ constexpr std::uint16_t kSongCursorDurationMs = 120;
 constexpr std::uint16_t kChainCursorDurationMs = 120;
 constexpr std::uint16_t kPhraseCursorDurationMs = 120;
 constexpr std::uint16_t kGrooveCursorDurationMs = 120;
-
-UiPowerState CurrentPowerState(bool playing) {
-  if (playing)
-    return UiPowerState::Playing;
-  System *system = System::GetInstance();
-  if (system == nullptr)
-    return UiPowerState::BatteryNormal;
-  BatteryState battery{};
-  system->GetBatteryState(battery);
-  if (battery.error)
-    return UiPowerState::BatteryNormal;
-  if (battery.charging)
-    return UiPowerState::Charging;
-  if (battery.percentage <= 15U)
-    return UiPowerState::BatteryLow;
-  if (battery.percentage >= 80U)
-    return UiPowerState::BatteryHigh;
-  return UiPowerState::BatteryNormal;
-}
+constexpr std::uint16_t kListCursorDurationMs = 120;
 
 template <std::size_t Size>
 void CopyText(std::array<char, Size> &destination, const char *source) {
@@ -183,6 +166,40 @@ void CaptureHelpLegend(FourCC command, std::array<char, LeadSize> &lead,
 
 } // namespace
 
+UiApplicationRuntime::PowerFrameState
+UiApplicationRuntime::CapturePowerState(bool playing) {
+  if (!batterySampleGate_.ShouldSample(playing, frameNowMs_)) {
+    return playing ? PowerFrameState{.power = UiPowerState::Playing}
+                   : cachedPower_;
+  }
+
+  // Treat an unavailable/error sample as invalid cached state. That preserves
+  // the 1 Hz read ceiling while ensuring Web never renders a fabricated 0%.
+  cachedPower_ = {};
+  System *system = System::GetInstance();
+  if (system == nullptr)
+    return cachedPower_;
+  BatteryState battery{};
+  system->GetBatteryState(battery);
+  if (battery.error)
+    return cachedPower_;
+
+  cachedPower_.batteryPercent = std::min<std::uint8_t>(
+      battery.percentage, static_cast<std::uint8_t>(100));
+  cachedPower_.batteryPercentValid = true;
+  if (battery.charging)
+    cachedPower_.power = UiPowerState::Charging;
+  else if (battery.percentage <= 15U)
+    cachedPower_.power = UiPowerState::BatteryLow;
+  else if (battery.percentage >= 80U)
+    cachedPower_.power = UiPowerState::BatteryHigh;
+  return cachedPower_;
+}
+
+UiPowerState UiApplicationRuntime::CurrentPowerState(bool playing) {
+  return CapturePowerState(playing).power;
+}
+
 void UiApplicationRuntime::ActivatePage(RuntimePage page) {
   switch (page) {
   case RuntimePage::Song:
@@ -200,6 +217,12 @@ void UiApplicationRuntime::ActivatePage(RuntimePage page) {
   case RuntimePage::Instrument:
     std::construct_at(&frames_.instrument);
     break;
+  case RuntimePage::Device:
+    std::construct_at(&frames_.device);
+    break;
+  case RuntimePage::Browser:
+    std::construct_at(&frames_.browser);
+    break;
   case RuntimePage::Groove:
     std::construct_at(&frames_.groove);
     break;
@@ -210,10 +233,63 @@ void UiApplicationRuntime::ActivatePage(RuntimePage page) {
     break;
   }
   previousValid_ = false;
+  dialogPreviousValid_ = false;
   cursorTargetValid_ = false;
   topMetaTargetValid_ = false;
   bottomTrackTargetValid_ = false;
   activePage_ = page;
+}
+
+void UiApplicationRuntime::CaptureDialog(AppWindow &window) {
+  currentDialog_ = DialogFrameState{};
+  if (!window.HasModalForUi2())
+    return;
+  currentDialog_.snapshot = window.ModalSnapshotForUi2();
+  currentDialog_.instanceId = window.ModalInstanceIdForUi2();
+  currentDialog_.active = true;
+}
+
+bool UiApplicationRuntime::DialogChanged() const {
+  return !dialogPreviousValid_ || currentDialog_ != previousDialog_;
+}
+
+bool UiApplicationRuntime::RequiresFullRebuild() const {
+  if (!previousValid_ || !dialogPreviousValid_)
+    return true;
+  if (currentDialog_.active != previousDialog_.active)
+    return true;
+  return currentDialog_.active &&
+         (currentDialog_.instanceId != previousDialog_.instanceId ||
+          currentDialog_.snapshot.kind != previousDialog_.snapshot.kind);
+}
+
+bool UiApplicationRuntime::FullScreenDialogActive() const {
+  return currentDialog_.active &&
+         currentDialog_.snapshot.kind == UiDialogKind::FullScreen;
+}
+
+bool UiApplicationRuntime::CanCommitHiddenBaseWithoutRender() const {
+  return previousValid_ && dialogPreviousValid_ &&
+         FullScreenDialogActive() && currentDialog_ == previousDialog_;
+}
+
+UiBuildStatus UiApplicationRuntime::ApplyDialog() {
+  if (!currentDialog_.active)
+    return UiBuildStatus::Built;
+  return UiDialogView::Apply(currentDialog_.snapshot.ToViewData(), scene_);
+}
+
+void UiApplicationRuntime::RenderDialogDelta() {
+  if (!currentDialog_.active || !DialogChanged())
+    return;
+  UiDialogView::RenderDelta(previousDialog_.snapshot.ToViewData(),
+                            currentDialog_.snapshot.ToViewData(), scene_,
+                            engine_.Surface(), engine_.Palette());
+}
+
+void UiApplicationRuntime::CommitDialog() {
+  previousDialog_ = currentDialog_;
+  dialogPreviousValid_ = true;
 }
 
 bool UiApplicationRuntime::Supports(const AppWindow &window) const {
@@ -223,9 +299,13 @@ bool UiApplicationRuntime::Supports(const AppWindow &window) const {
           window.IsCurrentViewForUi2(VT_TABLE) ||
           window.IsCurrentViewForUi2(VT_TABLE2) ||
           window.IsCurrentViewForUi2(VT_INSTRUMENT) ||
+          window.IsCurrentViewForUi2(VT_DEVICE) ||
+          window.IsCurrentViewForUi2(VT_IMPORT) ||
+          window.IsCurrentViewForUi2(VT_INSTRUMENT_IMPORT) ||
+          window.IsCurrentViewForUi2(VT_SELECTPROJECT) ||
+          window.IsCurrentViewForUi2(VT_THEME_IMPORT) ||
           window.IsCurrentViewForUi2(VT_GROOVE) ||
-          window.IsCurrentViewForUi2(VT_MIXER)) &&
-         !window.HasModalForUi2();
+          window.IsCurrentViewForUi2(VT_MIXER));
 }
 
 PresentResult UiApplicationRuntime::Present(AppWindow &window) {
@@ -233,6 +313,7 @@ PresentResult UiApplicationRuntime::Present(AppWindow &window) {
     return PresentResult::Deferred;
   System *system = System::GetInstance();
   const std::uint32_t nowMs = system == nullptr ? 0U : system->Millis();
+  frameNowMs_ = nowMs;
   RuntimePage page = RuntimePage::Table;
   if (window.IsCurrentViewForUi2(VT_SONG))
     page = RuntimePage::Song;
@@ -242,12 +323,20 @@ PresentResult UiApplicationRuntime::Present(AppWindow &window) {
     page = RuntimePage::Phrase;
   else if (window.IsCurrentViewForUi2(VT_INSTRUMENT))
     page = RuntimePage::Instrument;
+  else if (window.IsCurrentViewForUi2(VT_DEVICE))
+    page = RuntimePage::Device;
+  else if (window.IsCurrentViewForUi2(VT_IMPORT) ||
+           window.IsCurrentViewForUi2(VT_INSTRUMENT_IMPORT) ||
+           window.IsCurrentViewForUi2(VT_SELECTPROJECT) ||
+           window.IsCurrentViewForUi2(VT_THEME_IMPORT))
+    page = RuntimePage::Browser;
   else if (window.IsCurrentViewForUi2(VT_GROOVE))
     page = RuntimePage::Groove;
   else if (window.IsCurrentViewForUi2(VT_MIXER))
     page = RuntimePage::Mixer;
   if (page != activePage_)
     ActivatePage(page);
+  CaptureDialog(window);
   switch (page) {
   case RuntimePage::Song:
     return PresentSong(window, nowMs);
@@ -259,6 +348,10 @@ PresentResult UiApplicationRuntime::Present(AppWindow &window) {
     return PresentTable(window, nowMs);
   case RuntimePage::Instrument:
     return PresentInstrument(window, nowMs);
+  case RuntimePage::Device:
+    return PresentDevice(window, nowMs);
+  case RuntimePage::Browser:
+    return PresentBrowser(window, nowMs);
   case RuntimePage::Groove:
     return PresentGroove(window, nowMs);
   case RuntimePage::Mixer:
@@ -288,27 +381,37 @@ PresentResult UiApplicationRuntime::PresentSong(AppWindow &window,
   current.cursorVisualRect = cursors_.Sample(UiCursorRole::Content, nowMs);
   current.cursorVisualOverride = true;
   current.cursorInkVisible = !cursors_.Active(UiCursorRole::Content, nowMs);
-  if (previousValid_ && current == previous) {
+  const bool baseChanged = !previousValid_ || current != previous;
+  if (!baseChanged && !DialogChanged()) {
+    return engine_.PresentDirty();
+  }
+  if (CanCommitHiddenBaseWithoutRender()) {
+    previous = current;
     return engine_.PresentDirty();
   }
 
   const UiSongViewData data = ViewDataFor(current);
   if (UiSongView::Build(data, engine_.Palette(), scene_) !=
-      UiBuildStatus::Built) {
+          UiBuildStatus::Built ||
+      ApplyDialog() != UiBuildStatus::Built) {
     return PresentResult::Failed;
   }
-  if (!previousValid_) {
+  if (RequiresFullRebuild()) {
     UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
   } else {
-    const UiSongViewData previousData = ViewDataFor(previous);
-    UiSongView::RenderDelta(previousData, data, scene_, engine_.Surface(),
-                            engine_.Palette());
+    if (baseChanged && !FullScreenDialogActive()) {
+      const UiSongViewData previousData = ViewDataFor(previous);
+      UiSongView::RenderDelta(previousData, data, scene_, engine_.Surface(),
+                              engine_.Palette());
+    }
+    RenderDialogDelta();
   }
 
   const PresentResult result = engine_.PresentDirty();
   if (result == PresentResult::Presented) {
     previous = current;
     previousValid_ = true;
+    CommitDialog();
   }
   return result;
 }
@@ -421,25 +524,35 @@ PresentResult UiApplicationRuntime::PresentChain(AppWindow &window,
     current.cursorInkVisible = !cursors_.Active(UiCursorRole::Content, nowMs);
   }
 
-  if (previousValid_ && current == previous) {
+  const bool baseChanged = !previousValid_ || current != previous;
+  if (!baseChanged && !DialogChanged()) {
+    return engine_.PresentDirty();
+  }
+  if (CanCommitHiddenBaseWithoutRender()) {
+    previous = current;
     return engine_.PresentDirty();
   }
   const UiChainViewData data = ViewDataFor(current);
   if (UiChainView::Build(data, engine_.Palette(), scene_) !=
-      UiBuildStatus::Built) {
+          UiBuildStatus::Built ||
+      ApplyDialog() != UiBuildStatus::Built) {
     return PresentResult::Failed;
   }
-  if (!previousValid_) {
+  if (RequiresFullRebuild()) {
     UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
   } else {
-    const UiChainViewData previousData = ViewDataFor(previous);
-    UiChainView::RenderDelta(previousData, data, scene_, engine_.Surface(),
-                             engine_.Palette());
+    if (baseChanged && !FullScreenDialogActive()) {
+      const UiChainViewData previousData = ViewDataFor(previous);
+      UiChainView::RenderDelta(previousData, data, scene_, engine_.Surface(),
+                               engine_.Palette());
+    }
+    RenderDialogDelta();
   }
   const PresentResult result = engine_.PresentDirty();
   if (result == PresentResult::Presented) {
     previous = current;
     previousValid_ = true;
+    CommitDialog();
   }
   return result;
 }
@@ -571,25 +684,35 @@ PresentResult UiApplicationRuntime::PresentPhrase(AppWindow &window,
     current.cursorInkVisible = !cursors_.Active(UiCursorRole::Content, nowMs);
   }
 
-  if (previousValid_ && current == previous) {
+  const bool baseChanged = !previousValid_ || current != previous;
+  if (!baseChanged && !DialogChanged()) {
+    return engine_.PresentDirty();
+  }
+  if (CanCommitHiddenBaseWithoutRender()) {
+    previous = current;
     return engine_.PresentDirty();
   }
   const UiPhraseViewData data = ViewDataFor(current);
   if (UiPhraseView::Build(data, engine_.Palette(), scene_) !=
-      UiBuildStatus::Built) {
+          UiBuildStatus::Built ||
+      ApplyDialog() != UiBuildStatus::Built) {
     return PresentResult::Failed;
   }
-  if (!previousValid_) {
+  if (RequiresFullRebuild()) {
     UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
   } else {
-    const UiPhraseViewData previousData = ViewDataFor(previous);
-    UiPhraseView::RenderDelta(previousData, data, scene_, engine_.Surface(),
-                              engine_.Palette());
+    if (baseChanged && !FullScreenDialogActive()) {
+      const UiPhraseViewData previousData = ViewDataFor(previous);
+      UiPhraseView::RenderDelta(previousData, data, scene_, engine_.Surface(),
+                                engine_.Palette());
+    }
+    RenderDialogDelta();
   }
   const PresentResult result = engine_.PresentDirty();
   if (result == PresentResult::Presented) {
     previous = current;
     previousValid_ = true;
+    CommitDialog();
   }
   return result;
 }
@@ -709,25 +832,35 @@ PresentResult UiApplicationRuntime::PresentTable(AppWindow &window,
     current.cursorVisualOverride = true;
     current.cursorInkVisible = !cursors_.Active(UiCursorRole::Content, nowMs);
   }
-  if (previousValid_ && current == previous) {
+  const bool baseChanged = !previousValid_ || current != previous;
+  if (!baseChanged && !DialogChanged()) {
+    return engine_.PresentDirty();
+  }
+  if (CanCommitHiddenBaseWithoutRender()) {
+    previous = current;
     return engine_.PresentDirty();
   }
   const UiTableViewData data = ViewDataFor(current);
   if (UiTableView::Build(data, engine_.Palette(), scene_) !=
-      UiBuildStatus::Built) {
+          UiBuildStatus::Built ||
+      ApplyDialog() != UiBuildStatus::Built) {
     return PresentResult::Failed;
   }
-  if (!previousValid_) {
+  if (RequiresFullRebuild()) {
     UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
   } else {
-    const UiTableViewData previousData = ViewDataFor(previous);
-    UiTableView::RenderDelta(previousData, data, scene_, engine_.Surface(),
-                             engine_.Palette());
+    if (baseChanged && !FullScreenDialogActive()) {
+      const UiTableViewData previousData = ViewDataFor(previous);
+      UiTableView::RenderDelta(previousData, data, scene_, engine_.Surface(),
+                               engine_.Palette());
+    }
+    RenderDialogDelta();
   }
   const PresentResult result = engine_.PresentDirty();
   if (result == PresentResult::Presented) {
     previous = current;
     previousValid_ = true;
+    CommitDialog();
   }
   return result;
 }
@@ -834,24 +967,204 @@ PresentResult UiApplicationRuntime::PresentInstrument(AppWindow &window,
     current.cursorInkVisible = !cursors_.Active(UiCursorRole::Content, nowMs);
   }
 
-  if (previousValid_ && current == previous)
+  const bool baseChanged = !previousValid_ || current != previous;
+  if (!baseChanged && !DialogChanged())
     return engine_.PresentDirty();
+  if (CanCommitHiddenBaseWithoutRender()) {
+    previous = current;
+    return engine_.PresentDirty();
+  }
   const UiInstrumentViewData data = ViewDataFor(current);
   if (UiInstrumentView::Build(data, engine_.Palette(), scene_) !=
-      UiBuildStatus::Built) {
+          UiBuildStatus::Built ||
+      ApplyDialog() != UiBuildStatus::Built) {
     return PresentResult::Failed;
   }
-  if (!previousValid_) {
+  if (RequiresFullRebuild()) {
     UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
   } else {
-    const UiInstrumentViewData previousData = ViewDataFor(previous);
-    UiInstrumentView::RenderDelta(previousData, data, scene_, engine_.Surface(),
-                                  engine_.Palette());
+    if (baseChanged && !FullScreenDialogActive()) {
+      const UiInstrumentViewData previousData = ViewDataFor(previous);
+      UiInstrumentView::RenderDelta(previousData, data, scene_,
+                                    engine_.Surface(), engine_.Palette());
+    }
+    RenderDialogDelta();
   }
   const PresentResult result = engine_.PresentDirty();
   if (result == PresentResult::Presented) {
     previous = current;
     previousValid_ = true;
+    CommitDialog();
+  }
+  return result;
+}
+
+UiDeviceViewData
+UiApplicationRuntime::ViewDataFor(const DeviceFrameState &state) {
+  UiDeviceViewData data;
+  data.midiDevice = state.midiDevice.data();
+  data.midiSync = state.midiSync.data();
+  data.lineOut = state.lineOut.data();
+  data.remoteUi = state.remoteUi.data();
+  data.resampler = state.resampler.data();
+  data.volume = state.volume.data();
+  data.brightness = state.brightness.data();
+  data.theme = state.theme.data();
+  data.font = state.font.data();
+  data.version = state.version.data();
+  for (std::size_t index = 0; index < state.selectorOptions.size(); ++index)
+    data.selectorOptions[index] = state.selectorOptions[index].data();
+  data.selectorCount = state.selectorCount;
+  data.selectorCurrent = state.selectorCurrent;
+  data.selectorWrap = state.selectorWrap;
+  data.showLineOut = state.showLineOut;
+  data.showVolume = state.showVolume;
+  data.showTheme = state.showTheme;
+  data.showFont = state.showFont;
+  data.showUpdateFirmware = state.showUpdateFirmware;
+  data.batteryPercentValid = state.batteryPercentValid;
+  data.batteryPercent = state.batteryPercent;
+  data.cursor = state.cursor;
+  data.cursorVisualRect = state.cursorVisualRect;
+  data.cursorVisualOverride = state.cursorVisualOverride;
+  data.cursorInkVisible = state.cursorInkVisible;
+  data.scrollOffset = state.scrollOffset;
+  data.power = state.power;
+  return data;
+}
+
+PresentResult UiApplicationRuntime::PresentDevice(AppWindow &window,
+                                                   std::uint32_t nowMs) {
+  DeviceFrameState &current = frames_.device.current;
+  DeviceFrameState &previous = frames_.device.previous;
+  const std::int16_t previousScroll =
+      previousValid_ ? previous.scrollOffset : 0;
+  CaptureDevice(window, current);
+  UiDeviceViewData capture = ViewDataFor(current);
+  current.scrollOffset = UiDeviceView::RevealCursor(previousScroll, capture);
+  capture.scrollOffset = current.scrollOffset;
+  const RectI16 target = UiDeviceView::CursorTargetRect(capture);
+  const bool scrollChanged =
+      previousValid_ && current.scrollOffset != previousScroll;
+  if (scrollChanged && cursorTargetValid_) {
+    RectI16 rebased = cursors_.Sample(UiCursorRole::Content, nowMs);
+    rebased.y = static_cast<std::int16_t>(
+        rebased.y + current.scrollOffset - previousScroll);
+    cursors_.Snap(UiCursorRole::Content, rebased, nowMs);
+  }
+  if (!cursorTargetValid_) {
+    cursors_.Snap(UiCursorRole::Content, target, nowMs);
+    cursorTarget_ = target;
+    cursorTargetValid_ = true;
+  } else if (target != cursorTarget_ || scrollChanged) {
+    cursors_.Retarget(UiCursorRole::Content, target, nowMs,
+                      kListCursorDurationMs);
+    cursorTarget_ = target;
+  }
+  current.cursorVisualRect = cursors_.Sample(UiCursorRole::Content, nowMs);
+  current.cursorVisualOverride = !target.Empty();
+  current.cursorInkVisible = !cursors_.Active(UiCursorRole::Content, nowMs);
+
+  const bool baseChanged = !previousValid_ || current != previous;
+  if (!baseChanged && !DialogChanged())
+    return engine_.PresentDirty();
+  if (CanCommitHiddenBaseWithoutRender()) {
+    previous = current;
+    return engine_.PresentDirty();
+  }
+  const UiDeviceViewData data = ViewDataFor(current);
+  if (UiDeviceView::Build(data, engine_.Palette(), scene_) !=
+          UiBuildStatus::Built ||
+      ApplyDialog() != UiBuildStatus::Built) {
+    return PresentResult::Failed;
+  }
+  if (RequiresFullRebuild()) {
+    UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
+  } else {
+    if (baseChanged && !FullScreenDialogActive()) {
+      const UiDeviceViewData previousData = ViewDataFor(previous);
+      UiDeviceView::RenderDelta(previousData, data, scene_, engine_.Surface(),
+                                engine_.Palette());
+    }
+    RenderDialogDelta();
+  }
+  const PresentResult result = engine_.PresentDirty();
+  if (result == PresentResult::Presented) {
+    previous = current;
+    previousValid_ = true;
+    CommitDialog();
+  }
+  return result;
+}
+
+UiBrowserViewData
+UiApplicationRuntime::ViewDataFor(const BrowserFrameState &state) {
+  UiBrowserViewData data = state.snapshot.ViewData(state.power);
+  data.cursorVisualRect = state.cursorVisualRect;
+  data.cursorVisualOverride = state.cursorVisualOverride;
+  data.cursorInkVisible = state.cursorInkVisible;
+  return data;
+}
+
+PresentResult UiApplicationRuntime::PresentBrowser(AppWindow &window,
+                                                    std::uint32_t nowMs) {
+  BrowserFrameState &current = frames_.browser.current;
+  BrowserFrameState &previous = frames_.browser.previous;
+  CaptureBrowser(window, current);
+  const RectI16 target = current.snapshot.hasSelection
+                              ? UiBrowserView::CursorTargetRect(
+                                    current.snapshot.selectedRow)
+                              : RectI16{};
+  if (target.Empty()) {
+    // An empty browser has no rendered cursor. End any in-flight transition
+    // immediately so hidden geometry cannot keep the frame state changing
+    // after RenderDelta correctly produces no pixel damage.
+    if (!cursorTargetValid_ || target != cursorTarget_)
+      cursors_.Snap(UiCursorRole::Content, target, nowMs);
+    cursorTarget_ = target;
+    cursorTargetValid_ = true;
+  } else if (!cursorTargetValid_) {
+    cursors_.Snap(UiCursorRole::Content, target, nowMs);
+    cursorTarget_ = target;
+    cursorTargetValid_ = true;
+  } else if (target != cursorTarget_) {
+    cursors_.Retarget(UiCursorRole::Content, target, nowMs,
+                      kListCursorDurationMs);
+    cursorTarget_ = target;
+  }
+  current.cursorVisualRect = cursors_.Sample(UiCursorRole::Content, nowMs);
+  current.cursorVisualOverride = !target.Empty();
+  current.cursorInkVisible = current.snapshot.hasSelection &&
+                             !cursors_.Active(UiCursorRole::Content, nowMs);
+
+  const bool baseChanged = !previousValid_ || current != previous;
+  if (!baseChanged && !DialogChanged())
+    return engine_.PresentDirty();
+  if (CanCommitHiddenBaseWithoutRender()) {
+    previous = current;
+    return engine_.PresentDirty();
+  }
+  const UiBrowserViewData data = ViewDataFor(current);
+  if (UiBrowserView::Build(data, engine_.Palette(), scene_) !=
+          UiBuildStatus::Built ||
+      ApplyDialog() != UiBuildStatus::Built) {
+    return PresentResult::Failed;
+  }
+  if (RequiresFullRebuild()) {
+    UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
+  } else {
+    if (baseChanged && !FullScreenDialogActive()) {
+      const UiBrowserViewData previousData = ViewDataFor(previous);
+      UiBrowserView::RenderDelta(previousData, data, scene_, engine_.Surface(),
+                                 engine_.Palette());
+    }
+    RenderDialogDelta();
+  }
+  const PresentResult result = engine_.PresentDirty();
+  if (result == PresentResult::Presented) {
+    previous = current;
+    previousValid_ = true;
+    CommitDialog();
   }
   return result;
 }
@@ -888,25 +1201,35 @@ PresentResult UiApplicationRuntime::PresentGroove(AppWindow &window,
   current.cursorVisualOverride = true;
   current.cursorInkVisible = !cursors_.Active(UiCursorRole::Content, nowMs);
 
-  if (previousValid_ && current == previous) {
+  const bool baseChanged = !previousValid_ || current != previous;
+  if (!baseChanged && !DialogChanged()) {
+    return engine_.PresentDirty();
+  }
+  if (CanCommitHiddenBaseWithoutRender()) {
+    previous = current;
     return engine_.PresentDirty();
   }
   const UiGrooveViewData data = ViewDataFor(current);
   if (UiGrooveView::Build(data, engine_.Palette(), scene_) !=
-      UiBuildStatus::Built) {
+          UiBuildStatus::Built ||
+      ApplyDialog() != UiBuildStatus::Built) {
     return PresentResult::Failed;
   }
-  if (!previousValid_) {
+  if (RequiresFullRebuild()) {
     UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
   } else {
-    const UiGrooveViewData previousData = ViewDataFor(previous);
-    UiGrooveView::RenderDelta(previousData, data, scene_, engine_.Surface(),
-                              engine_.Palette());
+    if (baseChanged && !FullScreenDialogActive()) {
+      const UiGrooveViewData previousData = ViewDataFor(previous);
+      UiGrooveView::RenderDelta(previousData, data, scene_, engine_.Surface(),
+                                engine_.Palette());
+    }
+    RenderDialogDelta();
   }
   const PresentResult result = engine_.PresentDirty();
   if (result == PresentResult::Presented) {
     previous = current;
     previousValid_ = true;
+    CommitDialog();
   }
   return result;
 }
@@ -927,25 +1250,35 @@ PresentResult UiApplicationRuntime::PresentMixer(AppWindow &window) {
   MixerFrameState &current = frames_.mixer.current;
   MixerFrameState &previous = frames_.mixer.previous;
   CaptureMixer(window, current);
-  if (previousValid_ && current == previous) {
+  const bool baseChanged = !previousValid_ || current != previous;
+  if (!baseChanged && !DialogChanged()) {
+    return engine_.PresentDirty();
+  }
+  if (CanCommitHiddenBaseWithoutRender()) {
+    previous = current;
     return engine_.PresentDirty();
   }
   const UiMixerViewData data = ViewDataFor(current);
   if (UiMixerView::Build(data, engine_.Palette(), scene_) !=
-      UiBuildStatus::Built) {
+          UiBuildStatus::Built ||
+      ApplyDialog() != UiBuildStatus::Built) {
     return PresentResult::Failed;
   }
-  if (!previousValid_) {
+  if (RequiresFullRebuild()) {
     UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
   } else {
-    const UiMixerViewData previousData = ViewDataFor(previous);
-    UiMixerView::RenderDelta(previousData, data, scene_, engine_.Surface(),
-                             engine_.Palette());
+    if (baseChanged && !FullScreenDialogActive()) {
+      const UiMixerViewData previousData = ViewDataFor(previous);
+      UiMixerView::RenderDelta(previousData, data, scene_, engine_.Surface(),
+                               engine_.Palette());
+    }
+    RenderDialogDelta();
   }
   const PresentResult result = engine_.PresentDirty();
   if (result == PresentResult::Presented) {
     previous = current;
     previousValid_ = true;
+    CommitDialog();
   }
   return result;
 }
@@ -1312,6 +1645,103 @@ void UiApplicationRuntime::CaptureInstrument(AppWindow &window,
   state.power = CurrentPowerState(playing);
   FormatElapsed(player, playing, state.elapsed);
   CaptureTrackNotes(player, playing, state.trackNotes);
+}
+
+void UiApplicationRuntime::CaptureDevice(AppWindow &window,
+                                         DeviceFrameState &state) {
+  state = DeviceFrameState{};
+  const DeviceViewUi2Snapshot snapshot = window.DeviceSnapshotForUi2();
+  CopyText(state.midiDevice, snapshot.midiDevice.Value());
+  CopyText(state.midiSync, snapshot.midiSync.Value());
+  CopyText(state.lineOut, snapshot.lineOut.Value());
+  CopyText(state.remoteUi, snapshot.remoteUi.Value());
+  CopyText(state.resampler, snapshot.resampler.Value());
+  CopyText(state.theme, snapshot.theme.data());
+  CopyText(state.font, snapshot.font.Value());
+  CopyText(state.version, snapshot.version.data());
+  std::snprintf(state.volume.data(), state.volume.size(), "%u",
+                static_cast<unsigned>(snapshot.volume));
+  std::snprintf(state.brightness.data(), state.brightness.size(), "%02X",
+                static_cast<unsigned>(snapshot.brightness));
+
+  switch (snapshot.focus) {
+  case DeviceViewUi2Focus::MidiDevice:
+    state.cursor = UiDeviceCursor::MidiDevice;
+    break;
+  case DeviceViewUi2Focus::MidiSync:
+    state.cursor = UiDeviceCursor::MidiSync;
+    break;
+  case DeviceViewUi2Focus::LineOut:
+    state.cursor = UiDeviceCursor::LineOut;
+    break;
+  case DeviceViewUi2Focus::RemoteUi:
+    state.cursor = UiDeviceCursor::RemoteUi;
+    break;
+  case DeviceViewUi2Focus::Resampler:
+    state.cursor = UiDeviceCursor::Resampler;
+    break;
+  case DeviceViewUi2Focus::Brightness:
+    state.cursor = UiDeviceCursor::Brightness;
+    break;
+  case DeviceViewUi2Focus::Volume:
+    state.cursor = UiDeviceCursor::Volume;
+    break;
+  case DeviceViewUi2Focus::Theme:
+    state.cursor = UiDeviceCursor::Theme;
+    break;
+  case DeviceViewUi2Focus::UpdateFirmware:
+    state.cursor = UiDeviceCursor::UpdateFirmware;
+    break;
+  case DeviceViewUi2Focus::Unknown:
+    state.cursor = UiDeviceCursor::MidiDevice;
+    break;
+  }
+
+  const DeviceViewUi2Choice choice = snapshot.FocusedChoice();
+  state.selectorCount = std::min<std::uint8_t>(
+      choice.count,
+      static_cast<std::uint8_t>(state.selectorOptions.size()));
+  state.selectorCurrent = state.selectorCount == 0U
+                              ? 0U
+                              : std::min<std::uint8_t>(
+                                    choice.current, state.selectorCount - 1U);
+  state.selectorWrap = choice.wrap;
+  for (std::uint8_t index = 0; index < state.selectorCount; ++index) {
+    CopyText(state.selectorOptions[index],
+             choice.options == nullptr ? "" : choice.options[index]);
+  }
+
+  // Keep UI2's structure identical to DeviceView's platform-specific
+  // fieldList_: Config registers both variables on every target.
+#if defined(ADV) || defined(NODE)
+  state.showLineOut = false;
+  state.showVolume = true;
+#else
+  state.showLineOut = true;
+  state.showVolume = false;
+#endif
+  state.showTheme = true;
+  state.showFont = snapshot.font.count != 0U;
+#if defined(NODE)
+  state.showUpdateFirmware = false;
+#else
+  state.showUpdateFirmware = true;
+#endif
+  Player *player = Player::GetInstance();
+  const bool playing = player != nullptr && player->IsRunning();
+  const PowerFrameState power = CapturePowerState(playing);
+  state.power = power.power;
+  state.batteryPercent = power.batteryPercent;
+  state.batteryPercentValid = power.batteryPercentValid;
+}
+
+void UiApplicationRuntime::CaptureBrowser(AppWindow &window,
+                                          BrowserFrameState &state) {
+  state = BrowserFrameState{};
+  state.snapshot = window.BrowserSnapshotForUi2();
+  Player *player = Player::GetInstance();
+  const bool playing = player != nullptr && player->IsRunning();
+  state.power = CurrentPowerState(playing);
 }
 
 void UiApplicationRuntime::CaptureGroove(AppWindow &window,

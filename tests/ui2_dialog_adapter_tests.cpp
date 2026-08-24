@@ -14,6 +14,9 @@ TEST_CASE("UI2 dialog snapshot owns every projected string") {
   snapshot.SetValue("AKWF_0906");
   snapshot.SetElapsed("00:08");
   snapshot.SetProgressPercent(65);
+  snapshot.PushAction(ui2::UiDialogAction::Yes);
+  snapshot.PushAction(ui2::UiDialogAction::No);
+  snapshot.SetSelectedAction(1, true);
 
   source.assign(source.size(), 'X');
   const ui2::UiDialogViewData data = snapshot.ToViewData();
@@ -23,6 +26,11 @@ TEST_CASE("UI2 dialog snapshot owns every projected string") {
   CHECK(data.value == "AKWF_0906");
   CHECK(data.elapsed == "00:08");
   CHECK(data.progressWidth == 93U);
+  CHECK(data.actionCount == 2U);
+  CHECK(data.actions[0] == ui2::UiDialogAction::Yes);
+  CHECK(data.actions[1] == ui2::UiDialogAction::No);
+  CHECK(data.selectedAction == 1U);
+  CHECK(data.actionsFocused);
   CHECK(std::is_trivially_copyable_v<Ui2DialogSnapshot>);
 }
 
@@ -41,4 +49,14 @@ TEST_CASE("UI2 dialog snapshot bounds text and progress") {
   copy.SetTitle("COPY");
   CHECK(snapshot.ToViewData().title != copy.ToViewData().title);
   CHECK(copy.ToViewData().title == "COPY");
+
+  snapshot.PushAction(ui2::UiDialogAction::Ok);
+  snapshot.PushAction(ui2::UiDialogAction::Yes);
+  snapshot.PushAction(ui2::UiDialogAction::Cancel);
+  snapshot.PushAction(ui2::UiDialogAction::No);
+  snapshot.PushAction(ui2::UiDialogAction::Ok);
+  snapshot.SetSelectedAction(9, false);
+  CHECK(snapshot.ToViewData().actionCount == ui2::kUiDialogActionCapacity);
+  CHECK(snapshot.ToViewData().selectedAction == 3U);
+  CHECK_FALSE(snapshot.ToViewData().actionsFocused);
 }

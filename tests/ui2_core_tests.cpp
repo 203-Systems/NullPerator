@@ -32,6 +32,7 @@
 #include "Adapters/wasm/gui/WasmUiPresenter.h"
 #include "Application/UI2/Ui2SettingsAdapters.h"
 #include "Application/UI2/Ui2ApplicationRuntime.h"
+#include "Application/UI2/Ui2ModalInputGate.h"
 
 #include "ui2_song_fixture.h"
 #include "ui2_browser_fixture.h"
@@ -769,6 +770,55 @@ TEST_CASE("UI2 firmware runtime keeps a fixed bounded memory footprint") {
   CHECK(sizeof(ui2::UiRgb565Presenter) <= 64);
   CHECK(ui2::UiRgb565Presenter::kTransferPixels * sizeof(std::uint16_t) ==
         3'840);
+}
+
+TEST_CASE("UI2 battery sampling is bounded to 1 Hz and refreshes after play") {
+  ui2::detail::UiBatterySampleGate gate;
+  CHECK(gate.ShouldSample(false, 0U));
+  CHECK_FALSE(gate.ShouldSample(false, 0U));
+  CHECK_FALSE(gate.ShouldSample(false, 999U));
+  CHECK(gate.ShouldSample(false, 1'000U));
+
+  CHECK_FALSE(gate.ShouldSample(true, 1'001U));
+  CHECK_FALSE(gate.ShouldSample(true, 5'000U));
+  // The first idle frame after playback must observe charging/battery changes
+  // immediately instead of waiting for the previous idle sample deadline.
+  CHECK(gate.ShouldSample(false, 5'000U));
+  CHECK_FALSE(gate.ShouldSample(false, 5'999U));
+  CHECK(gate.ShouldSample(false, 6'000U));
+
+  // Unsigned elapsed time keeps the same policy across the 32-bit clock wrap.
+  gate = {};
+  CHECK(gate.ShouldSample(false, UINT32_MAX - 500U));
+  CHECK_FALSE(gate.ShouldSample(false, 100U));
+  CHECK(gate.ShouldSample(false, 500U));
+}
+
+TEST_CASE("UI2 modal input gate retains consumed chord bits until key-up") {
+  Ui2ModalInputGate gate;
+  constexpr std::uint16_t edit = 1U << 5U;
+  constexpr std::uint16_t enter = 1U << 6U;
+  constexpr std::uint16_t left = 1U;
+
+  gate.OnButtonDown(edit, false);
+  CHECK(gate.EffectiveMask(edit, false) == edit);
+
+  gate.OnButtonDown(enter, true);
+  gate.OnButtonDown(left, true);
+  const std::uint16_t chord = edit | enter | left;
+  CHECK(gate.EffectiveMask(chord, true) == 0U);
+  CHECK(gate.DispatchMask(chord, true) == chord);
+  // The modal dismissed on Enter-down. Edit belonged to the base page, while
+  // both modal-consumed keys stay hidden independently until released.
+  CHECK(gate.EffectiveMask(chord, false) == edit);
+  CHECK(gate.DispatchMask(chord, false) == edit);
+
+  gate.OnButtonUp(enter);
+  CHECK(gate.EffectiveMask(edit | left, false) == edit);
+  gate.OnButtonUp(left);
+  CHECK(gate.EffectiveMask(edit, false) == edit);
+  gate.OnButtonUp(edit);
+  CHECK(gate.EffectiveMask(0U, false) == 0U);
 }
 
 TEST_CASE("UI2 region rendering restores exact pixels without a backbuffer") {
@@ -1655,6 +1705,7 @@ TEST_CASE("UI2 Device delta rendering is pixel-identical to a full redraw") {
   current.volume = "55";
   current.theme = "NIGHT";
   current.batteryPercent = 82;
+  current.batteryPercentValid = false;
   current.cursorVisualOverride = true;
   current.cursorVisualRect = {7, 59, 226, 9};
   current.cursorInkVisible = false;
@@ -1683,6 +1734,26 @@ TEST_CASE("UI2 Device idle frame stays clean") {
   surface.ClearDirty();
   ui2::UiDeviceView::RenderDelta(data, data, scene, surface, palette);
   CHECK_FALSE(surface.DirtyTiles().Any());
+}
+
+TEST_CASE("UI2 Device omits an unavailable battery percentage") {
+  ui2::UiPalette palette;
+  ui2::UiDeviceViewData data = ui2::test::ApprovedDeviceFixture();
+  data.batteryPercent = 0;
+  data.batteryPercentValid = false;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiDeviceView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+
+  const ui2::PaletteIndex topBackground =
+      palette.Index(ui2::UiColorToken::SurfaceTopBar);
+  for (std::int16_t y = 14; y < 21; ++y) {
+    for (std::int16_t x = 184; x < 207; ++x)
+      CHECK(surface.Pixel(x, y) == topBackground);
+  }
 }
 
 TEST_CASE("UI2 Device represents all approved rows and reveals optional rows") {
@@ -1990,6 +2061,37 @@ TEST_CASE("UI2 shared browser idle frame stays clean") {
   CHECK_FALSE(surface.DirtyTiles().Any());
 }
 
+TEST_CASE("UI2 empty browser ignores hidden cursor animation geometry") {
+  ui2::UiPalette palette;
+  ui2::UiBrowserViewData previous =
+      ui2::test::ApprovedBrowserFixture("projects");
+  previous.items = {};
+  previous.visibleItemCount = 0;
+  previous.selectedRow = 0;
+  previous.topIndex = 0;
+  previous.totalItemCount = 0;
+  previous.cursorVisualOverride = false;
+  previous.cursorInkVisible = false;
+
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiBrowserView::Build(previous, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+  surface.ClearDirty();
+
+  ui2::UiBrowserViewData current = previous;
+  current.cursorVisualOverride = true;
+  current.cursorVisualRect = {7, 43, 226, 11};
+  ui2::UiFrameScene currentScene;
+  REQUIRE(ui2::UiBrowserView::Build(current, palette, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiBrowserView::RenderDelta(previous, current, currentScene, surface,
+                                  palette);
+  CHECK_FALSE(surface.DirtyTiles().Any());
+}
+
 TEST_CASE("UI2 Record delta rendering is pixel-identical to a full redraw") {
   ui2::UiPalette palette;
   ui2::UiRecordViewData previous;
@@ -2172,6 +2274,167 @@ TEST_CASE("UI2 Dialog overlay preserves its page and suppresses Bottom Bar") {
   CHECK(scene.content.Size() > baseCommands);
 }
 
+TEST_CASE("UI2 Dialog fits every live base-page scene") {
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  ui2::UiDialogViewData dialog;
+  dialog.kind = ui2::UiDialogKind::Message;
+  dialog.title = "DIAGNOSTIC MESSAGE";
+  dialog.label = "SECOND LINE";
+  dialog.actions = {ui2::UiDialogAction::Ok, ui2::UiDialogAction::Cancel,
+                    ui2::UiDialogAction::Yes, ui2::UiDialogAction::No};
+  dialog.actionCount = 2;
+
+  const auto apply = [&] {
+    REQUIRE(ui2::UiDialogView::Apply(dialog, scene) ==
+            ui2::UiBuildStatus::Built);
+  };
+  REQUIRE(ui2::UiSongView::Build(ui2::test::ApprovedSongFixture(), palette,
+                                 scene) == ui2::UiBuildStatus::Built);
+  apply();
+  REQUIRE(ui2::UiChainView::Build(ui2::test::ApprovedChainFixture(), palette,
+                                  scene) == ui2::UiBuildStatus::Built);
+  apply();
+  REQUIRE(ui2::UiPhraseView::Build(
+              ui2::test::ApprovedPhraseFixture("fx"), palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  apply();
+  REQUIRE(ui2::UiTableView::Build(
+              ui2::test::ApprovedTableFixture("instrument"), palette,
+              scene) == ui2::UiBuildStatus::Built);
+  apply();
+  REQUIRE(ui2::UiInstrumentView::Build(
+              ui2::test::ApprovedInstrumentFixture("opal"), palette,
+              scene) == ui2::UiBuildStatus::Built);
+  apply();
+  REQUIRE(ui2::UiDeviceView::Build(ui2::test::ApprovedDeviceFixture(),
+                                   palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  apply();
+  REQUIRE(ui2::UiBrowserView::Build(
+              ui2::test::ApprovedBrowserFixture("projects"), palette,
+              scene) == ui2::UiBuildStatus::Built);
+  apply();
+  REQUIRE(ui2::UiGrooveView::Build(ui2::test::ApprovedGrooveFixture(),
+                                   palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  apply();
+  REQUIRE(ui2::UiMixerView::Build(ui2::test::ApprovedMixerFixture(), palette,
+                                  scene) == ui2::UiBuildStatus::Built);
+  apply();
+}
+
+TEST_CASE("UI2 base-page delta remains exact beneath a retained dialog") {
+  ui2::UiPalette palette;
+  ui2::UiDialogViewData dialog;
+  dialog.kind = ui2::UiDialogKind::Message;
+  dialog.title = "STAY VISIBLE";
+  dialog.actions[0] = ui2::UiDialogAction::Ok;
+  dialog.actionCount = 1;
+
+  ui2::UiSongViewData previous = ui2::test::ApprovedSongFixture();
+  ui2::UiFrameScene previousScene;
+  REQUIRE(ui2::UiSongView::Build(previous, palette, previousScene) ==
+          ui2::UiBuildStatus::Built);
+  REQUIRE(ui2::UiDialogView::Apply(dialog, previousScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage actualStorage;
+  ui2::UiIndexedSurface actual(actualStorage);
+  ui2::UiFrameRenderer::RenderStatic(previousScene, actual, palette);
+  actual.ClearDirty();
+
+  ui2::UiSongViewData current = previous;
+  current.elapsed = "12:34";
+  current.rows[0][0] = 0x4a;
+  ui2::UiFrameScene currentScene;
+  REQUIRE(ui2::UiSongView::Build(current, palette, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  REQUIRE(ui2::UiDialogView::Apply(dialog, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSongView::RenderDelta(previous, current, currentScene, actual,
+                               palette);
+
+  ui2::UiSurfaceStorage expectedStorage;
+  ui2::UiIndexedSurface expected(expectedStorage);
+  ui2::UiFrameRenderer::RenderStatic(currentScene, expected, palette);
+  CHECK(std::equal(actual.Pixels().begin(), actual.Pixels().end(),
+                   expected.Pixels().begin(), expected.Pixels().end()));
+}
+
+TEST_CASE("UI2 Dialog renders real lines actions and selected action") {
+  ui2::UiDialogViewData dialog;
+  dialog.kind = ui2::UiDialogKind::Message;
+  dialog.title = "DELETE PROJECT?";
+  dialog.label = "THIS CANNOT BE UNDONE";
+  dialog.actions = {ui2::UiDialogAction::Yes, ui2::UiDialogAction::No,
+                    ui2::UiDialogAction::Ok,
+                    ui2::UiDialogAction::Cancel};
+  dialog.actionCount = 2;
+  dialog.selectedAction = 1;
+  dialog.actionsFocused = true;
+
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiDialogView::Apply(dialog, scene) ==
+          ui2::UiBuildStatus::Built);
+  const ui2::UiCommandStream stream = scene.content.Stream();
+  const std::string_view text(stream.text.data(), stream.text.size());
+  CHECK(text.find("DELETE PROJECT?") != std::string_view::npos);
+  CHECK(text.find("THIS CANNOT BE UNDONE") != std::string_view::npos);
+  CHECK(text.find("YES") != std::string_view::npos);
+  CHECK(text.find("NO") != std::string_view::npos);
+  CHECK(std::count_if(stream.commands.begin(), stream.commands.end(),
+                      [](const ui2::UiCommand &command) {
+                        return command.kind ==
+                               ui2::UiCommandKind::FillCoverageRoundedRect;
+                      }) == 1);
+
+  dialog.actionsFocused = false;
+  scene.Clear();
+  REQUIRE(ui2::UiDialogView::Apply(dialog, scene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK(std::none_of(scene.content.Commands().begin(),
+                     scene.content.Commands().end(),
+                     [](const ui2::UiCommand &command) {
+                       return command.kind ==
+                              ui2::UiCommandKind::FillCoverageRoundedRect;
+                     }));
+}
+
+TEST_CASE("UI2 Dialog uses full-screen and render snapshot text") {
+  ui2::UiDialogViewData full;
+  full.kind = ui2::UiDialogKind::FullScreen;
+  full.title = "LOW BATTERY";
+  full.label = "CONNECT CHARGER";
+  ui2::UiFrameScene fullScene;
+  REQUIRE(ui2::UiDialogView::Apply(full, fullScene) ==
+          ui2::UiBuildStatus::Built);
+  const ui2::UiCommandStream fullStream = fullScene.content.Stream();
+  const std::string_view fullText(fullStream.text.data(),
+                                  fullStream.text.size());
+  CHECK(fullText.find("LOW BATTERY") != std::string_view::npos);
+  CHECK(fullText.find("CONNECT CHARGER") != std::string_view::npos);
+
+  ui2::UiDialogViewData render;
+  render.kind = ui2::UiDialogKind::RenderProgress;
+  render.title = "STEMS RENDERING";
+  render.label = "RENDER COMPLETE!";
+  render.elapsed = "100%";
+  render.progressWidth = 144;
+  render.actions[0] = ui2::UiDialogAction::Ok;
+  render.actionCount = 1;
+  ui2::UiFrameScene renderScene;
+  REQUIRE(ui2::UiDialogView::Apply(render, renderScene) ==
+          ui2::UiBuildStatus::Built);
+  const ui2::UiCommandStream renderStream = renderScene.content.Stream();
+  const std::string_view renderText(renderStream.text.data(),
+                                    renderStream.text.size());
+  CHECK(renderText.find("STEMS RENDERING") != std::string_view::npos);
+  CHECK(renderText.find("RENDER COMPLETE!") != std::string_view::npos);
+  CHECK(renderText.find("100%") != std::string_view::npos);
+  CHECK(renderText.find("OK") != std::string_view::npos);
+  CHECK(renderText.find("CANCEL") == std::string_view::npos);
+}
+
 TEST_CASE("UI2 Dialog delta rendering is pixel-identical to a full redraw") {
   ui2::UiPalette palette;
   ui2::UiSongViewData song = ui2::test::ApprovedSongFixture();
@@ -2222,6 +2485,41 @@ TEST_CASE("UI2 full-screen diagnostic replaces every retained page layer") {
   CHECK(scene.top.Size() == 0);
   CHECK(scene.bottom.Size() == 0);
   CHECK(scene.content.Size() == 4);
+}
+
+TEST_CASE("UI2 retained full-screen dialog is independent of hidden base state") {
+  ui2::UiPalette palette;
+  ui2::UiDialogViewData dialog;
+  dialog.kind = ui2::UiDialogKind::FullScreen;
+  dialog.title = "LOW BATTERY";
+  dialog.label = "CONNECT CHARGER";
+
+  ui2::UiSongViewData first = ui2::test::ApprovedSongFixture();
+  ui2::UiFrameScene firstScene;
+  REQUIRE(ui2::UiSongView::Build(first, palette, firstScene) ==
+          ui2::UiBuildStatus::Built);
+  REQUIRE(ui2::UiDialogView::Apply(dialog, firstScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage firstStorage;
+  ui2::UiIndexedSurface firstSurface(firstStorage);
+  ui2::UiFrameRenderer::RenderStatic(firstScene, firstSurface, palette);
+
+  ui2::UiSongViewData changed = first;
+  changed.elapsed = "59:59";
+  changed.rows[0][0] = 0x7f;
+  changed.playing = !first.playing;
+  ui2::UiFrameScene changedScene;
+  REQUIRE(ui2::UiSongView::Build(changed, palette, changedScene) ==
+          ui2::UiBuildStatus::Built);
+  REQUIRE(ui2::UiDialogView::Apply(dialog, changedScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage changedStorage;
+  ui2::UiIndexedSurface changedSurface(changedStorage);
+  ui2::UiFrameRenderer::RenderStatic(changedScene, changedSurface, palette);
+
+  CHECK(std::equal(firstSurface.Pixels().begin(), firstSurface.Pixels().end(),
+                   changedSurface.Pixels().begin(),
+                   changedSurface.Pixels().end()));
 }
 
 TEST_CASE("UI2 Dialog idle frame stays clean") {

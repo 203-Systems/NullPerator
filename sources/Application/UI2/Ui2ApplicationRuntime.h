@@ -6,10 +6,15 @@
 
 #pragma once
 
+#include "Application/Views/ModalDialogs/Ui2DialogSnapshot.h"
+#include "Application/Views/Ui2BrowserSnapshot.h"
 #include "UI2/Animation/UiAnimatedRect.h"
 #include "UI2/Render/UiFrameRenderer.h"
 #include "UI2/UiEngine.h"
+#include "UI2/Views/Browser/UiBrowserView.h"
 #include "UI2/Views/Chain/UiChainView.h"
+#include "UI2/Views/Device/UiDeviceView.h"
+#include "UI2/Views/Dialog/UiDialogView.h"
 #include "UI2/Views/Groove/UiGrooveView.h"
 #include "UI2/Views/Instrument/UiInstrumentView.h"
 #include "UI2/Views/Mixer/UiMixerView.h"
@@ -25,6 +30,40 @@ class AppWindow;
 
 namespace ui2 {
 
+namespace detail {
+
+// UI2 is presented at roughly 30 Hz, but an ESP32 battery sample performs ADC
+// and board-I/O reads. Keep the scheduling policy tiny and deterministic so
+// every page can share one sample without adding a timer or heap state.
+struct UiBatterySampleGate {
+  static constexpr std::uint32_t IntervalMs = 1'000U;
+
+  [[nodiscard]] bool ShouldSample(bool playing, std::uint32_t nowMs) {
+    if (playing) {
+      wasPlaying = true;
+      return false;
+    }
+    const bool due = !initialized || wasPlaying ||
+                     static_cast<std::uint32_t>(nowMs - lastSampleMs) >=
+                         IntervalMs;
+    wasPlaying = false;
+    if (due) {
+      initialized = true;
+      lastSampleMs = nowMs;
+    }
+    return due;
+  }
+
+  std::uint32_t lastSampleMs = 0;
+  bool initialized = false;
+  bool wasPlaying = false;
+};
+
+static_assert(std::is_trivially_copyable_v<UiBatterySampleGate>);
+static_assert(sizeof(UiBatterySampleGate) <= 8U);
+
+} // namespace detail
+
 // Platform-neutral application-thread controller. Both WASM and firmware feed
 // the same PicoTracker model into the same UI2 scene and raster pipeline; only
 // IUiPresenter differs between targets.
@@ -37,6 +76,7 @@ public:
   [[nodiscard]] PresentResult Present(AppWindow &window);
   void Invalidate() {
     previousValid_ = false;
+    dialogPreviousValid_ = false;
     cursorTargetValid_ = false;
     topMetaTargetValid_ = false;
     bottomTrackTargetValid_ = false;
@@ -66,6 +106,12 @@ public:
   }
 
 private:
+  struct PowerFrameState {
+    UiPowerState power = UiPowerState::BatteryNormal;
+    std::uint8_t batteryPercent = 0;
+    bool batteryPercentValid = false;
+  };
+
   enum class RuntimePage : std::uint8_t {
     None,
     Song,
@@ -73,6 +119,8 @@ private:
     Phrase,
     Table,
     Instrument,
+    Device,
+    Browser,
     Groove,
     Mixer
   };
@@ -274,6 +322,56 @@ private:
     bool operator==(const MixerFrameState &) const = default;
   };
 
+  struct DeviceFrameState {
+    std::array<char, 24> midiDevice{};
+    std::array<char, 24> midiSync{};
+    std::array<char, 24> lineOut{};
+    std::array<char, 24> remoteUi{};
+    std::array<char, 24> resampler{};
+    std::array<char, 8> volume{};
+    std::array<char, 8> brightness{};
+    std::array<char, 24> theme{};
+    std::array<char, 41> font{};
+    std::array<char, 32> version{};
+    std::array<std::array<char, 24>, 8> selectorOptions{};
+    std::uint8_t selectorCount = 0;
+    std::uint8_t selectorCurrent = 0;
+    std::uint8_t batteryPercent = 0;
+    UiDeviceCursor cursor = UiDeviceCursor::MidiDevice;
+    RectI16 cursorVisualRect{};
+    bool cursorVisualOverride = false;
+    bool cursorInkVisible = true;
+    bool selectorWrap = false;
+    bool showLineOut = false;
+    bool showVolume = true;
+    bool showTheme = true;
+    bool showFont = true;
+    bool showUpdateFirmware = false;
+    bool batteryPercentValid = false;
+    std::int16_t scrollOffset = 0;
+    UiPowerState power = UiPowerState::BatteryNormal;
+
+    bool operator==(const DeviceFrameState &) const = default;
+  };
+
+  struct BrowserFrameState {
+    Ui2BrowserSnapshot snapshot{};
+    RectI16 cursorVisualRect{};
+    bool cursorVisualOverride = false;
+    bool cursorInkVisible = true;
+    UiPowerState power = UiPowerState::BatteryNormal;
+
+    bool operator==(const BrowserFrameState &) const = default;
+  };
+
+  struct DialogFrameState {
+    Ui2DialogSnapshot snapshot{};
+    std::uint32_t instanceId = 0;
+    bool active = false;
+
+    bool operator==(const DialogFrameState &) const = default;
+  };
+
   template <typename State> struct FramePair {
     State previous{};
     State current{};
@@ -293,6 +391,12 @@ private:
                 std::is_trivially_destructible_v<InstrumentFrameState>);
   static_assert(std::is_trivially_copyable_v<MixerFrameState> &&
                 std::is_trivially_destructible_v<MixerFrameState>);
+  static_assert(std::is_trivially_copyable_v<DeviceFrameState> &&
+                std::is_trivially_destructible_v<DeviceFrameState>);
+  static_assert(std::is_trivially_copyable_v<BrowserFrameState> &&
+                std::is_trivially_destructible_v<BrowserFrameState>);
+  static_assert(std::is_trivially_copyable_v<DialogFrameState> &&
+                std::is_trivially_destructible_v<DialogFrameState>);
 
   // Exactly one member is active, selected by activePage_. Every frame state
   // is fixed-capacity and trivially destructible, so changing page can begin
@@ -303,6 +407,8 @@ private:
     FramePair<PhraseFrameState> phrase;
     FramePair<TableFrameState> table;
     FramePair<InstrumentFrameState> instrument;
+    FramePair<DeviceFrameState> device;
+    FramePair<BrowserFrameState> browser;
     FramePair<GrooveFrameState> groove;
     FramePair<MixerFrameState> mixer;
 
@@ -318,6 +424,8 @@ private:
   static UiTableViewData ViewDataFor(const TableFrameState &state);
   static UiInstrumentViewData
   ViewDataFor(const InstrumentFrameState &state);
+  static UiDeviceViewData ViewDataFor(const DeviceFrameState &state);
+  static UiBrowserViewData ViewDataFor(const BrowserFrameState &state);
   static UiGrooveViewData ViewDataFor(const GrooveFrameState &state);
   static UiMixerViewData ViewDataFor(const MixerFrameState &state);
   void CaptureSong(AppWindow &window, SongFrameState &state);
@@ -325,9 +433,21 @@ private:
   void CapturePhrase(AppWindow &window, PhraseFrameState &state);
   void CaptureTable(AppWindow &window, TableFrameState &state);
   void CaptureInstrument(AppWindow &window, InstrumentFrameState &state);
+  void CaptureDevice(AppWindow &window, DeviceFrameState &state);
+  void CaptureBrowser(AppWindow &window, BrowserFrameState &state);
   void CaptureGroove(AppWindow &window, GrooveFrameState &state);
   void CaptureMixer(AppWindow &window, MixerFrameState &state);
+  [[nodiscard]] PowerFrameState CapturePowerState(bool playing);
+  [[nodiscard]] UiPowerState CurrentPowerState(bool playing);
+  void CaptureDialog(AppWindow &window);
   void ActivatePage(RuntimePage page);
+  [[nodiscard]] bool DialogChanged() const;
+  [[nodiscard]] bool RequiresFullRebuild() const;
+  [[nodiscard]] bool FullScreenDialogActive() const;
+  [[nodiscard]] bool CanCommitHiddenBaseWithoutRender() const;
+  [[nodiscard]] UiBuildStatus ApplyDialog();
+  void RenderDialogDelta();
+  void CommitDialog();
   [[nodiscard]] PresentResult PresentSong(AppWindow &window,
                                           std::uint32_t nowMs);
   [[nodiscard]] PresentResult PresentChain(AppWindow &window,
@@ -338,6 +458,10 @@ private:
                                            std::uint32_t nowMs);
   [[nodiscard]] PresentResult PresentInstrument(AppWindow &window,
                                                 std::uint32_t nowMs);
+  [[nodiscard]] PresentResult PresentDevice(AppWindow &window,
+                                            std::uint32_t nowMs);
+  [[nodiscard]] PresentResult PresentBrowser(AppWindow &window,
+                                             std::uint32_t nowMs);
   [[nodiscard]] PresentResult PresentGroove(AppWindow &window,
                                             std::uint32_t nowMs);
   [[nodiscard]] PresentResult PresentMixer(AppWindow &window);
@@ -350,10 +474,16 @@ private:
   RectI16 cursorTarget_{};
   RectI16 topMetaTarget_{};
   RectI16 bottomTrackTarget_{};
+  DialogFrameState previousDialog_{};
+  DialogFrameState currentDialog_{};
+  PowerFrameState cachedPower_{};
+  detail::UiBatterySampleGate batterySampleGate_{};
+  std::uint32_t frameNowMs_ = 0;
   bool cursorTargetValid_ = false;
   bool topMetaTargetValid_ = false;
   bool bottomTrackTargetValid_ = false;
   bool previousValid_ = false;
+  bool dialogPreviousValid_ = false;
   RuntimePage activePage_ = RuntimePage::None;
 };
 

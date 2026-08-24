@@ -70,6 +70,8 @@ Ui2BrowserSnapshot SelectProjectView::SnapshotForUi2() const {
   }
 
   FileSystem *fs = FileSystem::GetInstance();
+  bool selectedNameIsValid = false;
+  bool selectedIsCurrentProject = false;
   if (fs != nullptr) {
     for (std::uint8_t row = 0; row < snapshot.visibleItemCount; ++row) {
       const std::size_t listIndex = snapshot.topIndex + row;
@@ -78,8 +80,15 @@ Ui2BrowserSnapshot SelectProjectView::SnapshotForUi2() const {
       if (fs->getFileType(fileIndex) == PFT_DIR)
         fs->getFileName(fileIndex, filename, sizeof(filename));
       filename[sizeof(filename) - 1U] = '\0';
-      if (filename[0] == '\0')
+      const bool validName = filename[0] != '\0';
+      if (!validName)
         std::strcpy(filename, INVALID_PROJECT_NAME);
+
+      if (row == snapshot.selectedRow) {
+        selectedNameIsValid = validName;
+        selectedIsCurrentProject =
+            validName && std::strcmp(filename, currentProject) == 0;
+      }
 
       char display[MAX_PROJECT_NAME_LENGTH + 2U]{};
       npf_snprintf(display, sizeof(display), "%s%s",
@@ -94,15 +103,23 @@ Ui2BrowserSnapshot SelectProjectView::SnapshotForUi2() const {
                snapshot.totalItemCount == 1U ? "" : "S");
   Ui2BrowserSnapshot::CopyText(snapshot.actions[0], "LOAD");
   Ui2BrowserSnapshot::CopyText(snapshot.actions[1], "DELETE");
-  snapshot.actionCount = numButtons_;
-  snapshot.activeAction = static_cast<std::uint8_t>(
-      std::clamp(selectedButton_, 0, numButtons_ - 1));
+  if (snapshot.hasSelection && selectedNameIsValid) {
+    // The active project cannot be deleted. Do not advertise an action that
+    // the controller will reject with a modal.
+    snapshot.actionCount = selectedIsCurrentProject ? 1U : numButtons_;
+    snapshot.activeAction =
+        snapshot.actionCount == 1U
+            ? 0U
+            : static_cast<std::uint8_t>(
+                  std::clamp(selectedButton_, 0, numButtons_ - 1));
+  }
   return snapshot;
 }
 
 void SelectProjectView::Reset() {
   topIndex_ = 0;
   currentIndex_ = 0;
+  selectedButton_ = 0;
   selection_[0] = '\0';
   fileIndexList_.clear();
 }
@@ -239,6 +256,12 @@ void SelectProjectView::ProcessButtonMask(unsigned short mask, bool pressed) {
 
 void SelectProjectView::warpToNextProject(bool goUp) {
 
+  if (fileIndexList_.empty()) {
+    return;
+  }
+
+  const size_t previousIndex = currentIndex_;
+
   if (goUp) {
     if (currentIndex_ > 0) {
       currentIndex_--;
@@ -257,6 +280,11 @@ void SelectProjectView::warpToNextProject(bool goUp) {
         topIndex_++;
       }
     }
+  }
+  if (currentIndex_ != previousIndex) {
+    // Each row starts on its primary action. This also prevents a hidden
+    // DELETE selection carrying onto the active project row.
+    selectedButton_ = 0;
   }
   isDirty_ = true;
 }
@@ -291,9 +319,9 @@ void SelectProjectView::setCurrentFolder() {
   }
 
   // reset & redraw screen
-  currentIndex_ = std::min(currentIndex_, fileIndexList_.size() - 1);
   topIndex_ = 0;
   currentIndex_ = 0;
+  selectedButton_ = 0;
   isDirty_ = true;
 }
 
@@ -313,6 +341,10 @@ void SelectProjectView::getHighlightedProjectName(char *name) {
 }
 
 void SelectProjectView::SelectButton(int direction) {
+  if (!HasActionableSelection() || SelectionIsCurrentProject()) {
+    selectedButton_ = 0;
+    return;
+  }
   selectedButton_ = (numButtons_ + selectedButton_ + direction) % numButtons_;
   isDirty_ = true;
 }
@@ -348,7 +380,29 @@ bool SelectProjectView::WarnPlayerRunning() {
   return false;
 }
 
+bool SelectProjectView::HasActionableSelection() {
+  if (currentIndex_ >= fileIndexList_.size()) {
+    return false;
+  }
+  FileSystem *fs = FileSystem::GetInstance();
+  if (fs == nullptr) {
+    return false;
+  }
+  const unsigned fileIndex = fileIndexList_[currentIndex_];
+  if (fs->getFileType(fileIndex) != PFT_DIR) {
+    return false;
+  }
+  char selected[MAX_PROJECT_NAME_LENGTH + 1]{};
+  fs->getFileName(fileIndex, selected, sizeof(selected));
+  selected[sizeof(selected) - 1U] = '\0';
+  return selected[0] != '\0';
+}
+
 bool SelectProjectView::SelectionIsCurrentProject() {
+  if (!HasActionableSelection()) {
+    return false;
+  }
+
   char selected[MAX_PROJECT_NAME_LENGTH + 1];
   getHighlightedProjectName(selected);
 
@@ -360,7 +414,7 @@ bool SelectProjectView::SelectionIsCurrentProject() {
 }
 
 void SelectProjectView::AttemptDeletingSelectedProject() {
-  if (currentIndex_ >= fileIndexList_.size()) {
+  if (!HasActionableSelection()) {
     return;
   }
 
@@ -384,6 +438,10 @@ void SelectProjectView::AttemptDeletingSelectedProject() {
 }
 
 void SelectProjectView::AttemptLoadingProject() {
+  if (!HasActionableSelection()) {
+    return;
+  }
+
   if (WarnPlayerRunning()) {
     return;
   }

@@ -46,6 +46,7 @@ private:
 
   void AttemptDeletingSelectedProject();
   void AttemptLoadingProject();
+  bool HasActionableSelection();
   bool SelectionIsCurrentProject();
   bool WarnPlayerRunning();
   void SelectButton(int direction);

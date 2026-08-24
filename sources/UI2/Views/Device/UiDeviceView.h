@@ -51,6 +51,7 @@ struct UiDeviceViewData {
   bool showTheme = true;
   bool showFont = true;
   bool showUpdateFirmware = false;
+  bool batteryPercentValid = true;
   std::uint8_t batteryPercent = 60;
   UiDeviceCursor cursor = UiDeviceCursor::MidiDevice;
   RectI16 cursorVisualRect{};

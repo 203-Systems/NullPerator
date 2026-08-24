@@ -256,6 +256,7 @@ void UiDeviceView::RenderDelta(const UiDeviceViewData &previous,
     return UiVerticalList::VisualRect(rect, currentScene.contentOffsetY);
   };
   if (previous.power != current.power ||
+      previous.batteryPercentValid != current.batteryPercentValid ||
       previous.batteryPercent != current.batteryPercent) {
     render({174, 0, 66, 34});
   }
@@ -307,7 +308,7 @@ UiBuildStatus UiDeviceView::Build(const UiDeviceViewData &data, UiPalette &,
   scene.bottomBackground = UiColorToken::SurfaceBottomBar;
   const UiTopBarModel top{.title = "DEVICE",
                           .power = data.power,
-                          .showBatteryPercent = true,
+                          .showBatteryPercent = data.batteryPercentValid,
                           .batteryPercent = data.batteryPercent};
   const UiBuildStatus topStatus = UiChromeRenderer::BuildTop(top, scene.top);
   if (topStatus != UiBuildStatus::Built)

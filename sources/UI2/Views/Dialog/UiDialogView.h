@@ -11,6 +11,8 @@
 #include "UI2/Scene/UiFrameScene.h"
 #include "UI2/Theme/UiPalette.h"
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <string_view>
 
@@ -23,6 +25,15 @@ enum class UiDialogKind : std::uint8_t {
   FullScreen,
 };
 
+enum class UiDialogAction : std::uint8_t {
+  Ok,
+  Yes,
+  Cancel,
+  No,
+};
+
+inline constexpr std::size_t kUiDialogActionCapacity = 4U;
+
 struct UiDialogViewData {
   UiDialogKind kind = UiDialogKind::Message;
   std::string_view title = "DIAGNOSTIC MESSAGE";
@@ -30,6 +41,10 @@ struct UiDialogViewData {
   std::string_view value = "ONECYCAC";
   std::string_view elapsed = "00:08";
   std::uint8_t progressWidth = 93;
+  std::array<UiDialogAction, kUiDialogActionCapacity> actions{};
+  std::uint8_t actionCount = 0;
+  std::uint8_t selectedAction = 0;
+  bool actionsFocused = true;
 
   bool operator==(const UiDialogViewData &) const = default;
 };

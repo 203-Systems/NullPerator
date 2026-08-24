@@ -73,6 +73,7 @@ Ui2BrowserSnapshot ImportView::SnapshotForUi2() const {
   snapshot.ConfigureWindow(fileIndexList_.size(), currentIndex_, topIndex_);
 
   FileSystem *fs = FileSystem::GetInstance();
+  bool selectedIsDirectory = false;
   if (fs != nullptr) {
     for (std::uint8_t row = 0; row < snapshot.visibleItemCount; ++row) {
       const std::size_t listIndex = snapshot.topIndex + row;
@@ -84,6 +85,8 @@ Ui2BrowserSnapshot ImportView::SnapshotForUi2() const {
       char display[PFILENAME_SIZE + 2U]{};
       if (fs->getFileType(fileIndex) == PFT_DIR) {
         npf_snprintf(display, sizeof(display), "/%s", filename);
+        if (row == snapshot.selectedRow)
+          selectedIsDirectory = true;
       } else {
         char marker = ' ';
         if (inProjectSampleDir_ && viewData_ != nullptr &&
@@ -129,12 +132,18 @@ Ui2BrowserSnapshot ImportView::SnapshotForUi2() const {
   char volumeAction[12]{};
   npf_snprintf(volumeAction, sizeof(volumeAction), "VOL:%2d", previewVolume);
 
+  if (!snapshot.hasSelection || fs == nullptr)
+    return snapshot;
+
+  if (selectedIsDirectory) {
+    Ui2BrowserSnapshot::CopyText(snapshot.actions[0], "OPEN");
+    snapshot.actionCount = 1U;
+    snapshot.activeAction = 0U;
+    return snapshot;
+  }
+
   if (inProjectSampleDir_) {
-    if (!snapshot.hasSelection)
-      return snapshot;
     Ui2BrowserSnapshot::CopyText(snapshot.actions[0], "EDIT");
-    // Removal is present in the legacy focus ring but deliberately disabled
-    // on Pico, so expose that real state instead of advertising DELETE.
     Ui2BrowserSnapshot::CopyText(snapshot.actions[1], "N/A");
     Ui2BrowserSnapshot::CopyText(snapshot.actions[2], volumeAction);
     snapshot.actionCount = kProjectPoolButtonCount;
@@ -244,7 +253,7 @@ void ImportView::ProcessButtonMask(unsigned short mask, bool pressed) {
       // Set flag to track that play key is being held
       playKeyHeld_ = true;
 
-      if (mask & EPBM_ALT) {
+      if ((mask & EPBM_ALT) && fs->getFileType(fileIndex) == PFT_FILE) {
         Trace::Log("PICOIMPORT", "SHIFT play - import");
         import();
       } else {
@@ -275,6 +284,20 @@ void ImportView::ProcessButtonMask(unsigned short mask, bool pressed) {
         pendingDirEnterOnRelease_ = false;
       }
 
+      if (!hasFiles) {
+        pendingDirEnterOnRelease_ = false;
+        return;
+      }
+
+      const unsigned selectedFileIndex = fileIndexList_[currentIndex_];
+      const bool selectedIsDirectory =
+          fs->getFileType(selectedFileIndex) == PFT_DIR;
+      if (selectedIsDirectory) {
+        // A directory has one primary OPEN action. Do not let a stale hidden
+        // file action alter volume or trigger editing while it is selected.
+        return;
+      }
+
       if (inProjectSampleDir_) {
         if (selectedButton_ == kProjectButtonVolume) {
           int volumeOffset = 0;
@@ -294,10 +317,6 @@ void ImportView::ProcessButtonMask(unsigned short mask, bool pressed) {
             adjustPreviewVolume(volumeOffset);
           }
           return;
-        }
-        if (!hasFiles) {
-          pendingDirEnterOnRelease_ = false;
-          return; // Do nothing if the list is empty
         }
         if (selectedButton_ == kProjectButtonEdit) {
           unsigned fileIndex = fileIndexList_[currentIndex_];
@@ -328,11 +347,7 @@ void ImportView::ProcessButtonMask(unsigned short mask, bool pressed) {
         }
         return;
       }
-      if (!hasFiles) {
-        pendingDirEnterOnRelease_ = false;
-        return;
-      }
-      unsigned fileIndex = fileIndexList_[currentIndex_];
+      unsigned fileIndex = selectedFileIndex;
       // we can't import or edit dirs!
       if (fs->getFileType(fileIndex) != PFT_DIR) {
         if (selectedButton_ == kImportButtonImport) {
@@ -348,16 +363,26 @@ void ImportView::ProcessButtonMask(unsigned short mask, bool pressed) {
     // handle changing selected "bottom button", note: ignore if this is a
     // nav+arrow combo
     if ((mask & EPBM_LEFT || mask & EPBM_RIGHT) && !(mask & EPBM_NAV)) {
-      if (inProjectSampleDir_ && fileIndexList_.empty()) {
-        return; // Do nothing if the list is empty
+      if (!hasFiles ||
+          fs->getFileType(fileIndexList_[currentIndex_]) == PFT_DIR) {
+        return;
       }
-      uint8_t buttonCount = inProjectSampleDir_
-                                ? static_cast<uint8_t>(kProjectPoolButtonCount)
-                                : static_cast<uint8_t>(kImportButtonCount);
-      if (mask & EPBM_LEFT) {
-        selectedButton_ = (selectedButton_ + buttonCount - 1) % buttonCount;
+      if (inProjectSampleDir_) {
+        const uint8_t buttonCount = kProjectPoolButtonCount;
+        if (mask & EPBM_LEFT) {
+          selectedButton_ =
+              (selectedButton_ + buttonCount - 1) % buttonCount;
+        } else {
+          selectedButton_ = (selectedButton_ + 1) % buttonCount;
+        }
       } else {
-        selectedButton_ = (selectedButton_ + 1) % buttonCount;
+        const uint8_t buttonCount = kImportButtonCount;
+        if (mask & EPBM_LEFT) {
+          selectedButton_ =
+              (selectedButton_ + buttonCount - 1) % buttonCount;
+        } else {
+          selectedButton_ = (selectedButton_ + 1) % buttonCount;
+        }
       }
       DrawView();
     }
@@ -635,6 +660,10 @@ void ImportView::OnFocus() {
 };
 
 void ImportView::warpToNextSample(bool goUp) {
+  if (fileIndexList_.empty()) {
+    return;
+  }
+
   if (goUp) {
     if (currentIndex_ > 0) {
       currentIndex_--;
@@ -659,6 +688,9 @@ void ImportView::warpToNextSample(bool goUp) {
 
 void ImportView::preview(char *name) {
   auto fs = FileSystem::GetInstance();
+  if (fs == nullptr || currentIndex_ >= fileIndexList_.size()) {
+    return;
+  }
   unsigned fileIndex = fileIndexList_[currentIndex_];
 
   // do not preview directories
@@ -733,8 +765,14 @@ void ImportView::import() {
   }
 
   auto fs = FileSystem::GetInstance();
+  if (fs == nullptr || currentIndex_ >= fileIndexList_.size()) {
+    return;
+  }
   char name[PFILENAME_SIZE];
   unsigned fileIndex = fileIndexList_[currentIndex_];
+  if (fs->getFileType(fileIndex) != PFT_FILE) {
+    return;
+  }
   fs->getFileName(fileIndex, name, PFILENAME_SIZE);
 
   // Get current project name

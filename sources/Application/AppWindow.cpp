@@ -155,6 +155,42 @@ InstrumentViewUi2Snapshot AppWindow::InstrumentSnapshotForUi2() {
                            : views_->instrumentView.SnapshotForUi2();
 }
 
+DeviceViewUi2Snapshot AppWindow::DeviceSnapshotForUi2() const {
+  return views_ == nullptr ? DeviceViewUi2Snapshot{}
+                           : views_->deviceView.SnapshotForUi2();
+}
+
+Ui2BrowserSnapshot AppWindow::BrowserSnapshotForUi2() const {
+  if (views_ == nullptr || _currentView == nullptr)
+    return {};
+  switch (_currentView->viewType_) {
+  case VT_IMPORT:
+    return views_->importView.SnapshotForUi2();
+  case VT_INSTRUMENT_IMPORT:
+    return views_->instrumentImportView.SnapshotForUi2();
+  case VT_SELECTPROJECT:
+    return views_->selectProjectView.SnapshotForUi2();
+  case VT_THEME_IMPORT:
+    return views_->themeImportView.SnapshotForUi2();
+  default:
+    return {};
+  }
+}
+
+Ui2DialogSnapshot AppWindow::ModalSnapshotForUi2() const {
+  if (_currentView == nullptr)
+    return {};
+  ModalView *modal = _currentView->GetModalView();
+  return modal == nullptr ? Ui2DialogSnapshot{} : modal->SnapshotForUi2();
+}
+
+std::uint32_t AppWindow::ModalInstanceIdForUi2() const {
+  if (_currentView == nullptr)
+    return 0U;
+  ModalView *modal = _currentView->GetModalView();
+  return modal == nullptr ? 0U : modal->GetInstanceId();
+}
+
 UiGridSelection AppWindow::GridSelectionForUi2() const {
   if (views_ == nullptr || _currentView == nullptr)
     return {};
@@ -755,19 +791,27 @@ bool AppWindow::onEvent(GUIEvent &event) {
 
   switch (event.GetType()) {
 
-  case ET_PADBUTTONDOWN:
-
+  case ET_PADBUTTONDOWN: {
+    const bool modalOwnsInput =
+        _currentView != nullptr && _currentView->HasModalView();
+    ui2ModalInputGate_.OnButtonDown(v, modalOwnsInput);
     _mask |= v;
     if (_currentView)
-      _currentView->ProcessButton(_mask, true);
+      _currentView->ProcessButton(
+          ui2ModalInputGate_.DispatchMask(_mask, modalOwnsInput), true);
     break;
+  }
 
-  case ET_PADBUTTONUP:
-
+  case ET_PADBUTTONUP: {
+    ui2ModalInputGate_.OnButtonUp(v);
     _mask &= (0xFFFF - v);
-    if (_currentView)
-      _currentView->ProcessButton(_mask, false);
+    if (_currentView) {
+      const bool modalOwnsInput = _currentView->HasModalView();
+      _currentView->ProcessButton(
+          ui2ModalInputGate_.DispatchMask(_mask, modalOwnsInput), false);
+    }
     break;
+  }
 
   case ET_SYSQUIT:
     _shouldQuit = true;

@@ -59,6 +59,13 @@ Ui2DialogSnapshot TextInputModalView::SnapshotForUi2() const {
       const_cast<UITextField<MAX_TEXT_INPUT_LENGTH> &>(textField_);
   const auto value = textField.GetString();
   snapshot.SetValue(value.c_str());
+  for (int index = 0; index < buttonCount_; ++index) {
+    const int button = button_[index];
+    if (button >= MBL_OK && button < MBL_LAST) {
+      snapshot.PushAction(static_cast<ui2::UiDialogAction>(button));
+    }
+  }
+  snapshot.SetSelectedAction(selected_, focus_ == nullptr);
   return snapshot;
 }
 
