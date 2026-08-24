@@ -77,6 +77,8 @@ public:
   }
   int PhraseRowForUi2() const;
   int PhraseColumnForUi2() const;
+  int TableRowForUi2() const;
+  int TableColumnForUi2() const;
   unsigned short ButtonMaskForUi2() const { return _mask; }
 
 #if defined(__EMSCRIPTEN__)

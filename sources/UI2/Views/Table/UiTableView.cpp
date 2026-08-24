@@ -1,0 +1,245 @@
+/*
+ * SPDX-License-Identifier: BSD-3-Clause
+ *
+ * Copyright (c) 2026 PicoTracker contributors
+ */
+
+#include "UI2/Views/Table/UiTableView.h"
+
+#include "UI2/Render/UiFrameRenderer.h"
+#include "UI2/Text/UiFont5x7.h"
+
+#include <array>
+
+namespace ui2 {
+namespace {
+
+constexpr std::array<std::int16_t, 6> kColumnX{29, 58, 92, 121, 155, 184};
+
+std::array<char, 3> HexByte(std::uint8_t value) {
+  constexpr char digits[] = "0123456789ABCDEF";
+  return {digits[value >> 4U], digits[value & 0x0FU], 0};
+}
+
+UiColorToken HeaderColor(UiTableHeader active, UiTableHeader candidate) {
+  return active == candidate ? UiColorToken::CursorPrimary
+                             : UiColorToken::TextMuted;
+}
+
+RectI16 ResolvedCursorRect(const UiTableViewData &data) {
+  if (data.cursorVisualOverride && !data.cursorVisualRect.Empty()) {
+    return Intersect(data.cursorVisualRect, RectI16::Screen());
+  }
+  return UiTableView::CursorTargetRect(data);
+}
+
+RectI16 ExpandedCursorDamage(RectI16 rect) {
+  if (rect.Empty())
+    return {};
+  return Intersect({static_cast<std::int16_t>(rect.x - 1),
+                    static_cast<std::int16_t>(rect.y - 1),
+                    static_cast<std::int16_t>(rect.width + 2),
+                    static_cast<std::int16_t>(rect.height + 2)},
+                   RectI16::Screen());
+}
+
+bool ContextEqual(const UiBottomBarModel &left, const UiBottomBarModel &right) {
+  if (left.kind != right.kind)
+    return false;
+  if (left.kind == UiBottomBarKind::Hidden)
+    return true;
+  if (left.kind != UiBottomBarKind::Context)
+    return false;
+  if (left.context.firstLineCount != right.context.firstLineCount ||
+      left.context.secondLineCount != right.context.secondLineCount) {
+    return false;
+  }
+  const auto equal = [](const auto &a, const auto &b, std::uint8_t count) {
+    for (std::uint8_t index = 0; index < count; ++index) {
+      if (a[index].text != b[index].text || a[index].color != b[index].color ||
+          a[index].x != b[index].x) {
+        return false;
+      }
+    }
+    return true;
+  };
+  return equal(left.context.firstLine, right.context.firstLine,
+               left.context.firstLineCount) &&
+         equal(left.context.secondLine, right.context.secondLine,
+               left.context.secondLineCount);
+}
+
+} // namespace
+
+RectI16 UiTableView::CursorTargetRect(const UiTableViewData &data) {
+  if (data.editRow >= 16U || data.editColumn >= kColumnX.size())
+    return {};
+  const std::string_view value = data.rows[data.editRow][data.editColumn];
+  return {static_cast<std::int16_t>(kColumnX[data.editColumn] - 2),
+          static_cast<std::int16_t>(48 + data.editRow * 9),
+          static_cast<std::int16_t>(UiFont5x7::TextWidth(value.size()) + 4), 9};
+}
+
+RectI16 UiTableView::RowDamageRect(std::uint8_t row) {
+  if (row >= 16U)
+    return {};
+  return {5, static_cast<std::int16_t>(48 + row * 9), 230, 10};
+}
+
+bool UiTableView::RequiresFullInvalidation(const UiTableViewData &previous,
+                                           const UiTableViewData &current) {
+  return previous.rowOffset != current.rowOffset ||
+         previous.numberFocus != current.numberFocus;
+}
+
+void UiTableView::RenderDelta(const UiTableViewData &previous,
+                              const UiTableViewData &current,
+                              const UiFrameScene &currentScene,
+                              UiIndexedSurface &surface,
+                              const UiPalette &palette) {
+  if (RequiresFullInvalidation(previous, current)) {
+    UiFrameRenderer::RenderStatic(currentScene, surface, palette);
+    return;
+  }
+  const auto render = [&](RectI16 rect) {
+    UiFrameRenderer::RenderRegion(currentScene, surface, palette, rect);
+  };
+  if (previous.number != current.number ||
+      previous.topMetaVisualRect != current.topMetaVisualRect ||
+      previous.topMetaVisualOverride != current.topMetaVisualOverride ||
+      previous.topMetaInkVisible != current.topMetaInkVisible) {
+    render({64, 0, 48, 34});
+  }
+  if (previous.power != current.power || previous.elapsed != current.elapsed) {
+    render({184, 0, 56, 34});
+  }
+  if (previous.activeHeader != current.activeHeader) {
+    render({25, 34, 185, 14});
+  }
+
+  std::array<bool, 16> rowRendered{};
+  const RectI16 oldCursor = ResolvedCursorRect(previous);
+  const RectI16 newCursor = ResolvedCursorRect(current);
+  if (oldCursor != newCursor ||
+      previous.cursorInkVisible != current.cursorInkVisible) {
+    render(ExpandedCursorDamage(oldCursor));
+    render(ExpandedCursorDamage(newCursor));
+    render(RowDamageRect(previous.editRow));
+    render(RowDamageRect(current.editRow));
+    if (previous.editRow < rowRendered.size()) {
+      rowRendered[previous.editRow] = true;
+    }
+    if (current.editRow < rowRendered.size()) {
+      rowRendered[current.editRow] = true;
+    }
+  }
+  std::uint8_t changedRows = 0;
+  for (std::uint8_t row = 0; row < 16U; ++row) {
+    if (previous.rows[row] != current.rows[row])
+      ++changedRows;
+  }
+  if (changedRows > 6U) {
+    render({0, 34, 240, 174});
+  } else {
+    for (std::uint8_t row = 0; row < 16U; ++row) {
+      if (!rowRendered[row] && previous.rows[row] != current.rows[row]) {
+        render(RowDamageRect(row));
+      }
+    }
+  }
+  if (previous.trackNotes != current.trackNotes ||
+      previous.selectedTrack != current.selectedTrack ||
+      previous.bottomTrackVisualRect != current.bottomTrackVisualRect ||
+      previous.bottomTrackVisualOverride != current.bottomTrackVisualOverride ||
+      previous.bottomTrackInkVisible != current.bottomTrackInkVisible ||
+      !ContextEqual(previous.cursorBottom, current.cursorBottom)) {
+    render({0, 208, 240, 32});
+  }
+}
+
+UiBuildStatus UiTableView::Build(const UiTableViewData &data, UiPalette &,
+                                 UiFrameScene &scene) {
+  scene.Clear();
+  scene.topHeight = 34;
+  scene.bottomTop = 208;
+  scene.topBackground = UiColorToken::SurfaceBarDeep;
+  scene.bottomBackground = UiColorToken::SurfaceBarDeep;
+
+  const UiTopBarModel pageTop{
+      .title = "TABLE",
+      .meta = data.number,
+      .elapsed = data.elapsed,
+      .power = data.power,
+      .metaSelectionRect = data.topMetaVisualRect,
+      .metaSelectionOverride = data.topMetaVisualOverride,
+      .metaInkVisible = data.topMetaInkVisible,
+  };
+  const UiBottomBarModel hidden{.kind = UiBottomBarKind::Hidden};
+  UiTrackNotesModel tracks;
+  tracks.notes = data.trackNotes;
+  tracks.selectedTrack = data.selectedTrack;
+  tracks.trackSelectionRect = data.bottomTrackVisualRect;
+  tracks.trackSelectionOverride = data.bottomTrackVisualOverride;
+  tracks.trackInkVisible = data.bottomTrackInkVisible;
+  const UiBarInputs inputs{
+      .pageTop = pageTop,
+      .pageDefault = hidden,
+      .cursorContext = data.numberFocus ? nullptr : &data.cursorBottom,
+      .enterHeldTracks = &tracks,
+      .enterHeldNumber = data.numberFocus,
+  };
+  const UiResolvedChrome chrome = UiBarResolver::Resolve(inputs);
+  const UiBuildStatus topStatus =
+      UiChromeRenderer::BuildTop(chrome.top, scene.top);
+  if (topStatus != UiBuildStatus::Built)
+    return topStatus;
+  scene.bottomVisible = chrome.bottom.kind != UiBottomBarKind::Hidden;
+  const UiBuildStatus bottomStatus =
+      UiChromeRenderer::BuildBottom(chrome.bottom, scene.bottom);
+  if (bottomStatus != UiBuildStatus::Built)
+    return bottomStatus;
+
+  UiSceneBuilder<256, 1024> builder(scene.content);
+  constexpr std::array<std::string_view, 6> headers{"FX1", "VAL", "FX2",
+                                                    "VAL", "FX3", "VAL"};
+  for (std::uint8_t column = 0; column < headers.size(); ++column) {
+    const UiTableHeader candidate =
+        column < 2U ? UiTableHeader::Fx1
+                    : (column < 4U ? UiTableHeader::Fx2 : UiTableHeader::Fx3);
+    builder.Text(headers[column], kColumnX[column], 39,
+                 (column & 1U) == 0U ? HeaderColor(data.activeHeader, candidate)
+                                     : UiColorToken::TextMuted);
+  }
+  for (std::uint8_t row = 0; row < 16U; ++row) {
+    const std::int16_t y = static_cast<std::int16_t>(49 + row * 9);
+    const auto label = HexByte(static_cast<std::uint8_t>(data.rowOffset + row));
+    builder.Text(label.data(), 8, y,
+                 !data.numberFocus && row == data.editRow
+                     ? UiColorToken::CursorPrimary
+                     : UiColorToken::TextDim);
+    for (std::uint8_t column = 0; column < kColumnX.size(); ++column) {
+      const std::string_view value = data.rows[row][column];
+      UiColorToken color = UiColorToken::TextPrimary;
+      if ((column & 1U) != 0U && value == "0000") {
+        color = UiColorToken::TextDim;
+      } else if ((column & 1U) == 0U && value == "---") {
+        color = UiColorToken::TextMuted;
+      }
+      builder.Text(value, kColumnX[column], y, color);
+    }
+  }
+  if (!data.numberFocus) {
+    const RectI16 cursor = ResolvedCursorRect(data);
+    builder.Selection(cursor);
+    if (data.cursorInkVisible && data.editRow < 16U &&
+        data.editColumn < kColumnX.size()) {
+      builder.Text(data.rows[data.editRow][data.editColumn],
+                   kColumnX[data.editColumn],
+                   static_cast<std::int16_t>(49 + data.editRow * 9),
+                   UiColorToken::CursorInk);
+    }
+  }
+  return builder.Ok() ? UiBuildStatus::Built : UiBuildStatus::CommandOverflow;
+}
+
+} // namespace ui2

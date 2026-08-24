@@ -11,6 +11,7 @@ add_library(ui2
   Theme/UiPalette.cpp
   Views/Phrase/UiPhraseView.cpp
   Views/Song/UiSongView.cpp
+  Views/Table/UiTableView.cpp
   UiEngine.cpp)
 
 target_include_directories(ui2 PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/..")

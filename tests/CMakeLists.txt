@@ -58,6 +58,7 @@ add_executable(picoTracker_tests
   ../sources/UI2/UiEngine.cpp
   ../sources/UI2/Views/Phrase/UiPhraseView.cpp
   ../sources/UI2/Views/Song/UiSongView.cpp
+  ../sources/UI2/Views/Table/UiTableView.cpp
 )
 
 target_include_directories(picoTracker_tests PRIVATE
@@ -104,6 +105,22 @@ target_include_directories(ui2_phrase_snapshot_tool PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}
   ${CMAKE_CURRENT_LIST_DIR}/../sources)
 
+add_executable(ui2_table_snapshot_tool
+  ui2_table_snapshot_main.cpp
+  ../sources/UI2/Chrome/UiBarResolver.cpp
+  ../sources/UI2/Chrome/UiChromeRenderer.cpp
+  ../sources/UI2/Render/UiDirtyTiles.cpp
+  ../sources/UI2/Render/UiFrameRenderer.cpp
+  ../sources/UI2/Render/UiIndexedSurface.cpp
+  ../sources/UI2/Render/UiRasterizer.cpp
+  ../sources/UI2/Text/UiFont5x7.cpp
+  ../sources/UI2/Theme/UiPalette.cpp
+  ../sources/UI2/Views/Table/UiTableView.cpp)
+
+target_include_directories(ui2_table_snapshot_tool PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}
+  ${CMAKE_CURRENT_LIST_DIR}/../sources)
+
 find_program(NODE_EXECUTABLE node)
 if(NODE_EXECUTABLE)
   add_test(NAME ui2_song_snapshot
@@ -128,4 +145,21 @@ if(NODE_EXECUTABLE)
     set_tests_properties(ui2_phrase_${PHRASE_STATE}_golden PROPERTIES
       DEPENDS ui2_phrase_${PHRASE_STATE}_snapshot)
   endforeach()
+
+  function(add_ui2_table_golden TABLE_STATE GOLDEN_NAME)
+    add_test(NAME ui2_table_${TABLE_STATE}_snapshot
+      COMMAND ui2_table_snapshot_tool "${TABLE_STATE}"
+        "${CMAKE_CURRENT_BINARY_DIR}/${GOLDEN_NAME}-actual.ppm")
+    add_test(NAME ui2_table_${TABLE_STATE}_golden
+      COMMAND "${NODE_EXECUTABLE}"
+        "${CMAKE_CURRENT_LIST_DIR}/../web/tools/compare-ui2-snapshot.mjs"
+        --actual "${CMAKE_CURRENT_BINARY_DIR}/${GOLDEN_NAME}-actual.ppm"
+        --golden "${CMAKE_CURRENT_LIST_DIR}/../web/e2e/ui2-golden.spec.js-snapshots/${GOLDEN_NAME}.png")
+    set_tests_properties(ui2_table_${TABLE_STATE}_golden PROPERTIES
+      DEPENDS ui2_table_${TABLE_STATE}_snapshot)
+  endfunction()
+  add_ui2_table_golden(phrase phrase-table)
+  add_ui2_table_golden(instrument instrument-table)
+  add_ui2_table_golden(phrase-number phrase-table-number)
+  add_ui2_table_golden(instrument-number instrument-table-number)
 endif()

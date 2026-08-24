@@ -28,6 +28,9 @@ public:
   bool ShouldDrawBattery() const override;
   bool ShouldDrawPlayTime() const override;
 
+  int RowForUi2() const { return row_; }
+  int ColumnForUi2() const { return col_; }
+
 protected:
   void processNormalButtonMask(unsigned short mask);
   void processSelectionButtonMask(unsigned short mask);

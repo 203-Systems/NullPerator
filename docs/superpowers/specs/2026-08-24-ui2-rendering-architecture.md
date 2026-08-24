@@ -777,8 +777,8 @@ Initial target for the ESP32-S3 UI path:
 | Total target with transition retention | about 78-90 KB |
 
 The current 64-bit Host layout of `UiApplicationRuntime`, including retained
-Song and Phrase snapshots plus all independent cursor animators, is 71,600
-bytes; the
+Song, Phrase, and P/I Table snapshots plus all independent cursor animators,
+is 72,800 bytes; the
 ESP32-S3 32-bit layout is expected to be smaller and must be confirmed from the
 firmware map file. The presenter object is at most 64 bytes and its one external
 DMA block is 3,840 bytes. These are test-enforced bounds, not estimates.

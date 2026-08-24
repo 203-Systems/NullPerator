@@ -13,11 +13,13 @@
 #include "UI2/Render/UiFrameRenderer.h"
 #include "UI2/Views/Song/UiSongView.h"
 #include "UI2/Views/Phrase/UiPhraseView.h"
+#include "UI2/Views/Table/UiTableView.h"
 #include "Adapters/wasm/gui/WasmUiPresenter.h"
 #include "Application/UI2/Ui2ApplicationRuntime.h"
 
 #include "ui2_song_fixture.h"
 #include "ui2_phrase_fixture.h"
+#include "ui2_table_fixture.h"
 
 #include "doctest/doctest.h"
 
@@ -490,7 +492,7 @@ TEST_CASE("UI2 VU mapping is bounded monotonic and integer only") {
 
 TEST_CASE("UI2 firmware runtime keeps a fixed bounded memory footprint") {
   // 64-bit Host is the larger layout; the ESP32-S3 build uses 32-bit pointers.
-  CHECK(sizeof(ui2::UiApplicationRuntime) < 72'000);
+  CHECK(sizeof(ui2::UiApplicationRuntime) < 74'000);
   CHECK(sizeof(ui2::UiRgb565Presenter) <= 64);
   CHECK(ui2::UiRgb565Presenter::kTransferPixels * sizeof(std::uint16_t) ==
         3'840);
@@ -772,4 +774,74 @@ TEST_CASE("UI2 Phrase animated bottom cursor delta matches a full frame") {
   ui2::UiFrameRenderer::RenderStatic(currentScene, expected, palette);
   CHECK(std::equal(surface.Pixels().begin(), surface.Pixels().end(),
                    expected.Pixels().begin(), expected.Pixels().end()));
+}
+
+TEST_CASE("UI2 Table delta rendering is pixel-identical to a full redraw") {
+  ui2::UiPalette palette;
+  ui2::UiTableViewData previous =
+      ui2::test::ApprovedTableFixture("phrase");
+  ui2::UiFrameScene previousScene;
+  REQUIRE(ui2::UiTableView::Build(previous, palette, previousScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(previousScene, surface, palette);
+  surface.ClearDirty();
+
+  ui2::UiTableViewData current = previous;
+  current.editRow = 3;
+  current.editColumn = 4;
+  current.activeHeader = ui2::UiTableHeader::Fx3;
+  current.rows[3][4] = "ARP";
+  current.rows[3][5] = "00F4";
+  current.cursorBottom =
+      ui2::test::ApprovedTableFixture("instrument").cursorBottom;
+  current.cursorVisualOverride = true;
+  current.cursorVisualRect = {101, 62, 21, 9};
+  current.cursorInkVisible = false;
+  ui2::UiFrameScene currentScene;
+  REQUIRE(ui2::UiTableView::Build(current, palette, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiTableView::RenderDelta(previous, current, currentScene, surface,
+                                palette);
+
+  ui2::UiSurfaceStorage expectedStorage;
+  ui2::UiIndexedSurface expected(expectedStorage);
+  ui2::UiFrameRenderer::RenderStatic(currentScene, expected, palette);
+  CHECK(std::equal(surface.Pixels().begin(), surface.Pixels().end(),
+                   expected.Pixels().begin(), expected.Pixels().end()));
+  CHECK(surface.DirtyTiles().Any());
+}
+
+TEST_CASE("UI2 Table idle is clean and row motion stays locally dirty") {
+  ui2::UiPalette palette;
+  ui2::UiTableViewData previous =
+      ui2::test::ApprovedTableFixture("phrase");
+  ui2::UiFrameScene previousScene;
+  REQUIRE(ui2::UiTableView::Build(previous, palette, previousScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(previousScene, surface, palette);
+  surface.ClearDirty();
+  ui2::UiTableView::RenderDelta(previous, previous, previousScene, surface,
+                                palette);
+  CHECK_FALSE(surface.DirtyTiles().Any());
+
+  ui2::UiTableViewData current = previous;
+  current.editRow = 1;
+  ui2::UiFrameScene currentScene;
+  REQUIRE(ui2::UiTableView::Build(current, palette, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiTableView::RenderDelta(previous, current, currentScene, surface,
+                                palette);
+  ui2::DirtyStripList strips;
+  REQUIRE(surface.DirtyTiles().Collect(strips));
+  std::uint32_t transferredPixels = 0;
+  for (const ui2::DirtyStrip strip : strips.Strips()) {
+    transferredPixels +=
+        static_cast<std::uint32_t>(strip.width) * strip.height;
+  }
+  CHECK(transferredPixels < 8'000);
+  CHECK(transferredPixels < 240U * 240U / 7U);
 }

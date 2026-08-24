@@ -11,6 +11,7 @@
 #include "UI2/UiEngine.h"
 #include "UI2/Views/Phrase/UiPhraseView.h"
 #include "UI2/Views/Song/UiSongView.h"
+#include "UI2/Views/Table/UiTableView.h"
 
 #include <array>
 #include <cstdint>
@@ -60,7 +61,7 @@ public:
   }
 
 private:
-  enum class RuntimePage : std::uint8_t { None, Song, Phrase };
+  enum class RuntimePage : std::uint8_t { None, Song, Phrase, Table };
 
   struct SongFrameState {
     std::array<char, 17> name{};
@@ -121,14 +122,56 @@ private:
     bool operator==(const PhraseFrameState &) const = default;
   };
 
+  struct TableRowState {
+    std::array<char, 4> fx1{};
+    std::array<char, 5> parameter1{};
+    std::array<char, 4> fx2{};
+    std::array<char, 5> parameter2{};
+    std::array<char, 4> fx3{};
+    std::array<char, 5> parameter3{};
+    bool operator==(const TableRowState &) const = default;
+  };
+
+  struct TableFrameState {
+    std::array<char, 4> number{};
+    std::array<char, 6> elapsed{};
+    std::array<TableRowState, 16> rows{};
+    std::array<std::array<char, 5>, 8> trackNotes{};
+    std::array<char, 24> contextLead{};
+    std::array<char, 24> contextTail{};
+    std::array<char, 33> contextDescription{};
+    std::uint8_t editRow = 0;
+    std::uint8_t editColumn = 0;
+    std::int8_t selectedTrack = 0;
+    UiTableHeader activeHeader = UiTableHeader::None;
+    PhraseContext context = PhraseContext::Hidden;
+    RectI16 cursorVisualRect{};
+    RectI16 topMetaVisualRect{};
+    RectI16 bottomTrackVisualRect{};
+    bool cursorVisualOverride = false;
+    bool topMetaVisualOverride = false;
+    bool bottomTrackVisualOverride = false;
+    bool cursorInkVisible = true;
+    bool topMetaInkVisible = true;
+    bool bottomTrackInkVisible = true;
+    bool numberFocus = false;
+    UiPowerState power = UiPowerState::BatteryNormal;
+
+    bool operator==(const TableFrameState &) const = default;
+  };
+
   static UiSongViewData ViewDataFor(const SongFrameState &state);
   static UiPhraseViewData ViewDataFor(const PhraseFrameState &state);
+  static UiTableViewData ViewDataFor(const TableFrameState &state);
   void CaptureSong(AppWindow &window, SongFrameState &state);
   void CapturePhrase(AppWindow &window, PhraseFrameState &state);
+  void CaptureTable(AppWindow &window, TableFrameState &state);
   [[nodiscard]] PresentResult PresentSong(AppWindow &window,
                                           std::uint32_t nowMs);
   [[nodiscard]] PresentResult PresentPhrase(AppWindow &window,
                                             std::uint32_t nowMs);
+  [[nodiscard]] PresentResult PresentTable(AppWindow &window,
+                                           std::uint32_t nowMs);
 
   UiEngineStorage engineStorage_{};
   UiEngine engine_;
@@ -137,6 +180,8 @@ private:
   SongFrameState currentSong_{};
   PhraseFrameState previousPhrase_{};
   PhraseFrameState currentPhrase_{};
+  TableFrameState previousTable_{};
+  TableFrameState currentTable_{};
   UiCursorAnimatorSet cursors_{};
   RectI16 cursorTarget_{};
   RectI16 topMetaTarget_{};
