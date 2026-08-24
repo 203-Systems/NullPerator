@@ -62,7 +62,7 @@ Ui2TrackerPage TrackerPageFor(UiApplicationPage page) {
 Ui2TrackerApplication::Ui2TrackerApplication(IUiPresenter &presenter)
     : session_(UNNAMED_PROJECT_NAME), modelPort_(session_),
       tracker_(modelPort_),
-      source_(session_, tracker_, project_, groove_, device_, theme_),
+      source_(session_, tracker_, project_, groove_, device_, theme_, rename_),
       runtime_(presenter) {}
 
 bool Ui2TrackerApplication::Init() {
@@ -122,6 +122,12 @@ void Ui2TrackerApplication::DispatchTrackerAction(TrackerAction action,
     return;
 
   const std::size_t actionIndex = static_cast<std::size_t>(action);
+  if (rename_.Active()) {
+    if (!pressed)
+      pressOwners_[actionIndex] = UiApplicationPage::None;
+    HandleRename(action, pressed);
+    return;
+  }
   UiApplicationPage owner = activePage_;
   if (pressed) {
     if (pressOwners_[actionIndex] == UiApplicationPage::None)
@@ -208,6 +214,10 @@ void Ui2TrackerApplication::HandleProject(TrackerAction action,
       ActivatePage(UiApplicationPage::Record);
     return;
   }
+  if (action == TrackerAction::Enter) {
+    ExecuteProject(project_.Enter());
+    return;
+  }
   if (projectInput_.AnyModifier())
     return;
 
@@ -225,7 +235,6 @@ void Ui2TrackerApplication::HandleProject(TrackerAction action,
     project_.MoveRight();
     break;
   case TrackerAction::Enter:
-    ExecuteProject(project_.Enter());
     break;
   case TrackerAction::Play:
     Player::GetInstance()->OnStartButton(PM_SONG,
@@ -279,6 +288,15 @@ void Ui2TrackerApplication::HandleFont(TrackerAction action, bool pressed) {
     ActivatePage(UiApplicationPage::Browser);
 }
 
+void Ui2TrackerApplication::HandleRename(TrackerAction action, bool pressed) {
+  const Ui2RenameCommand command = rename_.Handle(action, pressed);
+  if (command == Ui2RenameCommand::Randomize) {
+    rename_.Randomize(System::GetInstance()->GetRandomNumber());
+  } else if (command == Ui2RenameCommand::Save) {
+    session_.ProjectModel().SetProjectName(rename_.Value());
+  }
+}
+
 void Ui2TrackerApplication::HandleTheme(TrackerAction action, bool pressed) {
   const Ui2ThemeCommand command = theme_.Handle(action, pressed);
   if (pressed && action == TrackerAction::Left &&
@@ -317,6 +335,9 @@ void Ui2TrackerApplication::ExecuteProject(Ui2ProjectCommand command) {
   case Ui2ProjectCommandType::NewProject:
   case Ui2ProjectCommandType::LoadProject:
   case Ui2ProjectCommandType::RenameProject:
+    if (command.type == Ui2ProjectCommandType::RenameProject)
+      rename_.Begin(session_.ProjectName(), MAX_PROJECT_NAME_LENGTH);
+    break;
   case Ui2ProjectCommandType::BrowseSamplePool:
   case Ui2ProjectCommandType::RenderMixdown:
   case Ui2ProjectCommandType::RenderStems:

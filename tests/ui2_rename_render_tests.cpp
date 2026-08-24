@@ -115,7 +115,7 @@ TEST_CASE("Rename page exposes input keyboard case space and three actions") {
   CHECK(text.find("ABC") != std::string_view::npos);
   CHECK(text.find("-") != std::string_view::npos);
   CHECK(text.find("SPACE") != std::string_view::npos);
-  CHECK(text.find("_") != std::string_view::npos);
+  CHECK(text.find(".") != std::string_view::npos);
   CHECK(text.find("DEL") != std::string_view::npos);
   CHECK(text.find("CANCEL") != std::string_view::npos);
   CHECK(text.find("SAVE") != std::string_view::npos);

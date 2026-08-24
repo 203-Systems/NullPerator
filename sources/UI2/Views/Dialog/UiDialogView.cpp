@@ -137,7 +137,7 @@ void RenderRename(const UiDialogViewData &data,
 
   const std::array<std::string_view, 5> specialLabels{
       data.uppercase ? std::string_view{"ABC"} : std::string_view{"abc"},
-      "-", "SPACE", "_", "DEL"};
+      "-", "SPACE", ".", "DEL"};
   for (std::uint8_t index = 0; index < specialLabels.size(); ++index) {
     const bool selected = data.focus == UiDialogFocus::Keyboard &&
                           data.selectedKey == keyIndex;

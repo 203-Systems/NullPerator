@@ -2,6 +2,7 @@
 #include "Application/UI2/Controllers/Ui2FontController.h"
 #include "Application/UI2/Controllers/Ui2GrooveController.h"
 #include "Application/UI2/Controllers/Ui2InstrumentController.h"
+#include "Application/UI2/Controllers/Ui2RenameController.h"
 #include "Application/UI2/Controllers/Ui2ThemeController.h"
 
 #include "doctest/doctest.h"
@@ -125,6 +126,27 @@ TEST_CASE("UI2 Font has one BROWSE content action and no bottom bar") {
   CHECK_FALSE(Tap(controller, TrackerAction::Left).HasValue());
   CHECK(Tap(controller, TrackerAction::Enter).type ==
         ui2::Ui2FontCommandType::BrowseFont);
+}
+
+TEST_CASE("UI2 Rename owns its bounded draft and full-page navigation") {
+  using namespace ui2;
+  Ui2RenameController controller;
+  controller.Begin("ONECYCAC", 16U);
+  CHECK(controller.Active());
+  CHECK(controller.Snapshot().focus == UiDialogFocus::Input);
+
+  Tap(controller, TrackerAction::Enter);
+  CHECK(controller.Snapshot().focus == UiDialogFocus::Keyboard);
+  Tap(controller, TrackerAction::Enter);
+  CHECK(std::string_view(controller.Value()) == "ONECYCAC1");
+  Tap(controller, TrackerAction::Edit);
+  CHECK(std::string_view(controller.Value()) == "ONECYCAC");
+
+  for (int row = 0; row < 5; ++row)
+    Tap(controller, TrackerAction::Down);
+  CHECK(controller.Snapshot().focus == UiDialogFocus::Actions);
+  CHECK(Tap(controller, TrackerAction::Enter) == Ui2RenameCommand::Save);
+  CHECK_FALSE(controller.Active());
 }
 
 TEST_CASE("UI2 Instrument name actions and type selector are independent") {

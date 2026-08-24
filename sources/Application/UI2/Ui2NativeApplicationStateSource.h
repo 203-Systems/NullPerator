@@ -10,6 +10,7 @@
 #include "Application/UI2/Controllers/Ui2DeviceController.h"
 #include "Application/UI2/Controllers/Ui2ThemeController.h"
 #include "Application/UI2/Controllers/Ui2ProjectController.h"
+#include "Application/UI2/Controllers/Ui2RenameController.h"
 #include "Application/UI2/Controllers/Ui2TrackerControllerHub.h"
 #include "Application/UI2/Ui2ApplicationStateSource.h"
 
@@ -28,9 +29,10 @@ public:
                                   Ui2ProjectController &project,
                                   Ui2GrooveController &groove,
                                   Ui2DeviceController &device,
-                                  Ui2ThemeController &theme)
+                                  Ui2ThemeController &theme,
+                                  Ui2RenameController &rename)
       : session_(session), tracker_(tracker), project_(project),
-        groove_(groove), device_(device), theme_(theme) {}
+        groove_(groove), device_(device), theme_(theme), rename_(rename) {}
 
   void SetActivePage(UiApplicationPage page) { activePage_ = page; }
 
@@ -38,11 +40,13 @@ public:
   [[nodiscard]] std::uint32_t NowMs() const override;
   [[nodiscard]] UiApplicationBatteryState ReadBattery() const override;
 
-  [[nodiscard]] bool HasDialog() const override { return false; }
+  [[nodiscard]] bool HasDialog() const override { return rename_.Active(); }
   [[nodiscard]] Ui2DialogSnapshot DialogSnapshot() const override {
-    return {};
+    return rename_.Snapshot();
   }
-  [[nodiscard]] std::uint32_t DialogInstanceId() const override { return 0; }
+  [[nodiscard]] std::uint32_t DialogInstanceId() const override {
+    return rename_.InstanceId();
+  }
 
   [[nodiscard]] UiApplicationActivityState
   CaptureSong(UiSongFrameState &state) override;
@@ -82,6 +86,7 @@ private:
   Ui2GrooveController &groove_;
   Ui2DeviceController &device_;
   Ui2ThemeController &theme_;
+  Ui2RenameController &rename_;
   UiApplicationPage activePage_ = UiApplicationPage::Song;
 };
 
