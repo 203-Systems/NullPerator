@@ -19,82 +19,6 @@ constexpr std::uint16_t kGrooveCursorDurationMs = 120;
 constexpr std::uint16_t kListCursorDurationMs = 120;
 constexpr std::uint16_t kDialogCursorDurationMs = 110;
 
-bool PageTransitionDirection(UiApplicationPage from, UiApplicationPage to,
-                             UiSlideDirection &direction) {
-  const auto pair = [&](UiApplicationPage a, UiApplicationPage b,
-                        UiSlideDirection forward,
-                        UiSlideDirection reverse) -> bool {
-    if (from == a && to == b) {
-      direction = forward;
-      return true;
-    }
-    if (from == b && to == a) {
-      direction = reverse;
-      return true;
-    }
-    return false;
-  };
-  return pair(UiApplicationPage::Song, UiApplicationPage::Chain,
-              UiSlideDirection::Left, UiSlideDirection::Right) ||
-         pair(UiApplicationPage::Chain, UiApplicationPage::Phrase,
-              UiSlideDirection::Left, UiSlideDirection::Right) ||
-         pair(UiApplicationPage::Phrase, UiApplicationPage::Instrument,
-              UiSlideDirection::Left, UiSlideDirection::Right) ||
-         pair(UiApplicationPage::Song, UiApplicationPage::Project,
-              UiSlideDirection::Down, UiSlideDirection::Up) ||
-         pair(UiApplicationPage::Song, UiApplicationPage::Mixer,
-              UiSlideDirection::Up, UiSlideDirection::Down) ||
-         pair(UiApplicationPage::Phrase, UiApplicationPage::Groove,
-              UiSlideDirection::Down, UiSlideDirection::Up) ||
-         pair(UiApplicationPage::Phrase, UiApplicationPage::Table,
-              UiSlideDirection::Up, UiSlideDirection::Down) ||
-         pair(UiApplicationPage::Instrument, UiApplicationPage::Table,
-              UiSlideDirection::Up, UiSlideDirection::Down) ||
-         pair(UiApplicationPage::Project, UiApplicationPage::Device,
-              UiSlideDirection::Down, UiSlideDirection::Up);
-}
-
-[[nodiscard]] UnitQ16 TransitionProgress(std::uint32_t startMs,
-                                         std::uint32_t nowMs,
-                                         std::uint16_t durationMs) {
-  const std::uint32_t elapsed = nowMs - startMs;
-  if (elapsed >= durationMs)
-    return 65'535;
-  return EaseOutCubic(static_cast<UnitQ16>(
-      (static_cast<std::uint64_t>(elapsed) * 65'535U) / durationMs));
-}
-
-[[nodiscard]] UiLayerOffsets TransitionOffsets(UiSlideDirection direction,
-                                               std::uint32_t startMs,
-                                               std::uint32_t nowMs) {
-  PointI16 entry{};
-  switch (direction) {
-  case UiSlideDirection::Left:
-    entry.x = kScreenWidth;
-    break;
-  case UiSlideDirection::Right:
-    entry.x = -kScreenWidth;
-    break;
-  case UiSlideDirection::Up:
-    entry.y = kScreenHeight;
-    break;
-  case UiSlideDirection::Down:
-    entry.y = -kScreenHeight;
-    break;
-  }
-  const std::int32_t progress = TransitionProgress(
-      startMs, nowMs, UiTransitionTimeline::kContentDurationMs);
-  const auto distance = [progress](std::int16_t value) {
-    return static_cast<std::int16_t>(
-        (static_cast<std::int32_t>(value) * progress) >> 16U);
-  };
-  const PointI16 travelled{distance(entry.x), distance(entry.y)};
-  return {{static_cast<std::int16_t>(-travelled.x),
-           static_cast<std::int16_t>(-travelled.y)},
-          {static_cast<std::int16_t>(entry.x - travelled.x),
-           static_cast<std::int16_t>(entry.y - travelled.y)}};
-}
-
 } // namespace
 
 void UiApplicationRuntime::ApplyThemeColors(
@@ -170,42 +94,7 @@ void UiApplicationRuntime::UpdateNavigationCursor(
   cursor.inkVisible = !cursors_.Active(UiCursorRole::ChromeNavigation, nowMs);
 }
 
-void UiApplicationRuntime::BeginPageTransition(RuntimePage from, RuntimePage to,
-                                               std::uint32_t nowMs) {
-  UiSlideDirection direction = UiSlideDirection::Left;
-  if (!PageTransitionDirection(from, to, direction)) {
-    pageTransitionActive_ = false;
-    pageBars_.Reset();
-    return;
-  }
-  BeginPageTransition(direction, nowMs);
-}
-
-void UiApplicationRuntime::BeginPageTransition(UiSlideDirection direction,
-                                               std::uint32_t nowMs) {
-  pageBars_.Begin(scene_, engine_.Palette(), nowMs);
-  pageTransitionStartMs_ = nowMs;
-  pageTransitionDirection_ = direction;
-  previousPageOutgoing_ = {};
-  pageTransitionActive_ = true;
-}
-
 void UiApplicationRuntime::RenderFullScene() {
-  if (pageTransitionActive_) {
-    const bool active = frameNowMs_ - pageTransitionStartMs_ <
-                        UiTransitionTimeline::kContentDurationMs;
-    if (active) {
-      const UiLayerOffsets offsets = TransitionOffsets(
-          pageTransitionDirection_, pageTransitionStartMs_, frameNowMs_);
-      UiFrameRenderer::AdvancePageTransition(
-          scene_, offsets, {previousPageOutgoing_, {}}, frameNowMs_, pageBars_,
-          engine_.Surface(), engine_.Palette());
-      previousPageOutgoing_ = offsets.outgoing;
-      return;
-    }
-    pageTransitionActive_ = false;
-    pageBars_.Reset();
-  }
   UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
 }
 
@@ -301,13 +190,10 @@ void UiApplicationRuntime::CaptureDialog(IUiApplicationStateSource &source) {
 }
 
 bool UiApplicationRuntime::DialogChanged() const {
-  return pageTransitionActive_ || !dialogPreviousValid_ ||
-         currentDialog_ != previousDialog_;
+  return !dialogPreviousValid_ || currentDialog_ != previousDialog_;
 }
 
 bool UiApplicationRuntime::RequiresFullRebuild() const {
-  if (pageTransitionActive_)
-    return true;
   if (!previousValid_ || !dialogPreviousValid_)
     return true;
   if (currentDialog_.active != previousDialog_.active)
@@ -365,8 +251,6 @@ PresentResult UiApplicationRuntime::Present(IUiApplicationStateSource &source) {
   const std::uint32_t nowMs = source.NowMs();
   frameNowMs_ = nowMs;
   if (page != activePage_) {
-    if (activePage_ != RuntimePage::None && source.NavigationHeld())
-      BeginPageTransition(activePage_, page, nowMs);
     ActivatePage(page);
   }
   CaptureDialog(source);
@@ -846,12 +730,6 @@ UiApplicationRuntime::PresentTable(IUiApplicationStateSource &source,
   TableFrameState &current = frames_.table.current;
   TableFrameState &previous = frames_.table.previous;
   const UiApplicationActivityState activity = source.CaptureTable(current);
-  if (previousValid_ && source.NavigationHeld() &&
-      current.number[0] != previous.number[0]) {
-    BeginPageTransition(current.number[0] == 'I' ? UiSlideDirection::Left
-                                                 : UiSlideDirection::Right,
-                        nowMs);
-  }
   current.power = CurrentPowerState(source, activity.active);
   UpdateNavigationCursor(current.navCursor, source,
                          current.number[0] == 'I' ? UiNavTarget::InstrumentTable

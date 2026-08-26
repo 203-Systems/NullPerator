@@ -1242,7 +1242,7 @@ TEST_CASE("UI2 runtime applies all persisted semantic theme colors globally") {
                     static_cast<std::uint8_t>(top)});
 }
 
-TEST_CASE("UI2 held NAV persists through movement and clears on release") {
+TEST_CASE("UI2 held NAV persists through page changes without page motion") {
   RecordingPresenter presenter;
   ui2::UiApplicationRuntime runtime(presenter);
   TestApplicationStateSource source;
@@ -1251,13 +1251,12 @@ TEST_CASE("UI2 held NAV persists through movement and clears on release") {
   REQUIRE(runtime.Present(source) == ui2::PresentResult::Presented);
   source.page = ui2::UiApplicationPage::Chain;
   source.nowMs = 10;
-  // Content has not moved at the first sample, but the independent solid bars
-  // switch immediately and therefore require one transfer.
+  // The destination page replaces the source immediately.
   CHECK(runtime.Present(source) == ui2::PresentResult::Presented);
   const int pageSwitchCalls = presenter.calls;
 
-  // An unchanged state still presents intermediate fixed-point animation
-  // frames while NAV remains physically held.
+  // The small navigation cursor keeps its independent movement animation;
+  // these frames do not move or redraw the page content as a sliding layer.
   source.nowMs = 90;
   REQUIRE(runtime.Present(source) == ui2::PresentResult::Presented);
   CHECK(presenter.calls == pageSwitchCalls + 1);
