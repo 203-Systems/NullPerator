@@ -305,7 +305,8 @@ private:
     if (name == nullptr || name[0] == '\0' || type != PFT_DIR ||
         std::strcmp(name, ".") == 0 || std::strcmp(name, "..") == 0 ||
         (InProjectDirectory() &&
-         PersistencyService::IsInternalProjectName(name))) {
+         !PersistencyService::IsValidProjectName(name)) ||
+        std::strlen(name) > MAX_PROJECT_NAME_LENGTH) {
       return true;
     }
     if (count_ >= entries_.size())
@@ -336,7 +337,7 @@ private:
   }
 
   struct DirectoryEntry {
-    std::array<char, Ui2BrowserSnapshot::ItemTextCapacity> name{};
+    std::array<char, MAX_PROJECT_NAME_LENGTH + 1U> name{};
   };
 
   std::array<DirectoryEntry, MAX_FILE_INDEX_SIZE> entries_{};
