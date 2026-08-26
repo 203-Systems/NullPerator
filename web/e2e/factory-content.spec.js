@@ -131,7 +131,7 @@ async function tap(page, key) {
   await page.keyboard.down(key)
   await expect.poll(() => inputGeneration(page)).toBeGreaterThanOrEqual(before + 1)
   await page.keyboard.up(key)
-  await expect.poll(() => inputGeneration(page)).toBeGreaterThanOrEqual(before + (key.toLowerCase() === 'c' ? 4 : 2))
+  await expect.poll(() => inputGeneration(page)).toBeGreaterThanOrEqual(before + 2)
 }
 
 async function chord(page, modifier, key) {
@@ -227,6 +227,13 @@ test('PicoTracker 2.0 bt9 MIDI project loads from another project without a samp
     sampleCount: 1,
     playerRunning: false,
   })
+
+  // OPTION+RIGHT selects LIVE and EDIT+PLAY starts the highlighted track
+  // immediately. The sequencer must still run with browser audio disabled so
+  // the device UI can show playback cursors and the bottom-bar played note.
+  await chord(page, 'j', 'd')
+  await chord(page, 'k', 'c')
+  await expectModel(page, { playerRunning: true })
 })
 
 test('real oneCycAc project imports, trims, plays, and survives reload plus runtime restart', async ({ page }) => {

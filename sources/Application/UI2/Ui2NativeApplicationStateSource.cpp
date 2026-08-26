@@ -169,6 +169,37 @@ template <typename Notes> void CaptureTrackNotes(Notes &notes) {
   }
 }
 
+bool ResolveQueuedSongNote(const Song &song, std::uint8_t startRow,
+                           std::uint8_t track, std::uint8_t &note) {
+  if (track >= SONG_CHANNEL_COUNT)
+    return false;
+  for (std::uint16_t rowOffset = 0U; rowOffset < SONG_ROW_COUNT; ++rowOffset) {
+    const std::uint8_t songRow = static_cast<std::uint8_t>(
+        (static_cast<std::uint16_t>(startRow) + rowOffset) % SONG_ROW_COUNT);
+    const std::uint8_t chain =
+        song.data_[songRow * SONG_CHANNEL_COUNT + track];
+    if (chain == 0xFFU || chain >= CHAIN_COUNT)
+      continue;
+    for (std::uint8_t chainRow = 0U; chainRow < PHRASES_PER_CHAIN;
+         ++chainRow) {
+      const std::uint8_t phrase =
+          song.chain_.data_[chain * PHRASES_PER_CHAIN + chainRow];
+      if (phrase == 0xFFU || phrase >= PHRASE_COUNT)
+        continue;
+      for (std::uint8_t phraseRow = 0U; phraseRow < STEPS_PER_PHRASE;
+           ++phraseRow) {
+        const std::uint8_t candidate =
+            song.phrase_.note_[phrase * STEPS_PER_PHRASE + phraseRow];
+        if (candidate <= HIGHEST_NOTE) {
+          note = candidate;
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
 template <std::size_t LeadSize, std::size_t TailSize,
           std::size_t DescriptionSize>
 void CaptureHelp(FourCC command, std::array<char, LeadSize> &lead,
@@ -296,6 +327,18 @@ Ui2NativeApplicationStateSource::CaptureSong(UiSongFrameState &state) {
   state.liveMode = controller.LiveMode();
   FormatElapsed(state.elapsed);
   CaptureTrackNotes(state.notes);
+  // Browser previews deliberately support audio=disabled. Keep LIVE feedback
+  // useful in that mode: Player still owns transport, while the UI resolves
+  // the first queued note only until the mixer publishes a real played note.
+  // On hardware and an active AudioWorklet that real note remains canonical.
+  if (state.liveMode && state.playing &&
+      state.notes[controller.Track()][0] == '-') {
+    std::uint8_t queuedNote = NO_NOTE;
+    if (ResolveQueuedSongNote(project.song_, controller.AbsoluteRow(),
+                              controller.Track(), queuedNote)) {
+      FormatNote(queuedNote, state.notes[controller.Track()]);
+    }
+  }
   for (std::uint8_t track = 0; track < SONG_CHANNEL_COUNT; ++track) {
     const int visible = editor.songPlayPos_[track] - controller.RowOffset();
     state.playbackRows[track] =
