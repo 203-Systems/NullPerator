@@ -72,7 +72,8 @@ bool SamplePool::Load(const char *projectName) {
   }
 
   const uint totalSamples = fileIndexes.size();
-  if (totalSamples > MAX_SAMPLES - count_) {
+  if (!SamplePoolLoading::FitsLoadableSampleCapacity(
+          *fs, fileIndexes, count_, MAX_SAMPLES)) {
     Trace::Error("SAMPLEPOOL: Project contains too many sample entries");
     return false;
   }

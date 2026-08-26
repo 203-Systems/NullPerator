@@ -6,6 +6,8 @@
 
 #include "Application/Persistency/PersistenceConstants.h"
 
+#include <cstring>
+
 namespace SamplePoolLoading {
 
 bool EnterAndList(FileSystem &fileSystem, const char *projectName,
@@ -44,6 +46,31 @@ bool EnterAndList(FileSystem &fileSystem, const char *projectName,
   if (fileIndexes.full()) {
     fileIndexes.clear();
     return false;
+  }
+  return true;
+}
+
+bool FitsLoadableSampleCapacity(FileSystem &fileSystem,
+                                const etl::ivector<int> &fileIndexes,
+                                std::size_t alreadyLoaded,
+                                std::size_t capacity) {
+  if (alreadyLoaded > capacity)
+    return false;
+
+  std::size_t loadableCount = 0U;
+  for (const int index : fileIndexes) {
+    char name[PFILENAME_SIZE]{};
+    fileSystem.getFileName(index, name, sizeof(name));
+    const PicoFileType type = fileSystem.getFileType(index);
+    if (name[0] == '\0' || type == PFT_UNKNOWN)
+      return false;
+    if (type != PFT_FILE ||
+        std::strlen(name) > MAX_INSTRUMENT_FILENAME_LENGTH) {
+      continue;
+    }
+    ++loadableCount;
+    if (loadableCount > capacity - alreadyLoaded)
+      return false;
   }
   return true;
 }
