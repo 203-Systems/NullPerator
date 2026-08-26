@@ -21,8 +21,8 @@
 
 // UI2-only Node/ESP32-S3 task and display boundary. Exactly one application
 // task constructs, mutates, renders, and destroys Ui2TrackerApplication. The
-// input task only publishes sampled physical state; the USB task only services
-// TinyUSB. Legacy AppWindow/GUIWindow objects are not part of this graph.
+// input task only publishes sampled physical state. USB OTG/TinyUSB remains
+// disabled so the USB-Serial/JTAG programming path is never claimed here.
 class NodeUi2Platform final : public ui2::IUiPresenter {
 public:
   enum class State : std::uint8_t {
@@ -80,17 +80,14 @@ public:
 private:
   static constexpr std::uint32_t kApplicationTaskStackBytes = 16U * 1024U;
   static constexpr std::uint32_t kInputTaskStackBytes = 4U * 1024U;
-  static constexpr std::uint32_t kUsbTaskStackBytes = 2U * 1024U;
   static constexpr EventBits_t kApplicationStoppedBit = BIT0;
   static constexpr EventBits_t kInputStoppedBit = BIT1;
-  static constexpr EventBits_t kUsbStoppedBit = BIT2;
   static constexpr EventBits_t kInputPublishedBit = BIT3;
   static constexpr EventBits_t kAllStoppedBits =
-      kApplicationStoppedBit | kInputStoppedBit | kUsbStoppedBit;
+      kApplicationStoppedBit | kInputStoppedBit;
 
   static void ApplicationTaskEntry(void *context);
   static void InputTaskEntry(void *context);
-  static void UsbTaskEntry(void *context);
   static bool WriteRgb565Chunk(void *context, std::uint16_t x,
                                std::uint16_t y, std::uint16_t width,
                                std::uint16_t height,
@@ -98,7 +95,6 @@ private:
 
   void RunApplicationTask();
   void RunInputTask();
-  void RunUsbTask();
   void PublishInputSample(std::uint16_t heldMask, bool headphoneConnected,
                           std::uint32_t nowMs);
   [[nodiscard]] node::ui2::InputMailbox::Batch DrainInput();
@@ -122,5 +118,5 @@ private:
   EventGroupHandle_t taskEvents_ = nullptr;
 };
 
-static_assert(ui2::UiRgb565Presenter::kChunkRows == 8U);
-static_assert(ui2::UiRgb565Presenter::kTransferPixels == 240U * 8U);
+static_assert(ui2::UiRgb565Presenter::kChunkRows == 24U);
+static_assert(ui2::UiRgb565Presenter::kTransferPixels == 240U * 24U);

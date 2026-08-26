@@ -15,7 +15,6 @@
 
 #include "esp_attr.h"
 #include "esp_log.h"
-#include "tusb.h"
 
 #include <algorithm>
 #include <memory>
@@ -24,7 +23,7 @@ namespace {
 
 constexpr char kLogTag[] = "NODE_UI2";
 
-// Static internal DRAM is DMA-capable on ESP32-S3. UI2 converts at most eight
+// Static internal DRAM is DMA-capable on ESP32-S3. UI2 converts at most 24
 // 240-pixel rows at a time and the synchronous display transport completes the
 // transfer before this buffer is reused; there is no second 240x240 RGB frame.
 DMA_ATTR std::uint16_t
@@ -55,13 +54,13 @@ DMA_ATTR std::uint16_t
   set(TrackerAction::Down, buttons.down);
   set(TrackerAction::Right, buttons.right);
   set(TrackerAction::Up, buttons.up);
-  set(TrackerAction::Shift, buttons.select);
+  set(TrackerAction::Play, buttons.select);
   set(TrackerAction::Option, buttons.b);
   // The current HAL deliberately reports A=false for a board-level stuck-key
   // workaround. Keep the semantic mapping here; restoring the physical EDIT
   // source belongs in HAL and must not be hidden by a platform remap.
   set(TrackerAction::Edit, buttons.a);
-  set(TrackerAction::Play, buttons.start);
+  set(TrackerAction::Shift, buttons.start);
   set(TrackerAction::Power, buttons.func);
   return mask;
 }
@@ -75,7 +74,8 @@ NodeUi2Platform::NodeUi2Platform(void *applicationStorage,
       rgb565Presenter_(gUi2TransferPixels,
                        ui2::UiRgb565Presenter::kTransferPixels,
                        &NodeUi2Platform::WriteRgb565Chunk, this,
-                       ui2::UiRgb565ByteOrder::MostSignificantByteFirst) {
+                       ui2::UiRgb565ByteOrder::MostSignificantByteFirst,
+                       ui2::UiRgb565ToneCurve::St7789Contrast) {
   taskEvents_ = xEventGroupCreateStatic(&taskEventsStorage_);
 }
 
@@ -144,16 +144,6 @@ bool NodeUi2Platform::Start(ui2::Ui2StartupOptions startup) {
     return false;
   }
 
-  xEventGroupClearBits(taskEvents_, kUsbStoppedBit);
-  if (xTaskCreatePinnedToCore(UsbTaskEntry, "USB Device", kUsbTaskStackBytes,
-                              this, tskIDLE_PRIORITY + 2, nullptr, 0) !=
-      pdPASS) {
-    ESP_LOGE(kLogTag, "Failed to create USB service task");
-    xEventGroupSetBits(taskEvents_, kUsbStoppedBit);
-    RequestStop();
-    state_.store(State::Failed, std::memory_order_release);
-    return false;
-  }
   return true;
 }
 
@@ -198,10 +188,6 @@ void NodeUi2Platform::ApplicationTaskEntry(void *context) {
 
 void NodeUi2Platform::InputTaskEntry(void *context) {
   static_cast<NodeUi2Platform *>(context)->RunInputTask();
-}
-
-void NodeUi2Platform::UsbTaskEntry(void *context) {
-  static_cast<NodeUi2Platform *>(context)->RunUsbTask();
 }
 
 void NodeUi2Platform::PublishInputSample(std::uint16_t heldMask,
@@ -366,15 +352,5 @@ void NodeUi2Platform::RunInputTask() {
     vTaskDelayUntil(&wake, pdMS_TO_TICKS(kInputScanMs));
   }
   MarkTaskStopped(kInputStoppedBit);
-  vTaskDelete(nullptr);
-}
-
-void NodeUi2Platform::RunUsbTask() {
-  TickType_t wake = xTaskGetTickCount();
-  while (runRequested_.load(std::memory_order_acquire)) {
-    tud_task();
-    vTaskDelayUntil(&wake, pdMS_TO_TICKS(kUsbServiceMs));
-  }
-  MarkTaskStopped(kUsbStoppedBit);
   vTaskDelete(nullptr);
 }

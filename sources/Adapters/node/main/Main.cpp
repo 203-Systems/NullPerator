@@ -8,7 +8,6 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "tusb.h"
 
 #include <cstddef>
 #include <memory>
@@ -19,10 +18,6 @@ constexpr char kLogTag[] = "NODE_UI2_MAIN";
 
 int RunUi2Product(int argc, char **argv) {
   board_init();
-  if (!tusb_init()) {
-    ESP_LOGE(kLogTag, "TinyUSB initialization failed");
-    return 1;
-  }
   platform_init();
 
   if (!NodeUi2System::Boot(argc, argv)) {

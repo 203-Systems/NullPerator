@@ -1180,13 +1180,11 @@ TEST_CASE("UI2 RGB565 presenter chunks dirty strips without a framebuffer") {
       ui2::UiRgb565ByteOrder::MostSignificantByteFirst);
   CHECK(presenter.Present(surface, palette, strips) ==
         ui2::PresentResult::Presented);
-  REQUIRE(probe.calls == 2);
+  REQUIRE(probe.calls == 1);
   CHECK(probe.records[0].x == 4);
   CHECK(probe.records[0].y == 5);
   CHECK(probe.records[0].width == 3);
-  CHECK(probe.records[0].height == 8);
-  CHECK(probe.records[1].y == 13);
-  CHECK(probe.records[1].height == 2);
+  CHECK(probe.records[0].height == 10);
 
   const std::uint16_t cursor565 = palette.Rgb565(cursor);
   const std::uint16_t field565 = palette.Rgb565(field);
@@ -1196,10 +1194,10 @@ TEST_CASE("UI2 RGB565 presenter chunks dirty strips without a framebuffer") {
         static_cast<std::uint16_t>((field565 >> 8U) | (field565 << 8U)));
 
   probe = {};
-  probe.failOnCall = 2;
+  probe.failOnCall = 1;
   CHECK(presenter.Present(surface, palette, strips) ==
         ui2::PresentResult::Deferred);
-  CHECK(probe.calls == 2);
+  CHECK(probe.calls == 1);
 
   std::array<std::uint16_t, 1> undersized{};
   Rgb565WriteProbe rejectedProbe;
@@ -1299,7 +1297,7 @@ TEST_CASE("UI2 firmware runtime keeps a fixed bounded memory footprint") {
   CHECK(sizeof(ui2::UiApplicationRuntime) < 77'000);
   CHECK(sizeof(ui2::UiRgb565Presenter) <= 64);
   CHECK(ui2::UiRgb565Presenter::kTransferPixels * sizeof(std::uint16_t) ==
-        3'840);
+        11'520);
 }
 
 TEST_CASE("UI2 battery sampling is bounded to 1 Hz and refreshes after play") {

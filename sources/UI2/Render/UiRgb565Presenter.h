@@ -18,12 +18,17 @@ enum class UiRgb565ByteOrder : std::uint8_t {
   MostSignificantByteFirst,
 };
 
+enum class UiRgb565ToneCurve : std::uint8_t {
+  Linear,
+  St7789Contrast,
+};
+
 // Converts the indexed UI2 surface into small RGB565 DMA chunks. It deliberately
-// owns no second framebuffer: the largest allocation is one 240 x 8 transfer
-// block (3,840 bytes), independent of the number or size of dirty regions.
+// owns no second framebuffer: the largest allocation is one 240 x 24 transfer
+// block (11,520 bytes), independent of the number or size of dirty regions.
 class UiRgb565Presenter final : public IUiPresenter {
 public:
-  static constexpr std::uint16_t kChunkRows = 8;
+  static constexpr std::uint16_t kChunkRows = 24;
   static constexpr std::size_t kTransferPixels =
       static_cast<std::size_t>(kScreenWidth) * kChunkRows;
 
@@ -35,9 +40,11 @@ public:
   UiRgb565Presenter(std::uint16_t *transferPixels,
                     std::size_t transferPixelCount,
                     WriteChunkFunction writeChunk, void *context,
-                    UiRgb565ByteOrder byteOrder)
+                    UiRgb565ByteOrder byteOrder,
+                    UiRgb565ToneCurve toneCurve = UiRgb565ToneCurve::Linear)
       : transfer_(transferPixels), transferPixelCount_(transferPixelCount),
-        writeChunk_(writeChunk), context_(context), byteOrder_(byteOrder) {}
+        writeChunk_(writeChunk), context_(context), byteOrder_(byteOrder),
+        toneCurve_(toneCurve) {}
 
   PresentResult Present(const UiIndexedSurface &surface,
                         const UiPalette &palette,
@@ -51,6 +58,7 @@ private:
   WriteChunkFunction writeChunk_ = nullptr;
   void *context_ = nullptr;
   UiRgb565ByteOrder byteOrder_ = UiRgb565ByteOrder::Native;
+  UiRgb565ToneCurve toneCurve_ = UiRgb565ToneCurve::Linear;
 };
 
 static_assert(sizeof(UiRgb565Presenter) <= 64);
