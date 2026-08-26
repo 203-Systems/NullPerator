@@ -76,6 +76,8 @@ public:
 
   [[nodiscard]] bool Supports(const IUiApplicationStateSource &source) const;
   [[nodiscard]] PresentResult Present(IUiApplicationStateSource &source);
+  void ApplyThemeColors(
+      const std::array<std::uint32_t, UiPalette::kUserColorCount> &colors);
   void Invalidate() {
     previousValid_ = false;
     dialogPreviousValid_ = false;
@@ -83,7 +85,8 @@ public:
     topMetaTargetValid_ = false;
     bottomTrackTargetValid_ = false;
     dialogCursorTargetValid_ = false;
-    activePage_ = RuntimePage::None;
+    pageTransitionActive_ = false;
+    pageBars_.Reset();
   }
 
   // Integer-only approximation of the legacy -60 dB..0 dB meter mapping.
@@ -231,6 +234,10 @@ private:
                               IUiApplicationStateSource &source,
                               UiNavTarget target, std::uint32_t nowMs);
   void CaptureDialog(IUiApplicationStateSource &source);
+  void BeginPageTransition(RuntimePage from, RuntimePage to,
+                           std::uint32_t nowMs);
+  void BeginPageTransition(UiSlideDirection direction, std::uint32_t nowMs);
+  void RenderFullScene();
   void ActivatePage(RuntimePage page);
   [[nodiscard]] bool DialogChanged() const;
   [[nodiscard]] bool RequiresFullRebuild() const;
@@ -273,6 +280,10 @@ private:
   UiEngineStorage engineStorage_{};
   UiEngine engine_;
   UiFrameScene scene_{};
+  UiPageBarTransition pageBars_{};
+  std::uint32_t pageTransitionStartMs_ = 0;
+  PointI16 previousPageOutgoing_{};
+  UiSlideDirection pageTransitionDirection_ = UiSlideDirection::Left;
   FrameStorage frames_{};
   UiCursorAnimatorSet cursors_{};
   RectI16 cursorTarget_{};
@@ -289,6 +300,7 @@ private:
   bool topMetaTargetValid_ = false;
   bool bottomTrackTargetValid_ = false;
   bool navigationCursorTargetValid_ = false;
+  bool pageTransitionActive_ = false;
   bool previousValid_ = false;
   bool dialogPreviousValid_ = false;
   bool dialogCursorTargetValid_ = false;

@@ -34,8 +34,9 @@ enum class WasmTraceFlag : std::uint16_t {
   Success = 1U << 0,
   Failure = 1U << 1,
   Populate = 1U << 2,
-  // Input event flags are name-specific. Low four bits retain the WasmAction;
-  // these high bits explain why an accepted latency ticket was retired.
+  // Input event flags are name-specific. Low four bits retain the semantic
+  // TrackerAction id; these high bits explain why an accepted latency ticket
+  // was retired.
   InputOverflow = 1U << 8,
   InputNoPresentation = 1U << 9,
   InputCoalesced = 1U << 10,

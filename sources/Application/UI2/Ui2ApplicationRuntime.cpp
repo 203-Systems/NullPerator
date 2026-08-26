@@ -19,7 +19,97 @@ constexpr std::uint16_t kGrooveCursorDurationMs = 120;
 constexpr std::uint16_t kListCursorDurationMs = 120;
 constexpr std::uint16_t kDialogCursorDurationMs = 110;
 
+bool PageTransitionDirection(UiApplicationPage from, UiApplicationPage to,
+                             UiSlideDirection &direction) {
+  const auto pair = [&](UiApplicationPage a, UiApplicationPage b,
+                        UiSlideDirection forward,
+                        UiSlideDirection reverse) -> bool {
+    if (from == a && to == b) {
+      direction = forward;
+      return true;
+    }
+    if (from == b && to == a) {
+      direction = reverse;
+      return true;
+    }
+    return false;
+  };
+  return pair(UiApplicationPage::Song, UiApplicationPage::Chain,
+              UiSlideDirection::Left, UiSlideDirection::Right) ||
+         pair(UiApplicationPage::Chain, UiApplicationPage::Phrase,
+              UiSlideDirection::Left, UiSlideDirection::Right) ||
+         pair(UiApplicationPage::Phrase, UiApplicationPage::Instrument,
+              UiSlideDirection::Left, UiSlideDirection::Right) ||
+         pair(UiApplicationPage::Song, UiApplicationPage::Project,
+              UiSlideDirection::Down, UiSlideDirection::Up) ||
+         pair(UiApplicationPage::Song, UiApplicationPage::Mixer,
+              UiSlideDirection::Up, UiSlideDirection::Down) ||
+         pair(UiApplicationPage::Phrase, UiApplicationPage::Groove,
+              UiSlideDirection::Down, UiSlideDirection::Up) ||
+         pair(UiApplicationPage::Phrase, UiApplicationPage::Table,
+              UiSlideDirection::Up, UiSlideDirection::Down) ||
+         pair(UiApplicationPage::Instrument, UiApplicationPage::Table,
+              UiSlideDirection::Up, UiSlideDirection::Down) ||
+         pair(UiApplicationPage::Project, UiApplicationPage::Device,
+              UiSlideDirection::Down, UiSlideDirection::Up);
+}
+
+[[nodiscard]] UnitQ16 TransitionProgress(std::uint32_t startMs,
+                                         std::uint32_t nowMs,
+                                         std::uint16_t durationMs) {
+  const std::uint32_t elapsed = nowMs - startMs;
+  if (elapsed >= durationMs)
+    return 65'535;
+  return EaseOutCubic(static_cast<UnitQ16>(
+      (static_cast<std::uint64_t>(elapsed) * 65'535U) / durationMs));
+}
+
+[[nodiscard]] UiLayerOffsets TransitionOffsets(UiSlideDirection direction,
+                                               std::uint32_t startMs,
+                                               std::uint32_t nowMs) {
+  PointI16 entry{};
+  switch (direction) {
+  case UiSlideDirection::Left:
+    entry.x = kScreenWidth;
+    break;
+  case UiSlideDirection::Right:
+    entry.x = -kScreenWidth;
+    break;
+  case UiSlideDirection::Up:
+    entry.y = kScreenHeight;
+    break;
+  case UiSlideDirection::Down:
+    entry.y = -kScreenHeight;
+    break;
+  }
+  const std::int32_t progress = TransitionProgress(
+      startMs, nowMs, UiTransitionTimeline::kContentDurationMs);
+  const auto distance = [progress](std::int16_t value) {
+    return static_cast<std::int16_t>(
+        (static_cast<std::int32_t>(value) * progress) >> 16U);
+  };
+  const PointI16 travelled{distance(entry.x), distance(entry.y)};
+  return {{static_cast<std::int16_t>(-travelled.x),
+           static_cast<std::int16_t>(-travelled.y)},
+          {static_cast<std::int16_t>(entry.x - travelled.x),
+           static_cast<std::int16_t>(entry.y - travelled.y)}};
+}
+
 } // namespace
+
+void UiApplicationRuntime::ApplyThemeColors(
+    const std::array<std::uint32_t, UiPalette::kUserColorCount> &colors) {
+  std::array<Rgb888, UiPalette::kUserColorCount> unpacked{};
+  for (std::size_t index = 0; index < colors.size(); ++index) {
+    const std::uint32_t packed = colors[index];
+    unpacked[index] = {
+        static_cast<std::uint8_t>((packed >> 16U) & 0xFFU),
+        static_cast<std::uint8_t>((packed >> 8U) & 0xFFU),
+        static_cast<std::uint8_t>(packed & 0xFFU)};
+  }
+  engine_.Palette().SetUserColors(unpacked);
+  Invalidate();
+}
 
 UiApplicationRuntime::PowerFrameState
 UiApplicationRuntime::CapturePowerState(IUiApplicationStateSource &source,
@@ -75,11 +165,48 @@ void UiApplicationRuntime::UpdateNavigationCursor(
                       kSongCursorDurationMs);
     navigationCursorTarget_ = targetRect;
   }
-  cursor.selectionRect =
-      cursors_.Sample(UiCursorRole::ChromeNavigation, nowMs);
+  cursor.selectionRect = cursors_.Sample(UiCursorRole::ChromeNavigation, nowMs);
   cursor.selectionOverride = true;
-  cursor.inkVisible =
-      !cursors_.Active(UiCursorRole::ChromeNavigation, nowMs);
+  cursor.inkVisible = !cursors_.Active(UiCursorRole::ChromeNavigation, nowMs);
+}
+
+void UiApplicationRuntime::BeginPageTransition(RuntimePage from, RuntimePage to,
+                                               std::uint32_t nowMs) {
+  UiSlideDirection direction = UiSlideDirection::Left;
+  if (!PageTransitionDirection(from, to, direction)) {
+    pageTransitionActive_ = false;
+    pageBars_.Reset();
+    return;
+  }
+  BeginPageTransition(direction, nowMs);
+}
+
+void UiApplicationRuntime::BeginPageTransition(UiSlideDirection direction,
+                                               std::uint32_t nowMs) {
+  pageBars_.Begin(scene_, engine_.Palette(), nowMs);
+  pageTransitionStartMs_ = nowMs;
+  pageTransitionDirection_ = direction;
+  previousPageOutgoing_ = {};
+  pageTransitionActive_ = true;
+}
+
+void UiApplicationRuntime::RenderFullScene() {
+  if (pageTransitionActive_) {
+    const bool active = frameNowMs_ - pageTransitionStartMs_ <
+                        UiTransitionTimeline::kContentDurationMs;
+    if (active) {
+      const UiLayerOffsets offsets = TransitionOffsets(
+          pageTransitionDirection_, pageTransitionStartMs_, frameNowMs_);
+      UiFrameRenderer::AdvancePageTransition(
+          scene_, offsets, {previousPageOutgoing_, {}}, frameNowMs_, pageBars_,
+          engine_.Surface(), engine_.Palette());
+      previousPageOutgoing_ = offsets.outgoing;
+      return;
+    }
+    pageTransitionActive_ = false;
+    pageBars_.Reset();
+  }
+  UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
 }
 
 void UiApplicationRuntime::ActivatePage(RuntimePage page) {
@@ -174,10 +301,13 @@ void UiApplicationRuntime::CaptureDialog(IUiApplicationStateSource &source) {
 }
 
 bool UiApplicationRuntime::DialogChanged() const {
-  return !dialogPreviousValid_ || currentDialog_ != previousDialog_;
+  return pageTransitionActive_ || !dialogPreviousValid_ ||
+         currentDialog_ != previousDialog_;
 }
 
 bool UiApplicationRuntime::RequiresFullRebuild() const {
+  if (pageTransitionActive_)
+    return true;
   if (!previousValid_ || !dialogPreviousValid_)
     return true;
   if (currentDialog_.active != previousDialog_.active)
@@ -226,10 +356,19 @@ PresentResult UiApplicationRuntime::Present(IUiApplicationStateSource &source) {
   const RuntimePage page = source.ActivePage();
   if (page == RuntimePage::None)
     return PresentResult::Deferred;
+  const UiTextCaseMode textCase = source.TextCase();
+  if (scene_.textCase != textCase) {
+    scene_.textCase = textCase;
+    previousValid_ = false;
+    dialogPreviousValid_ = false;
+  }
   const std::uint32_t nowMs = source.NowMs();
   frameNowMs_ = nowMs;
-  if (page != activePage_)
+  if (page != activePage_) {
+    if (activePage_ != RuntimePage::None && source.NavigationHeld())
+      BeginPageTransition(activePage_, page, nowMs);
     ActivatePage(page);
+  }
   CaptureDialog(source);
   switch (page) {
   case RuntimePage::Song:
@@ -274,8 +413,7 @@ UiApplicationRuntime::PresentSong(IUiApplicationStateSource &source,
   SongFrameState &current = frames_.song.current;
   SongFrameState &previous = frames_.song.previous;
   const UiApplicationActivityState activity = source.CaptureSong(current);
-  current.power = current.navHeld ? UiPowerState::Navigation
-                                  : CurrentPowerState(source, activity.active);
+  current.power = CurrentPowerState(source, activity.active);
   UpdateNavigationCursor(current.navCursor, source, UiNavTarget::Song, nowMs);
   const RectI16 target =
       UiSongView::CursorTargetRect(current.editTrack, current.editRow);
@@ -291,6 +429,7 @@ UiApplicationRuntime::PresentSong(IUiApplicationStateSource &source,
   current.cursorVisualRect = cursors_.Sample(UiCursorRole::Content, nowMs);
   current.cursorVisualOverride = true;
   current.cursorInkVisible = !cursors_.Active(UiCursorRole::Content, nowMs);
+  bottomTrackTargetValid_ = false;
   const bool baseChanged = !previousValid_ || current != previous;
   if (!baseChanged && !DialogChanged()) {
     return engine_.PresentDirty();
@@ -307,7 +446,7 @@ UiApplicationRuntime::PresentSong(IUiApplicationStateSource &source,
     return PresentResult::Failed;
   }
   if (RequiresFullRebuild()) {
-    UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
+    RenderFullScene();
   } else {
     if (baseChanged && !FullScreenDialogActive()) {
       const UiSongViewData previousData = ViewDataFor(previous);
@@ -389,8 +528,7 @@ UiApplicationRuntime::PresentChain(IUiApplicationStateSource &source,
   ChainFrameState &current = frames_.chain.current;
   ChainFrameState &previous = frames_.chain.previous;
   const UiApplicationActivityState activity = source.CaptureChain(current);
-  current.power = current.navHeld ? UiPowerState::Navigation
-                                  : CurrentPowerState(source, activity.active);
+  current.power = CurrentPowerState(source, activity.active);
   UpdateNavigationCursor(current.navCursor, source, UiNavTarget::Chain, nowMs);
   if (current.numberFocus) {
     const UiTopBarModel top{.title = "CHAIN", .meta = current.number.data()};
@@ -457,7 +595,7 @@ UiApplicationRuntime::PresentChain(IUiApplicationStateSource &source,
     return PresentResult::Failed;
   }
   if (RequiresFullRebuild()) {
-    UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
+    RenderFullScene();
   } else {
     if (baseChanged && !FullScreenDialogActive()) {
       const UiChainViewData previousData = ViewDataFor(previous);
@@ -495,11 +633,12 @@ UiApplicationRuntime::ViewDataFor(const PhraseFrameState &state) {
     data.cursorBottom.context.firstLineCount = 2;
     data.cursorBottom.context.firstLine[0] = {.text = state.contextLead.data(),
                                               .color =
-                                                  UiColorToken::CursorPrimary,
+                                                  UiColorToken::TextColored,
                                               .x = 9};
     data.cursorBottom.context.firstLine[1] = {.text = state.contextTail.data(),
                                               .color = UiColorToken::TextNormal,
-                                              .x = 94};
+                                              .x = 94,
+                                              .userData = true};
   } else if (state.context == UiPhraseContext::Fx) {
     data.cursorBottom.kind = UiBottomBarKind::Context;
     data.cursorBottom.context.firstLineCount =
@@ -553,10 +692,8 @@ UiApplicationRuntime::PresentPhrase(IUiApplicationStateSource &source,
   PhraseFrameState &current = frames_.phrase.current;
   PhraseFrameState &previous = frames_.phrase.previous;
   const UiApplicationActivityState activity = source.CapturePhrase(current);
-  current.power = current.navHeld ? UiPowerState::Navigation
-                                  : CurrentPowerState(source, activity.active);
-  UpdateNavigationCursor(current.navCursor, source, UiNavTarget::Phrase,
-                         nowMs);
+  current.power = CurrentPowerState(source, activity.active);
+  UpdateNavigationCursor(current.navCursor, source, UiNavTarget::Phrase, nowMs);
   if (current.numberFocus) {
     const UiTopBarModel top{
         .title = "PHRASE", .meta = current.number.data(), .metaX = 85};
@@ -623,7 +760,7 @@ UiApplicationRuntime::PresentPhrase(IUiApplicationStateSource &source,
     return PresentResult::Failed;
   }
   if (RequiresFullRebuild()) {
-    UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
+    RenderFullScene();
   } else {
     if (baseChanged && !FullScreenDialogActive()) {
       const UiPhraseViewData previousData = ViewDataFor(previous);
@@ -709,13 +846,17 @@ UiApplicationRuntime::PresentTable(IUiApplicationStateSource &source,
   TableFrameState &current = frames_.table.current;
   TableFrameState &previous = frames_.table.previous;
   const UiApplicationActivityState activity = source.CaptureTable(current);
-  current.power = current.navHeld ? UiPowerState::Navigation
-                                  : CurrentPowerState(source, activity.active);
-  UpdateNavigationCursor(
-      current.navCursor, source,
-      current.number[0] == 'I' ? UiNavTarget::InstrumentTable
-                               : UiNavTarget::PhraseTable,
-      nowMs);
+  if (previousValid_ && source.NavigationHeld() &&
+      current.number[0] != previous.number[0]) {
+    BeginPageTransition(current.number[0] == 'I' ? UiSlideDirection::Left
+                                                 : UiSlideDirection::Right,
+                        nowMs);
+  }
+  current.power = CurrentPowerState(source, activity.active);
+  UpdateNavigationCursor(current.navCursor, source,
+                         current.number[0] == 'I' ? UiNavTarget::InstrumentTable
+                                                  : UiNavTarget::PhraseTable,
+                         nowMs);
   if (current.numberFocus) {
     const UiTopBarModel top{.title = "TABLE", .meta = current.number.data()};
     const RectI16 topTarget = UiChromeRenderer::MetaTargetRect(top);
@@ -780,7 +921,7 @@ UiApplicationRuntime::PresentTable(IUiApplicationStateSource &source,
     return PresentResult::Failed;
   }
   if (RequiresFullRebuild()) {
-    UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
+    RenderFullScene();
   } else {
     if (baseChanged && !FullScreenDialogActive()) {
       const UiTableViewData previousData = ViewDataFor(previous);
@@ -809,7 +950,7 @@ UiApplicationRuntime::ViewDataFor(const InstrumentFrameState &state) {
   for (std::size_t index = 0; index < state.fieldCount; ++index) {
     data.fields[index] = {state.fields[index].label.data(),
                           state.fields[index].value.data(),
-                          state.fields[index].y};
+                          state.fields[index].y, state.fields[index].userData};
   }
   data.operatorCount = state.operatorCount;
   for (std::size_t index = 0; index < state.operatorCount; ++index) {
@@ -834,6 +975,13 @@ UiApplicationRuntime::ViewDataFor(const InstrumentFrameState &state) {
   data.topMetaInkVisible = state.topMetaInkVisible;
   data.bottomTrackInkVisible = state.bottomTrackInkVisible;
   data.numberFocus = state.numberFocus;
+  data.enterSubfieldFocus = state.enterSubfieldFocus;
+  data.adjustmentFocus = state.adjustmentFocus;
+  data.adjustmentNote = state.adjustmentNote;
+  data.adjustmentFineStep = state.adjustmentFineStep;
+  data.adjustmentCoarseStep = state.adjustmentCoarseStep;
+  data.selectedSubfield = state.selectedSubfield;
+  data.subfieldTextOffset = state.subfieldTextOffset;
   data.scrollOffset = state.scrollOffset;
   data.power = state.power;
   data.navCursor = state.navCursor;
@@ -891,11 +1039,19 @@ UiApplicationRuntime::PresentInstrument(IUiApplicationStateSource &source,
         UiInstrumentView::RevealCursor(previousScroll, capture);
     capture.scrollOffset = current.scrollOffset;
     const RectI16 target = UiInstrumentView::CursorTargetRect(capture);
+    const bool scrollChanged =
+        previousValid_ && current.scrollOffset != previousScroll;
+    if (scrollChanged && cursorTargetValid_) {
+      RectI16 rebased = cursors_.Sample(UiCursorRole::Content, nowMs);
+      rebased.y = static_cast<std::int16_t>(
+          rebased.y + current.scrollOffset - previousScroll);
+      cursors_.Snap(UiCursorRole::Content, rebased, nowMs);
+    }
     if (!cursorTargetValid_) {
       cursors_.Snap(UiCursorRole::Content, target, nowMs);
       cursorTarget_ = target;
       cursorTargetValid_ = true;
-    } else if (target != cursorTarget_) {
+    } else if (target != cursorTarget_ || scrollChanged) {
       cursors_.Retarget(UiCursorRole::Content, target, nowMs,
                         kPhraseCursorDurationMs);
       cursorTarget_ = target;
@@ -919,7 +1075,7 @@ UiApplicationRuntime::PresentInstrument(IUiApplicationStateSource &source,
     return PresentResult::Failed;
   }
   if (RequiresFullRebuild()) {
-    UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
+    RenderFullScene();
   } else {
     if (baseChanged && !FullScreenDialogActive()) {
       const UiInstrumentViewData previousData = ViewDataFor(previous);
@@ -1005,7 +1161,7 @@ UiApplicationRuntime::PresentProject(IUiApplicationStateSource &source,
     return PresentResult::Failed;
   }
   if (RequiresFullRebuild()) {
-    UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
+    RenderFullScene();
   } else {
     if (baseChanged && !FullScreenDialogActive()) {
       UiProjectView::RenderDelta(ViewDataFor(previous), data, scene_,
@@ -1040,6 +1196,7 @@ UiApplicationRuntime::ViewDataFor(const DeviceFrameState &state) {
   data.selectorCount = state.selectorCount;
   data.selectorCurrent = state.selectorCurrent;
   data.selectorWrap = state.selectorWrap;
+  data.editHeld = state.editHeld;
   data.showLineOut = state.showLineOut;
   data.showVolume = state.showVolume;
   data.showTheme = state.showTheme;
@@ -1107,7 +1264,7 @@ UiApplicationRuntime::PresentDevice(IUiApplicationStateSource &source,
     return PresentResult::Failed;
   }
   if (RequiresFullRebuild()) {
-    UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
+    RenderFullScene();
   } else {
     if (baseChanged && !FullScreenDialogActive()) {
       const UiDeviceViewData previousData = ViewDataFor(previous);
@@ -1138,6 +1295,11 @@ UiApplicationRuntime::PresentTheme(IUiApplicationStateSource &source,
   const std::int16_t previousScroll =
       previousValid_ ? previous.view.scrollOffset : 0;
   const UiApplicationActivityState activity = source.CaptureTheme(current);
+  if (current.colorsValid &&
+      (!previousValid_ || !previous.colorsValid ||
+       current.colors != previous.colors)) {
+    ApplyThemeColors(current.colors);
+  }
   current.view.power = CurrentPowerState(source, activity.active);
   UiThemeViewData capture = ViewDataFor(current);
   current.view.scrollOffset =
@@ -1181,7 +1343,7 @@ UiApplicationRuntime::PresentTheme(IUiApplicationStateSource &source,
     return PresentResult::Failed;
   }
   if (RequiresFullRebuild()) {
-    UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
+    RenderFullScene();
   } else {
     if (baseChanged && !FullScreenDialogActive()) {
       UiThemeView::RenderDelta(ViewDataFor(previous), data, scene_,
@@ -1198,18 +1360,18 @@ UiApplicationRuntime::PresentTheme(IUiApplicationStateSource &source,
   return result;
 }
 
-UiFontViewData
-UiApplicationRuntime::ViewDataFor(const FontFrameState &state) {
+UiFontViewData UiApplicationRuntime::ViewDataFor(const FontFrameState &state) {
   return state.ToViewData();
 }
 
-PresentResult UiApplicationRuntime::PresentFont(
-    IUiApplicationStateSource &source, std::uint32_t nowMs) {
+PresentResult
+UiApplicationRuntime::PresentFont(IUiApplicationStateSource &source,
+                                  std::uint32_t nowMs) {
   FontFrameState &current = frames_.font.current;
   FontFrameState &previous = frames_.font.previous;
   const UiApplicationActivityState activity = source.CaptureFont(current);
   current.power = CurrentPowerState(source, activity.active);
-  const RectI16 target = UiFontView::CursorTargetRect();
+  const RectI16 target = UiFontView::CursorTargetRect(current.cursor);
   if (!cursorTargetValid_) {
     cursors_.Snap(UiCursorRole::Content, target, nowMs);
     cursorTarget_ = target;
@@ -1232,7 +1394,7 @@ PresentResult UiApplicationRuntime::PresentFont(
       ApplyDialog() != UiBuildStatus::Built)
     return PresentResult::Failed;
   if (RequiresFullRebuild()) {
-    UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
+    RenderFullScene();
   } else {
     if (baseChanged && !FullScreenDialogActive())
       UiFontView::RenderDelta(ViewDataFor(previous), data, scene_,
@@ -1304,7 +1466,7 @@ UiApplicationRuntime::PresentBrowser(IUiApplicationStateSource &source,
     return PresentResult::Failed;
   }
   if (RequiresFullRebuild()) {
-    UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
+    RenderFullScene();
   } else {
     if (baseChanged && !FullScreenDialogActive()) {
       const UiBrowserViewData previousData = ViewDataFor(previous);
@@ -1343,8 +1505,7 @@ UiApplicationRuntime::PresentGroove(IUiApplicationStateSource &source,
   GrooveFrameState &previous = frames_.groove.previous;
   const UiApplicationActivityState activity = source.CaptureGroove(current);
   current.power = CurrentPowerState(source, activity.active);
-  UpdateNavigationCursor(current.navCursor, source, UiNavTarget::Groove,
-                         nowMs);
+  UpdateNavigationCursor(current.navCursor, source, UiNavTarget::Groove, nowMs);
   const RectI16 target = UiGrooveView::CursorTargetRect(current.editRow);
   if (!cursorTargetValid_) {
     cursors_.Snap(UiCursorRole::Content, target, nowMs);
@@ -1374,7 +1535,7 @@ UiApplicationRuntime::PresentGroove(IUiApplicationStateSource &source,
     return PresentResult::Failed;
   }
   if (RequiresFullRebuild()) {
-    UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
+    RenderFullScene();
   } else {
     if (baseChanged && !FullScreenDialogActive()) {
       const UiGrooveViewData previousData = ViewDataFor(previous);
@@ -1428,7 +1589,7 @@ UiApplicationRuntime::PresentMixer(IUiApplicationStateSource &source,
     return PresentResult::Failed;
   }
   if (RequiresFullRebuild()) {
-    UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
+    RenderFullScene();
   } else {
     if (baseChanged && !FullScreenDialogActive()) {
       const UiMixerViewData previousData = ViewDataFor(previous);
@@ -1494,7 +1655,7 @@ UiApplicationRuntime::PresentSampleEditor(IUiApplicationStateSource &source,
     return PresentResult::Failed;
   }
   if (RequiresFullRebuild()) {
-    UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
+    RenderFullScene();
   } else {
     if (baseChanged && !FullScreenDialogActive()) {
       UiSampleEditorView::RenderDelta(ViewDataFor(previous), data, scene_,
@@ -1559,7 +1720,7 @@ UiApplicationRuntime::PresentSampleSlices(IUiApplicationStateSource &source,
     return PresentResult::Failed;
   }
   if (RequiresFullRebuild()) {
-    UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
+    RenderFullScene();
   } else {
     if (baseChanged && !FullScreenDialogActive()) {
       UiSampleSlicesView::RenderDelta(ViewDataFor(previous), data, scene_,
@@ -1627,7 +1788,7 @@ UiApplicationRuntime::PresentRecord(IUiApplicationStateSource &source,
     return PresentResult::Failed;
   }
   if (RequiresFullRebuild()) {
-    UiFrameRenderer::RenderStatic(scene_, engine_.Surface(), engine_.Palette());
+    RenderFullScene();
   } else {
     if (baseChanged && !FullScreenDialogActive()) {
       UiRecordView::RenderDelta(ViewDataFor(previous), data, scene_,

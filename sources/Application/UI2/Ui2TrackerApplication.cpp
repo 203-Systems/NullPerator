@@ -5,7 +5,21 @@
  */
 
 #include "Application/UI2/Ui2TrackerApplication.h"
+#include "Application/UI2/Ui2BrightnessMapping.h"
+#include "Application/UI2/Ui2DeviceLifecycleService.h"
+#include "Application/UI2/Ui2InstrumentImportTransaction.h"
+#include "Application/UI2/Ui2InstrumentParameters.h"
+#include "Application/UI2/Ui2InstrumentTableAllocation.h"
+#include "Application/UI2/Ui2InstrumentTypeTransaction.h"
+#include "Application/UI2/Ui2SampleFileOperations.h"
+#include "Application/UI2/Ui2TransportPolicy.h"
 
+#include "Application/Audio/RecordingPlatform.h"
+#include "Application/Instruments/SampleInstrument.h"
+#include "Application/Instruments/SamplePool.h"
+#include "Application/Instruments/SoundSource.h"
+#include "Application/Instruments/MidiInstrument.h"
+#include "Application/Instruments/SIDInstrument.h"
 #include "Application/Model/Config.h"
 #include "Application/Model/Groove.h"
 #include "Application/Model/Scale.h"
@@ -15,11 +29,21 @@
 #include "System/FileSystem/FileSystem.h"
 #include "System/System/System.h"
 
-#include <cstring>
 #include <algorithm>
+#include <cstdio>
+#include <cstring>
 
 namespace ui2 {
 namespace {
+
+// Project is a PersistencyService sub-service. The service must exist before
+// TrackerApplicationSession constructs its Project member, otherwise the
+// Project has nothing to register with and a later Load() can successfully
+// parse the file while restoring none of the project data.
+const char *InstallPersistenceBeforeSession() {
+  PersistencyService::GetInstance();
+  return UNNAMED_PROJECT_NAME;
+}
 
 void EnsureDirectory(FileSystem *fileSystem, const char *path) {
   if (fileSystem != nullptr && !fileSystem->exists(path))
@@ -58,17 +82,80 @@ Ui2TrackerPage TrackerPageFor(UiApplicationPage page) {
   return Ui2TrackerPage::None;
 }
 
+void StartSongTransport(TrackerApplicationSession &session) {
+  const auto track = static_cast<unsigned char>(
+      std::clamp(session.EditorState().songX_, 0, SONG_CHANNEL_COUNT - 1));
+  Player::GetInstance()->OnStartButton(PM_SONG, track, false, track);
+}
+
+SampleInstrument *CurrentSampleInstrument(TrackerApplicationSession &session) {
+  InstrumentBank *bank = session.ProjectModel().GetInstrumentBank();
+  if (bank == nullptr)
+    return nullptr;
+  const auto slot = static_cast<unsigned short>(
+      std::clamp(session.EditorState().currentInstrumentID_, 0,
+                 MAX_INSTRUMENT_COUNT - 1));
+  I_Instrument *instrument = bank->GetInstrument(slot);
+  return instrument != nullptr && instrument->GetType() == IT_SAMPLE
+             ? static_cast<SampleInstrument *>(instrument)
+             : nullptr;
+}
+
+Ui2InstrumentParameterDescriptor ActiveInstrumentParameter(
+    TrackerApplicationSession &session,
+    Ui2InstrumentCursorPosition cursor) {
+  InstrumentBank *bank = session.ProjectModel().GetInstrumentBank();
+  if (bank == nullptr)
+    return {};
+  const auto slot = static_cast<unsigned short>(
+      std::clamp(session.EditorState().currentInstrumentID_, 0,
+                 MAX_INSTRUMENT_COUNT - 1));
+  I_Instrument *instrument = bank->GetInstrument(slot);
+  if (instrument == nullptr)
+    return {};
+  const InstrumentType type = instrument->GetType();
+  const bool sidFirstChip =
+      type != IT_SID || static_cast<SIDInstrument *>(instrument)->GetChip() == SID1;
+  Ui2InstrumentParameterDescriptor descriptor =
+      Ui2InstrumentCursorParameter(type, cursor, sidFirstChip);
+  if (type == IT_SAMPLE && Ui2IsSamplePositionParameter(descriptor)) {
+    descriptor = Ui2ResolveSamplePositionMaximum(
+        descriptor, static_cast<SampleInstrument *>(instrument)->GetSampleSize());
+  }
+  return descriptor;
+}
+
+void ConfigureInstrumentSubfields(TrackerApplicationSession &session,
+                                  Ui2InstrumentController &controller) {
+  const Ui2InstrumentSubfieldSpec spec = Ui2InstrumentSubfields(
+      ActiveInstrumentParameter(session, controller.Cursor()));
+  controller.ConfigureValueSubfields(spec.mode, spec.count);
+}
+
 } // namespace
 
 Ui2TrackerApplication::Ui2TrackerApplication(IUiPresenter &presenter)
-    : session_(UNNAMED_PROJECT_NAME), modelPort_(session_),
+    : session_(InstallPersistenceBeforeSession()), modelPort_(session_),
       tracker_(modelPort_),
-      source_(session_, tracker_, project_, groove_, device_, theme_, rename_,
-              mixer_),
+      projectRenderBackend_(session_.ProjectModel(), session_.EditorState()),
+      projectRender_(projectRenderBackend_),
+      source_(session_, tracker_, project_, projectBrowser_, settingsBrowser_,
+              projectLifecycle_, projectRender_, groove_, device_,
+              deviceLifecycle_, theme_, font_, rename_, mixer_, instrument_,
+              instrumentLifecycle_, instrumentBrowser_, sampleBrowser_,
+              sampleEditor_, sampleSlices_, record_, firmwareLifecycle_),
       runtime_(presenter) {}
 
-bool Ui2TrackerApplication::Init() {
-  PersistencyService::GetInstance();
+Ui2TrackerApplication::~Ui2TrackerApplication() { Shutdown(); }
+
+bool Ui2TrackerApplication::Init(Ui2StartupOptions options) {
+  // UI2-only products do not construct AppWindow, which historically owned
+  // the process-global Status sink. Install a fixed-capacity capture boundary
+  // before loading any project data so progress/errors remain observable by a
+  // platform or a future approved UI treatment instead of disappearing.
+  statusBridge_.Attach();
+  statusBridge_.Clear();
+
   FileSystem *fileSystem = FileSystem::GetInstance();
   EnsureDirectory(fileSystem, PROJECTS_DIR);
   EnsureDirectory(fileSystem, SAMPLES_LIB_DIR);
@@ -76,6 +163,22 @@ bool Ui2TrackerApplication::Init() {
   EnsureDirectory(fileSystem, RENDERS_DIR);
   EnsureDirectory(fileSystem, THEMES_DIR);
   EnsureDirectory(fileSystem, RECORDINGS_DIR);
+
+  // The boot override deliberately clears both recovery locations before any
+  // current-project lookup. The typed result is retained at the service
+  // boundary; visual failure feedback waits for an approved startup/error UI.
+  (void)firmwareLifecycle_.PrepareProjectBoot(options.forceUntitledProject);
+
+  // Legacy AppWindow ignored MIDI startup failure and continued with audio and
+  // project recovery. Preserve that data-safe behavior until a dedicated
+  // startup error state is approved, while still giving UI2 deterministic
+  // ownership and teardown of the service.
+  (void)firmwareLifecycle_.InitializeMidi();
+
+  // Player::Init(), reached from LoadProject(), starts its mixer. Install and
+  // initialize the platform audio service first so Player does not become
+  // permanently not-ready merely because UI2 loaded the project too early.
+  Audio::GetInstance()->Init();
 
   char projectName[MAX_PROJECT_NAME_LENGTH + 1U]{};
   bool createProject = false;
@@ -88,129 +191,195 @@ bool Ui2TrackerApplication::Init() {
       TrackerApplicationSession::LoadResult::Loaded) {
     if (std::strcmp(projectName, UNNAMED_PROJECT_NAME) == 0 ||
         session_.LoadProject(UNNAMED_PROJECT_NAME, true) !=
-            TrackerApplicationSession::LoadResult::Loaded)
+            TrackerApplicationSession::LoadResult::Loaded) {
+      Shutdown();
       return false;
+    }
   }
+  std::snprintf(savedProjectName_.data(), savedProjectName_.size(), "%s",
+                session_.ProjectName());
 
-  Audio::GetInstance()->Init();
   std::uint16_t brightnessPercent = 100U;
+  std::uint16_t midiDevice = 0U;
+  std::uint16_t midiSync = 0U;
+  std::uint16_t remoteUi = 1U;
+  std::uint16_t resampler = 0U;
+  std::uint16_t lineOut = 2U;
+  std::uint16_t volume = 40U;
   if (Config *config = Config::GetInstance()) {
+    const auto configValue = [config](FourCC key, int fallback, int maximum) {
+      if (Variable *value = config->FindVariable(key))
+        return std::clamp(value->GetInt(), 0, maximum);
+      return fallback;
+    };
+    midiDevice =
+        static_cast<std::uint16_t>(configValue(FourCC::VarMidiDevice, 0, 3));
+    midiSync =
+        static_cast<std::uint16_t>(configValue(FourCC::VarMidiSync, 0, 1));
+    remoteUi =
+        static_cast<std::uint16_t>(configValue(FourCC::VarRemoteUI, 1, 1));
+    resampler = static_cast<std::uint16_t>(
+        configValue(FourCC::VarImportResampler, 0, 1));
+    lineOut = static_cast<std::uint16_t>(configValue(FourCC::VarLineOut, 2, 2));
+    volume = static_cast<std::uint16_t>(
+        configValue(FourCC::VarOutputVolume, 40, 100));
+    font_.SetTextCase(
+        static_cast<std::uint8_t>(configValue(FourCC::VarUITextCase, 1, 2)));
     if (Variable *brightness =
             config->FindVariable(FourCC::VarBacklightLevel)) {
-      const int rawBrightness = std::clamp(brightness->GetInt(), 0, 255);
-      brightnessPercent = static_cast<std::uint16_t>(
-          (rawBrightness * 100 + 127) / 255);
+      const int configuredBrightness = brightness->GetInt();
+      const int rawBrightness = std::clamp(
+          configuredBrightness,
+          static_cast<int>(Ui2MinimumVisibleBrightness), 0xFF);
+      brightnessPercent = Ui2BrightnessPercentFromRaw(rawBrightness);
+      if (configuredBrightness != rawBrightness) {
+        brightness->SetInt(rawBrightness);
+        configSave_.MarkDirty();
+      }
       System::GetInstance()->SetDisplayBrightness(
           static_cast<unsigned char>(rawBrightness));
     }
   }
 
+  ApplyCurrentTheme();
+
   initialized_ = true;
-  device_.SetSelector(Ui2DeviceField::MidiDevice, {2U, 0U, false});
-  device_.SetSelector(Ui2DeviceField::MidiSync, {2U, 0U, false});
-  device_.SetSelector(Ui2DeviceField::RemoteUi, {2U, 1U, false});
-  device_.SetSelector(Ui2DeviceField::Resampler, {3U, 0U, true});
-  device_.SetSelector(Ui2DeviceField::LineOut, {2U, 0U, false});
-  device_.SetSelector(Ui2DeviceField::Volume, {101U, 40U, false});
+  const std::uint32_t nowMs = System::GetInstance()->Millis();
+  autoSave_.OnProjectLoaded(nowMs);
+  observedProjectMutationGeneration_ = modelPort_.ProjectMutationGeneration();
+  device_.SetSelector(Ui2DeviceField::MidiDevice, {4U, midiDevice, true});
+  device_.SetSelector(Ui2DeviceField::MidiSync, {2U, midiSync, false});
+  device_.SetSelector(Ui2DeviceField::RemoteUi, {2U, remoteUi, false});
+  device_.SetSelector(Ui2DeviceField::Resampler, {2U, resampler, true});
+  device_.SetSelector(Ui2DeviceField::LineOut, {3U, lineOut, true});
+  device_.SetSelector(Ui2DeviceField::Volume, {101U, volume, false});
   device_.SetSelector(Ui2DeviceField::Brightness,
                       {101U, brightnessPercent, false});
-  device_.SetVisibleFields(
-      Ui2DeviceController::AllFieldsMask &
-      ~(std::uint32_t{1} << static_cast<std::uint8_t>(Ui2DeviceField::LineOut)) &
+  std::uint32_t visibleDeviceFields = Ui2DeviceController::AllFieldsMask;
+#if defined(ADV) || defined(NODE)
+  visibleDeviceFields &=
       ~(std::uint32_t{1}
-        << static_cast<std::uint8_t>(Ui2DeviceField::UpdateFirmware)));
+        << static_cast<std::uint8_t>(Ui2DeviceField::LineOut));
+#else
+  visibleDeviceFields &=
+      ~(std::uint32_t{1}
+        << static_cast<std::uint8_t>(Ui2DeviceField::Volume));
+#endif
+#if defined(NODE)
+  // Strict Node UI2 presents indexed/RGB565 frames directly. Its former
+  // character Remote UI transport is intentionally not linked, so exposing a
+  // selector that cannot have an effect would be misleading. Node hardware
+  // also does not expose the bootloader action; other firmware targets retain
+  // the guarded UPDATE FIRMWARE row.
+  visibleDeviceFields &=
+      ~(std::uint32_t{1}
+        << static_cast<std::uint8_t>(Ui2DeviceField::RemoteUi));
+  visibleDeviceFields &=
+      ~(std::uint32_t{1}
+        << static_cast<std::uint8_t>(Ui2DeviceField::UpdateFirmware));
+#endif
+  device_.SetVisibleFields(visibleDeviceFields);
+  record_.SetGainRanges(RecordingPlatform::kLineInGainMinDb,
+                        RecordingPlatform::kLineInGainMaxDb,
+                        RecordingPlatform::kMicGainMinDb,
+                        RecordingPlatform::kMicGainMaxDb);
   ActivatePage(UiApplicationPage::Song);
   return true;
 }
 
+void Ui2TrackerApplication::Shutdown() {
+  // Shutdown is also called directly by host/adapter teardown, without a page
+  // transition. Do not drop coalesced settings just because that path never
+  // reached ActivatePage().
+  if (configSave_.Dirty())
+    (void)FlushConfig();
+  StopSamplePreview();
+  if (session_.IsLoaded())
+    session_.CloseProject();
+  (void)firmwareLifecycle_.CloseMidi();
+  initialized_ = false;
+  statusBridge_.Detach();
+}
+
 void Ui2TrackerApplication::DispatchTrackerAction(TrackerAction action,
                                                   bool pressed) {
-  if (!initialized_ || action >= TrackerAction::Count)
+  if (!initialized_ || action >= TrackerAction::Count ||
+      action == TrackerAction::Reserved8 || action == TrackerAction::Reserved9)
     return;
 
   const std::uint16_t bit = TrackerActionBit(action);
-  const bool alreadyHeld = (physicalHeldMask_ & bit) != 0U;
   if (pressed)
     physicalHeldMask_ |= bit;
   else
     physicalHeldMask_ &= static_cast<std::uint16_t>(~bit);
 
-  // START is the only physical action at slot 7. UI2 resolves its short-tap
-  // PLAY and held NAV meanings here so every platform, including the ESP32,
-  // observes exactly the same chord ordering and threshold.
-  if (action == TrackerAction::Start) {
-    if (pressed == alreadyHeld)
-      return;
-    HandleStart(pressed);
+  if (action == TrackerAction::Power) {
+    System *system = System::GetInstance();
+    firmwareController_.SetPowerButton(
+        pressed, system == nullptr ? 0U : system->Millis());
+    // POWER is a firmware lifecycle input, never a page/controller command.
     return;
   }
 
-  if (startHeld_ && pressed && !alreadyHeld) {
-    startChordTriggered_ = true;
-    if (startAltPlay_ && action != TrackerAction::Alt) {
-      DispatchLogicalAction(TrackerAction::Play, false);
-      startAltPlay_ = false;
-      source_.SetNavigationHeld(true);
-      DispatchLogicalAction(TrackerAction::Start, true);
-      tracker_.Hub().SetNavigationHeld(true);
-    }
+  if (action == TrackerAction::Shift) {
+    source_.SetNavigationHeld(pressed);
+    tracker_.Hub().SetNavigationHeld(pressed);
   }
 
   DispatchLogicalAction(action, pressed);
 }
 
-void Ui2TrackerApplication::HandleStart(bool pressed) {
-  if (pressed) {
-    startHeld_ = true;
-    startPressedAtMs_ = source_.NowMs();
-    const std::uint16_t companions = static_cast<std::uint16_t>(
-        physicalHeldMask_ & ~TrackerActionBit(TrackerAction::Start));
-    startAltPlay_ = companions == TrackerActionBit(TrackerAction::Alt);
-    startChordTriggered_ = companions != 0U && !startAltPlay_;
-    if (startAltPlay_) {
-      DispatchLogicalAction(TrackerAction::Play, true);
-    } else {
-      source_.SetNavigationHeld(true);
-      DispatchLogicalAction(TrackerAction::Start, true);
-      tracker_.Hub().SetNavigationHeld(true);
-    }
-    return;
-  }
-
-  const bool wasAltPlay = startAltPlay_;
-  const bool shortTap =
-      !startChordTriggered_ &&
-      static_cast<std::uint32_t>(source_.NowMs() - startPressedAtMs_) <
-          StartHoldMs;
-  startHeld_ = false;
-  startAltPlay_ = false;
-  startChordTriggered_ = false;
-  if (wasAltPlay) {
-    DispatchLogicalAction(TrackerAction::Play, false);
-    return;
-  }
-
-  DispatchLogicalAction(TrackerAction::Start, false);
-  tracker_.Hub().SetNavigationHeld(false);
-  source_.SetNavigationHeld(false);
-  if (shortTap) {
-    DispatchLogicalAction(TrackerAction::Play, true);
-    DispatchLogicalAction(TrackerAction::Play, false);
-  }
-}
-
 void Ui2TrackerApplication::DispatchLogicalAction(TrackerAction action,
                                                   bool pressed) {
-  if (pressed && startHeld_ && TryNavigate(action))
-    return;
-
   const std::size_t actionIndex = static_cast<std::size_t>(action);
-  if (rename_.Active()) {
-    if (!pressed)
-      pressOwners_[actionIndex] = UiApplicationPage::None;
-    HandleRename(action, pressed);
+  const UiApplicationPage releaseOwner =
+      !pressed ? pressOwners_[actionIndex] : UiApplicationPage::None;
+  const auto finishModalRelease = [this, action, pressed, actionIndex,
+                                   releaseOwner]() {
+    if (pressed)
+      return;
+    pressOwners_[actionIndex] = UiApplicationPage::None;
+    // A modal consumes its own key-up, but the controller that accepted the
+    // corresponding key-down must also see that release. Otherwise a chord
+    // such as Project Browser OPTION+EDIT can leave OPTION latched after its
+    // confirmation closes and turn the next plain EDIT into another delete.
+    if (releaseOwner != UiApplicationPage::None)
+      DispatchPageAction(releaseOwner, action, false);
+  };
+  if (projectRender_.Active()) {
+    projectRender_.Handle(action, pressed);
+    finishModalRelease();
     return;
   }
+  if (projectLifecycle_.Active()) {
+    HandleProjectLifecycle(action, pressed);
+    finishModalRelease();
+    return;
+  }
+  if (sampleBrowser_.DialogActive()) {
+    HandleSampleBrowserDialog(action, pressed);
+    finishModalRelease();
+    return;
+  }
+  if (deviceLifecycle_.Active()) {
+    HandleDeviceLifecycle(action, pressed);
+    finishModalRelease();
+    return;
+  }
+  if (instrumentLifecycle_.Active()) {
+    HandleInstrumentLifecycle(action, pressed);
+    finishModalRelease();
+    return;
+  }
+  if (rename_.Active()) {
+    HandleRename(action, pressed);
+    finishModalRelease();
+    return;
+  }
+  if (pressed &&
+      (physicalHeldMask_ & TrackerActionBit(TrackerAction::Shift)) != 0U &&
+      TryNavigate(action))
+    return;
   UiApplicationPage owner = activePage_;
   if (pressed) {
     if (pressOwners_[actionIndex] == UiApplicationPage::None)
@@ -223,14 +392,27 @@ void Ui2TrackerApplication::DispatchLogicalAction(TrackerAction action,
     pressOwners_[actionIndex] = UiApplicationPage::None;
   }
 
+  DispatchPageAction(owner, action, pressed);
+}
+
+void Ui2TrackerApplication::DispatchPageAction(UiApplicationPage owner,
+                                               TrackerAction action,
+                                               bool pressed) {
   switch (owner) {
   case UiApplicationPage::Song:
   case UiApplicationPage::Chain:
   case UiApplicationPage::Phrase:
-  case UiApplicationPage::Table:
+  case UiApplicationPage::Table: {
+    const std::uint32_t before = modelPort_.ProjectMutationGeneration();
     tracker_.Handle(action, pressed);
+    const std::uint32_t after = modelPort_.ProjectMutationGeneration();
+    if (after != before) {
+      observedProjectMutationGeneration_ = after;
+      MarkProjectDirty();
+    }
     SynchronizeGridPage();
     break;
+  }
   case UiApplicationPage::Project:
     HandleProject(action, pressed);
     break;
@@ -244,11 +426,21 @@ void Ui2TrackerApplication::DispatchLogicalAction(TrackerAction action,
     HandleMixer(action, pressed);
     break;
   case UiApplicationPage::Instrument:
-  case UiApplicationPage::Browser:
+    HandleInstrument(action, pressed);
+    break;
   case UiApplicationPage::SampleEditor:
+    HandleSampleEditor(action, pressed);
+    break;
   case UiApplicationPage::SampleSlices:
-  case UiApplicationPage::Record:
+    HandleSampleSlices(action, pressed);
+    break;
   case UiApplicationPage::None:
+    break;
+  case UiApplicationPage::Record:
+    HandleRecord(action, pressed);
+    break;
+  case UiApplicationPage::Browser:
+    HandleBrowser(action, pressed);
     break;
   case UiApplicationPage::Theme:
     HandleTheme(action, pressed);
@@ -263,10 +455,8 @@ bool Ui2TrackerApplication::TryNavigate(TrackerAction action) {
   if (action != TrackerAction::Left && action != TrackerAction::Right &&
       action != TrackerAction::Up && action != TrackerAction::Down)
     return false;
-  const std::uint16_t modifiers =
-      TrackerActionBit(TrackerAction::Alt) |
-      TrackerActionBit(TrackerAction::Edit) |
-      TrackerActionBit(TrackerAction::Enter);
+  const std::uint16_t modifiers = TrackerActionBit(TrackerAction::Option) |
+                                  TrackerActionBit(TrackerAction::Edit);
   if ((physicalHeldMask_ & modifiers) != 0U)
     return false;
 
@@ -345,8 +535,14 @@ bool Ui2TrackerApplication::TryNavigate(TrackerAction action) {
       target = UiApplicationPage::Device;
     break;
   case UiApplicationPage::Browser:
+    if (action == TrackerAction::Left)
+      target = BrowserReturnPage();
+    break;
   case UiApplicationPage::SampleEditor:
   case UiApplicationPage::SampleSlices:
+    if (action == TrackerAction::Left)
+      target = sampleReturnPage_;
+    break;
   case UiApplicationPage::Record:
   case UiApplicationPage::None:
     break;
@@ -354,6 +550,32 @@ bool Ui2TrackerApplication::TryNavigate(TrackerAction action) {
   if (target == UiApplicationPage::None)
     return true;
 
+  if (activePage_ == UiApplicationPage::Project &&
+      target != UiApplicationPage::Project && projectSaveAsPending_) {
+    projectLifecycle_.WarnPendingRename();
+    return true;
+  }
+
+  const Ui2TrackerPage sourcePage = tracker_.Hub().ActivePage();
+  const Ui2TrackerPage destinationPage = trackerTarget != Ui2TrackerPage::None
+                                             ? trackerTarget
+                                             : TrackerPageFor(target);
+  const Ui2TrackerActiveControllerState controller = tracker_.ActiveState();
+  if (destinationPage != Ui2TrackerPage::None &&
+      !modelPort_.PreparePageNavigation(sourcePage, destinationPage,
+                                        controller.track, controller.row))
+    return true;
+  tracker_.SynchronizeFromPort();
+
+  if (activePage_ == UiApplicationPage::Browser &&
+      target != UiApplicationPage::Browser) {
+    settingsBrowser_.Close();
+    CloseSampleBrowser();
+    if (instrumentBrowserActive_) {
+      instrumentBrowserActive_ = false;
+      source_.SetInstrumentBrowserActive(false);
+    }
+  }
   ActivatePage(target);
   if (trackerTarget != Ui2TrackerPage::None) {
     tracker_.Hub().Activate(trackerTarget);
@@ -366,12 +588,110 @@ PresentResult Ui2TrackerApplication::Present() {
   return initialized_ ? runtime_.Present(source_) : PresentResult::Failed;
 }
 
+void Ui2TrackerApplication::Tick(std::uint32_t nowMs) {
+  if (!initialized_)
+    return;
+  const FirmwareLifecycleCommand firmwareCommand =
+      firmwareLifecycle_.Tick(firmwareController_, nowMs);
+  // A physical power-down bypasses the normal page-boundary/config flush.
+  // Give pending UI settings one final synchronous persistence attempt before
+  // the platform cuts power; failure remains dirty and is surfaced through
+  // Status, but must not make a device with broken storage impossible to turn
+  // off.
+  if (firmwareCommand.HasValue() && configSave_.Dirty())
+    (void)FlushConfig();
+  (void)firmwareLifecycle_.Execute(firmwareCommand);
+  projectRender_.Tick();
+  UpdateSamplePreview(nowMs);
+  const std::uint32_t mutationGeneration =
+      modelPort_.ProjectMutationGeneration();
+  if (mutationGeneration != observedProjectMutationGeneration_) {
+    observedProjectMutationGeneration_ = mutationGeneration;
+    autoSave_.MarkDirty(nowMs);
+  }
+  const AutoSaveCoordinator::Conditions conditions{
+      .projectLoaded = session_.IsLoaded(),
+      .playerRunning = Player::GetInstance()->IsRunning(),
+      .recordingActive = IsRecordingActive() || IsSavingRecording(),
+      .operationAllowsSave = AutosaveSafePage() &&
+                             !projectRender_.Active() &&
+                             !projectLifecycle_.Active() &&
+                             !deviceLifecycle_.Active() &&
+                             !instrumentLifecycle_.Active() &&
+                             !rename_.Active(),
+  };
+  if (autoSave_.Tick(nowMs, conditions) !=
+      AutoSaveCoordinator::TickResult::SaveRequested)
+    return;
+  const bool saved = session_.AutoSave(true, conditions.recordingActive);
+  autoSave_.CompleteAutoSave(nowMs, saved);
+}
+
+bool Ui2TrackerApplication::AutosaveSafePage() const {
+  switch (activePage_) {
+  case UiApplicationPage::Song:
+  case UiApplicationPage::Chain:
+  case UiApplicationPage::Phrase:
+  case UiApplicationPage::Table:
+  case UiApplicationPage::Groove:
+  case UiApplicationPage::Instrument:
+  case UiApplicationPage::Device:
+  case UiApplicationPage::Theme:
+  case UiApplicationPage::Mixer:
+    return !rename_.Active();
+  case UiApplicationPage::Project:
+  case UiApplicationPage::Font:
+  case UiApplicationPage::Browser:
+  case UiApplicationPage::SampleEditor:
+  case UiApplicationPage::SampleSlices:
+  case UiApplicationPage::Record:
+  case UiApplicationPage::None:
+    return false;
+  }
+  return false;
+}
+
 bool Ui2TrackerApplication::ActivatePage(UiApplicationPage page) {
   if (page == UiApplicationPage::None)
     return false;
+  if (activePage_ == UiApplicationPage::Project &&
+      page != UiApplicationPage::Project && projectSaveAsPending_) {
+    projectLifecycle_.WarnPendingRename();
+    return false;
+  }
   const bool changed = activePage_ != page;
+  if (changed && activePage_ == UiApplicationPage::SampleEditor &&
+      page != UiApplicationPage::SampleEditor && sampleEditor_.Active()) {
+    StopSamplePreview();
+    sampleEditor_.Close();
+  }
+  if (changed && activePage_ == UiApplicationPage::SampleSlices &&
+      page != UiApplicationPage::SampleSlices && sampleSlices_.Active()) {
+    StopSamplePreview();
+    sampleSlices_.Close();
+  }
+  // Config writes are coalesced until a page boundary. A failed Sync leaves
+  // the one-byte retry state dirty, so returning to or leaving any settings
+  // page later retries the complete config instead of silently losing edits.
+  if (changed && configSave_.Dirty())
+    (void)FlushConfig();
   activePage_ = page;
   source_.SetActivePage(page);
+  if (page == UiApplicationPage::Mixer)
+    mixer_.Synchronize(static_cast<std::uint8_t>(
+        std::clamp(session_.EditorState().songX_, 0, SONG_CHANNEL_COUNT - 1)));
+  if (page == UiApplicationPage::Record) {
+    Config *config = Config::GetInstance();
+    const auto value = [config](FourCC key) {
+      Variable *variable =
+          config == nullptr ? nullptr : config->FindVariable(key);
+      return variable == nullptr ? 0 : variable->GetInt();
+    };
+    record_.Synchronize(
+        static_cast<std::uint8_t>(value(FourCC::VarRecordSource)),
+        static_cast<std::int8_t>(value(FourCC::VarRecordLineGain)),
+        static_cast<std::int8_t>(value(FourCC::VarRecordMicGain)));
+  }
   const Ui2TrackerPage trackerPage = TrackerPageFor(page);
   if (trackerPage != Ui2TrackerPage::None) {
     tracker_.Hub().Activate(trackerPage);
@@ -382,36 +702,25 @@ bool Ui2TrackerApplication::ActivatePage(UiApplicationPage page) {
   return changed;
 }
 
-void Ui2TrackerApplication::HandleProject(TrackerAction action,
-                                         bool pressed) {
+void Ui2TrackerApplication::HandleProject(TrackerAction action, bool pressed) {
   if (!projectInput_.Update(action, pressed))
     return;
-  project_.SetEnterHeld(projectInput_.Held(TrackerAction::Enter));
+  project_.SetEnterHeld(projectInput_.Held(TrackerAction::Edit));
   if (!pressed)
     return;
 
-  if (projectInput_.Held(TrackerAction::Nav)) {
-    if (action == TrackerAction::Down)
-      ActivatePage(UiApplicationPage::Song);
-    else if (action == TrackerAction::Up)
-      ActivatePage(UiApplicationPage::Device);
+  if (projectInput_.Held(TrackerAction::Shift) ||
+      projectInput_.Held(TrackerAction::Option)) {
     return;
   }
   if (projectInput_.Held(TrackerAction::Edit)) {
-    if (action == TrackerAction::Play)
-      ActivatePage(UiApplicationPage::Record);
-    return;
-  }
-  if (projectInput_.Held(TrackerAction::Enter)) {
-    if (action == TrackerAction::Enter)
+    if (action == TrackerAction::Edit)
       ExecuteProject(project_.Enter());
     else if ((project_.ContentCursor() == Ui2ProjectContentCursor::Tempo ||
-              project_.ContentCursor() ==
-                  Ui2ProjectContentCursor::Transpose ||
+              project_.ContentCursor() == Ui2ProjectContentCursor::Transpose ||
               project_.ContentCursor() == Ui2ProjectContentCursor::Scale ||
               project_.ContentCursor() == Ui2ProjectContentCursor::Root) &&
-             (action == TrackerAction::Left ||
-              action == TrackerAction::Right ||
+             (action == TrackerAction::Left || action == TrackerAction::Right ||
               action == TrackerAction::Up || action == TrackerAction::Down))
       ExecuteProject(project_.Adjust(action));
     return;
@@ -419,6 +728,8 @@ void Ui2TrackerApplication::HandleProject(TrackerAction action,
   if (projectInput_.AnyModifier())
     return;
 
+  // Value rows always expose fine horizontal editing. Holding EDIT adds the
+  // vertical coarse path, but is not a prerequisite for ordinary +/-1.
   if (action == TrackerAction::Left || action == TrackerAction::Right) {
     const Ui2ProjectCommand adjustment = project_.Adjust(action);
     if (adjustment.HasValue()) {
@@ -440,21 +751,645 @@ void Ui2TrackerApplication::HandleProject(TrackerAction action,
   case TrackerAction::Right:
     project_.MoveRight();
     break;
-  case TrackerAction::Enter:
-    break;
   case TrackerAction::Play:
-    Player::GetInstance()->OnStartButton(PM_SONG,
-                                         session_.EditorState().songX_, false,
-                                         session_.EditorState().songX_);
+    Player::GetInstance()->OnStartButton(PM_SONG, session_.EditorState().songX_,
+                                         false, session_.EditorState().songX_);
     break;
-  case TrackerAction::Alt:
+  case TrackerAction::Shift:
+  case TrackerAction::Option:
   case TrackerAction::Edit:
-  case TrackerAction::Nav:
-  case TrackerAction::Select:
+  case TrackerAction::Reserved8:
+  case TrackerAction::Reserved9:
   case TrackerAction::Power:
   case TrackerAction::Count:
     break;
   }
+}
+
+void Ui2TrackerApplication::HandleBrowser(TrackerAction action, bool pressed) {
+  if (settingsBrowser_.Active()) {
+    const Ui2SettingsBrowserMode mode = settingsBrowser_.Mode();
+    const Ui2SettingsBrowserCommand command =
+        settingsBrowser_.Handle(action, pressed);
+    if (command.type == Ui2SettingsBrowserCommandType::Back) {
+      settingsBrowser_.Close();
+      ActivatePage(mode == Ui2SettingsBrowserMode::Theme
+                       ? UiApplicationPage::Theme
+                       : UiApplicationPage::Font);
+      return;
+    }
+    if (command.type == Ui2SettingsBrowserCommandType::ImportTheme) {
+      Config *config = Config::GetInstance();
+      bool loaded = false;
+      const bool persisted =
+          config != nullptr &&
+          config->ImportTheme(command.theme.data(), &loaded);
+      if (loaded) {
+        configSave_.MarkDirty();
+        ApplyCurrentTheme();
+      }
+      if (!persisted) {
+        settingsBrowser_.SetError("THEME IMPORT FAILED");
+        runtime_.Invalidate();
+        return;
+      }
+      configSave_.MarkSaved();
+      settingsBrowser_.Close();
+      ActivatePage(UiApplicationPage::Theme);
+      return;
+    }
+    if (command.type == Ui2SettingsBrowserCommandType::SelectFont) {
+      Config *config = Config::GetInstance();
+      Variable *font =
+          config == nullptr ? nullptr : config->FindVariable(FourCC::VarUIFont);
+      if (font == nullptr) {
+        settingsBrowser_.SetError("FONT CONFIG UNAVAILABLE");
+        runtime_.Invalidate();
+        return;
+      }
+      font->SetInt(command.font);
+      configSave_.MarkDirty();
+      if (!FlushConfig()) {
+        settingsBrowser_.SetError("FONT SAVE FAILED");
+        runtime_.Invalidate();
+        return;
+      }
+      settingsBrowser_.Close();
+      ActivatePage(UiApplicationPage::Font);
+      return;
+    }
+    return;
+  }
+  if (instrumentBrowserActive_) {
+    const Ui2InstrumentBrowserCommand command =
+        instrumentBrowser_.Handle(action, pressed);
+    if (command.type == Ui2InstrumentBrowserCommandType::Back) {
+      instrumentBrowserActive_ = false;
+      source_.SetInstrumentBrowserActive(false);
+      ActivatePage(UiApplicationPage::Instrument);
+      return;
+    }
+    if (command.type != Ui2InstrumentBrowserCommandType::Import)
+      return;
+
+    TrackerSessionState &editor = session_.EditorState();
+    const std::uint8_t number =
+        static_cast<std::uint8_t>(editor.currentInstrumentID_);
+    InstrumentBank *bank = session_.ProjectModel().GetInstrumentBank();
+    PersistencyService *persistence = PersistencyService::GetInstance();
+    if (bank == nullptr || persistence == nullptr) {
+      instrumentBrowser_.SetError("INSTRUMENT LOAD UNAVAILABLE");
+      Status::Set("INSTRUMENT LOAD UNAVAILABLE");
+      runtime_.Invalidate();
+      return;
+    }
+    const InstrumentType importedType =
+        persistence->DetectInstrumentType(command.filename.data());
+    if (importedType == IT_NONE || importedType >= IT_LAST) {
+      instrumentBrowser_.SetError("INVALID INSTRUMENT FILE");
+      Status::Set("INVALID INSTRUMENT FILE");
+      runtime_.Invalidate();
+      return;
+    }
+
+    const Ui2InstrumentImportResult result = Ui2ImportInstrumentAtomically(
+        *bank, number, importedType, [&](I_Instrument *candidate) {
+          return persistence->ImportInstrument(candidate,
+                                               command.filename.data()) ==
+                 PERSIST_LOADED;
+        });
+    if (result != Ui2InstrumentImportResult::Imported) {
+      const char *message =
+          result == Ui2InstrumentImportResult::AllocationFailed
+              ? "NO FREE INSTRUMENT SLOT"
+              : "INSTRUMENT LOAD FAILED";
+      instrumentBrowser_.SetError(message);
+      Status::Set("%s", message);
+      runtime_.Invalidate();
+      return;
+    }
+    instrumentBrowserActive_ = false;
+    source_.SetInstrumentBrowserActive(false);
+    MarkProjectDirty();
+    ActivatePage(UiApplicationPage::Instrument);
+    return;
+  }
+  if (sampleBrowser_.Active()) {
+    ExecuteSampleBrowser(sampleBrowser_.Handle(action, pressed));
+    return;
+  }
+  // Project Browser keeps the global transport available. Sample Browser is
+  // deliberately excluded above because PLAY there owns press/release sample
+  // preview instead of sequencer transport.
+  if (action == TrackerAction::Play) {
+    if (pressed) {
+      Player::GetInstance()->OnStartButton(
+          PM_SONG, session_.EditorState().songX_, false,
+          static_cast<unsigned char>(session_.EditorState().songX_));
+    }
+    return;
+  }
+  const Ui2ProjectBrowserCommand command =
+      projectBrowser_.Handle(action, pressed);
+  if (command.type == Ui2ProjectBrowserCommandType::Back) {
+    ActivatePage(UiApplicationPage::Project);
+    return;
+  }
+  Ui2ProjectLifecycleCommand lifecycleCommand;
+  if (command.type == Ui2ProjectBrowserCommandType::Load) {
+    lifecycleCommand =
+        projectLifecycle_.RequestLoad(command.project.data(), autoSave_.Dirty(),
+                                      Player::GetInstance()->IsRunning());
+  } else if (command.type == Ui2ProjectBrowserCommandType::Delete) {
+    lifecycleCommand = projectLifecycle_.RequestDelete(
+        command.project.data(), session_.ProjectName(),
+        Player::GetInstance()->IsRunning());
+  }
+  ExecuteProjectLifecycle(lifecycleCommand);
+}
+
+UiApplicationPage Ui2TrackerApplication::BrowserReturnPage() const {
+  if (settingsBrowser_.Mode() == Ui2SettingsBrowserMode::Theme)
+    return UiApplicationPage::Theme;
+  if (settingsBrowser_.Mode() == Ui2SettingsBrowserMode::Font)
+    return UiApplicationPage::Font;
+  if (sampleBrowser_.Active())
+    return UiApplicationPage::Project;
+  return instrumentBrowserActive_ ? UiApplicationPage::Instrument
+                                  : UiApplicationPage::Project;
+}
+
+void Ui2TrackerApplication::HandleSampleBrowserDialog(TrackerAction action,
+                                                       bool pressed) {
+  ExecuteSampleBrowser(sampleBrowser_.HandleDialog(action, pressed));
+}
+
+void Ui2TrackerApplication::CloseSampleBrowser() {
+  if (!sampleBrowser_.Active())
+    return;
+  Player *player = Player::GetInstance();
+  if (player != nullptr && !player->IsRunning() && player->IsPlaying())
+    player->StopStreaming();
+  sampleBrowser_.Close();
+}
+
+void Ui2TrackerApplication::ExecuteSampleBrowser(
+    Ui2SampleBrowserCommand command) {
+  if (!command.HasValue())
+    return;
+  Player *player = Player::GetInstance();
+  FileSystem *fileSystem = FileSystem::GetInstance();
+  SamplePool *pool = SamplePool::GetInstance();
+
+  if (command.type == Ui2SampleBrowserCommandType::PreviewStop) {
+    if (player != nullptr && !player->IsRunning() && player->IsPlaying())
+      player->StopStreaming();
+    return;
+  }
+  if (command.type == Ui2SampleBrowserCommandType::ModeChanged) {
+    if (player != nullptr && !player->IsRunning() && player->IsPlaying())
+      player->StopStreaming();
+    return;
+  }
+  if (command.type == Ui2SampleBrowserCommandType::PreviewStart) {
+    if (player == nullptr || player->IsRunning() || fileSystem == nullptr ||
+        command.filename[0] == '\0') {
+      sampleBrowser_.SetError("PREVIEW UNAVAILABLE");
+      return;
+    }
+    WavFile wave;
+    const auto opened = wave.Open(command.filename.data());
+    if (!opened) {
+      sampleBrowser_.SetError("INVALID SAMPLE");
+      return;
+    }
+    wave.Close();
+    if (player->IsPlaying())
+      player->StopStreaming();
+    if (command.singleCycle)
+      player->StartLoopingStreaming(command.filename.data());
+    else
+      player->StartStreaming(command.filename.data());
+    sampleBrowser_.ClearError();
+    return;
+  }
+
+  if (command.type == Ui2SampleBrowserCommandType::AdjustPreviewVolume) {
+    Variable *volume =
+        session_.ProjectModel().FindVariable(FourCC::VarPreviewVolume);
+    if (volume != nullptr) {
+      volume->SetInt(std::clamp(volume->GetInt() + command.delta, 0, 99));
+      MarkProjectDirty();
+    }
+    return;
+  }
+
+  if (command.type == Ui2SampleBrowserCommandType::Edit) {
+    if (player == nullptr || player->IsRunning() || fileSystem == nullptr ||
+        command.filename[0] == '\0' ||
+        !OpenSampleEditor(command.filename.data(), command.projectSample,
+                          UiApplicationPage::Browser)) {
+      sampleBrowser_.SetError("INVALID SAMPLE");
+      return;
+    }
+    sampleBrowser_.ClearError();
+    return;
+  }
+
+  if (command.type == Ui2SampleBrowserCommandType::RequestDelete) {
+    if (!command.projectSample || player == nullptr || player->IsRunning() ||
+        player->IsPlaying() || pool == nullptr) {
+      sampleBrowser_.SetError("DELETE UNAVAILABLE");
+      return;
+    }
+    Project &project = session_.ProjectModel();
+    if (project.SampleInUse(
+            etl::string<MAX_INSTRUMENT_FILENAME_LENGTH>(
+                command.filename.data()))) {
+      sampleBrowser_.SetError("SAMPLE IN USE");
+      return;
+    }
+    sampleBrowser_.RequestDeleteConfirmation(command.filename.data());
+    return;
+  }
+
+  if (command.type == Ui2SampleBrowserCommandType::DeleteConfirmed) {
+    if (player == nullptr || player->IsRunning() || player->IsPlaying() ||
+        fileSystem == nullptr || pool == nullptr ||
+        session_.ProjectModel().SampleInUse(
+            etl::string<MAX_INSTRUMENT_FILENAME_LENGTH>(
+                command.filename.data()))) {
+      sampleBrowser_.SetError("DELETE UNAVAILABLE");
+      return;
+    }
+    const Ui2DeleteProjectSampleResult result =
+        Ui2DeleteProjectSampleSafely(*fileSystem, *pool,
+                                     session_.ProjectName(),
+                                     command.filename.data());
+    if (result == Ui2DeleteProjectSampleResult::Deleted ||
+        result == Ui2DeleteProjectSampleResult::CleanupFailed) {
+      sampleBrowser_.RefreshCurrentDirectory();
+      if (result == Ui2DeleteProjectSampleResult::CleanupFailed)
+        sampleBrowser_.SetError("DELETE CLEANUP FAILED");
+      MarkProjectDirty();
+    } else if (result == Ui2DeleteProjectSampleResult::UnloadFailed) {
+      sampleBrowser_.SetError("DELETE UNSUPPORTED");
+    } else {
+      sampleBrowser_.SetError("DELETE FAILED");
+    }
+    return;
+  }
+
+  if (command.type != Ui2SampleBrowserCommandType::Import)
+    return;
+  if (player == nullptr || player->IsRunning() || player->IsPlaying() ||
+      fileSystem == nullptr || pool == nullptr || command.projectSample ||
+      command.filename[0] == '\0') {
+    sampleBrowser_.SetError("IMPORT UNAVAILABLE");
+    return;
+  }
+  if (pool->GetNameListSize() >= MAX_SAMPLES) {
+    sampleBrowser_.SetError("SAMPLE POOL FULL");
+    return;
+  }
+
+  // Validate before opening the project destination. ImportSample applies the
+  // Config import-resampler setting while copying, exactly as the legacy path.
+  WavFile sourceWave;
+  const auto opened = sourceWave.Open(command.filename.data());
+  if (!opened) {
+    sampleBrowser_.SetError("INVALID SAMPLE");
+    return;
+  }
+  const std::uint32_t sourceBytes = sourceWave.GetDiskSize(-1);
+  sourceWave.Close();
+  if (sourceBytes == 0U || !pool->CheckSampleFits(sourceBytes)) {
+    sampleBrowser_.SetError("SAMPLE TOO LARGE");
+    return;
+  }
+
+  Ui2ProjectSampleName importedName{};
+  Ui2ProjectSamplePath importedPath{};
+  if (!Ui2ResolveImportedSampleName(command.filename.data(), importedName) ||
+      !Ui2BuildProjectSamplePath(session_.ProjectName(), importedName.data(),
+                                 importedPath) ||
+      fileSystem->exists(importedPath.data())) {
+    // Never truncate/overwrite an existing project sample. The legacy direct
+    // "w" open could destroy it before a later decode/allocation failure.
+    sampleBrowser_.SetError("SAMPLE ALREADY EXISTS");
+    return;
+  }
+
+  const int sampleId =
+      pool->ImportSample(command.filename.data(), session_.ProjectName());
+  if (sampleId < 0) {
+    // This destination did not exist at preflight, so deleting it only removes
+    // a partial file left by the failed import and preserves project state.
+    if (fileSystem->exists(importedPath.data()))
+      fileSystem->DeleteFile(importedPath.data());
+    sampleBrowser_.SetError("IMPORT FAILED");
+    return;
+  }
+
+  InstrumentBank *bank = session_.ProjectModel().GetInstrumentBank();
+  const std::uint8_t instrumentNumber = static_cast<std::uint8_t>(
+      session_.EditorState().currentInstrumentID_);
+  I_Instrument *instrument =
+      bank == nullptr ? nullptr : bank->GetInstrument(instrumentNumber);
+  if (instrument != nullptr && instrument->GetType() == IT_SAMPLE) {
+    auto *sample = static_cast<SampleInstrument *>(instrument);
+    sample->AssignSample(sampleId);
+    sample->ClearSlices();
+  }
+  sampleBrowser_.ClearError();
+  MarkProjectDirty();
+}
+
+bool Ui2TrackerApplication::OpenSampleEditor(const char *path,
+                                             bool projectPool,
+                                             UiApplicationPage returnPage) {
+  FileSystem *fileSystem = FileSystem::GetInstance();
+  if (fileSystem == nullptr || path == nullptr || path[0] == '\0')
+    return false;
+  StopSamplePreview();
+  if (sampleEditor_.Active())
+    sampleEditor_.Close();
+  if (sampleSlices_.Active())
+    sampleSlices_.Close();
+  const Ui2SampleWaveformLoadResult result =
+      projectPool
+          ? sampleEditor_.OpenProjectPool(*fileSystem, session_.ProjectName(),
+                                          path)
+          : sampleEditor_.OpenPath(*fileSystem, path, false);
+  if (result != Ui2SampleWaveformLoadResult::Loaded)
+    return false;
+  sampleReturnPage_ = returnPage;
+  ActivatePage(UiApplicationPage::SampleEditor);
+  return activePage_ == UiApplicationPage::SampleEditor;
+}
+
+bool Ui2TrackerApplication::OpenSampleSlices(const char *path,
+                                             UiApplicationPage returnPage) {
+  FileSystem *fileSystem = FileSystem::GetInstance();
+  if (fileSystem == nullptr || path == nullptr || path[0] == '\0')
+    return false;
+  StopSamplePreview();
+  if (sampleEditor_.Active())
+    sampleEditor_.Close();
+  if (sampleSlices_.Active())
+    sampleSlices_.Close();
+  if (sampleSlices_.OpenProjectPool(*fileSystem, session_.ProjectName(), path) !=
+      Ui2SampleWaveformLoadResult::Loaded)
+    return false;
+  sampleReturnPage_ = returnPage;
+  SynchronizeSampleSlices();
+  ActivatePage(UiApplicationPage::SampleSlices);
+  return activePage_ == UiApplicationPage::SampleSlices;
+}
+
+void Ui2TrackerApplication::HandleSampleEditor(TrackerAction action,
+                                               bool pressed) {
+  // Reject before the controller latches PLAY; otherwise a blocked preview
+  // would leave its local `playing` visual true until a later release.
+  if (action == TrackerAction::Play && pressed) {
+    Player *player = Player::GetInstance();
+    if (player == nullptr || player->IsRunning())
+      return;
+  }
+  ExecuteSampleEditor(sampleEditor_.Handle(action, pressed));
+}
+
+void Ui2TrackerApplication::ExecuteSampleEditor(
+    Ui2SampleEditorCommand command) {
+  if (!command.HasValue())
+    return;
+  Player *player = Player::GetInstance();
+  switch (command.type) {
+  case Ui2SampleEditorCommandType::PreviewStart: {
+    if (player == nullptr || player->IsRunning() || command.path[0] == '\0')
+      return;
+    StopSamplePreview();
+    const bool singleCycle =
+        command.singleCycle &&
+        static_cast<std::uint64_t>(sampleWaveform_.FrameCount()) *
+                sampleWaveform_.ChannelCount() <=
+            Ui2SingleCycleMaximumFrames;
+    if (singleCycle)
+      player->StartLoopingStreaming(command.path.data());
+    else
+      player->StartStreaming(command.path.data(),
+                             static_cast<int>(command.start));
+    samplePreviewKind_ = SamplePreviewKind::EditorStream;
+    samplePreviewStartedMs_ = System::GetInstance()->Millis();
+    samplePreviewFrames_ = sampleWaveform_.FrameCount();
+    samplePreviewStart_ = singleCycle ? 0U : command.start;
+    samplePreviewEnd_ = singleCycle && samplePreviewFrames_ != 0U
+                            ? samplePreviewFrames_ - 1U
+                            : command.end;
+    // AudioFileStreamer intentionally maps one single-cycle buffer to C4
+    // (261.63 cycles/s), independent of the WAV header rate.
+    samplePreviewRate_ = singleCycle
+                             ? static_cast<std::uint32_t>(
+                                   (static_cast<std::uint64_t>(
+                                        samplePreviewFrames_) *
+                                        26163U +
+                                    50U) /
+                                   100U)
+                             : sampleWaveform_.SampleRate();
+    samplePreviewSingleCycle_ = singleCycle;
+    break;
+  }
+  case Ui2SampleEditorCommandType::PreviewStop:
+    StopSamplePreview();
+    break;
+  case Ui2SampleEditorCommandType::NavigateBack:
+  case Ui2SampleEditorCommandType::RequestDiscard:
+    ActivatePage(sampleReturnPage_);
+    break;
+  case Ui2SampleEditorCommandType::SetStart:
+  case Ui2SampleEditorCommandType::SetEnd:
+    // START/END are an editor transaction, not live Instrument parameters.
+    // They stay local until SAVE/APPLY succeeds, matching the legacy editor.
+    break;
+  case Ui2SampleEditorCommandType::RequestRename:
+  case Ui2SampleEditorCommandType::RequestApplyOperation:
+  case Ui2SampleEditorCommandType::RequestSave:
+  case Ui2SampleEditorCommandType::RequestSaveAndLoad:
+    // These operations can overwrite or rewrite a WAV. UI2 intentionally
+    // leaves them inert until the overwrite/progress/error states have an
+    // approved 240x240 design; the controller still exposes typed requests.
+    break;
+  case Ui2SampleEditorCommandType::None:
+    break;
+  }
+}
+
+void Ui2TrackerApplication::HandleSampleSlices(TrackerAction action,
+                                               bool pressed) {
+  if (action == TrackerAction::Play && pressed) {
+    Player *player = Player::GetInstance();
+    SampleInstrument *sample = CurrentSampleInstrument(session_);
+    if (player == nullptr || player->IsRunning() || sample == nullptr ||
+        sample->GetSampleIndex() < 0 ||
+        (sample->HasSlicesForPlayback() &&
+         !sample->IsSliceDefined(sampleSlices_.SelectedSlice())))
+      return;
+  }
+  ExecuteSampleSlices(sampleSlices_.Handle(action, pressed));
+}
+
+void Ui2TrackerApplication::ExecuteSampleSlices(
+    Ui2SampleSlicesCommand command) {
+  if (!command.HasValue())
+    return;
+  SampleInstrument *sample = CurrentSampleInstrument(session_);
+  Player *player = Player::GetInstance();
+  switch (command.type) {
+  case Ui2SampleSlicesCommandType::PreviewStart: {
+    if (player == nullptr || player->IsRunning() || sample == nullptr ||
+        sample->GetSampleIndex() < 0)
+      return;
+    StopSamplePreview();
+    std::uint8_t note = static_cast<std::uint8_t>(
+        SampleInstrument::SliceNoteBase + command.slice);
+    if (!sample->HasSlicesForPlayback()) {
+      if (Variable *root =
+              sample->FindVariable(FourCC::SampleInstrumentRootNote))
+        note = static_cast<std::uint8_t>(
+            std::clamp(root->GetInt(), 0, 127));
+    }
+    const auto instrument = static_cast<std::uint8_t>(
+        std::clamp(session_.EditorState().currentInstrumentID_, 0,
+                   MAX_INSTRUMENT_COUNT - 1));
+    constexpr std::uint8_t previewChannel = SONG_CHANNEL_COUNT - 1U;
+    player->PlayNote(instrument, previewChannel, note, 0x7FU);
+    samplePreviewKind_ = SamplePreviewKind::SliceNote;
+    samplePreviewStartedMs_ = System::GetInstance()->Millis();
+    samplePreviewStart_ = command.start;
+    samplePreviewEnd_ = command.end;
+    samplePreviewFrames_ = sampleWaveform_.FrameCount();
+    samplePreviewRate_ = sampleWaveform_.SampleRate();
+    if (SamplePool *pool = SamplePool::GetInstance()) {
+      if (SoundSource *source = pool->GetSource(sample->GetSampleIndex())) {
+        const int rate = source->GetSampleRate(note);
+        if (rate > 0)
+          samplePreviewRate_ = static_cast<std::uint32_t>(rate);
+      }
+    }
+    samplePreviewInstrument_ = instrument;
+    samplePreviewNote_ = note;
+    // Slice preview is driven by SampleInstrument's own loop mode. The legacy
+    // playhead is a one-pass duration indicator even for short waveforms.
+    samplePreviewSingleCycle_ = false;
+    break;
+  }
+  case Ui2SampleSlicesCommandType::PreviewStop:
+    StopSamplePreview();
+    break;
+  case Ui2SampleSlicesCommandType::SetSlicePoint:
+  case Ui2SampleSlicesCommandType::AddSlice:
+    if (sample != nullptr && command.slice < SampleInstrument::MaxSlices) {
+      sample->SetSlicePoint(command.slice, command.value);
+      SynchronizeSampleSlices();
+      MarkProjectDirty();
+    }
+    break;
+  case Ui2SampleSlicesCommandType::RequestAutoSlice:
+    if (sample == nullptr || sample->HasSlicesForPlayback()) {
+      // Replacing existing slices is destructive and still needs the approved
+      // confirmation state. Preserve the current points until that exists.
+      break;
+    }
+    sampleSlices_.ApplyEvenSlices(command.count);
+    sample->ClearSlices();
+    for (std::uint8_t index = 0U; index < SampleInstrument::MaxSlices;
+         ++index) {
+      if ((sampleSlices_.DefinedMask() &
+           static_cast<std::uint16_t>(1U << index)) != 0U)
+        sample->SetSlicePoint(index, sampleSlices_.SlicePoints()[index]);
+    }
+    SynchronizeSampleSlices();
+    MarkProjectDirty();
+    break;
+  case Ui2SampleSlicesCommandType::NavigateBack:
+    ActivatePage(sampleReturnPage_);
+    break;
+  case Ui2SampleSlicesCommandType::DeleteSlice:
+    // The approved bar names DELETE but no physical gesture or delete/shift
+    // semantics have been approved. Do not silently rewrite neighboring
+    // slice indices.
+    break;
+  case Ui2SampleSlicesCommandType::SetAutoSliceCount:
+  case Ui2SampleSlicesCommandType::None:
+    break;
+  }
+}
+
+void Ui2TrackerApplication::SynchronizeSampleSlices() {
+  std::array<std::uint32_t, Ui2SampleSlicesController::SliceCapacity> points{};
+  std::uint16_t definedMask = 0U;
+  if (SampleInstrument *sample = CurrentSampleInstrument(session_)) {
+    for (std::uint8_t index = 0U; index < SampleInstrument::MaxSlices;
+         ++index) {
+      points[index] = sample->GetSlicePoint(index);
+      if (sample->IsSliceDefined(index))
+        definedMask |= static_cast<std::uint16_t>(1U << index);
+    }
+  }
+  sampleSlices_.SynchronizeSlices(points, definedMask);
+}
+
+void Ui2TrackerApplication::StopSamplePreview() {
+  Player *player = Player::GetInstance();
+  if (player != nullptr) {
+    if (samplePreviewKind_ == SamplePreviewKind::EditorStream)
+      player->StopStreaming();
+    else if (samplePreviewKind_ == SamplePreviewKind::SliceNote)
+      player->StopNote(samplePreviewInstrument_, SONG_CHANNEL_COUNT - 1U);
+  }
+  samplePreviewKind_ = SamplePreviewKind::None;
+  samplePreviewStartedMs_ = 0U;
+  samplePreviewStart_ = 0U;
+  samplePreviewEnd_ = 0U;
+  samplePreviewFrames_ = 0U;
+  samplePreviewRate_ = 0U;
+  samplePreviewInstrument_ = 0U;
+  samplePreviewNote_ = 0U;
+  samplePreviewSingleCycle_ = false;
+  sampleEditor_.SetPreviewPlayhead(0U, false);
+  sampleSlices_.SetPreviewPlayhead(0U, false);
+}
+
+void Ui2TrackerApplication::UpdateSamplePreview(std::uint32_t nowMs) {
+  if (samplePreviewKind_ == SamplePreviewKind::None ||
+      samplePreviewRate_ == 0U || samplePreviewFrames_ == 0U)
+    return;
+  const std::uint64_t elapsed = nowMs - samplePreviewStartedMs_;
+  const std::uint64_t advanced = elapsed * samplePreviewRate_ / 1000U;
+  const std::uint32_t maximum = samplePreviewFrames_ - 1U;
+  const std::uint32_t start = std::min(samplePreviewStart_, maximum);
+  const std::uint32_t end =
+      std::clamp(samplePreviewEnd_, start, maximum);
+  const std::uint64_t span = static_cast<std::uint64_t>(end - start) + 1U;
+  bool visible = true;
+  std::uint32_t playhead = start;
+  if (samplePreviewSingleCycle_ && span != 0U) {
+    playhead = static_cast<std::uint32_t>(start + advanced % span);
+  } else if (advanced >= span) {
+    playhead = end;
+    visible = false;
+  } else {
+    playhead = static_cast<std::uint32_t>(start + advanced);
+  }
+  if (samplePreviewKind_ == SamplePreviewKind::EditorStream)
+    sampleEditor_.SetPreviewPlayhead(playhead, visible);
+  else
+    sampleSlices_.SetPreviewPlayhead(playhead, visible);
+}
+
+void Ui2TrackerApplication::HandleProjectLifecycle(TrackerAction action,
+                                                   bool pressed) {
+  ExecuteProjectLifecycle(projectLifecycle_.Handle(action, pressed));
 }
 
 void Ui2TrackerApplication::HandleGroove(TrackerAction action, bool pressed) {
@@ -463,8 +1398,10 @@ void Ui2TrackerApplication::HandleGroove(TrackerAction action, bool pressed) {
 
 void Ui2TrackerApplication::HandleDevice(TrackerAction action, bool pressed) {
   ExecuteDevice(device_.Handle(action, pressed));
+  if (Ui2IsPlainPlay(action, pressed, device_.HeldMask()))
+    StartSongTransport(session_);
   if (pressed && action == TrackerAction::Down &&
-      (device_.HeldMask() & TrackerActionBit(TrackerAction::Nav)) != 0U)
+      (device_.HeldMask() & TrackerActionBit(TrackerAction::Shift)) != 0U)
     ActivatePage(UiApplicationPage::Project);
 }
 
@@ -476,22 +1413,98 @@ void Ui2TrackerApplication::ExecuteDevice(Ui2DeviceCommand command) {
   case Ui2DeviceCommandType::BrowseFont:
     ActivatePage(UiApplicationPage::Font);
     break;
+  case Ui2DeviceCommandType::SetSelector: {
+    Config *config = Config::GetInstance();
+    FourCC::enum_type key = FourCC::Default;
+    int storedValue = command.value;
+    switch (command.field) {
+    case Ui2DeviceField::MidiDevice:
+      key = FourCC::VarMidiDevice;
+      break;
+    case Ui2DeviceField::MidiSync:
+      key = FourCC::VarMidiSync;
+      break;
+    case Ui2DeviceField::RemoteUi:
+      key = FourCC::VarRemoteUI;
+      break;
+    case Ui2DeviceField::Resampler:
+      key = FourCC::VarImportResampler;
+      break;
+    case Ui2DeviceField::LineOut:
+      key = FourCC::VarLineOut;
+      break;
+    case Ui2DeviceField::Volume:
+      key = FourCC::VarOutputVolume;
+      break;
+    case Ui2DeviceField::Brightness:
+      key = FourCC::VarBacklightLevel;
+      storedValue = Ui2BrightnessRawFromPercent(command.value);
+      break;
+    case Ui2DeviceField::Theme:
+    case Ui2DeviceField::Font:
+    case Ui2DeviceField::UpdateFirmware:
+    case Ui2DeviceField::Count:
+      break;
+    }
+    if (key == FourCC::Default)
+      break;
+    if (Variable *value = config->FindVariable(key))
+      value->SetInt(storedValue);
+    if (command.field == Ui2DeviceField::Brightness)
+      System::GetInstance()->SetDisplayBrightness(
+          static_cast<unsigned char>(storedValue));
+    else if (command.field == Ui2DeviceField::Volume)
+      Audio::GetInstance()->SetMixerVolume(command.value);
+    else if (command.field == Ui2DeviceField::LineOut)
+      Audio::GetInstance()->SetAudioLevel(command.value);
+    configSave_.MarkDirty();
+    break;
+  }
   case Ui2DeviceCommandType::UpdateFirmware:
-  case Ui2DeviceCommandType::SetSelector:
+    deviceLifecycle_.RequestUpdateFirmware(
+        Player::GetInstance()->IsRunning());
+    break;
   case Ui2DeviceCommandType::None:
     break;
   }
 }
 
+void Ui2TrackerApplication::HandleDeviceLifecycle(TrackerAction action,
+                                                  bool pressed) {
+  const Ui2DeviceLifecycleCommand command =
+      deviceLifecycle_.Handle(action, pressed);
+  if (command.HasValue())
+    (void)Ui2DeviceLifecycleService::FromSystem(System::GetInstance())
+        .Execute(command);
+}
+
 void Ui2TrackerApplication::HandleFont(TrackerAction action, bool pressed) {
   const Ui2FontCommand command = font_.Handle(action, pressed);
+  if (Ui2IsPlainPlay(action, pressed, font_.HeldMask()))
+    StartSongTransport(session_);
   if (pressed && action == TrackerAction::Left &&
-      (font_.HeldMask() & TrackerActionBit(TrackerAction::Nav)) != 0U) {
+      (font_.HeldMask() & TrackerActionBit(TrackerAction::Shift)) != 0U) {
     ActivatePage(UiApplicationPage::Device);
     return;
   }
-  if (command.type == Ui2FontCommandType::BrowseFont)
+  if (command.type == Ui2FontCommandType::SetTextCase) {
+    Config *config = Config::GetInstance();
+    if (config != nullptr) {
+      if (Variable *value = config->FindVariable(FourCC::VarUITextCase))
+        value->SetInt(command.value);
+      configSave_.MarkDirty();
+      (void)FlushConfig();
+    }
+  } else if (command.type == Ui2FontCommandType::BrowseFont) {
+    instrumentBrowserActive_ = false;
+    source_.SetInstrumentBrowserActive(false);
+    Config *config = Config::GetInstance();
+    Variable *configured =
+        config == nullptr ? nullptr : config->FindVariable(FourCC::VarUIFont);
+    settingsBrowser_.OpenFont(static_cast<std::uint8_t>(
+        configured == nullptr ? 0 : std::clamp(configured->GetInt(), 0, 2)));
     ActivatePage(UiApplicationPage::Browser);
+  }
 }
 
 void Ui2TrackerApplication::HandleRename(TrackerAction action, bool pressed) {
@@ -499,8 +1512,43 @@ void Ui2TrackerApplication::HandleRename(TrackerAction action, bool pressed) {
   if (command == Ui2RenameCommand::Randomize) {
     rename_.Randomize(System::GetInstance()->GetRandomNumber());
   } else if (command == Ui2RenameCommand::Save) {
-    session_.ProjectModel().SetProjectName(rename_.Value());
+    if (renameTarget_ == RenameTarget::Instrument) {
+      InstrumentBank *bank = session_.ProjectModel().GetInstrumentBank();
+      I_Instrument *instrument =
+          bank == nullptr ? nullptr : bank->GetInstrument(renameInstrumentNumber_);
+      if (instrument != nullptr) {
+        instrument->SetName(rename_.Value());
+        MarkProjectDirty();
+      }
+    } else if (renameTarget_ == RenameTarget::Project) {
+      projectSaveAsPending_ =
+          std::strcmp(savedProjectName_.data(), rename_.Value()) != 0;
+      session_.ProjectModel().SetProjectName(rename_.Value());
+      autoSave_.SetSaveAsPending(projectSaveAsPending_);
+      MarkProjectDirty();
+    } else if (renameTarget_ == RenameTarget::Theme ||
+               renameTarget_ == RenameTarget::NewTheme) {
+      CommitThemeName(rename_.Value(),
+                      renameTarget_ == RenameTarget::NewTheme);
+    }
+    renameTarget_ = RenameTarget::None;
+  } else if (command == Ui2RenameCommand::Cancel) {
+    renameTarget_ = RenameTarget::None;
   }
+}
+
+void Ui2TrackerApplication::CommitThemeName(const char *name,
+                                            bool resetColors) {
+  Config *config = Config::GetInstance();
+  if (config == nullptr || name == nullptr || name[0] == '\0')
+    return;
+  if (resetColors)
+    config->ResetSemanticThemeColors();
+  if (Variable *themeName = config->FindVariable(FourCC::VarThemeName))
+    themeName->SetString(name);
+  configSave_.MarkDirty();
+  (void)FlushConfig();
+  ApplyCurrentTheme();
 }
 
 void Ui2TrackerApplication::HandleMixer(TrackerAction action, bool pressed) {
@@ -509,12 +1557,38 @@ void Ui2TrackerApplication::HandleMixer(TrackerAction action, bool pressed) {
     ActivatePage(UiApplicationPage::Song);
     return;
   }
-  if (command.type == Ui2MixerCommandType::OpenRecord) {
-    ActivatePage(UiApplicationPage::Record);
+  if (command.type == Ui2MixerCommandType::ToggleMute ||
+      command.type == Ui2MixerCommandType::ToggleSolo ||
+      command.type == Ui2MixerCommandType::UnmuteAll) {
+    // Master is an output gain only. It is not a ninth sequencer channel and
+    // must never alias mute/solo operations onto T1.
+    if (command.channel >= SONG_CHANNEL_COUNT &&
+        command.type != Ui2MixerCommandType::UnmuteAll)
+      return;
+    // Mixer and tracker grids share the model port's single saved solo mask.
+    // Toggling solo in one view must therefore restore correctly from the
+    // other instead of maintaining two competing pieces of state.
+    Ui2TrackerCommand trackerCommand{};
+    trackerCommand.sourcePage = Ui2TrackerPage::Mixer;
+    trackerCommand.track =
+        command.channel < SONG_CHANNEL_COUNT ? command.channel : 0U;
+    trackerCommand.type = command.type == Ui2MixerCommandType::ToggleMute
+                              ? Ui2TrackerCommandType::ToggleMute
+                          : command.type == Ui2MixerCommandType::ToggleSolo
+                              ? Ui2TrackerCommandType::ToggleSolo
+                              : Ui2TrackerCommandType::UnmuteAll;
+    modelPort_.ApplyGridCommand(trackerCommand);
+    return;
+  }
+  if (command.type == Ui2MixerCommandType::SelectChannel) {
+    if (command.channel < SONG_CHANNEL_COUNT)
+      session_.EditorState().songX_ = command.channel;
     return;
   }
   if (command.type == Ui2MixerCommandType::StartPlayback) {
-    Player::GetInstance()->OnStartButton(PM_SONG, 0, false, 0);
+    Player::GetInstance()->OnStartButton(
+        PM_CHAIN, session_.EditorState().songX_, true,
+        static_cast<unsigned char>(session_.EditorState().chainRow_));
     return;
   }
   if (command.type != Ui2MixerCommandType::AdjustVolume)
@@ -529,14 +1603,270 @@ void Ui2TrackerApplication::HandleMixer(TrackerAction action, bool pressed) {
   const bool master = command.channel == SONG_CHANNEL_COUNT;
   Variable *variable = project.FindVariable(
       master ? FourCC::VarMasterVolume : channelVariables[command.channel]);
-  if (variable != nullptr)
+  if (variable != nullptr) {
     variable->SetInt(std::clamp(variable->GetInt() + command.delta, 0, 99));
+    MarkProjectDirty();
+  }
+}
+
+void Ui2TrackerApplication::HandleInstrument(TrackerAction action,
+                                             bool pressed) {
+  ConfigureInstrumentSubfields(session_, instrument_);
+  ExecuteInstrument(instrument_.Handle(action, pressed));
+}
+
+void Ui2TrackerApplication::ExecuteInstrument(Ui2InstrumentCommand command) {
+  if (!command.HasValue())
+    return;
+  TrackerSessionState &editor = session_.EditorState();
+  InstrumentBank *bank = session_.ProjectModel().GetInstrumentBank();
+  const std::uint8_t number =
+      static_cast<std::uint8_t>(editor.currentInstrumentID_);
+  I_Instrument *instrument =
+      bank == nullptr ? nullptr : bank->GetInstrument(number);
+
+  if (command.type == Ui2InstrumentCommandType::LoadInstrument) {
+    const bool refreshed = instrumentBrowser_.Refresh();
+    if (!refreshed) {
+      instrumentBrowser_.SetError("INSTRUMENT BROWSER FAILED");
+      Status::Set("INSTRUMENT BROWSER FAILED");
+    }
+    CloseSampleBrowser();
+    settingsBrowser_.Close();
+    instrumentBrowserActive_ = true;
+    source_.SetInstrumentBrowserActive(true);
+    ActivatePage(UiApplicationPage::Browser);
+    return;
+  }
+  if (command.type == Ui2InstrumentCommandType::SaveInstrument) {
+    SaveCurrentInstrument();
+    return;
+  }
+  if (command.type == Ui2InstrumentCommandType::RenameInstrument) {
+    if (instrument != nullptr) {
+      const auto name = instrument->GetUserSetName();
+      renameTarget_ = RenameTarget::Instrument;
+      renameInstrumentNumber_ = number;
+      rename_.Begin(name.c_str(), MAX_INSTRUMENT_NAME_LENGTH);
+    }
+    return;
+  }
+  if (command.type == Ui2InstrumentCommandType::ActivateField) {
+    if (instrument != nullptr &&
+        command.cursor.kind == Ui2InstrumentCursorKind::Field) {
+      const Ui2InstrumentParameterDescriptor descriptor =
+          ActiveInstrumentParameter(session_, command.cursor);
+      Variable *value = descriptor.primary == FourCC::Default
+                            ? nullptr
+                            : instrument->FindVariable(descriptor.primary);
+      const bool tableField =
+          descriptor.primary == FourCC::SampleInstrumentTable ||
+          descriptor.primary == FourCC::MidiInstrumentTable;
+      if (tableField) {
+        TableHolder *tables = TableHolder::GetInstance();
+        if (value != nullptr && tables != nullptr &&
+            Ui2AllocateInstrumentTable(descriptor, *value, *tables)) {
+          MarkProjectDirty();
+          return;
+        }
+        Status::Set("NO FREE TABLE");
+        runtime_.Invalidate();
+        return;
+      }
+
+      if (instrument->GetType() != IT_SAMPLE)
+        return;
+      auto *sample = static_cast<SampleInstrument *>(instrument);
+      const auto filename = sample->GetSampleFileName();
+      if (sample->GetSampleIndex() < 0 || filename.empty() ||
+          Player::GetInstance()->IsRunning())
+        return;
+      if (command.cursor.index == 0U)
+        (void)OpenSampleEditor(filename.c_str(), true,
+                               UiApplicationPage::Instrument);
+      else if (command.cursor.index == 1U)
+        (void)OpenSampleSlices(filename.c_str(),
+                               UiApplicationPage::Instrument);
+    }
+    return;
+  }
+
+  if (command.type == Ui2InstrumentCommandType::SelectNumber) {
+    editor.currentInstrumentID_ = command.value;
+    return;
+  }
+  if (command.type == Ui2InstrumentCommandType::SelectTrack) {
+    editor.songX_ = command.value;
+    return;
+  }
+  if (command.type == Ui2InstrumentCommandType::StartPlayback) {
+    Player::GetInstance()->OnStartButton(PM_PHRASE, editor.songX_, false,
+                                         editor.chainRow_);
+    return;
+  }
+  if (command.type == Ui2InstrumentCommandType::SetType) {
+    const InstrumentType requested = static_cast<InstrumentType>(
+        std::clamp<int>(command.value, IT_NONE, IT_LAST - 1));
+    const InstrumentType current =
+        instrument == nullptr ? IT_NONE : instrument->GetType();
+    const Ui2InstrumentLifecycleCommand lifecycleCommand =
+        instrumentLifecycle_.RequestTypeChange(
+            requested, current,
+            Ui2InstrumentNeedsTypeChangeConfirmation(instrument),
+            Player::GetInstance()->IsRunning());
+    ExecuteInstrumentLifecycle(lifecycleCommand);
+    return;
+  }
+  if (command.type != Ui2InstrumentCommandType::AdjustField ||
+      instrument == nullptr)
+    return;
+
+  const Ui2InstrumentParameterDescriptor descriptor =
+      ActiveInstrumentParameter(session_, command.cursor);
+  if (!descriptor.Valid() || !descriptor.editable ||
+      descriptor.primary == FourCC::Default)
+    return;
+  Variable *value = instrument->FindVariable(descriptor.primary);
+  if (value == nullptr)
+    return;
+  const int previous = value->GetInt();
+  const int adjusted = command.subfieldMode == Ui2InstrumentSubfieldMode::None
+                           ? Ui2AdjustInstrumentParameter(
+                                 descriptor, previous, command.direction)
+                           : Ui2AdjustInstrumentSubfieldParameter(
+                                 descriptor, previous, command.subfieldMode,
+                                 command.subfield, command.direction);
+  if (adjusted == previous)
+    return;
+  value->SetInt(adjusted);
+  if (descriptor.primary == FourCC::MidiInstrumentProgram) {
+    // Match InstrumentView::Update: changing PROGRAM during playback emits a
+    // MIDI Program Change immediately, including the legacy OFF sentinel.
+    auto *midi = static_cast<MidiInstrument *>(instrument);
+    Variable *channel = midi->FindVariable(FourCC::MidiInstrumentChannel);
+    if (channel != nullptr)
+      (void)Ui2ApplyInstrumentSideEffect(
+          descriptor, Player::GetInstance()->IsRunning(), true, *midi,
+          channel->GetInt(), adjusted);
+  }
+  MarkProjectDirty();
+}
+
+void Ui2TrackerApplication::HandleInstrumentLifecycle(TrackerAction action,
+                                                       bool pressed) {
+  ExecuteInstrumentLifecycle(instrumentLifecycle_.Handle(action, pressed));
+}
+
+void Ui2TrackerApplication::ExecuteInstrumentLifecycle(
+    Ui2InstrumentLifecycleCommand command) {
+  if (!command.HasValue())
+    return;
+  if (command.type == Ui2InstrumentLifecycleCommandType::OverwriteExport) {
+    SaveCurrentInstrument(true);
+    return;
+  }
+  if (command.type != Ui2InstrumentLifecycleCommandType::ApplyType)
+    return;
+  InstrumentBank *bank = session_.ProjectModel().GetInstrumentBank();
+  if (bank == nullptr)
+    return;
+  const auto slot = static_cast<unsigned short>(
+      session_.EditorState().currentInstrumentID_);
+  I_Instrument *current = bank->GetInstrument(slot);
+  if (current != nullptr && current->GetType() == command.instrumentType)
+    return;
+  // A transport can start outside this modal's input path. Recheck at the
+  // destructive boundary so an explicit YES can never replace an instrument
+  // that the player has begun using since the dialog opened.
+  if (Player::GetInstance()->IsRunning()) {
+    (void)instrumentLifecycle_.RequestTypeChange(
+        command.instrumentType,
+        current == nullptr ? IT_NONE : current->GetType(), false, true);
+    return;
+  }
+  if (Ui2ChangeInstrumentTypeAtomically(*bank, slot,
+                                        command.instrumentType) !=
+      Ui2InstrumentTypeChangeResult::Changed) {
+    // The current slot is deliberately retained. Legacy's allocation dialog
+    // promises "Trying next..." and then changes to another type; UI2 needs an
+    // approved error state before it can report this without misleading text.
+    return;
+  }
+  MarkProjectDirty();
+}
+
+void Ui2TrackerApplication::SaveCurrentInstrument(bool overwrite) {
+  InstrumentBank *bank = session_.ProjectModel().GetInstrumentBank();
+  const auto slot = static_cast<unsigned short>(
+      session_.EditorState().currentInstrumentID_);
+  I_Instrument *instrument =
+      bank == nullptr ? nullptr : bank->GetInstrument(slot);
+  if (instrument == nullptr || instrument->GetType() == IT_NONE) {
+    Status::Set("NO INSTRUMENT TO SAVE");
+    runtime_.Invalidate();
+    return;
+  }
+  const auto name = instrument->GetUserSetName();
+  if (name.empty()) {
+    Status::Set("NAME INSTRUMENT FIRST");
+    runtime_.Invalidate();
+    return;
+  }
+  PersistencyService *persistence = PersistencyService::GetInstance();
+  const PersistencyResult result =
+      persistence == nullptr
+          ? PERSIST_ERROR
+          : persistence->ExportInstrument(instrument, name, overwrite);
+  if (result == PERSIST_SAVED) {
+    Status::Set("INSTRUMENT SAVED");
+  } else if (result == PERSIST_EXISTS && !overwrite) {
+    Status::Set("INSTRUMENT FILE EXISTS");
+    instrumentLifecycle_.RequestExportOverwrite();
+  } else {
+    Status::Set("INSTRUMENT SAVE FAILED");
+  }
+  runtime_.Invalidate();
+}
+
+void Ui2TrackerApplication::HandleRecord(TrackerAction action, bool pressed) {
+  ExecuteRecord(record_.Handle(action, pressed));
+}
+
+void Ui2TrackerApplication::ExecuteRecord(Ui2RecordCommand command) {
+  if (!command.HasValue())
+    return;
+  Config *config = Config::GetInstance();
+  FourCC::enum_type key = FourCC::Default;
+  if (command.type == Ui2RecordCommandType::SetSource)
+    key = FourCC::VarRecordSource;
+  else if (command.type == Ui2RecordCommandType::SetLineGain)
+    key = FourCC::VarRecordLineGain;
+  else if (command.type == Ui2RecordCommandType::SetMicGain)
+    key = FourCC::VarRecordMicGain;
+  else if (command.type == Ui2RecordCommandType::ToggleRecording)
+    return; // All current platform record backends report unavailable.
+  if (key == FourCC::Default)
+    return;
+  Variable *value =
+      config == nullptr ? nullptr : config->FindVariable(FourCC(key));
+  if (value == nullptr)
+    return;
+  value->SetInt(command.value);
+  if (command.type == Ui2RecordCommandType::SetSource)
+    SetInputSource(static_cast<RecordSource>(command.value));
+  else if (command.type == Ui2RecordCommandType::SetLineGain)
+    SetLineInGain(static_cast<std::uint8_t>(std::max<int>(command.value, 0)));
+  else
+    SetMicGain(static_cast<std::uint8_t>(std::max<int>(command.value, 0)));
+  configSave_.MarkDirty();
 }
 
 void Ui2TrackerApplication::HandleTheme(TrackerAction action, bool pressed) {
   const Ui2ThemeCommand command = theme_.Handle(action, pressed);
+  if (Ui2IsPlainPlay(action, pressed, theme_.HeldMask()))
+    StartSongTransport(session_);
   if (pressed && action == TrackerAction::Left &&
-      (theme_.HeldMask() & TrackerActionBit(TrackerAction::Nav)) != 0U) {
+      (theme_.HeldMask() & TrackerActionBit(TrackerAction::Shift)) != 0U) {
     ActivatePage(UiApplicationPage::Device);
     return;
   }
@@ -544,29 +1874,279 @@ void Ui2TrackerApplication::HandleTheme(TrackerAction action, bool pressed) {
 }
 
 void Ui2TrackerApplication::ExecuteTheme(Ui2ThemeCommand command) {
+  Config *config = Config::GetInstance();
   switch (command.type) {
   case Ui2ThemeCommandType::NewTheme:
-  case Ui2ThemeCommandType::LoadTheme:
+    renameTarget_ = RenameTarget::NewTheme;
+    rename_.Begin("New Theme", MAX_THEME_NAME_LENGTH);
+    break;
+  case Ui2ThemeCommandType::LoadTheme: {
+    std::array<char, MAX_THEME_NAME_LENGTH + 1U> currentName{};
+    if (config != nullptr) {
+      if (Variable *name = config->FindVariable(FourCC::VarThemeName))
+        std::snprintf(currentName.data(), currentName.size(), "%s",
+                      name->GetString().c_str());
+    }
+    instrumentBrowserActive_ = false;
+    source_.SetInstrumentBrowserActive(false);
+    settingsBrowser_.OpenTheme(currentName.data());
+    ActivatePage(UiApplicationPage::Browser);
+    break;
+  }
   case Ui2ThemeCommandType::SaveTheme:
+    if (config != nullptr) {
+      Variable *name = config->FindVariable(FourCC::VarThemeName);
+      if (name == nullptr || name->GetString().length() == 0U)
+        break;
+      std::array<char, MAX_THEME_NAME_LENGTH + 16U> path{};
+      std::snprintf(path.data(), path.size(), "%s/%s%s", THEMES_DIR,
+                    name->GetString().c_str(), THEME_FILE_EXTENSION);
+      FileSystem *fileSystem = FileSystem::GetInstance();
+      if (fileSystem == nullptr) {
+        projectLifecycle_.ReportFailure(Ui2ProjectLifecycleFailure::SaveTheme);
+      } else if (fileSystem->exists(path.data())) {
+        // Match the legacy flow: an existing theme is never silently replaced.
+        // The shared conservative message dialog defaults to NO.
+        projectLifecycle_.RequestThemeOverwrite(name->GetString().c_str());
+      } else if (!config->ExportTheme(name->GetString().c_str(), false)) {
+        projectLifecycle_.ReportFailure(Ui2ProjectLifecycleFailure::SaveTheme);
+      } else {
+        configSave_.MarkDirty();
+        (void)FlushConfig();
+      }
+    }
+    break;
   case Ui2ThemeCommandType::RenameTheme:
+    if (config != nullptr) {
+      Variable *name = config->FindVariable(FourCC::VarThemeName);
+      renameTarget_ = RenameTarget::Theme;
+      rename_.Begin(name == nullptr ? "" : name->GetString().c_str(),
+                    MAX_THEME_NAME_LENGTH);
+    }
+    break;
   case Ui2ThemeCommandType::ActivateColor:
+    // The nineteen values are now real, independently persisted renderer
+    // inputs. No approved UI2 color editor exists yet, so entering a color row
+    // intentionally stops here instead of inventing a picker or RGB dialog.
+    break;
   case Ui2ThemeCommandType::None:
     break;
   }
 }
 
+void Ui2TrackerApplication::ApplyCurrentTheme() {
+  Config *config = Config::GetInstance();
+  if (config != nullptr)
+    runtime_.ApplyThemeColors(config->GetSemanticThemeColors());
+}
+
+void Ui2TrackerApplication::SaveCurrentProject(bool overwrite) {
+  const std::uint32_t nowMs = System::GetInstance()->Millis();
+  autoSave_.SetPersistBusy(true);
+  const TrackerApplicationSession::SaveResult result = session_.SaveProject(
+      savedProjectName_.data(), projectSaveAsPending_, overwrite);
+  autoSave_.SetPersistBusy(false);
+  if (result == TrackerApplicationSession::SaveResult::Exists) {
+    projectLifecycle_.RequestOverwrite(session_.ProjectName());
+    return;
+  }
+  if (result != TrackerApplicationSession::SaveResult::Saved) {
+    projectLifecycle_.ReportFailure(Ui2ProjectLifecycleFailure::SaveProject);
+    return;
+  }
+  std::snprintf(savedProjectName_.data(), savedProjectName_.size(), "%s",
+                session_.ProjectName());
+  projectSaveAsPending_ = false;
+  autoSave_.SetSaveAsPending(false);
+  autoSave_.OnProjectSaved(nowMs);
+}
+
+void Ui2TrackerApplication::ExecuteProjectLifecycle(
+    Ui2ProjectLifecycleCommand command) {
+  if (!command.HasValue())
+    return;
+  if (command.type == Ui2ProjectLifecycleCommandType::OverwriteTheme) {
+    Config *config = Config::GetInstance();
+    if (config == nullptr || command.project[0] == '\0' ||
+        !config->ExportTheme(command.project.data(), true)) {
+      projectLifecycle_.ReportFailure(Ui2ProjectLifecycleFailure::SaveTheme);
+      return;
+    }
+    configSave_.MarkDirty();
+    (void)FlushConfig();
+    return;
+  }
+  if (command.type == Ui2ProjectLifecycleCommandType::OverwriteProject) {
+    SaveCurrentProject(true);
+    return;
+  }
+  if (command.type == Ui2ProjectLifecycleCommandType::PurgeUnusedSamples ||
+      command.type ==
+          Ui2ProjectLifecycleCommandType::PurgeUnusedInstruments) {
+    // Recheck at execution time as well as when opening the confirmation. A
+    // transport may start outside this modal's input path, and neither sample
+    // files nor live instrument slots may be released while Player owns them.
+    if (Player::GetInstance()->IsRunning()) {
+      if (command.type ==
+          Ui2ProjectLifecycleCommandType::PurgeUnusedSamples)
+        projectLifecycle_.RequestPurgeUnusedSamples(true);
+      else
+        projectLifecycle_.RequestPurgeUnusedInstruments(true);
+      return;
+    }
+    if (command.type == Ui2ProjectLifecycleCommandType::PurgeUnusedSamples)
+      session_.ProjectModel().PurgeSamples();
+    else
+      session_.ProjectModel().PurgeInstruments();
+    MarkProjectDirty();
+    return;
+  }
+
+  const std::uint32_t nowMs = System::GetInstance()->Millis();
+  autoSave_.SetPersistBusy(true);
+  bool succeeded = false;
+  switch (command.type) {
+  case Ui2ProjectLifecycleCommandType::NewProject:
+    succeeded =
+        session_.NewProject() == TrackerApplicationSession::LoadResult::Loaded;
+    break;
+  case Ui2ProjectLifecycleCommandType::LoadProject:
+    succeeded = session_.LoadProject(command.project.data(), false, true) ==
+                TrackerApplicationSession::LoadResult::Loaded;
+    break;
+  case Ui2ProjectLifecycleCommandType::DeleteProject:
+    succeeded = session_.DeleteProject(command.project.data());
+    break;
+  case Ui2ProjectLifecycleCommandType::None:
+  case Ui2ProjectLifecycleCommandType::OverwriteProject:
+  case Ui2ProjectLifecycleCommandType::OverwriteTheme:
+  case Ui2ProjectLifecycleCommandType::PurgeUnusedSamples:
+  case Ui2ProjectLifecycleCommandType::PurgeUnusedInstruments:
+    break;
+  }
+  autoSave_.SetPersistBusy(false);
+
+  if (command.type == Ui2ProjectLifecycleCommandType::DeleteProject) {
+    if (!succeeded) {
+      projectLifecycle_.ReportFailure(
+          Ui2ProjectLifecycleFailure::DeleteProject);
+      return;
+    }
+    if (!projectBrowser_.Refresh(session_.ProjectName()))
+      projectLifecycle_.ReportFailure(
+          Ui2ProjectLifecycleFailure::RefreshBrowserAfterDelete);
+    return;
+  }
+
+  if (!succeeded) {
+    projectLifecycle_.ReportFailure(
+        command.type == Ui2ProjectLifecycleCommandType::NewProject
+            ? Ui2ProjectLifecycleFailure::NewProject
+            : Ui2ProjectLifecycleFailure::LoadProject,
+        command.project.data());
+    return;
+  }
+
+  std::snprintf(savedProjectName_.data(), savedProjectName_.size(), "%s",
+                session_.ProjectName());
+  projectSaveAsPending_ = false;
+  autoSave_.SetSaveAsPending(false);
+  ResetControllersAfterProjectBoundary();
+  observedProjectMutationGeneration_ = modelPort_.ProjectMutationGeneration();
+  if (command.type == Ui2ProjectLifecycleCommandType::NewProject)
+    autoSave_.OnProjectCreated(nowMs);
+  else
+    autoSave_.OnProjectLoaded(nowMs);
+
+  // A project boundary always opens Song after every controller has been
+  // reconstructed from the restored model. Resetting only the Grid controller
+  // leaves stale Project/Groove/Instrument selectors pointing into the prior
+  // project and makes a real data restore appear name-only.
+  ActivatePage(UiApplicationPage::Song);
+}
+
+void Ui2TrackerApplication::ResetControllersAfterProjectBoundary() {
+  StopSamplePreview();
+  if (sampleEditor_.Active())
+    sampleEditor_.Close();
+  if (sampleSlices_.Active())
+    sampleSlices_.Close();
+  std::array<Ui2SelectorState, static_cast<std::size_t>(Ui2DeviceField::Count)>
+      deviceSelectors{};
+  for (std::size_t index = 0U; index < deviceSelectors.size(); ++index) {
+    deviceSelectors[index] =
+        device_.Selector(static_cast<Ui2DeviceField>(index));
+  }
+  const std::uint32_t visibleDeviceFields = device_.VisibleFields();
+  const std::uint8_t textCase = font_.TextCase();
+
+  project_ = {};
+  projectBrowser_ = {};
+  projectLifecycle_ = {};
+  projectRender_.Reset();
+  groove_ = {};
+  device_ = {};
+  deviceLifecycle_ = {};
+  for (std::size_t index = 0U; index < deviceSelectors.size(); ++index) {
+    device_.SetSelector(static_cast<Ui2DeviceField>(index),
+                        deviceSelectors[index]);
+  }
+  device_.SetVisibleFields(visibleDeviceFields);
+  theme_ = {};
+  font_ = {};
+  font_.SetTextCase(textCase);
+  rename_ = {};
+  mixer_ = {};
+  instrument_ = {};
+  instrumentLifecycle_ = {};
+  instrumentBrowser_ = {};
+  settingsBrowser_.Close();
+  sampleBrowser_.Close();
+  sampleReturnPage_ = UiApplicationPage::Instrument;
+  instrumentBrowserActive_ = false;
+  source_.SetInstrumentBrowserActive(false);
+  record_ = {};
+  record_.SetGainRanges(RecordingPlatform::kLineInGainMinDb,
+                        RecordingPlatform::kLineInGainMaxDb,
+                        RecordingPlatform::kMicGainMinDb,
+                        RecordingPlatform::kMicGainMaxDb);
+  projectInput_ = {};
+  physicalHeldMask_ = 0U;
+  pressOwners_.fill(UiApplicationPage::None);
+  modelPort_.ResetProjectBoundary();
+  tracker_.SynchronizeFromPort();
+  tracker_.Hub().SetNavigationHeld(false);
+  source_.SetNavigationHeld(false);
+  runtime_.Invalidate();
+}
+
+void Ui2TrackerApplication::MarkProjectDirty() {
+  autoSave_.MarkDirty(System::GetInstance()->Millis());
+}
+
+bool Ui2TrackerApplication::FlushConfig() {
+  Config *config = Config::GetInstance();
+  const bool saved = configSave_.Flush(
+      [config]() { return config != nullptr && config->Save(); });
+  if (!saved) {
+    Status::Set("CONFIG SAVE FAILED");
+    runtime_.Invalidate();
+  }
+  return saved;
+}
+
 void Ui2TrackerApplication::ExecuteProject(Ui2ProjectCommand command) {
   switch (command.type) {
   case Ui2ProjectCommandType::SaveProject:
-    PersistencyService::GetInstance()->Save(session_.ProjectName(),
-                                            session_.ProjectName(), false);
-    PersistencyService::GetInstance()->SaveProjectState(session_.ProjectName());
+    SaveCurrentProject();
     break;
   case Ui2ProjectCommandType::RemoveUnusedSamples:
-    session_.ProjectModel().PurgeSamples();
+    projectLifecycle_.RequestPurgeUnusedSamples(
+        Player::GetInstance()->IsRunning());
     break;
   case Ui2ProjectCommandType::RemoveUnusedInstruments:
-    session_.ProjectModel().PurgeInstruments();
+    projectLifecycle_.RequestPurgeUnusedInstruments(
+        Player::GetInstance()->IsRunning());
     break;
   case Ui2ProjectCommandType::AdjustTempo:
   case Ui2ProjectCommandType::AdjustTranspose:
@@ -602,22 +2182,55 @@ void Ui2TrackerApplication::ExecuteProject(Ui2ProjectCommand command) {
         variable->SetInt(
             std::clamp(variable->GetInt() + command.value, minimum, maximum));
       }
+      MarkProjectDirty();
     }
     break;
   }
   case Ui2ProjectCommandType::NewProject:
-  case Ui2ProjectCommandType::LoadProject:
-  case Ui2ProjectCommandType::RenameProject:
-    if (command.type == Ui2ProjectCommandType::RenameProject)
-      rename_.Begin(session_.ProjectName(), MAX_PROJECT_NAME_LENGTH);
+    ExecuteProjectLifecycle(projectLifecycle_.RequestNew(
+        autoSave_.Dirty(), Player::GetInstance()->IsRunning()));
     break;
-  case Ui2ProjectCommandType::BrowseSamplePool:
+  case Ui2ProjectCommandType::RenameProject:
+    renameTarget_ = RenameTarget::Project;
+    rename_.Begin(session_.ProjectName(), MAX_PROJECT_NAME_LENGTH);
+    break;
+  case Ui2ProjectCommandType::LoadProject:
+    if (projectSaveAsPending_) {
+      projectLifecycle_.WarnPendingRename();
+      break;
+    }
+    if (!projectBrowser_.Refresh(session_.ProjectName())) {
+      projectLifecycle_.ReportFailure(Ui2ProjectLifecycleFailure::LoadProject,
+                                      session_.ProjectName());
+      break;
+    }
+    instrumentBrowserActive_ = false;
+    source_.SetInstrumentBrowserActive(false);
+    settingsBrowser_.Close();
+    ActivatePage(UiApplicationPage::Browser);
+    break;
+  case Ui2ProjectCommandType::BrowseSamplePool: {
+    if (Player::GetInstance()->IsRunning()) {
+      projectLifecycle_.ReportRunningBlocked();
+      break;
+    }
+    const std::uint8_t instrument = static_cast<std::uint8_t>(
+        session_.EditorState().currentInstrumentID_);
+    if (!sampleBrowser_.Open(session_.ProjectName(), instrument))
+      break;
+    settingsBrowser_.Close();
+    instrumentBrowserActive_ = false;
+    source_.SetInstrumentBrowserActive(false);
+    ActivatePage(UiApplicationPage::Browser);
+    break;
+  }
   case Ui2ProjectCommandType::RenderMixdown:
+    (void)projectRender_.Request(Ui2ProjectRenderMode::Mixdown);
+    break;
   case Ui2ProjectCommandType::RenderStems:
+    (void)projectRender_.Request(Ui2ProjectRenderMode::Stems);
+    break;
   case Ui2ProjectCommandType::None:
-    // These commands require a dedicated UI2 browser, rename page, or render
-    // progress state. They remain typed here rather than falling through to a
-    // legacy View implementation.
     break;
   }
 }
@@ -629,28 +2242,29 @@ void Ui2TrackerApplication::ExecuteGroove(Ui2GrooveCommand command) {
   std::uint8_t *steps = Groove::GetInstance()->GetGrooveData(number);
   switch (command.type) {
   case Ui2GrooveCommandType::InitializeStep:
-    steps[command.row] = 6U;
+    if (steps[command.row] == Ui2GrooveStepPolicy::Empty) {
+      steps[command.row] =
+          Ui2GrooveStepPolicy::Initialize(steps[command.row]);
+      MarkProjectDirty();
+    }
     break;
   case Ui2GrooveCommandType::ClearStep:
     steps[command.row] = 0xFFU;
+    MarkProjectDirty();
     break;
   case Ui2GrooveCommandType::AdjustStep: {
     std::uint8_t &step = steps[command.row];
-    const int current = step == 0xFFU ? 0 : step;
-    step = static_cast<std::uint8_t>(
-        std::clamp(current + command.value, 0, 0xFF));
+    step = Ui2GrooveStepPolicy::Adjust(step, command.value);
+    MarkProjectDirty();
     break;
   }
   case Ui2GrooveCommandType::SelectNumber:
     session_.EditorState().currentGroove_ = groove_.Number();
     break;
   case Ui2GrooveCommandType::StartPlayback:
-    Player::GetInstance()->OnStartButton(PM_SONG,
-                                         session_.EditorState().songX_, false,
-                                         session_.EditorState().songX_);
-    break;
-  case Ui2GrooveCommandType::OpenRecord:
-    ActivatePage(UiApplicationPage::Record);
+    Player::GetInstance()->OnStartButton(
+        PM_PHRASE, session_.EditorState().songX_, false,
+        static_cast<unsigned char>(session_.EditorState().chainRow_));
     break;
   case Ui2GrooveCommandType::None:
     break;

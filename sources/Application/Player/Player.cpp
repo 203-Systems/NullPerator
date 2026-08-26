@@ -705,8 +705,13 @@ bool Player::ProcessChannelCommand(int channel, FourCC cmd, ushort param) {
   case FourCC::InstrumentCommandTable: {
     TableHolder *th = TableHolder::GetInstance();
     TablePlayback &tpb = TablePlayback::GetTablePlayback(channel);
-    param = param & 0x7F;
-    Table &table = th->GetTable(param);
+    const int tableIndex = param & 0x7F;
+    if (!IsValidTableIndex(tableIndex)) {
+      Trace::Error("PLAYER", "Ignoring invalid table command: %02X",
+                   tableIndex);
+      return true;
+    }
+    Table &table = th->GetTable(tableIndex);
     tpb.Start(instr, table, false);
     return true;
     break;
@@ -895,7 +900,7 @@ void Player::playCursorPosition(int channel) {
           // If an instrument number has been specified && instrument has table,
           // we trigger the table.
 
-          if ((instrTable != VAR_OFF) && (newInstrument)) {
+          if (IsValidTableIndex(instrTable) && newInstrument) {
             Table &table = th->GetTable(instrTable);
             bool automated = instrument->GetTableAutomation();
             if (automated) {
@@ -943,7 +948,7 @@ void Player::StepAutomationTableForRetrigger(int channel,
   }
 
   int instrTable = instrument->GetTable();
-  if (instrTable == VAR_OFF) {
+  if (!IsValidTableIndex(instrTable)) {
     return;
   }
 
