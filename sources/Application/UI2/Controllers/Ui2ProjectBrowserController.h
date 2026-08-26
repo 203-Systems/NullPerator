@@ -57,6 +57,25 @@ public:
     return RefreshCurrentDirectory();
   }
 
+  bool RefreshAndSelect(const char *currentProject,
+                        const char *preferredProject) {
+    if (!Refresh(currentProject))
+      return false;
+    if (preferredProject == nullptr || preferredProject[0] == '\0')
+      return true;
+
+    for (std::uint16_t index = 0U; index < count_; ++index) {
+      char name[Ui2BrowserSnapshot::ItemTextCapacity]{};
+      ReadName(index, name, sizeof(name));
+      if (std::strcmp(name, preferredProject) != 0)
+        continue;
+      selected_ = static_cast<std::uint16_t>(index + (HasParent() ? 1U : 0U));
+      KeepSelectionVisible();
+      return true;
+    }
+    return true;
+  }
+
   bool RefreshCurrentDirectory() {
     count_ = 0U;
     selected_ = 0U;

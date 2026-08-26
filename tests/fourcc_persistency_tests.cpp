@@ -920,6 +920,26 @@ TEST_CASE("Song and Groove semantic restore rejects unsafe indexes and rolls "
   service.ClearLoadRollback();
 }
 
+TEST_CASE("PicoTracker 2.0 groove zero tail restores as empty steps") {
+  FourCCXmlFixture fixture;
+  fixture.MakeDirectory("projects");
+  PersistencyService &service = TestPersistencyService();
+  Groove *groove = Groove::GetInstance();
+  groove->Clear();
+
+  fixture.Write(
+      "projects/LEGACY-GROOVE/lgptsav.dat",
+      "<PICOTRACKER><GROOVES><DATA><DATA>06060000000000000000000000000000"
+      "</DATA></DATA></GROOVES></PICOTRACKER>");
+  REQUIRE(service.Load("LEGACY-GROOVE") == PERSIST_LOADED);
+  CHECK(groove->GetGrooveData(0)[0] == 6U);
+  CHECK(groove->GetGrooveData(0)[1] == 6U);
+  for (int step = 2; step < 16; ++step)
+    CHECK(groove->GetGrooveData(0)[step] == NO_GROOVE_DATA);
+  groove->SetGroove(0, 0);
+  CHECK_NOTHROW(static_cast<void>(groove->TriggerChannel(0)));
+}
+
 TEST_CASE("serialized load rollback recovers state after semantic failure") {
   FourCCXmlFixture fixture;
   fixture.Write("projects/.keep", "");

@@ -137,6 +137,18 @@ TEST_CASE("UI2 Project Browser keeps Load explicit and protects active Delete") 
   controller.Handle(TrackerAction::Option, false);
 }
 
+TEST_CASE("UI2 Project Browser restores a failed load selection after refresh") {
+  using namespace ui2;
+  ProjectBrowserFileSystem fileSystem;
+  Ui2ProjectBrowserController controller;
+
+  REQUIRE(controller.RefreshAndSelect("ACTIVE", "OLD"));
+  const Ui2BrowserSnapshot snapshot = controller.Snapshot();
+  CHECK(snapshot.selectedRow == 1U); // parent row occupies row zero
+  CHECK(std::strcmp(snapshot.items[1].data(), "OLD") == 0);
+  CHECK(std::strcmp(snapshot.items[2].data(), "*ACTIVE") == 0);
+}
+
 TEST_CASE("UI2 Project Browser owner releases clear a modal-opening chord") {
   using namespace ui2;
   ProjectBrowserFileSystem fileSystem;

@@ -63,13 +63,31 @@ void Groove::RestoreContent(PersistencyDocument *doc) {
     std::memcpy(staged.data(), data_, sizeof(data_));
     if (!restoreHexBuffer(doc, staged.data(), staged.size()))
       return;
-    for (const unsigned char ticks : staged) {
-      // 0xFF terminates the groove. A real step is 1..15; zero would make
-      // TriggerChannel() evaluate modulo zero and values above 15 are outside
-      // the editor/model contract.
-      if (ticks != NO_GROOVE_DATA && (ticks == 0U || ticks > 15U)) {
-        doc->MarkError();
-        return;
+    for (std::size_t groove = 0U; groove < MAX_GROOVES; ++groove) {
+      bool hasTiming = false;
+      for (std::size_t step = 0U; step < 16U; ++step) {
+        unsigned char &ticks = staged[groove * 16U + step];
+        if (ticks == NO_GROOVE_DATA)
+          continue;
+        if (ticks == 0U) {
+          // PicoTracker 2.0-RC3 project files wrote zeroes into the unused
+          // tail of some otherwise valid groove rows. Treat that legacy zero
+          // as the modern 0xFF terminator. A zero in the first step still has
+          // no valid timing context and remains a malformed payload.
+          if (!hasTiming) {
+            doc->MarkError();
+            return;
+          }
+          ticks = NO_GROOVE_DATA;
+          continue;
+        }
+        // A real step is 1..15; larger values are outside the editor/model
+        // contract and would make playback timing undefined.
+        if (ticks > 15U) {
+          doc->MarkError();
+          return;
+        }
+        hasTiming = true;
       }
     }
     std::memcpy(data_, staged.data(), sizeof(data_));

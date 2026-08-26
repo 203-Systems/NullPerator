@@ -11,19 +11,17 @@
 #include "Application/Instruments/CommandList.h"
 #include "Application/Instruments/SampleInstrument.h"
 #include "Application/Instruments/SamplePool.h"
-#include "Application/Persistency/PersistencyAttribute.h"
 #include "Application/Persistency/PersistencyService.h"
 #include "Application/Player/SyncMaster.h"
 #include "Foundation/Variables/WatchedVariable.h"
 #include "Groove.h"
-#include "ProjectParameterRestore.h"
 #include "Scale.h"
 #include "Services/Midi/MidiService.h"
 #include "System/Console/Trace.h"
 #include "System/io/Status.h"
 #include "Table.h"
 
-#include <cstring>
+#include <math.h>
 
 #define DEFAULT_CHANNEL_VOLUME 99
 #define DEFAULT_PREVIEW_VOLUME 60
@@ -377,63 +375,41 @@ void Project::PurgeInstruments() {
 
 void Project::RestoreContent(PersistencyDocument *doc) {
   bool attr = doc->NextAttribute();
-  int version = 32;
+  doc->version_ = 32;
   int tableRatio = 0;
-  bool sawVersion = false;
-  bool sawTableRatio = false;
   while (attr) {
     if (!strcmp(doc->attrname_, "VERSION")) {
-      char persisted[MAX_VARIABLE_STRING_LENGTH + 1U]{};
-      if (sawVersion || !CopyPersistedVariableAttribute(
-                            *doc, persisted, sizeof(persisted), false) ||
-          !ParseProjectVersionHundredthsForRestore(persisted, version)) {
-        doc->MarkError();
-        return;
-      }
-      sawVersion = true;
+      doc->version_ = int(atof(doc->attrval_) * 100);
     }
     if (!strcmp(doc->attrname_, "TABLERATIO")) {
-      char persisted[MAX_VARIABLE_STRING_LENGTH + 1U]{};
-      if (sawTableRatio || !CopyPersistedVariableAttribute(
-                               *doc, persisted, sizeof(persisted), false) ||
-          !ParsePersistedIntegerAttribute(persisted, 1, 64, tableRatio)) {
-        doc->MarkError();
-        return;
-      }
-      sawTableRatio = true;
+      tableRatio = atoi(doc->attrval_);
     }
     attr = doc->NextAttribute();
   }
-  if (doc->HadError()) {
-    doc->MarkError();
-    return;
-  }
-
-  ProjectParameterRestorePacket packet{};
-  const auto resolve = [](void *context, const char *name) -> Variable * {
-    return static_cast<Project *>(context)->FindVariable(name);
-  };
-  if (!StageProjectParameterRestore(doc, this, resolve, packet))
-    return;
-  if (!ValidateProjectParameterRestorePacket(packet, MIN_TEMPO, MAX_TEMPO)) {
-    doc->MarkError();
-    return;
-  }
-
-  // Commit only after every PARAMETER has been validated and the closing
-  // PROJECT tag has been consumed. Project name remains directory-derived.
-  for (std::uint8_t index = 0U; index < packet.count; ++index) {
-    ProjectParameterUpdate &update = packet.updates[index];
-    if (update.target != nullptr &&
-        update.target->GetID() != FourCC::VarProjectName) {
-      update.target->SetString(update.value.data());
-    }
-  }
-
-  doc->version_ = version;
   if (!tableRatio)
-    tableRatio = (version <= 32) ? 2 : 1;
+    tableRatio = (doc->version_ <= 32) ? 2 : 1;
   SyncMaster::GetInstance()->SetTableRatio(tableRatio);
+
+  // Keep project deserialization byte-for-byte compatible with the original
+  // PicoTracker model. UI2 owns presentation and input orchestration; it must
+  // not impose a new project-file grammar on existing projects.
+  bool elem = doc->FirstChild();
+  while (elem) {
+    bool parameterAttr = doc->NextAttribute();
+    char name[MAX_VARIABLE_STRING_LENGTH + 1]{};
+    char value[MAX_VARIABLE_STRING_LENGTH + 1]{};
+    while (parameterAttr) {
+      if (!strcmp(doc->attrname_, "NAME"))
+        strcpy(name, doc->attrval_);
+      if (!strcmp(doc->attrname_, "VALUE"))
+        strcpy(value, doc->attrval_);
+      parameterAttr = doc->NextAttribute();
+    }
+    Variable *variable = FindVariable(name);
+    if (variable && variable->GetID() != FourCC::VarProjectName)
+      variable->SetString(value);
+    elem = doc->NextSibling();
+  }
 }
 
 void Project::SaveContent(tinyxml2::XMLPrinter *printer) {

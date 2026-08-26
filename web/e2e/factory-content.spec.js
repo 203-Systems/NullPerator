@@ -82,6 +82,17 @@ function loadFactoryFixture() {
   return zipSync(archive, { level: 0 })
 }
 
+function loadLegacyMidiFixture() {
+  const midiProject = readFileSync(resolve(factoryRoot, 'projects/bt9-midi/lgptsav.dat'))
+  const sampleProject = readFileSync(resolve(factoryRoot, 'projects/oneCycAc/lgptsav.dat'))
+  const sample = readFileSync(resolve(factoryRoot, 'projects/oneCycAc/samples/AKWF_0906.wav'))
+  return zipSync({
+    'projects/bt9-midi/lgptsav.dat': new Uint8Array(midiProject),
+    'projects/oneCycAc/lgptsav.dat': new Uint8Array(sampleProject),
+    'projects/oneCycAc/samples/AKWF_0906.wav': new Uint8Array(sample),
+  }, { level: 0 })
+}
+
 async function deleteIdbfsDatabase(page) {
   await page.goto('/oracle.html')
   await page.evaluate(async () => {
@@ -165,6 +176,59 @@ async function expectPersistedFactoryState(page, editedHash) {
     .toBe(editedHash)
 }
 
+test('PicoTracker 2.0 bt9 MIDI project loads from another project without a samples directory', async ({ page }) => {
+  test.setTimeout(60_000)
+  await deleteIdbfsDatabase(page)
+
+  await page.goto('/?storage-test=1&views-test=1&inputDiagnostics=1&audio=disabled')
+  await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible({ timeout: 20_000 })
+  await page.getByRole('button', { name: 'Files', exact: true }).click()
+  await page.getByRole('button', { name: 'Restore ZIP' }).click()
+  await page.locator('input[accept*="zip"]').setInputFiles({
+    name: 'picotracker-factory-bt9-midi.zip',
+    mimeType: 'application/zip',
+    buffer: Buffer.from(loadLegacyMidiFixture()),
+  })
+  await expect(page.getByText(/Restore preview.*3 files/)).toBeVisible()
+  await page.getByRole('button', { name: 'Overwrite conflicts' }).click()
+  await expect(page.getByText('Restored 3 files', { exact: true })).toBeVisible()
+
+  await restartRuntime(page)
+  await expectModel(page, {
+    projectName: '.untitled',
+    playerRunning: false,
+  })
+
+  await page.getByRole('button', { name: 'Device', exact: true }).click()
+  await chord(page, 'x', 'w')
+  await tap(page, 'd')
+  await tap(page, 'd')
+  await tap(page, 'k')
+  await tap(page, 's')
+  await tap(page, 'k')
+  await expectModel(page, {
+    projectName: 'bt9-midi',
+    tempo: 86,
+    playerRunning: false,
+  })
+
+  // Switching again is a separate transaction path from restoring oneCycAc
+  // as the startup project. Exercise that exact browser workflow too.
+  await chord(page, 'x', 'w')
+  await tap(page, 'd')
+  await tap(page, 'd')
+  await tap(page, 'k')
+  await tap(page, 's')
+  await tap(page, 's')
+  await tap(page, 'k')
+  await expectModel(page, {
+    projectName: 'oneCycAc',
+    tempo: 163,
+    sampleCount: 1,
+    playerRunning: false,
+  })
+})
+
 test('real oneCycAc project imports, trims, plays, and survives reload plus runtime restart', async ({ page }) => {
   test.setTimeout(workletMode ? 150_000 : 120_000)
   const fixtureZip = loadFactoryFixture()
@@ -176,6 +240,7 @@ test('real oneCycAc project imports, trims, plays, and survives reload plus runt
     inputDiagnostics: '1',
   })
   if (workletMode) query.set('audio', 'worklet')
+  else query.set('audio', 'disabled')
   await page.goto(`/?${query}`)
   await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible({ timeout: 20_000 })
   await expect(page.locator('[data-storage-state="ready"]')).toBeVisible()

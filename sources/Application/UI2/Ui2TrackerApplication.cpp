@@ -2039,6 +2039,14 @@ void Ui2TrackerApplication::ExecuteProjectLifecycle(
   }
 
   if (!succeeded) {
+    // Project loading and rollback both reuse FileSystem's global directory
+    // listing. Rebuild the browser before leaving it visible behind the error
+    // dialog; otherwise its saved indices point into the last sample/project
+    // transaction listing and render as a selected blank row.
+    if (command.type == Ui2ProjectLifecycleCommandType::LoadProject) {
+      projectBrowser_.RefreshAndSelect(session_.ProjectName(),
+                                       command.project.data());
+    }
     projectLifecycle_.ReportFailure(
         command.type == Ui2ProjectLifecycleCommandType::NewProject
             ? Ui2ProjectLifecycleFailure::NewProject

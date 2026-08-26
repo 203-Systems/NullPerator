@@ -34,8 +34,11 @@ public:
   bool isCurrentRoot() override { return false; }
   bool DeleteFile(const char *) override { return false; }
   bool DeleteDir(const char *) override { return false; }
-  bool exists(const char *) override { return false; }
-  bool makeDir(const char *, bool = false) override { return false; }
+  bool exists(const char *) override { return pathExists; }
+  bool makeDir(const char *, bool = false) override {
+    ++makeDirCalls;
+    return makeDirSucceeds;
+  }
   std::uint64_t getFileSize(int) override { return 0; }
   bool CopyFile(const char *, const char *) override { return false; }
   bool MoveFile(const char *, const char *) override { return false; }
@@ -46,6 +49,9 @@ public:
   int listCalls = 0;
   int listedEntries = 0;
   bool listSucceeds = true;
+  bool pathExists = false;
+  bool makeDirSucceeds = false;
+  int makeDirCalls = 0;
 };
 } // namespace
 
@@ -88,6 +94,42 @@ TEST_CASE("sample pool listing accepts a checked empty directory") {
   CHECK(SamplePoolLoading::EnterAndList(filesystem, "SONG", indexes));
   CHECK(indexes.empty());
   CHECK(filesystem.chdirCalls == 3);
+}
+
+TEST_CASE("sample pool recreates a missing legacy samples directory") {
+  SampleListingFileSystem filesystem;
+  etl::vector<int, 4> indexes;
+  filesystem.failChdirCall = 3;
+  filesystem.makeDirSucceeds = true;
+
+  CHECK(SamplePoolLoading::EnterAndList(filesystem, "LEGACY", indexes));
+  CHECK(indexes.empty());
+  CHECK(filesystem.makeDirCalls == 1);
+  CHECK(filesystem.chdirCalls == 4);
+  CHECK(filesystem.listCalls == 1);
+}
+
+TEST_CASE("sample pool accepts a missing legacy samples directory read-only") {
+  SampleListingFileSystem filesystem;
+  etl::vector<int, 4> indexes;
+  filesystem.failChdirCall = 3;
+
+  CHECK(SamplePoolLoading::EnterAndList(filesystem, "LEGACY", indexes));
+  CHECK(indexes.empty());
+  CHECK(filesystem.makeDirCalls == 1);
+  CHECK(filesystem.listCalls == 0);
+}
+
+TEST_CASE("sample pool rejects an inaccessible existing samples directory") {
+  SampleListingFileSystem filesystem;
+  etl::vector<int, 4> indexes;
+  filesystem.failChdirCall = 3;
+  filesystem.pathExists = true;
+
+  CHECK_FALSE(SamplePoolLoading::EnterAndList(filesystem, "BROKEN", indexes));
+  CHECK(indexes.empty());
+  CHECK(filesystem.makeDirCalls == 0);
+  CHECK(filesystem.listCalls == 0);
 }
 
 TEST_CASE("missing sample binding survives a save and reload cycle") {
