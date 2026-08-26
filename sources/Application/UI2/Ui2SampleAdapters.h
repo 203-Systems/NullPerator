@@ -183,38 +183,38 @@ inline UiSampleEditorControllerState MakeUiSampleEditorControllerState(
   switch (snapshot.focus) {
   case SampleEditorViewUi2Focus::Name:
     state.cursor = UiSampleEditorCursor::Name;
-    help = "ENTER MOVE  EDIT DELETE";
+    help = "EDIT MOVE  OPTION DELETE";
     break;
   case SampleEditorViewUi2Focus::Start:
     state.cursor = UiSampleEditorCursor::Start;
-    help = "ENTER+ARROWS ADJUST START";
+    help = "EDIT+ARROWS ADJUST START";
     break;
   case SampleEditorViewUi2Focus::End:
     state.cursor = UiSampleEditorCursor::End;
-    help = "ENTER+ARROWS ADJUST END";
+    help = "EDIT+ARROWS ADJUST END";
     break;
   case SampleEditorViewUi2Focus::Operation:
     state.cursor = UiSampleEditorCursor::Field3;
-    help = "ENTER+UP/DOWN SELECT OP";
+    help = "EDIT+UP/DOWN SELECT OP";
     break;
   case SampleEditorViewUi2Focus::Apply:
     state.cursor = UiSampleEditorCursor::Field4;
-    help = "ENTER APPLY OPERATION";
+    help = "EDIT APPLY OPERATION";
     break;
   case SampleEditorViewUi2Focus::Save:
     state.cursor = UiSampleEditorCursor::Save;
     state.bottomActive = 0;
-    help = "ENTER SAVE";
+    help = "EDIT SAVE";
     break;
   case SampleEditorViewUi2Focus::SaveAndLoad:
     state.cursor = UiSampleEditorCursor::SaveAndLoad;
     state.bottomActive = snapshot.projectPool ? 0xFFU : 1U;
-    help = "ENTER SAVE AND LOAD";
+    help = "EDIT SAVE AND LOAD";
     break;
   case SampleEditorViewUi2Focus::Discard:
     state.cursor = UiSampleEditorCursor::Discard;
     state.bottomActive = snapshot.projectPool ? 1U : 2U;
-    help = "ENTER DISCARD";
+    help = "EDIT DISCARD";
     break;
   case SampleEditorViewUi2Focus::Waveform:
     state.cursor = UiSampleEditorCursor::Waveform;
@@ -223,8 +223,8 @@ inline UiSampleEditorControllerState MakeUiSampleEditorControllerState(
     else if (modifiers.editHeld)
       help = "LEFT/RIGHT MARKER  UP/DOWN ZOOM";
     else
-      help = snapshot.singleCycle ? "PLAY LOOP PREVIEW  EDIT ZOOM"
-                                  : "PLAY PREVIEW  EDIT ZOOM";
+      help = snapshot.singleCycle ? "PLAY LOOP PREVIEW  OPTION ZOOM"
+                                  : "PLAY PREVIEW  OPTION ZOOM";
     break;
   case SampleEditorViewUi2Focus::Unknown:
     state.cursor = UiSampleEditorCursor::None;
@@ -314,11 +314,11 @@ inline UiSampleSlicesControllerState MakeUiSampleSlicesControllerState(
     break;
   case SampleSlicesViewUi2Focus::AutoSliceCount:
     state.cursor = UiSampleSlicesCursor::AutoSliceCount;
-    help = "ENTER+UP/DOWN SET COUNT";
+    help = "EDIT+UP/DOWN SET COUNT";
     break;
   case SampleSlicesViewUi2Focus::AutoSlice:
     state.cursor = UiSampleSlicesCursor::AutoSlice;
-    help = "ENTER APPLY EVEN SLICES";
+    help = "EDIT APPLY EVEN SLICES";
     break;
   case SampleSlicesViewUi2Focus::Unknown:
     state.cursor = UiSampleSlicesCursor::None;

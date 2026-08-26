@@ -14,13 +14,13 @@
 #include "Application/Views/Ui2RecordSnapshot.h"
 #include "UI2/Views/Chain/UiChainView.h"
 #include "UI2/Views/Device/UiDeviceView.h"
+#include "UI2/Views/Font/UiFontView.h"
 #include "UI2/Views/Instrument/UiInstrumentView.h"
 #include "UI2/Views/Mixer/UiMixerView.h"
 #include "UI2/Views/Phrase/UiPhraseView.h"
 #include "UI2/Views/Project/UiProjectView.h"
 #include "UI2/Views/Table/UiTableView.h"
 #include "UI2/Views/Theme/UiThemeView.h"
-#include "UI2/Views/Font/UiFontView.h"
 
 #include <array>
 #include <cstdint>
@@ -222,6 +222,7 @@ struct UiInstrumentFieldFrameState {
   std::array<char, 16> label{};
   std::array<char, 24> value{};
   std::int16_t y = 0;
+  bool userData = false;
   bool operator==(const UiInstrumentFieldFrameState &) const = default;
 };
 
@@ -236,7 +237,7 @@ struct UiInstrumentFrameState {
   std::array<char, 3> number{};
   std::array<char, 6> elapsed{};
   std::array<char, 17> name{};
-  std::array<UiInstrumentFieldFrameState, 16> fields{};
+  std::array<UiInstrumentFieldFrameState, kUiInstrumentMaximumFields> fields{};
   std::array<UiInstrumentOperatorFrameState, 6> operators{};
   std::array<std::array<char, 5>, 8> trackNotes{};
   std::uint8_t fieldCount = 0;
@@ -257,6 +258,13 @@ struct UiInstrumentFrameState {
   bool topMetaInkVisible = true;
   bool bottomTrackInkVisible = true;
   bool numberFocus = false;
+  bool enterSubfieldFocus = false;
+  bool adjustmentFocus = false;
+  bool adjustmentNote = false;
+  std::uint8_t adjustmentFineStep = 1;
+  std::uint8_t adjustmentCoarseStep = 10;
+  std::uint8_t selectedSubfield = 0;
+  std::uint8_t subfieldTextOffset = 0;
   std::int16_t scrollOffset = 0;
   UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
@@ -319,6 +327,7 @@ struct UiDeviceFrameState {
   bool cursorVisualOverride = false;
   bool cursorInkVisible = true;
   bool selectorWrap = false;
+  bool editHeld = false;
   bool showLineOut = false;
   bool showVolume = true;
   bool showTheme = true;
@@ -376,6 +385,9 @@ public:
   [[nodiscard]] virtual std::uint32_t NowMs() const = 0;
   [[nodiscard]] virtual UiApplicationBatteryState ReadBattery() const = 0;
   [[nodiscard]] virtual bool NavigationHeld() const { return false; }
+  [[nodiscard]] virtual UiTextCaseMode TextCase() const {
+    return UiTextCaseMode::Upper;
+  }
 
   [[nodiscard]] virtual bool HasDialog() const = 0;
   [[nodiscard]] virtual Ui2DialogSnapshot DialogSnapshot() const = 0;

@@ -255,6 +255,10 @@ public:
   }
 
   bool Synchronize(const Ui2TrackerGridSessionState &state) {
+    std::uint16_t heldModifiers = ActiveState().heldMask;
+    if (navigationHeld_)
+      heldModifiers = static_cast<std::uint16_t>(
+          heldModifiers | TrackerActionBit(TrackerAction::Shift));
     song_ = Ui2SongController(state.track, state.songVisibleRow,
                               state.songRowOffset, state.liveMode);
     chain_ = Ui2ChainController(state.chainNumber, state.track, state.chainRow,
@@ -269,11 +273,12 @@ public:
         Ui2TrackerPage::InstrumentTable, state.instrumentTableNumber,
         state.track, state.instrumentTableRow, state.instrumentTableColumn,
         state.instrumentTableDigit);
-    SetNavigationHeld(navigationHeld_);
-    pressOwners_.fill(Ui2TrackerPage::None);
     activePage_ = state.activePage == Ui2TrackerPage::None
                       ? Ui2TrackerPage::Song
                       : state.activePage;
+    SetNavigationHeld(navigationHeld_);
+    SynchronizeActiveHeldModifiers(heldModifiers);
+    pressOwners_.fill(Ui2TrackerPage::None);
     return true;
   }
 
@@ -301,6 +306,33 @@ public:
   }
 
 private:
+  void SynchronizeActiveHeldModifiers(std::uint16_t mask) {
+    switch (activePage_) {
+    case Ui2TrackerPage::Song:
+      song_.SynchronizeHeldModifiers(mask);
+      break;
+    case Ui2TrackerPage::Chain:
+      chain_.SynchronizeHeldModifiers(mask);
+      break;
+    case Ui2TrackerPage::Phrase:
+      phrase_.SynchronizeHeldModifiers(mask);
+      break;
+    case Ui2TrackerPage::PhraseTable:
+      phraseTable_.SynchronizeHeldModifiers(mask);
+      break;
+    case Ui2TrackerPage::InstrumentTable:
+      instrumentTable_.SynchronizeHeldModifiers(mask);
+      break;
+    case Ui2TrackerPage::Project:
+    case Ui2TrackerPage::Mixer:
+    case Ui2TrackerPage::Groove:
+    case Ui2TrackerPage::Instrument:
+    case Ui2TrackerPage::Record:
+    case Ui2TrackerPage::None:
+      break;
+    }
+  }
+
   void AlignTrack(Ui2TrackerPage page, std::uint8_t track) {
     switch (page) {
     case Ui2TrackerPage::Song:
@@ -389,14 +421,24 @@ public:
 
   Ui2TrackerCommandBatch<> Handle(TrackerAction action, bool pressed) {
     Ui2TrackerCommandBatch<> batch = hub_.Handle(action, pressed);
+    bool synchronize = false;
     for (std::uint8_t index = 0; index < batch.count; ++index) {
       const Ui2TrackerCommand &command = batch.commands[index];
       port_.ApplyGridCommand(command);
       if (command.type == Ui2TrackerCommandType::SwitchPage) {
         hub_.Activate(command.targetPage);
-        hub_.Synchronize(port_.LoadGridSession());
+        synchronize = true;
+      } else if (command.type == Ui2TrackerCommandType::SelectTrack ||
+                 command.type == Ui2TrackerCommandType::WarpVertical ||
+                 command.type == Ui2TrackerCommandType::JumpSection) {
+        // These commands resolve through Song -> Chain -> Phrase model
+        // context. Reload the accepted target instead of storing the
+        // controller's optimistic cursor over a rejected empty cell.
+        synchronize = true;
       }
     }
+    if (synchronize)
+      hub_.Synchronize(port_.LoadGridSession());
     port_.StoreGridNavigation(hub_.Navigation());
     return batch;
   }

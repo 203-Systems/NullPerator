@@ -130,14 +130,40 @@ public:
     if (!input_.Update(action, pressed) || !pressed)
       return {};
 
-    if (input_.AnyModifier()) {
-      if (action == TrackerAction::Enter &&
-          input_.Mask() == TrackerActionBit(TrackerAction::Enter)) {
+    if (input_.Held(TrackerAction::Edit)) {
+      if (action == TrackerAction::Edit &&
+          input_.Mask() == TrackerActionBit(TrackerAction::Edit)) {
         const Ui2DeviceCommandType type = ActionFor(SelectedField());
         return {.type = type, .field = SelectedField()};
       }
+      if (action == TrackerAction::Left || action == TrackerAction::Right ||
+          action == TrackerAction::Up || action == TrackerAction::Down) {
+        const Ui2DeviceField field = SelectedField();
+        if (!IsSelectorField(field))
+          return {};
+        const bool vertical = action == TrackerAction::Up ||
+                              action == TrackerAction::Down;
+        if (vertical && !IsNumericField(field))
+          return {};
+        Ui2SelectorState &selector = selectors_[FieldIndex(field)];
+        const std::int8_t delta =
+            action == TrackerAction::Left || action == TrackerAction::Down
+                ? -1
+                : 1;
+        const std::uint8_t steps = vertical ? 10U : 1U;
+        bool changed = false;
+        for (std::uint8_t step = 0; step < steps; ++step)
+          changed = selector.Move(delta) || changed;
+        if (!changed)
+          return {};
+        return {.type = Ui2DeviceCommandType::SetSelector,
+                .field = field,
+                .value = selector.current};
+      }
       return {};
     }
+    if (input_.AnyModifier())
+      return {};
 
     if (action == TrackerAction::Up) {
       cursor_.MovePrevious();
@@ -185,6 +211,12 @@ private:
       return false;
     }
     return false;
+  }
+
+  [[nodiscard]] static constexpr bool
+  IsNumericField(Ui2DeviceField field) {
+    return field == Ui2DeviceField::Volume ||
+           field == Ui2DeviceField::Brightness;
   }
 
   [[nodiscard]] static constexpr Ui2DeviceCommandType

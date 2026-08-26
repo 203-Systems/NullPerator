@@ -60,7 +60,6 @@ enum class Ui2TrackerCommandType : std::uint8_t {
   StartPlayback,
   StartImmediate,
   StopPlayback,
-  OpenRecord,
   ToggleMute,
   ToggleSolo,
   UnmuteAll,
@@ -133,6 +132,10 @@ struct Ui2GridSelectionState {
   [[nodiscard]] constexpr std::uint8_t Bottom() const {
     return anchorRow > activeRow ? anchorRow : activeRow;
   }
+
+  [[nodiscard]] constexpr bool SingleCell() const {
+    return active && anchorColumn == activeColumn && anchorRow == activeRow;
+  }
 };
 
 struct Ui2TrackerCommand {
@@ -162,8 +165,8 @@ template <std::size_t Capacity = 2> struct Ui2TrackerCommandBatch {
 
   [[nodiscard]] constexpr bool Empty() const { return count == 0; }
 
-  [[nodiscard]] constexpr const Ui2TrackerCommand &operator[](
-      std::size_t index) const {
+  [[nodiscard]] constexpr const Ui2TrackerCommand &
+  operator[](std::size_t index) const {
     return commands[index];
   }
 
@@ -195,14 +198,22 @@ public:
 
   [[nodiscard]] constexpr bool AnyModifier() const {
     constexpr std::uint16_t modifiers =
-        TrackerActionBit(TrackerAction::Alt) |
-        TrackerActionBit(TrackerAction::Edit) |
-        TrackerActionBit(TrackerAction::Enter) |
-        TrackerActionBit(TrackerAction::Nav);
+        TrackerActionBit(TrackerAction::Shift) |
+        TrackerActionBit(TrackerAction::Option) |
+        TrackerActionBit(TrackerAction::Edit);
     return (mask_ & modifiers) != 0U;
   }
 
   [[nodiscard]] constexpr std::uint16_t Mask() const { return mask_; }
+
+  constexpr void SynchronizeModifiers(std::uint16_t mask) {
+    constexpr std::uint16_t modifiers =
+        TrackerActionBit(TrackerAction::Shift) |
+        TrackerActionBit(TrackerAction::Option) |
+        TrackerActionBit(TrackerAction::Edit);
+    mask_ = static_cast<std::uint16_t>((mask_ & ~modifiers) |
+                                      (mask & modifiers));
+  }
 
 private:
   std::uint16_t mask_ = 0;
@@ -212,16 +223,16 @@ template <std::uint8_t ColumnCount> class Ui2FixedGridCursor {
 public:
   static_assert(ColumnCount > 0U);
 
-  constexpr Ui2FixedGridCursor(std::uint8_t row = 0,
-                               std::uint8_t column = 0)
-      : row_(row < kUi2TrackerVisibleRows ? row
-                                         : kUi2TrackerVisibleRows - 1U),
+  constexpr Ui2FixedGridCursor(std::uint8_t row = 0, std::uint8_t column = 0)
+      : row_(row < kUi2TrackerVisibleRows ? row : kUi2TrackerVisibleRows - 1U),
         column_(column < ColumnCount ? column : ColumnCount - 1U) {}
 
   [[nodiscard]] constexpr std::uint8_t Row() const { return row_; }
   [[nodiscard]] constexpr std::uint8_t Column() const { return column_; }
 
-  constexpr void Move(Ui2TrackerEditDirection direction) {
+  constexpr bool Move(Ui2TrackerEditDirection direction) {
+    const std::uint8_t previousRow = row_;
+    const std::uint8_t previousColumn = column_;
     switch (direction) {
     case Ui2TrackerEditDirection::Left:
       if (column_ > 0U)
@@ -242,6 +253,7 @@ public:
     case Ui2TrackerEditDirection::None:
       break;
     }
+    return row_ != previousRow || column_ != previousColumn;
   }
 
 private:
@@ -265,12 +277,12 @@ Ui2TrackerDirectionFor(TrackerAction action) {
     return Ui2TrackerEditDirection::Right;
   case TrackerAction::Up:
     return Ui2TrackerEditDirection::Up;
-  case TrackerAction::Alt:
+  case TrackerAction::Shift:
+  case TrackerAction::Option:
   case TrackerAction::Edit:
-  case TrackerAction::Enter:
-  case TrackerAction::Nav:
   case TrackerAction::Play:
-  case TrackerAction::Select:
+  case TrackerAction::Reserved8:
+  case TrackerAction::Reserved9:
   case TrackerAction::Power:
   case TrackerAction::Count:
     return Ui2TrackerEditDirection::None;
@@ -284,8 +296,7 @@ Ui2ParameterStep(std::uint8_t leftToRightDigit) {
   return static_cast<std::int16_t>(1U << (4U * (3U - digit)));
 }
 
-[[nodiscard]] constexpr std::uint8_t
-Ui2ClampTrack(std::int16_t track) {
+[[nodiscard]] constexpr std::uint8_t Ui2ClampTrack(std::int16_t track) {
   if (track < 0)
     return 0;
   if (track >= kUi2TrackerTrackCount)

@@ -5,12 +5,19 @@
  */
 
 #include "Application/UI2/Ui2NativeApplicationStateSource.h"
+#include "Application/Audio/RecordingPlatform.h"
+#include "Application/Model/Config.h"
 
 #include "Application/Model/Groove.h"
+#include "Application/Model/ProjectVersion.h"
 #include "Application/Model/Scale.h"
 #include "Application/Model/Table.h"
+#include "Application/Instruments/SIDInstrument.h"
+#include "Application/Instruments/SampleInstrument.h"
 #include "Application/Player/Player.h"
+#include "Application/Session/FirmwareLifecycleService.h"
 #include "Application/Session/TrackerApplicationSession.h"
+#include "Application/UI2/Ui2InstrumentParameters.h"
 #include "Application/Utils/HelpLegend.h"
 #include "Application/Utils/char.h"
 #include "System/System/System.h"
@@ -23,6 +30,14 @@
 #include <cstring>
 
 namespace ui2 {
+
+UiTextCaseMode Ui2NativeApplicationStateSource::TextCase() const {
+  if (Variable *value =
+          Config::GetInstance()->FindVariable(FourCC::VarUITextCase)) {
+    return static_cast<UiTextCaseMode>(std::clamp(value->GetInt(), 0, 2));
+  }
+  return UiTextCaseMode::Upper;
+}
 namespace {
 
 template <std::size_t Size>
@@ -49,6 +64,13 @@ void CopyUpper(std::array<char, Size> &destination, const char *source,
 bool PlayerRunning() {
   Player *player = Player::GetInstance();
   return player != nullptr && player->IsRunning();
+}
+
+bool ProjectSampleInUse(void *context, const char *filename) {
+  auto *project = static_cast<Project *>(context);
+  return project != nullptr && filename != nullptr &&
+         project->SampleInUse(
+             etl::string<MAX_INSTRUMENT_FILENAME_LENGTH>(filename));
 }
 
 void FormatElapsed(std::array<char, 6> &elapsed) {
@@ -217,6 +239,20 @@ std::uint32_t Ui2NativeApplicationStateSource::NowMs() const {
 
 UiApplicationBatteryState
 Ui2NativeApplicationStateSource::ReadBattery() const {
+  if (firmwareLifecycle_.BatterySampled()) {
+    const FirmwareBatterySample battery =
+        firmwareLifecycle_.LastBatterySample();
+    if (!battery.available)
+      return {};
+    return {.percentage =
+                std::min<std::uint8_t>(battery.percentage, 100U),
+            .available = true,
+            .charging = battery.charging};
+  }
+
+  // The first frame is presented before the first application Tick(). Read
+  // once here so that frame has a truthful battery state; every later frame
+  // reuses the lifecycle service's 1 Hz sample and does not hit the ADC twice.
   System *system = System::GetInstance();
   if (system == nullptr)
     return {};
@@ -240,9 +276,9 @@ Ui2NativeApplicationStateSource::CaptureSong(UiSongFrameState &state) {
   state.editRow = controller.VisibleRow();
   state.rowOffset = controller.RowOffset();
   state.adjustmentFocus =
-      (controller.HeldMask() & TrackerActionBit(TrackerAction::Enter)) != 0U;
-  state.modeFocus =
       (controller.HeldMask() & TrackerActionBit(TrackerAction::Edit)) != 0U;
+  state.modeFocus =
+      (controller.HeldMask() & TrackerActionBit(TrackerAction::Option)) != 0U;
   state.navHeld = navigationHeld_;
   for (std::uint8_t row = 0; row < 16U; ++row) {
     for (std::uint8_t track = 0; track < SONG_CHANNEL_COUNT; ++track) {
@@ -283,7 +319,7 @@ Ui2NativeApplicationStateSource::CaptureChain(UiChainFrameState &state) {
   state.numberFocus = controller.NumberFocus();
   state.adjustmentFocus =
       !state.numberFocus &&
-      (controller.HeldMask() & TrackerActionBit(TrackerAction::Enter)) != 0U;
+      (controller.HeldMask() & TrackerActionBit(TrackerAction::Edit)) != 0U;
   state.navHeld = navigationHeld_;
   if (controller.Selection().active) {
     const auto &selection = controller.Selection();
@@ -315,7 +351,8 @@ Ui2NativeApplicationStateSource::CapturePhrase(UiPhraseFrameState &state) {
   state.enterDigitFocus = controller.EnterDigitFocus();
   state.adjustmentFocus =
       !state.numberFocus && !state.enterDigitFocus &&
-      (controller.HeldMask() & TrackerActionBit(TrackerAction::Enter)) != 0U;
+      controller.Column() == 0U &&
+      (controller.HeldMask() & TrackerActionBit(TrackerAction::Edit)) != 0U;
   state.navHeld = navigationHeld_;
   state.activeHeader = controller.Column() == 0U   ? UiPhraseHeader::Note
                        : controller.Column() == 1U ? UiPhraseHeader::Instrument
@@ -346,8 +383,13 @@ Ui2NativeApplicationStateSource::CapturePhrase(UiPhraseFrameState &state) {
   CaptureTrackNotes(state.trackNotes);
   const int selected = base + controller.Row();
   if (controller.Column() <= 1U) {
-    std::uint8_t instrument = phrase.instr_[selected];
-    if (controller.Column() == 0U && phrase.note_[selected] != NO_NOTE) {
+    const bool cellHasValue = controller.Column() == 0U
+                                  ? phrase.note_[selected] != NO_NOTE
+                                  : phrase.instr_[selected] != 0xFFU;
+    std::uint8_t instrument = controller.Column() == 1U
+                                  ? phrase.instr_[selected]
+                                  : 0xFFU;
+    if (cellHasValue && controller.Column() == 0U) {
       for (int row = controller.Row(); row >= 0; --row) {
         if (phrase.instr_[base + row] != 0xFFU) {
           instrument = phrase.instr_[base + row];
@@ -356,12 +398,12 @@ Ui2NativeApplicationStateSource::CapturePhrase(UiPhraseFrameState &state) {
       }
     }
     const auto &list = project.GetInstrumentBank()->InstrumentsList();
-    if (instrument < list.size() && list[instrument] != nullptr) {
+    if (cellHasValue && instrument < list.size() &&
+        list[instrument] != nullptr) {
       state.context = UiPhraseContext::Instrument;
       std::snprintf(state.contextLead.data(), state.contextLead.size(),
                     "INSTRUMENT %02X", instrument);
-      CopyUpper(state.contextTail,
-                list[instrument]->GetDisplayName().c_str());
+      CopyText(state.contextTail, list[instrument]->GetDisplayName().c_str());
     }
   } else {
     const FourCC command = controller.Column() <= 3U ? phrase.cmd1_[selected]
@@ -388,9 +430,9 @@ Ui2NativeApplicationStateSource::CaptureTable(UiTableFrameState &state) {
   state.selectedTrack = controller.SelectedTrack();
   state.numberFocus = controller.NumberFocus();
   state.enterDigitFocus = controller.EnterDigitFocus();
-  state.adjustmentFocus =
-      !state.numberFocus && !state.enterDigitFocus &&
-      (controller.HeldMask() & TrackerActionBit(TrackerAction::Enter)) != 0U;
+  // Table command and value cells always keep the command-specific help.
+  // ENTER-held value editing is represented by the in-cell digit cursor.
+  state.adjustmentFocus = false;
   state.navHeld = navigationHeld_;
   state.activeHeader = controller.Column() < 2U   ? UiTableHeader::Fx1
                        : controller.Column() < 4U ? UiTableHeader::Fx2
@@ -428,9 +470,119 @@ UiApplicationActivityState Ui2NativeApplicationStateSource::CaptureInstrument(
     UiInstrumentFrameState &state) {
   state = {};
   const TrackerSessionState &editor = session_.EditorState();
-  hex2char(static_cast<std::uint8_t>(editor.currentInstrumentID_),
-           state.number.data());
+  const std::uint8_t number =
+      static_cast<std::uint8_t>(editor.currentInstrumentID_);
+  InstrumentBank *bank = session_.ProjectModel().GetInstrumentBank();
+  I_Instrument *instrument = bank->GetInstrument(number);
+  const InstrumentType type = instrument == nullptr ? IT_NONE
+                                                     : instrument->GetType();
+  hex2char(number, state.number.data());
   state.selectedTrack = editor.songX_;
+  state.kind = static_cast<UiInstrumentKind>(type);
+  if (instrument == nullptr || type == IT_NONE)
+    CopyText(state.name, "--");
+  else
+    CopyText(state.name, instrument->GetDisplayName().c_str());
+
+  const bool sidFirstChip = type != IT_SID ||
+                            static_cast<SIDInstrument *>(instrument)->GetChip() ==
+                                SID1;
+  const auto valueFor = [instrument](FourCC::enum_type id, int fallback = 0) {
+    Variable *value = id == FourCC::Default || instrument == nullptr
+                          ? nullptr
+                          : instrument->FindVariable(id);
+    return value == nullptr ? fallback : value->GetInt();
+  };
+  const auto textFor = [instrument](FourCC::enum_type id) {
+    Variable *value = id == FourCC::Default || instrument == nullptr
+                          ? nullptr
+                          : instrument->FindVariable(id);
+    return value == nullptr ? etl::string<MAX_VARIABLE_STRING_LENGTH>{}
+                            : value->GetString();
+  };
+
+  const std::uint8_t fieldCount = Ui2InstrumentFieldCount(type);
+  for (std::uint8_t index = 0U;
+       index < fieldCount && state.fieldCount < state.fields.size(); ++index) {
+    const Ui2InstrumentParameterDescriptor descriptor =
+        Ui2InstrumentFieldParameter(type, index, sidFirstChip);
+    auto &field = state.fields[state.fieldCount++];
+    CopyText(field.label, descriptor.label);
+    int current = valueFor(descriptor.primary);
+    int secondary = valueFor(descriptor.secondary);
+    const char *text = nullptr;
+    etl::string<MAX_VARIABLE_STRING_LENGTH> variableText;
+    etl::string<MAX_INSTRUMENT_FILENAME_LENGTH> filename;
+    if (descriptor.format == Ui2InstrumentValueFormat::UserText &&
+        type == IT_SAMPLE) {
+      filename = static_cast<SampleInstrument *>(instrument)->GetSampleFileName();
+      text = filename.c_str();
+    } else if (descriptor.format == Ui2InstrumentValueFormat::SliceCount &&
+               type == IT_SAMPLE) {
+      current = 0;
+      auto *sample = static_cast<SampleInstrument *>(instrument);
+      for (std::size_t slice = 0U; slice < SampleInstrument::MaxSlices; ++slice)
+        current += sample->IsSliceDefined(slice) ? 1 : 0;
+    } else if (descriptor.format == Ui2InstrumentValueFormat::Choice) {
+      variableText = textFor(descriptor.primary);
+      text = variableText.c_str();
+    }
+    Ui2FormatInstrumentParameter(descriptor, current, secondary, text,
+                                 field.value.data(), field.value.size());
+    field.y = descriptor.y;
+    field.userData = descriptor.userData;
+  }
+
+  for (std::uint8_t index = 0U;
+       index < Ui2InstrumentOperatorCount(type) &&
+       state.operatorCount < state.operators.size();
+       ++index) {
+    auto &row = state.operators[state.operatorCount++];
+    const Ui2InstrumentParameterDescriptor op1 =
+        Ui2InstrumentOperatorParameter(index, false);
+    const Ui2InstrumentParameterDescriptor op2 =
+        Ui2InstrumentOperatorParameter(index, true);
+    CopyText(row.label, op1.label);
+    Ui2FormatInstrumentParameter(op1, valueFor(op1.primary), 0, nullptr,
+                                 row.op1.data(), row.op1.size());
+    Ui2FormatInstrumentParameter(op2, valueFor(op2.primary), 0, nullptr,
+                                 row.op2.data(), row.op2.size());
+  }
+
+  instrument_.Synchronize(number, editor.songX_,
+                          {IT_LAST, static_cast<std::uint16_t>(type), true},
+                          state.fieldCount, state.operatorCount);
+  const Ui2InstrumentCursorPosition cursor = instrument_.Cursor();
+  const Ui2InstrumentParameterDescriptor activeDescriptor =
+      Ui2InstrumentCursorParameter(type, cursor, sidFirstChip);
+  const Ui2InstrumentSubfieldSpec activeSubfields =
+      Ui2InstrumentSubfields(activeDescriptor);
+  const Ui2InstrumentAdjustmentSpec activeAdjustment =
+      Ui2InstrumentAdjustment(activeDescriptor);
+  instrument_.ConfigureValueSubfields(activeSubfields.mode,
+                                      activeSubfields.count);
+  state.cursor = cursor.kind == Ui2InstrumentCursorKind::Name
+                     ? UiInstrumentCursor::Name
+                 : cursor.kind == Ui2InstrumentCursorKind::Type
+                     ? UiInstrumentCursor::Type
+                 : cursor.kind == Ui2InstrumentCursorKind::Field
+                     ? UiInstrumentCursor::Field
+                 : cursor.kind == Ui2InstrumentCursorKind::Operator1
+                     ? UiInstrumentCursor::Operator1
+                     : UiInstrumentCursor::Operator2;
+  state.selectedField = cursor.index;
+  state.selectedOperator = cursor.index;
+  state.nameAction = static_cast<std::uint8_t>(instrument_.NameAction());
+  state.numberFocus = instrument_.NumberFocus();
+  state.enterSubfieldFocus = instrument_.EnterSubfieldFocus();
+  state.adjustmentFocus =
+      !state.numberFocus && activeAdjustment.visible &&
+      (instrument_.HeldMask() & TrackerActionBit(TrackerAction::Edit)) != 0U;
+  state.adjustmentNote = activeAdjustment.note;
+  state.adjustmentFineStep = activeAdjustment.fineStep;
+  state.adjustmentCoarseStep = activeAdjustment.coarseStep;
+  state.selectedSubfield = instrument_.Subfield();
+  state.subfieldTextOffset = activeSubfields.textOffset;
   FormatElapsed(state.elapsed);
   CaptureTrackNotes(state.trackNotes);
   return {.active = PlayerRunning()};
@@ -507,33 +659,46 @@ Ui2NativeApplicationStateSource::CaptureProject(UiProjectFrameState &state) {
 UiApplicationActivityState
 Ui2NativeApplicationStateSource::CaptureDevice(UiDeviceFrameState &state) {
   state = {};
-  constexpr const char *midiDevices[] = {"OFF", "MIDI"};
+  constexpr const char *midiDevices[] = {"OFF", "TRS", "USB", "TRS+USB"};
   constexpr const char *boolean[] = {"OFF", "ON"};
-  constexpr const char *resamplers[] = {"NONE", "LINEAR", "SINC"};
-  constexpr const char *lineOutputs[] = {"HEADPHONE", "LINE"};
+  constexpr const char *resamplers[] = {"NONE", "LINEAR"};
+  constexpr const char *lineOutputs[] = {"HP LOW", "HP HIGH", "LINE LEVEL"};
   const auto currentText = [&](Ui2DeviceField field, const char *const *options,
                                std::size_t count) {
     const Ui2SelectorState selector = device_.Selector(field);
     return options[std::min<std::size_t>(selector.current, count - 1U)];
   };
   CopyText(state.midiDevice,
-           currentText(Ui2DeviceField::MidiDevice, midiDevices, 2U));
+           currentText(Ui2DeviceField::MidiDevice, midiDevices, 4U));
   CopyText(state.midiSync,
            currentText(Ui2DeviceField::MidiSync, boolean, 2U));
   CopyText(state.remoteUi,
            currentText(Ui2DeviceField::RemoteUi, boolean, 2U));
   CopyText(state.resampler,
-           currentText(Ui2DeviceField::Resampler, resamplers, 3U));
+           currentText(Ui2DeviceField::Resampler, resamplers, 2U));
   CopyText(state.lineOut,
-           currentText(Ui2DeviceField::LineOut, lineOutputs, 2U));
+           currentText(Ui2DeviceField::LineOut, lineOutputs, 3U));
   std::snprintf(state.volume.data(), state.volume.size(), "%u%%",
                 device_.Selector(Ui2DeviceField::Volume).current);
   std::snprintf(state.brightness.data(), state.brightness.size(), "%u%%",
                 device_.Selector(Ui2DeviceField::Brightness).current);
-  CopyText(state.theme, "DEFAULT");
-  CopyText(state.font, "REGULAR");
+  if (Config *config = Config::GetInstance()) {
+    if (Variable *theme = config->FindVariable(FourCC::VarThemeName))
+      CopyText(state.theme, theme->GetString().c_str());
+    if (Variable *font = config->FindVariable(FourCC::VarUIFont)) {
+      if (font->GetInt() == 0) {
+        CopyText(state.font, font->GetString().c_str());
+      } else {
+        std::snprintf(state.font.data(), state.font.size(),
+                      "%s (UNAVAILABLE; USING REGULAR)",
+                      font->GetString().c_str());
+      }
+    }
+  }
   CopyText(state.version, PROJECT_NUMBER);
   state.cursor = DeviceCursorFor(device_.SelectedField());
+  state.editHeld =
+      (device_.HeldMask() & TrackerActionBit(TrackerAction::Edit)) != 0U;
   state.showLineOut =
       (device_.VisibleFields() &
        (std::uint32_t{1}
@@ -548,11 +713,13 @@ Ui2NativeApplicationStateSource::CaptureDevice(UiDeviceFrameState &state) {
     std::size_t optionCount = 2U;
     if (device_.SelectedField() == Ui2DeviceField::MidiDevice) {
       options = midiDevices;
+      optionCount = 4U;
     } else if (device_.SelectedField() == Ui2DeviceField::Resampler) {
       options = resamplers;
-      optionCount = 3U;
+      optionCount = 2U;
     } else if (device_.SelectedField() == Ui2DeviceField::LineOut) {
       options = lineOutputs;
+      optionCount = 3U;
     }
     if (device_.SelectedField() == Ui2DeviceField::Volume ||
         device_.SelectedField() == Ui2DeviceField::Brightness) {
@@ -590,7 +757,12 @@ Ui2NativeApplicationStateSource::CaptureDevice(UiDeviceFrameState &state) {
 UiApplicationActivityState
 Ui2NativeApplicationStateSource::CaptureTheme(UiThemeFrameState &state) {
   state = {};
-  state.view.name = {'D', 'E', 'F', 'A', 'U', 'L', 'T', '\0'};
+  if (Config *config = Config::GetInstance()) {
+    if (Variable *name = config->FindVariable(FourCC::VarThemeName))
+      CopyText(state.view.name, name->GetString().c_str());
+    state.colors = config->GetSemanticThemeColors();
+    state.colorsValid = true;
+  }
   state.view.selectedColor = theme_.SelectedColor();
   state.view.nameAction = static_cast<std::uint8_t>(theme_.NameAction());
   return {.active = PlayerRunning()};
@@ -599,15 +771,48 @@ Ui2NativeApplicationStateSource::CaptureTheme(UiThemeFrameState &state) {
 UiApplicationActivityState
 Ui2NativeApplicationStateSource::CaptureFont(UiFontFrameState &state) {
   state = {};
-  const char *name = "REGULAR 5X7";
-  std::snprintf(state.font.data(), state.font.size(), "%s", name);
+  if (Variable *value = Config::GetInstance()->FindVariable(FourCC::VarUIFont)) {
+    if (value->GetInt() == 0) {
+      std::snprintf(state.font.data(), state.font.size(), "%s",
+                    value->GetString().c_str());
+    } else {
+      std::snprintf(state.font.data(), state.font.size(),
+                    "%s (UNAVAILABLE; USING REGULAR)",
+                    value->GetString().c_str());
+    }
+  }
+  constexpr const char *cases[] = {"Case", "CASE", "case"};
+  const std::uint8_t textCase = std::min<std::uint8_t>(font_.TextCase(), 2U);
+  std::snprintf(state.textCase.data(), state.textCase.size(), "%s",
+                cases[textCase]);
+  state.cursor = font_.SelectedField() == Ui2FontField::TextCase
+                     ? UiFontCursor::TextCase
+                     : UiFontCursor::Browse;
   return {.active = PlayerRunning()};
 }
 
 UiApplicationActivityState
 Ui2NativeApplicationStateSource::CaptureBrowser(UiBrowserFrameState &state) {
   state = {};
-  return {.active = PlayerRunning()};
+  if (settingsBrowser_.Active()) {
+    state.snapshot = settingsBrowser_.Snapshot();
+  } else if (instrumentBrowserActive_) {
+    state.snapshot = instrumentBrowser_.Snapshot(static_cast<std::uint8_t>(
+        session_.EditorState().currentInstrumentID_));
+  } else if (sampleBrowser_.Active()) {
+    Project &project = session_.ProjectModel();
+    int previewVolume = 0;
+    if (Variable *volume = project.FindVariable(FourCC::VarPreviewVolume))
+      previewVolume = volume->GetInt();
+    state.snapshot = sampleBrowser_.Snapshot(previewVolume, ProjectSampleInUse,
+                                             &project);
+  } else {
+    state.snapshot = projectBrowser_.Snapshot(session_.ProjectName());
+  }
+  Player *player = Player::GetInstance();
+  return {.active = player != nullptr &&
+                    (player->IsRunning() ||
+                     (sampleBrowser_.Active() && player->IsPlaying()))};
 }
 
 UiApplicationActivityState
@@ -631,25 +836,102 @@ Ui2NativeApplicationStateSource::CaptureMixer(UiMixerFrameState &state) {
   for (std::uint8_t channel = 0; channel < SONG_CHANNEL_COUNT; ++channel)
     FormatVolume(project.GetChannelVolume(channel), state.volumes[channel]);
   FormatVolume(project.GetMasterVolume(), state.volumes[SONG_CHANNEL_COUNT]);
-  return {.active = PlayerRunning()};
+
+  Player *player = Player::GetInstance();
+  if (player == nullptr)
+    return {.active = false};
+  const auto captureStereoLevel = [&](std::uint8_t channel,
+                                      std::uint32_t level) {
+    state.vuLevelTop[channel][0] =
+        VuTopFromAmplitude(static_cast<std::uint16_t>(level >> 16U));
+    state.vuLevelTop[channel][1] =
+        VuTopFromAmplitude(static_cast<std::uint16_t>(level & 0xFFFFU));
+  };
+  const auto *levels = player->GetMixerLevels();
+  if (levels != nullptr) {
+    for (std::uint8_t channel = 0; channel < SONG_CHANNEL_COUNT; ++channel) {
+      if (!player->IsChannelMuted(channel))
+        captureStereoLevel(channel,
+                           static_cast<std::uint32_t>(levels->at(channel)));
+    }
+  }
+  captureStereoLevel(SONG_CHANNEL_COUNT,
+                     static_cast<std::uint32_t>(player->GetMasterLevel()));
+  return {.active = player->IsRunning()};
 }
 
 UiApplicationActivityState Ui2NativeApplicationStateSource::CaptureSampleEditor(
     UiSampleEditorFrameState &state) {
-  state = {};
-  return {};
+  const SampleEditorViewUi2Snapshot snapshot = sampleEditor_.Snapshot();
+  const std::uint16_t held = sampleEditor_.HeldMask();
+  state = MakeUiSampleEditorControllerState(
+      snapshot, UiPowerState::BatteryNormal,
+      {.enterHeld =
+           (held & TrackerActionBit(TrackerAction::Edit)) != 0U,
+       .editHeld =
+           (held & TrackerActionBit(TrackerAction::Option)) != 0U});
+  return {.active = snapshot.playing};
 }
 
 UiApplicationActivityState Ui2NativeApplicationStateSource::CaptureSampleSlices(
     UiSampleSlicesFrameState &state) {
-  state = {};
-  return {};
+  const SampleSlicesViewUi2Snapshot snapshot = sampleSlices_.Snapshot();
+  const std::uint16_t held = sampleSlices_.HeldMask();
+  state = MakeUiSampleSlicesControllerState(
+      snapshot, UiPowerState::BatteryNormal,
+      {.enterHeld =
+           (held & TrackerActionBit(TrackerAction::Edit)) != 0U,
+       .editHeld =
+           (held & TrackerActionBit(TrackerAction::Option)) != 0U});
+  return {.active = snapshot.previewActive};
 }
 
 UiApplicationActivityState
 Ui2NativeApplicationStateSource::CaptureRecord(UiRecordFrameState &state) {
   state = {};
-  return {};
+  Config *config = Config::GetInstance();
+  const auto value = [config](FourCC::enum_type key) {
+    Variable *variable =
+        config == nullptr ? nullptr : config->FindVariable(FourCC(key));
+    return variable == nullptr ? 0 : variable->GetInt();
+  };
+  const std::uint8_t source = static_cast<std::uint8_t>(
+      std::clamp(value(FourCC::VarRecordSource), 0, 3));
+  const std::int8_t lineGain = static_cast<std::int8_t>(std::clamp(
+      value(FourCC::VarRecordLineGain), RecordingPlatform::kLineInGainMinDb,
+      RecordingPlatform::kLineInGainMaxDb));
+  const std::int8_t micGain = static_cast<std::int8_t>(std::clamp(
+      value(FourCC::VarRecordMicGain), RecordingPlatform::kMicGainMinDb,
+      RecordingPlatform::kMicGainMaxDb));
+  record_.Synchronize(source, lineGain, micGain);
+  constexpr const char *sources[] = {"ALL OFF", "LINE IN", "MIC", "USB IN"};
+  CopyText(state.snapshot.source, sources[source]);
+  std::snprintf(state.snapshot.lineGain.data(),
+                state.snapshot.lineGain.size(), "%d DB", lineGain);
+  std::snprintf(state.snapshot.micGain.data(), state.snapshot.micGain.size(),
+                "%d DB", micGain);
+  CopyText(state.snapshot.elapsed, "00:00");
+  state.snapshot.sourceIndex = source;
+  state.snapshot.lineGainDb = lineGain;
+  state.snapshot.micGainDb = micGain;
+  state.snapshot.recordingAvailable = false;
+  state.snapshot.meterAvailable = false;
+  switch (record_.SelectedField()) {
+  case Ui2RecordField::Source:
+    state.snapshot.focus = RecordViewUi2Focus::Source;
+    break;
+  case Ui2RecordField::LineGain:
+    state.snapshot.focus = RecordViewUi2Focus::LineGain;
+    break;
+  case Ui2RecordField::MicGain:
+    state.snapshot.focus = RecordViewUi2Focus::MicGain;
+    break;
+  case Ui2RecordField::Count:
+    state.snapshot.focus = RecordViewUi2Focus::Unknown;
+    break;
+  }
+  state.cursorInkVisible = true;
+  return {.active = PlayerRunning()};
 }
 
 } // namespace ui2

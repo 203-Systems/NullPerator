@@ -12,7 +12,9 @@ enum class Ui2MixerCommandType : std::uint8_t {
   SelectChannel,
   AdjustVolume,
   StartPlayback,
-  OpenRecord,
+  ToggleMute,
+  ToggleSolo,
+  UnmuteAll,
   ReturnToSong,
 };
 
@@ -27,21 +29,37 @@ public:
   static constexpr std::uint8_t ChannelCount = 9U;
 
   [[nodiscard]] std::uint8_t SelectedChannel() const { return selected_; }
+  constexpr void Synchronize(std::uint8_t channel) {
+    selected_ = channel < ChannelCount ? channel : 0U;
+  }
 
   Ui2MixerCommand Handle(TrackerAction action, bool pressed) {
     if (!input_.Update(action, pressed) || !pressed)
       return {};
-    if (input_.Held(TrackerAction::Nav)) {
+    if (action == TrackerAction::Play &&
+        input_.Held(TrackerAction::Option)) {
+      if (selected_ >= 8U && !input_.Held(TrackerAction::Shift))
+        return {};
+      return {input_.Held(TrackerAction::Shift)
+                  ? Ui2MixerCommandType::UnmuteAll
+                  : Ui2MixerCommandType::ToggleSolo,
+              selected_};
+    }
+    if (action == TrackerAction::Shift &&
+        input_.Held(TrackerAction::Option)) {
+      if (selected_ >= 8U)
+        return {};
+      return {Ui2MixerCommandType::ToggleMute, selected_};
+    }
+    if (input_.Held(TrackerAction::Shift)) {
       if (action == TrackerAction::Up)
         return {Ui2MixerCommandType::ReturnToSong, selected_};
       return {};
     }
-    if (input_.Held(TrackerAction::Edit)) {
-      if (action == TrackerAction::Play)
-        return {Ui2MixerCommandType::OpenRecord, selected_};
+    if (input_.Held(TrackerAction::Option)) {
       return {};
     }
-    if (input_.Held(TrackerAction::Enter)) {
+    if (input_.Held(TrackerAction::Edit)) {
       if (action == TrackerAction::Up || action == TrackerAction::Right)
         return {Ui2MixerCommandType::AdjustVolume, selected_, 1};
       if (action == TrackerAction::Down || action == TrackerAction::Left)

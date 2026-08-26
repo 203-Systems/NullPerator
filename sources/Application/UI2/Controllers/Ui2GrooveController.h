@@ -20,7 +20,6 @@ enum class Ui2GrooveCommandType : std::uint8_t {
   AdjustStep,
   SelectNumber,
   StartPlayback,
-  OpenRecord,
 };
 
 enum class Ui2GrooveDirection : std::uint8_t {
@@ -40,6 +39,27 @@ struct Ui2GrooveCommand {
 
   [[nodiscard]] constexpr bool HasValue() const {
     return type != Ui2GrooveCommandType::None;
+  }
+};
+
+struct Ui2GrooveStepPolicy {
+  static constexpr std::uint8_t Empty = 0xFFU;
+  static constexpr std::uint8_t Initial = 6U;
+
+  [[nodiscard]] static constexpr std::uint8_t
+  Initialize(std::uint8_t current) {
+    return current == Empty ? Initial : current;
+  }
+
+  [[nodiscard]] static constexpr std::uint8_t
+  Adjust(std::uint8_t current, std::int16_t delta) {
+    const int value = current == Empty ? 0 : current;
+    const int adjusted = value + delta;
+    if (adjusted < 1)
+      return 1U;
+    if (adjusted > 15)
+      return 15U;
+    return static_cast<std::uint8_t>(adjusted);
   }
 };
 
@@ -72,17 +92,16 @@ public:
       return {};
 
     const Ui2GrooveDirection direction = DirectionFor(action);
-    if (input_.Held(TrackerAction::Edit)) {
-      if (action == TrackerAction::Enter)
-        return MakeCommand(Ui2GrooveCommandType::ClearStep);
+    if (action == TrackerAction::Option &&
+        input_.Held(TrackerAction::Edit))
+      return MakeCommand(Ui2GrooveCommandType::ClearStep);
+    if (input_.Held(TrackerAction::Option)) {
       if (direction != Ui2GrooveDirection::None)
         return SelectNumber(direction);
-      if (action == TrackerAction::Play)
-        return MakeCommand(Ui2GrooveCommandType::OpenRecord);
       return {};
     }
 
-    if (input_.Held(TrackerAction::Enter)) {
+    if (input_.Held(TrackerAction::Edit)) {
       if (direction != Ui2GrooveDirection::None) {
         Ui2GrooveCommand command =
             MakeCommand(Ui2GrooveCommandType::AdjustStep);
@@ -95,8 +114,8 @@ public:
                                direction == Ui2GrooveDirection::Up;
         return command;
       }
-      if (action == TrackerAction::Enter &&
-          input_.Mask() == TrackerActionBit(TrackerAction::Enter))
+      if (action == TrackerAction::Edit &&
+          input_.Mask() == TrackerActionBit(TrackerAction::Edit))
         return MakeCommand(Ui2GrooveCommandType::InitializeStep);
       return {};
     }
@@ -127,12 +146,12 @@ private:
       return Ui2GrooveDirection::Right;
     case TrackerAction::Up:
       return Ui2GrooveDirection::Up;
-    case TrackerAction::Alt:
+    case TrackerAction::Option:
     case TrackerAction::Edit:
-    case TrackerAction::Enter:
-    case TrackerAction::Nav:
+    case TrackerAction::Shift:
     case TrackerAction::Play:
-    case TrackerAction::Select:
+    case TrackerAction::Reserved8:
+    case TrackerAction::Reserved9:
     case TrackerAction::Power:
     case TrackerAction::Count:
       return Ui2GrooveDirection::None;

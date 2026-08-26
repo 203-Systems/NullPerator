@@ -22,11 +22,18 @@ public:
   explicit Ui2TrackerSessionModelPort(TrackerApplicationSession &session);
 
   [[nodiscard]] Ui2TrackerGridSessionState LoadGridSession() const override;
-  void StoreGridNavigation(
-      const Ui2TrackerGridNavigationState &state) override;
+  void StoreGridNavigation(const Ui2TrackerGridNavigationState &state) override;
   void ApplyGridCommand(const Ui2TrackerCommand &command) override;
+  [[nodiscard]] bool PreparePageNavigation(Ui2TrackerPage source,
+                                           Ui2TrackerPage target,
+                                           std::uint8_t track,
+                                           std::uint8_t row);
 
   [[nodiscard]] Ui2TrackerPage ActivePage() const { return activePage_; }
+  [[nodiscard]] std::uint32_t ProjectMutationGeneration() const {
+    return projectMutationGeneration_;
+  }
+  void ResetProjectBoundary();
 
 private:
   void ApplyAdjustCell(const Ui2TrackerCommand &command);
@@ -34,20 +41,23 @@ private:
   void ApplySwitchPage(const Ui2TrackerCommand &command);
   void ApplyCutCell(const Ui2TrackerCommand &command);
   void ApplyPasteLast(const Ui2TrackerCommand &command);
-  void ApplyAllocateNext(const Ui2TrackerCommand &command);
-  void ApplyCloneCell(const Ui2TrackerCommand &command);
-  void ApplyCopySelection(const Ui2TrackerCommand &command, bool cut);
-  void ApplyPasteSelection(const Ui2TrackerCommand &command);
-  [[nodiscard]] std::uint32_t ReadCell(Ui2TrackerPage page,
-                                       std::uint8_t row,
+  [[nodiscard]] bool ApplyAllocateNext(const Ui2TrackerCommand &command);
+  [[nodiscard]] bool ApplyCloneCell(const Ui2TrackerCommand &command);
+  [[nodiscard]] bool ApplyCopySelection(const Ui2TrackerCommand &command,
+                                        bool cut);
+  [[nodiscard]] bool ApplyPasteSelection(const Ui2TrackerCommand &command);
+  [[nodiscard]] std::uint32_t ReadCell(Ui2TrackerPage page, std::uint8_t row,
                                        std::uint8_t column) const;
-  void WriteCell(Ui2TrackerPage page, std::uint8_t row,
-                 std::uint8_t column, std::uint32_t value);
-  void ClearCell(Ui2TrackerPage page, std::uint8_t row,
-                 std::uint8_t column);
+  void WriteCell(Ui2TrackerPage page, std::uint8_t row, std::uint8_t column,
+                 std::uint32_t value);
+  void ClearCell(Ui2TrackerPage page, std::uint8_t row, std::uint8_t column);
   void ApplyTransport(const Ui2TrackerCommand &command);
-  void ResolveTargetPage(Ui2TrackerPage page, std::uint8_t track,
-                         std::uint8_t row);
+  [[nodiscard]] bool ResolveTableTrack(Ui2TrackerPage page,
+                                       std::uint8_t track);
+  [[nodiscard]] bool WarpChainSongPosition(std::uint8_t track,
+                                           std::int16_t delta);
+  [[nodiscard]] bool ResolveTargetPage(Ui2TrackerPage page, std::uint8_t track,
+                                       std::uint8_t row);
 
   TrackerApplicationSession &session_;
   Ui2TrackerPage activePage_ = Ui2TrackerPage::Song;
@@ -72,6 +82,10 @@ private:
   Ui2TrackerPage selectionClipboardPage_ = Ui2TrackerPage::None;
   std::uint8_t selectionClipboardWidth_ = 0;
   std::uint8_t selectionClipboardHeight_ = 0;
+  std::array<bool, SONG_CHANNEL_COUNT> soloMuteMask_{};
+  bool soloActive_ = false;
+  bool auditionOwned_ = false;
+  std::uint32_t projectMutationGeneration_ = 0U;
 };
 
 } // namespace ui2

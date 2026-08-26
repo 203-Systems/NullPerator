@@ -1,4 +1,5 @@
 #include "Application/Views/Ui2BrowserSnapshot.h"
+#include "Application/Views/Ui2BrowserItemFormat.h"
 #include "UI2/Text/UiFont5x7.h"
 
 #include "doctest/doctest.h"
@@ -79,4 +80,15 @@ TEST_CASE("UI2 browser marker glyphs have explicit 5x7 ink") {
                       [](std::uint8_t row) { return row != 0U; }));
   }
   CHECK(ui2::UiFont5x7::Glyph('[') != ui2::UiFont5x7::Glyph(']'));
+}
+
+TEST_CASE("UI2 Instrument Import renders the parent entry as literal dots") {
+  std::array<char, 16> display{};
+  ui2::FormatInstrumentImportBrowserItem(display.data(), display.size(), "..",
+                                         true);
+  CHECK(std::string_view(display.data()) == "..");
+
+  ui2::FormatInstrumentImportBrowserItem(display.data(), display.size(),
+                                         "SYNTHS", true);
+  CHECK(std::string_view(display.data()) == "[SYNTHS]");
 }

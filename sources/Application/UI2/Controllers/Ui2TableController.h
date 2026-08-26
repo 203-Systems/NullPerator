@@ -12,22 +12,17 @@ namespace ui2 {
 
 class Ui2TableController {
 public:
-  constexpr Ui2TableController(Ui2TrackerPage tablePage =
-                                   Ui2TrackerPage::PhraseTable,
-                               std::uint8_t number = 0,
-                               std::uint8_t selectedTrack = 0,
-                               std::uint8_t row = 0,
-                               std::uint8_t column = 0,
-                               std::uint8_t parameterDigit = 3)
+  constexpr Ui2TableController(
+      Ui2TrackerPage tablePage = Ui2TrackerPage::PhraseTable,
+      std::uint8_t number = 0, std::uint8_t selectedTrack = 0,
+      std::uint8_t row = 0, std::uint8_t column = 0,
+      std::uint8_t parameterDigit = 3)
       : grid_(row, column), page_(SanitizePage(tablePage)),
-        number_(number & 0x1FU),
-        selectedTrack_(Ui2ClampTrack(selectedTrack)),
+        number_(number & 0x1FU), selectedTrack_(Ui2ClampTrack(selectedTrack)),
         parameterDigit_(parameterDigit < 4U ? parameterDigit : 3U) {}
 
   [[nodiscard]] constexpr std::uint8_t Row() const { return grid_.Row(); }
-  [[nodiscard]] constexpr std::uint8_t Column() const {
-    return grid_.Column();
-  }
+  [[nodiscard]] constexpr std::uint8_t Column() const { return grid_.Column(); }
   [[nodiscard]] constexpr Ui2TrackerPage Page() const { return page_; }
   [[nodiscard]] constexpr std::uint8_t Number() const { return number_; }
   [[nodiscard]] constexpr std::uint8_t SelectedTrack() const {
@@ -40,73 +35,90 @@ public:
     return input_.Mask();
   }
   constexpr void SetNavigationHeld(bool held) {
-    input_.Update(TrackerAction::Nav, held);
+    input_.Update(TrackerAction::Shift, held);
+  }
+  constexpr void SynchronizeHeldModifiers(std::uint16_t mask) {
+    input_.SynchronizeModifiers(mask);
   }
   [[nodiscard]] constexpr const Ui2GridSelectionState &Selection() const {
     return selection_;
   }
   [[nodiscard]] constexpr bool NumberFocus() const {
-    return !selection_.active && input_.Held(TrackerAction::Edit);
+    return !selection_.active && input_.Held(TrackerAction::Option);
   }
   [[nodiscard]] constexpr bool TrackFocus() const { return NumberFocus(); }
   [[nodiscard]] constexpr bool EnterDigitFocus() const {
     return !NumberFocus() && !selection_.active && IsParameterColumn() &&
-           input_.Held(TrackerAction::Enter);
+           input_.Held(TrackerAction::Edit);
   }
 
   constexpr Ui2TrackerCommandBatch<> Handle(TrackerAction action,
-                                             bool pressed) {
+                                            bool pressed) {
     Ui2TrackerCommandBatch<> output;
-    if (!input_.Update(action, pressed) || !pressed)
+    if (!input_.Update(action, pressed))
       return output;
 
-    if (action == TrackerAction::Select) {
-      ToggleSelection();
+    if (!pressed) {
+      if (action == TrackerAction::Edit && valueEditDirty_) {
+        output.Push(Command(Ui2TrackerCommandType::CommitValueEdits));
+        valueEditDirty_ = false;
+      }
       return output;
     }
 
+    if (action == TrackerAction::Play && input_.Held(TrackerAction::Option) &&
+        !input_.Held(TrackerAction::Edit)) {
+      output.Push(Command(input_.Held(TrackerAction::Shift)
+                              ? Ui2TrackerCommandType::UnmuteAll
+                              : Ui2TrackerCommandType::ToggleSolo));
+      return output;
+    }
     if (selection_.active) {
       HandleSelection(action, output);
       return output;
     }
 
     const Ui2TrackerEditDirection direction = Ui2TrackerDirectionFor(action);
-    if (input_.Held(TrackerAction::Edit)) {
-      if (input_.Held(TrackerAction::Alt) &&
-          (action == TrackerAction::Alt ||
-           action == TrackerAction::Edit)) {
-        selection_.Begin(grid_.Column(), grid_.Row());
-      } else if (direction != Ui2TrackerEditDirection::None) {
-        SelectRelativeNumber(direction, output);
-      } else if (input_.Held(TrackerAction::Enter) &&
-                 action == TrackerAction::Enter) {
+    if (action == TrackerAction::Option && input_.Held(TrackerAction::Shift)) {
+      selection_.Begin(grid_.Column(), grid_.Row());
+      return output;
+    }
+    if (action == TrackerAction::Shift && input_.Held(TrackerAction::Option)) {
+      output.Push(Command(Ui2TrackerCommandType::ToggleMute));
+      return output;
+    }
+    if (input_.Held(TrackerAction::Option)) {
+      if (action == TrackerAction::Option && input_.Held(TrackerAction::Edit)) {
         output.Push(Command(Ui2TrackerCommandType::CutCell));
-      } else if (action == TrackerAction::Play) {
-        output.Push(Command(Ui2TrackerCommandType::OpenRecord));
+      } else if (!input_.Held(TrackerAction::Shift) &&
+                 !input_.Held(TrackerAction::Edit) &&
+                 direction != Ui2TrackerEditDirection::None) {
+        HandleOptionDirection(direction, output);
       }
       return output;
     }
 
-    if (input_.Held(TrackerAction::Enter)) {
+    if (action == TrackerAction::Edit && input_.Held(TrackerAction::Shift)) {
+      output.Push(Command(Ui2TrackerCommandType::PasteSelection));
+      return output;
+    }
+
+    if (input_.Held(TrackerAction::Edit)) {
       if (direction != Ui2TrackerEditDirection::None) {
         HandleEnterDirection(direction, output);
-      } else if (input_.Held(TrackerAction::Alt) &&
-                 action == TrackerAction::Alt) {
-        output.Push(Command(Ui2TrackerCommandType::PasteSelection));
-      } else if (action == TrackerAction::Enter &&
-                 input_.Mask() == TrackerActionBit(TrackerAction::Enter)) {
+      } else if (action == TrackerAction::Edit &&
+                 input_.Mask() == TrackerActionBit(TrackerAction::Edit)) {
         output.Push(Command(Ui2TrackerCommandType::PasteLast));
       }
       return output;
     }
 
-    if (input_.Held(TrackerAction::Nav)) {
+    if (input_.Held(TrackerAction::Shift)) {
       HandleNav(action, output);
       return output;
     }
 
-    if (!input_.AnyModifier() &&
-        direction != Ui2TrackerEditDirection::None) {
+    if (!input_.AnyModifier() && direction != Ui2TrackerEditDirection::None) {
       grid_.Move(direction);
     } else if (!input_.AnyModifier() && action == TrackerAction::Play) {
       output.Push(Command(Ui2TrackerCommandType::StartPlayback));
@@ -134,67 +146,90 @@ private:
     return command;
   }
 
-  constexpr void ToggleSelection() {
-    if (selection_.active)
-      selection_.Clear();
-    else
-      selection_.Begin(grid_.Column(), grid_.Row());
+  [[nodiscard]] static constexpr std::int16_t
+  SelectionDelta(Ui2TrackerEditDirection direction) {
+    switch (direction) {
+    case Ui2TrackerEditDirection::Left:
+      return -1;
+    case Ui2TrackerEditDirection::Right:
+      return 1;
+    case Ui2TrackerEditDirection::Down:
+      return -16;
+    case Ui2TrackerEditDirection::Up:
+      return 16;
+    case Ui2TrackerEditDirection::None:
+      return 0;
+    }
+    return 0;
   }
 
   constexpr void HandleSelection(TrackerAction action,
                                  Ui2TrackerCommandBatch<> &output) {
     const Ui2TrackerEditDirection direction = Ui2TrackerDirectionFor(action);
-    if (input_.Held(TrackerAction::Edit) &&
-        input_.Held(TrackerAction::Alt)) {
-      selection_.ExpandColumnsThenRows(5U, 0U,
-                                       kUi2TrackerVisibleRows - 1U);
+    if (action == TrackerAction::Play) {
+      if (input_.Held(TrackerAction::Edit))
+        return;
+      Ui2TrackerCommand command = Command(Ui2TrackerCommandType::StartPlayback);
+      command.selection = selection_;
+      command.flag = input_.Held(TrackerAction::Shift);
+      output.Push(command);
       return;
     }
-    if (input_.Held(TrackerAction::Enter) &&
-        input_.Held(TrackerAction::Alt) &&
-        (action == TrackerAction::Enter || action == TrackerAction::Alt)) {
+    if (action == TrackerAction::Option && input_.Held(TrackerAction::Shift)) {
+      selection_.ExpandColumnsThenRows(5U, 0U, kUi2TrackerVisibleRows - 1U);
+      return;
+    }
+    if (action == TrackerAction::Option && input_.Held(TrackerAction::Edit)) {
       Ui2TrackerCommand command = Command(Ui2TrackerCommandType::CutSelection);
       command.selection = selection_;
       output.Push(command);
       selection_.Clear();
       return;
     }
-    if (input_.Held(TrackerAction::Edit) &&
-        action == TrackerAction::Edit &&
-        !input_.Held(TrackerAction::Alt)) {
-      Ui2TrackerCommand command =
-          Command(Ui2TrackerCommandType::CopySelection);
+    if (action == TrackerAction::Option &&
+        input_.Mask() == TrackerActionBit(TrackerAction::Option)) {
+      Ui2TrackerCommand command = Command(Ui2TrackerCommandType::CopySelection);
       command.selection = selection_;
       output.Push(command);
       selection_.Clear();
       return;
     }
-    if (input_.Held(TrackerAction::Enter) &&
+    if (input_.Held(TrackerAction::Edit) &&
         direction != Ui2TrackerEditDirection::None) {
       Ui2TrackerCommand command =
           Command(Ui2TrackerCommandType::AdjustSelection);
       command.direction = direction;
+      command.value = SelectionDelta(direction);
       command.selection = selection_;
       output.Push(command);
+      valueEditDirty_ = true;
       return;
     }
-    if (!input_.AnyModifier() &&
-        direction != Ui2TrackerEditDirection::None) {
-      grid_.Move(direction);
-      selection_.Follow(grid_.Column(), grid_.Row());
+    if (direction != Ui2TrackerEditDirection::None &&
+        !input_.Held(TrackerAction::Shift) &&
+        !input_.Held(TrackerAction::Option)) {
+      if (grid_.Move(direction))
+        selection_.Follow(grid_.Column(), grid_.Row());
     }
   }
 
-  constexpr void SelectRelativeNumber(Ui2TrackerEditDirection direction,
-                                      Ui2TrackerCommandBatch<> &output) {
+  constexpr void HandleOptionDirection(Ui2TrackerEditDirection direction,
+                                       Ui2TrackerCommandBatch<> &output) {
+    if (direction == Ui2TrackerEditDirection::Left ||
+        direction == Ui2TrackerEditDirection::Right) {
+      const std::int16_t delta =
+          direction == Ui2TrackerEditDirection::Left ? -1 : 1;
+      selectedTrack_ =
+          Ui2ClampTrack(static_cast<std::int16_t>(selectedTrack_) + delta);
+      Ui2TrackerCommand command = Command(Ui2TrackerCommandType::SelectTrack);
+      command.value = selectedTrack_;
+      command.direction = direction;
+      output.Push(command);
+      return;
+    }
+
     std::int16_t delta = 0;
     switch (direction) {
-    case Ui2TrackerEditDirection::Left:
-      delta = -1;
-      break;
-    case Ui2TrackerEditDirection::Right:
-      delta = 1;
-      break;
     case Ui2TrackerEditDirection::Down:
       delta = -16;
       break;
@@ -202,6 +237,9 @@ private:
       delta = 16;
       break;
     case Ui2TrackerEditDirection::None:
+      return;
+    case Ui2TrackerEditDirection::Left:
+    case Ui2TrackerEditDirection::Right:
       return;
     }
     number_ = static_cast<std::uint8_t>(
@@ -251,6 +289,7 @@ private:
       }
     }
     output.Push(command);
+    valueEditDirty_ = true;
   }
 
   constexpr void HandleNav(TrackerAction action,
@@ -267,7 +306,10 @@ private:
                page_ == Ui2TrackerPage::PhraseTable) {
       target = Ui2TrackerPage::InstrumentTable;
     } else if (action == TrackerAction::Play) {
-      output.Push(Command(Ui2TrackerCommandType::StartPlayback));
+      Ui2TrackerCommand playback =
+          Command(Ui2TrackerCommandType::StartPlayback);
+      playback.flag = true;
+      output.Push(playback);
       return;
     } else {
       return;
@@ -284,6 +326,7 @@ private:
   std::uint8_t number_ = 0;
   std::uint8_t selectedTrack_ = 0;
   std::uint8_t parameterDigit_ = 3;
+  bool valueEditDirty_ = false;
 };
 
 static_assert(std::is_trivially_copyable_v<Ui2TableController>);

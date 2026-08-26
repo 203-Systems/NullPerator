@@ -105,9 +105,9 @@ public:
     if (!input_.Update(action, pressed) || !pressed)
       return {};
 
-    if (input_.Held(TrackerAction::Enter)) {
-      if (action == TrackerAction::Enter &&
-          input_.Mask() == TrackerActionBit(TrackerAction::Enter))
+    if (input_.Held(TrackerAction::Edit)) {
+      if (action == TrackerAction::Edit &&
+          input_.Mask() == TrackerActionBit(TrackerAction::Edit))
         return Enter();
       return {};
     }

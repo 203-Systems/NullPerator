@@ -24,6 +24,7 @@ public:
   [[nodiscard]] UiApplicationPage ActivePage() const override;
   [[nodiscard]] std::uint32_t NowMs() const override;
   [[nodiscard]] UiApplicationBatteryState ReadBattery() const override;
+  [[nodiscard]] bool NavigationHeld() const override;
 
   [[nodiscard]] bool HasDialog() const override;
   [[nodiscard]] Ui2DialogSnapshot DialogSnapshot() const override;

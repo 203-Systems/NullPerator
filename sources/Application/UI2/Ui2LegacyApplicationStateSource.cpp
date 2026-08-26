@@ -239,6 +239,10 @@ UiApplicationBatteryState UiLegacyApplicationStateSource::ReadBattery() const {
   };
 }
 
+bool UiLegacyApplicationStateSource::NavigationHeld() const {
+  return (window_.ButtonMaskForUi2() & EPBM_NAV) != 0U;
+}
+
 bool UiLegacyApplicationStateSource::HasDialog() const {
   return window_.HasModalForUi2();
 }
@@ -472,7 +476,7 @@ UiLegacyApplicationStateSource::CapturePhrase(UiPhraseFrameState &state) {
       std::snprintf(state.contextLead.data(), state.contextLead.size(),
                     "INSTRUMENT %02X", instrumentId);
       const auto name = instruments[instrumentId]->GetDisplayName();
-      CopyUpper(state.contextTail, name.c_str());
+      CopyText(state.contextTail, name.c_str());
     }
   } else {
     const bool firstFx = state.editColumn <= 3U;

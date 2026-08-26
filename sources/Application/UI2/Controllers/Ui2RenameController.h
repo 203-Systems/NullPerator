@@ -43,19 +43,23 @@ public:
   Ui2RenameCommand Handle(TrackerAction action, bool pressed) {
     if (!active_ || !input_.Update(action, pressed) || !pressed)
       return Ui2RenameCommand::None;
+    if (action == TrackerAction::Shift) {
+      uppercase_ = !uppercase_;
+      return Ui2RenameCommand::None;
+    }
     if (focus_ == Focus::Input) {
-      if (action == TrackerAction::Edit)
+      if (action == TrackerAction::Option)
         Backspace();
-      else if (action == TrackerAction::Down || action == TrackerAction::Enter)
+      else if (action == TrackerAction::Down || action == TrackerAction::Edit)
         focus_ = Focus::Keyboard;
       else if (action == TrackerAction::Up)
         focus_ = Focus::Actions;
       return Ui2RenameCommand::None;
     }
     if (focus_ == Focus::Keyboard) {
-      if (action == TrackerAction::Edit)
+      if (action == TrackerAction::Option)
         Backspace();
-      else if (action == TrackerAction::Enter)
+      else if (action == TrackerAction::Edit)
         ActivateKey();
       else if (action == TrackerAction::Left)
         keyboardColumn_ = keyboardColumn_ == 0U
@@ -78,10 +82,10 @@ public:
       MoveActionsToKeyboard();
     else if (action == TrackerAction::Down)
       focus_ = Focus::Input;
-    else if (action == TrackerAction::Edit) {
+    else if (action == TrackerAction::Option) {
       Backspace();
       focus_ = Focus::Input;
-    } else if (action == TrackerAction::Enter) {
+    } else if (action == TrackerAction::Edit) {
       if (selectedAction_ == 0U) {
         active_ = false;
         return Ui2RenameCommand::Cancel;

@@ -16,7 +16,7 @@ inline UiBrowserViewData ApprovedBrowserFixture(std::string_view state) {
     data.activeAction = 2;
   } else if (state == "instrument-import") {
     data.title = "IMPORT";
-    data.items[0] = "[..]";
+    data.items[0] = "..";
     data.footer = "1 ITEM";
     data.actions = {"CANCEL", "OPEN", {}};
     data.actionCount = 2;

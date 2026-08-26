@@ -63,6 +63,19 @@ bool AudioFileStreamer::Start(const char *name, int startSample, bool looping) {
   int channels = wav_.GetChannelCount(-1);
   long size = wav_.GetSize(-1);
 
+  // The static single-cycle buffer stores interleaved int16 samples. Legacy
+  // callers classified by frame count alone, so a short stereo WAV could copy
+  // up to twice the buffer capacity. Degrade safely to ordinary streaming;
+  // UI2 also prevents issuing this request for an oversized source.
+  if (looping &&
+      (size <= 0 || channels <= 0 ||
+       static_cast<unsigned long>(size) *
+               static_cast<unsigned long>(channels) >
+           SINGLE_CYCLE_MAX_SAMPLE_SIZE)) {
+    Trace::Error("Single-cycle source exceeds fixed buffer; streaming once");
+    looping = false;
+  }
+
   // Calculate the speed factor for sample rate conversion
   float ratio;
 

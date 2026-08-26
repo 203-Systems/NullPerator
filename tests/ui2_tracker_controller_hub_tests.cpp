@@ -25,6 +25,8 @@ public:
       applied[appliedCount++] = command;
     if (command.type == ui2::Ui2TrackerCommandType::SwitchPage)
       loaded.activePage = command.targetPage;
+    if (command.type == ui2::Ui2TrackerCommandType::SelectTrack)
+      loaded.track = static_cast<std::uint8_t>(command.value);
   }
 
   ui2::Ui2TrackerGridSessionState loaded{};
@@ -70,9 +72,9 @@ TEST_CASE("UI2 tracker hub restores independent grid page state") {
 
 TEST_CASE("UI2 tracker hub keeps key release with the press owner") {
   ui2::Ui2TrackerControllerHub hub;
-  (void)hub.Handle(TrackerAction::Enter, true);
+  (void)hub.Handle(TrackerAction::Edit, true);
   hub.Activate(ui2::Ui2TrackerPage::Chain);
-  (void)hub.Handle(TrackerAction::Enter, false);
+  (void)hub.Handle(TrackerAction::Edit, false);
 
   CHECK((hub.Song().HeldMask() & EPBM_ENTER) == 0);
   CHECK((hub.Chain().HeldMask() & EPBM_ENTER) == 0);
@@ -83,7 +85,7 @@ TEST_CASE("UI2 tracker executor applies typed command then stores navigation") {
   port.loaded.activePage = ui2::Ui2TrackerPage::Song;
   ui2::Ui2TrackerCommandExecutor executor(port);
 
-  executor.Handle(TrackerAction::Enter, true);
+  executor.Handle(TrackerAction::Edit, true);
   const auto batch = executor.Handle(TrackerAction::Up, true);
 
   REQUIRE(batch.count == 1);
@@ -98,7 +100,7 @@ TEST_CASE("UI2 tracker executor activates navigation target before storing") {
   FakeGridPort port;
   ui2::Ui2TrackerCommandExecutor executor(port);
 
-  executor.Handle(TrackerAction::Nav, true);
+  executor.Handle(TrackerAction::Shift, true);
   const auto batch = executor.Handle(TrackerAction::Right, true);
 
   REQUIRE(batch.count == 1);
@@ -112,7 +114,7 @@ TEST_CASE("UI2 tracker executor preserves held navigation across page switches")
   FakeGridPort port;
   ui2::Ui2TrackerCommandExecutor executor(port);
 
-  executor.Handle(TrackerAction::Nav, true);
+  executor.Handle(TrackerAction::Shift, true);
   executor.Hub().SetNavigationHeld(true);
   executor.Handle(TrackerAction::Right, true);
   executor.Handle(TrackerAction::Right, false);
@@ -130,7 +132,32 @@ TEST_CASE("UI2 tracker executor preserves held navigation across page switches")
   CHECK(executor.ActivePage() == ui2::Ui2TrackerPage::Chain);
   CHECK((executor.ActiveState().heldMask & EPBM_NAV) != 0U);
 
-  executor.Handle(TrackerAction::Nav, false);
+  executor.Handle(TrackerAction::Shift, false);
   executor.Hub().SetNavigationHeld(false);
   CHECK((executor.ActiveState().heldMask & EPBM_NAV) == 0U);
+}
+
+TEST_CASE("UI2 tracker executor preserves OPTION across quick-select reloads") {
+  FakeGridPort port;
+  port.loaded.activePage = ui2::Ui2TrackerPage::Chain;
+  port.loaded.track = 2U;
+  port.loaded.chainNumber = 7U;
+  port.loaded.chainRow = 4U;
+  ui2::Ui2TrackerCommandExecutor executor(port);
+
+  executor.Handle(TrackerAction::Option, true);
+  const auto track = executor.Handle(TrackerAction::Right, true);
+  REQUIRE(track.count == 1U);
+  CHECK(track[0].type == ui2::Ui2TrackerCommandType::SelectTrack);
+  CHECK(executor.ActiveState().track == 3U);
+  CHECK((executor.ActiveState().heldMask & EPBM_EDIT) != 0U);
+
+  executor.Handle(TrackerAction::Right, false);
+  const auto vertical = executor.Handle(TrackerAction::Down, true);
+  REQUIRE(vertical.count == 1U);
+  CHECK(vertical[0].type == ui2::Ui2TrackerCommandType::WarpVertical);
+  CHECK((executor.ActiveState().heldMask & EPBM_EDIT) != 0U);
+  executor.Handle(TrackerAction::Down, false);
+  executor.Handle(TrackerAction::Option, false);
+  CHECK((executor.ActiveState().heldMask & EPBM_EDIT) == 0U);
 }

@@ -7,6 +7,7 @@
 #pragma once
 
 #include "Application/UI2/Controllers/Ui2ControllerPrimitives.h"
+#include "UI2/Views/Instrument/UiInstrumentCapacity.h"
 
 #include <cstdint>
 #include <type_traits>
@@ -41,6 +42,12 @@ enum class Ui2InstrumentValueDirection : std::uint8_t {
   Up,
 };
 
+enum class Ui2InstrumentSubfieldMode : std::uint8_t {
+  None,
+  HexDigit,
+  Bit,
+};
+
 enum class Ui2InstrumentCommandType : std::uint8_t {
   None,
   LoadInstrument,
@@ -53,7 +60,6 @@ enum class Ui2InstrumentCommandType : std::uint8_t {
   ActivateField,
   CommitValueEdits,
   StartPlayback,
-  OpenRecord,
 };
 
 enum class Ui2InstrumentBottomKind : std::uint8_t {
@@ -67,7 +73,9 @@ struct Ui2InstrumentCommand {
   Ui2InstrumentCommandType type = Ui2InstrumentCommandType::None;
   Ui2InstrumentCursorPosition cursor{};
   Ui2InstrumentValueDirection direction = Ui2InstrumentValueDirection::None;
+  Ui2InstrumentSubfieldMode subfieldMode = Ui2InstrumentSubfieldMode::None;
   std::int16_t value = 0;
+  std::uint8_t subfield = 0;
 
   [[nodiscard]] constexpr bool HasValue() const {
     return type != Ui2InstrumentCommandType::None;
@@ -83,10 +91,10 @@ struct Ui2InstrumentBottomState {
 
 class Ui2InstrumentController {
 public:
-  static constexpr std::uint8_t MaximumFields = 16U;
-  static constexpr std::uint8_t MaximumOperatorRows = 6U;
-  static constexpr std::uint8_t MaximumRows =
-      2U + MaximumFields + MaximumOperatorRows;
+  static constexpr std::uint8_t MaximumFields = kUiInstrumentMaximumFields;
+  static constexpr std::uint8_t MaximumOperatorRows =
+      kUiInstrumentMaximumOperatorRows;
+  static constexpr std::uint8_t MaximumRows = kUiInstrumentMaximumRows;
   static constexpr std::uint8_t TrackCount = 8U;
   static constexpr std::uint8_t DefaultInstrumentCount = 39U;
 
@@ -150,17 +158,59 @@ public:
     return cursor_.FirstVisibleOrdinal();
   }
   [[nodiscard]] constexpr bool NumberFocus() const {
-    return input_.Held(TrackerAction::Edit);
+    return input_.Held(TrackerAction::Option);
   }
   [[nodiscard]] constexpr bool TrackFocus() const { return NumberFocus(); }
   [[nodiscard]] constexpr std::uint16_t HeldMask() const {
     return input_.Mask();
   }
+  [[nodiscard]] constexpr bool EnterSubfieldFocus() const {
+    return !NumberFocus() && subfieldMode_ != Ui2InstrumentSubfieldMode::None &&
+           subfieldCount_ > 0U && input_.Held(TrackerAction::Edit);
+  }
+  [[nodiscard]] constexpr Ui2InstrumentSubfieldMode SubfieldMode() const {
+    return subfieldMode_;
+  }
+  [[nodiscard]] constexpr std::uint8_t Subfield() const {
+    return subfield_;
+  }
+
+  // The application resolves the active descriptor immediately before every
+  // input edge. This keeps the controller independent from Instrument model
+  // headers while ensuring a fast move-then-ENTER sequence never observes the
+  // descriptor from the previous row.
+  constexpr void ConfigureValueSubfields(Ui2InstrumentSubfieldMode mode,
+                                         std::uint8_t count) {
+    subfieldMode_ = count == 0U ? Ui2InstrumentSubfieldMode::None : mode;
+    subfieldCount_ = subfieldMode_ == Ui2InstrumentSubfieldMode::None
+                         ? 0U
+                         : count;
+    if (subfieldCount_ == 0U) {
+      subfield_ = 0U;
+    } else if (subfield_ >= subfieldCount_) {
+      // Big-hex and bitmask fields enter on their right-most component, just
+      // like the legacy fixed-capacity fields.
+      subfield_ = static_cast<std::uint8_t>(subfieldCount_ - 1U);
+    }
+  }
+
+  // A type-change dialog takes ownership before the triggering arrow is
+  // released. Clear that held edge so closing the modal cannot leave the
+  // Instrument controller believing the arrow is still down.
+  constexpr void ReleaseHeldInput() {
+    input_ = {};
+    valueEditDirty_ = false;
+  }
 
   constexpr void SetStructure(std::uint8_t fieldCount,
                               std::uint8_t operatorCount) {
-    fieldCount_ = ClampFieldCount(fieldCount);
-    operatorCount_ = ClampOperatorCount(operatorCount);
+    const std::uint8_t nextFieldCount = ClampFieldCount(fieldCount);
+    const std::uint8_t nextOperatorCount = ClampOperatorCount(operatorCount);
+    if (fieldCount_ != nextFieldCount ||
+        operatorCount_ != nextOperatorCount)
+      ResetSubfield();
+    fieldCount_ = nextFieldCount;
+    operatorCount_ = nextOperatorCount;
     cursor_.SetEnabledMask(EnabledRowsMask(fieldCount_, operatorCount_));
     if (operatorCount_ == 0U)
       operatorColumn_ = 0U;
@@ -168,6 +218,17 @@ public:
 
   constexpr void SetTypeSelector(Ui2SelectorState selector) {
     typeSelector_ = selector;
+  }
+
+  constexpr void Synchronize(std::uint8_t number, std::uint8_t selectedTrack,
+                             Ui2SelectorState typeSelector,
+                             std::uint8_t fieldCount,
+                             std::uint8_t operatorCount) {
+    number_ = SanitizeNumber(number, instrumentCount_);
+    selectedTrack_ = selectedTrack < TrackCount ? selectedTrack
+                                                : TrackCount - 1U;
+    typeSelector_ = typeSelector;
+    SetStructure(fieldCount, operatorCount);
   }
 
   [[nodiscard]] constexpr Ui2InstrumentBottomState Bottom() const {
@@ -198,7 +259,7 @@ public:
       return {};
 
     if (!pressed) {
-      if (action == TrackerAction::Enter && valueEditDirty_) {
+      if (action == TrackerAction::Edit && valueEditDirty_) {
         valueEditDirty_ = false;
         return MakeCommand(Ui2InstrumentCommandType::CommitValueEdits);
       }
@@ -206,7 +267,7 @@ public:
     }
 
     const Ui2InstrumentValueDirection direction = DirectionFor(action);
-    if (input_.Held(TrackerAction::Edit)) {
+    if (input_.Held(TrackerAction::Option)) {
       if (direction == Ui2InstrumentValueDirection::Left ||
           direction == Ui2InstrumentValueDirection::Right) {
         return SelectTrack(direction);
@@ -215,16 +276,14 @@ public:
           direction == Ui2InstrumentValueDirection::Down) {
         return SelectNumber(direction);
       }
-      if (action == TrackerAction::Play)
-        return MakeCommand(Ui2InstrumentCommandType::OpenRecord);
       return {};
     }
 
-    if (input_.Held(TrackerAction::Enter)) {
+    if (input_.Held(TrackerAction::Edit)) {
       if (direction != Ui2InstrumentValueDirection::None)
         return HandleEnterDirection(direction);
-      if (action == TrackerAction::Enter &&
-          input_.Mask() == TrackerActionBit(TrackerAction::Enter)) {
+      if (action == TrackerAction::Edit &&
+          input_.Mask() == TrackerActionBit(TrackerAction::Edit)) {
         const Ui2InstrumentCursorPosition cursor = Cursor();
         if (cursor.kind == Ui2InstrumentCursorKind::Name)
           return MakeCommand(NameCommand(nameAction_));
@@ -241,11 +300,13 @@ public:
       return {};
 
     if (action == TrackerAction::Up) {
-      cursor_.MovePrevious();
+      if (cursor_.MovePrevious())
+        ResetSubfield();
       return {};
     }
     if (action == TrackerAction::Down) {
-      cursor_.MoveNext();
+      if (cursor_.MoveNext())
+        ResetSubfield();
       return {};
     }
     if (action == TrackerAction::Left || action == TrackerAction::Right)
@@ -323,12 +384,12 @@ private:
       return Ui2InstrumentValueDirection::Right;
     case TrackerAction::Up:
       return Ui2InstrumentValueDirection::Up;
-    case TrackerAction::Alt:
+    case TrackerAction::Option:
     case TrackerAction::Edit:
-    case TrackerAction::Enter:
-    case TrackerAction::Nav:
+    case TrackerAction::Shift:
     case TrackerAction::Play:
-    case TrackerAction::Select:
+    case TrackerAction::Reserved8:
+    case TrackerAction::Reserved9:
     case TrackerAction::Power:
     case TrackerAction::Count:
       return Ui2InstrumentValueDirection::None;
@@ -372,12 +433,24 @@ private:
       command.value = static_cast<std::int16_t>(typeSelector_.current);
       command.direction = delta < 0 ? Ui2InstrumentValueDirection::Left
                                     : Ui2InstrumentValueDirection::Right;
+      ResetSubfield();
       return command;
     }
-    if (cursor.kind == Ui2InstrumentCursorKind::Operator1 && delta > 0)
+    if (cursor.kind == Ui2InstrumentCursorKind::Field) {
+      Ui2InstrumentCommand command =
+          MakeCommand(Ui2InstrumentCommandType::AdjustField);
+      command.direction = delta < 0 ? Ui2InstrumentValueDirection::Left
+                                    : Ui2InstrumentValueDirection::Right;
+      command.value = delta;
+      return command;
+    }
+    if (cursor.kind == Ui2InstrumentCursorKind::Operator1 && delta > 0) {
       operatorColumn_ = 1U;
-    else if (cursor.kind == Ui2InstrumentCursorKind::Operator2 && delta < 0)
+      ResetSubfield();
+    } else if (cursor.kind == Ui2InstrumentCursorKind::Operator2 && delta < 0) {
       operatorColumn_ = 0U;
+      ResetSubfield();
+    }
     return {};
   }
 
@@ -393,15 +466,38 @@ private:
                                   ? -1
                                   : 1);
     }
+    if (subfieldMode_ != Ui2InstrumentSubfieldMode::None &&
+        subfieldCount_ > 0U) {
+      if (direction == Ui2InstrumentValueDirection::Left) {
+        if (subfield_ > 0U)
+          --subfield_;
+        return {};
+      }
+      if (direction == Ui2InstrumentValueDirection::Right) {
+        if (subfield_ + 1U < subfieldCount_)
+          ++subfield_;
+        return {};
+      }
+    }
     Ui2InstrumentCommand command =
         MakeCommand(Ui2InstrumentCommandType::AdjustField);
     command.direction = direction;
+    command.subfieldMode = subfieldMode_;
+    command.subfield = subfield_;
     command.value = direction == Ui2InstrumentValueDirection::Left ||
                             direction == Ui2InstrumentValueDirection::Down
                         ? -1
                         : 1;
     valueEditDirty_ = true;
     return command;
+  }
+
+  constexpr void ResetSubfield() {
+    // ConfigureValueSubfields() converts this sentinel to the new row's
+    // right-most valid component before the next input edge.
+    subfield_ = 0xFFU;
+    subfieldMode_ = Ui2InstrumentSubfieldMode::None;
+    subfieldCount_ = 0U;
   }
 
   constexpr Ui2InstrumentCommand
@@ -456,6 +552,9 @@ private:
   std::uint8_t instrumentCount_ = DefaultInstrumentCount;
   std::uint8_t selectedTrack_ = 0;
   std::uint8_t operatorColumn_ = 0;
+  std::uint8_t subfield_ = 0xFFU;
+  std::uint8_t subfieldCount_ = 0U;
+  Ui2InstrumentSubfieldMode subfieldMode_ = Ui2InstrumentSubfieldMode::None;
   Ui2InstrumentNameAction nameAction_ = Ui2InstrumentNameAction::Load;
   bool instrumentWrap_ = true;
   bool valueEditDirty_ = false;

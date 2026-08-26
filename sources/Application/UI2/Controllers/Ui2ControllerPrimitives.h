@@ -37,10 +37,9 @@ public:
 
   [[nodiscard]] constexpr bool AnyModifier() const {
     constexpr std::uint16_t modifiers =
-        TrackerActionBit(TrackerAction::Alt) |
-        TrackerActionBit(TrackerAction::Edit) |
-        TrackerActionBit(TrackerAction::Enter) |
-        TrackerActionBit(TrackerAction::Nav);
+        TrackerActionBit(TrackerAction::Shift) |
+        TrackerActionBit(TrackerAction::Option) |
+        TrackerActionBit(TrackerAction::Edit);
     return (mask_ & modifiers) != 0U;
   }
 
