@@ -1,6 +1,5 @@
 #include "Adapters/wasm/platform/wasm_bridge.h"
 #include "Adapters/wasm/audio/WasmAudio.h"
-#include "Adapters/wasm/gui/GUIFactory.h"
 #include "Adapters/wasm/gui/WasmEventManager.h"
 #include "Adapters/wasm/gui/WasmGUIWindowImp.h"
 #include "Adapters/wasm/system/WasmSystem.h"
@@ -46,17 +45,14 @@ int main() {
     return FailStartup("Failed to install browser platform services");
   }
 
-  alignas(GUIFactory) static unsigned char factoryStorage[sizeof(GUIFactory)];
-  auto *factory = new (factoryStorage) GUIFactory();
-  I_GUIWindowFactory::Install(factory);
-  auto *eventManager = static_cast<WasmEventManager *>(factory->GetEventManager());
+  auto *eventManager = WasmEventManager::GetInstance();
   if (eventManager == nullptr || !eventManager->Init()) {
     return FailStartup("Failed to initialize SDL2 browser UI");
   }
 
-  GUICreateWindowParams params{};
-  params.title = "PicoTracker";
-  auto &window = static_cast<WasmGUIWindowImp &>(factory->CreateWindowImp(params));
+  alignas(WasmGUIWindowImp) static unsigned char windowStorage[
+      sizeof(WasmGUIWindowImp)];
+  auto &window = *(new (windowStorage) WasmGUIWindowImp());
   alignas(ui2::Ui2TrackerApplication) static unsigned char applicationStorage[
       sizeof(ui2::Ui2TrackerApplication)];
   auto *application =

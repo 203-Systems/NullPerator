@@ -89,7 +89,6 @@ target_link_libraries(platform_system PUBLIC
   platform)
 
 add_library(platform_display
-  gui/GUIFactory.cpp
   gui/WasmEventManager.cpp
   gui/WasmGUIWindowImp.cpp
   gui/WasmUiPresenter.cpp)

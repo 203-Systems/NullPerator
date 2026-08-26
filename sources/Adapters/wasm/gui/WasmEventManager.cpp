@@ -21,8 +21,6 @@
 #include "Application/Persistency/PersistenceConstants.h"
 #include "Application/Player/Player.h"
 #include "System/System/System.h"
-#include "UIFramework/SimpleBaseClasses/GUIWindow.h"
-
 #include <SDL.h>
 #include <emscripten/emscripten.h>
 
@@ -144,8 +142,6 @@ void WasmEventManager::PumpFrame() {
   WASM_TRACE_SCOPE(WasmTraceCategory::Ui, WasmTraceName::Frame);
   WasmGUIWindowImp &window = *nativeWindow_;
   ui2::Ui2TrackerApplication &application = *nativeApplication_;
-  window.SetUi2DisplayOwnership(true);
-
   if (booting_) {
     application.Invalidate();
     if (application.Present() == ui2::PresentResult::Failed ||
@@ -207,11 +203,11 @@ void WasmEventManager::PumpFrame() {
   while (SDL_PollEvent(&event) != 0) {
     switch (event.type) {
     case SDL_QUIT:
-      window.ProcessQuit();
+      PostQuitMessage();
       break;
     case SDL_WINDOWEVENT:
       if (event.window.event == SDL_WINDOWEVENT_EXPOSED) {
-        window.ProcessExpose();
+        application.Invalidate();
       }
       break;
     case SDL_USEREVENT: {

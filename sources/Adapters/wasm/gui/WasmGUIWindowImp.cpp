@@ -10,50 +10,14 @@
 
 #include <emscripten/emscripten.h>
 
-#include "Adapters/wasm/gui/font.h"
-#include "Application/Model/Config.h"
-#include "UIFramework/SimpleBaseClasses/GUIWindow.h"
-
 #include <GLES2/gl2.h>
 #include <algorithm>
-#include <cstring>
 
 namespace {
-constexpr int CellSourceWidth = 8;
-constexpr int CellSourceHeight = 10;
-constexpr int FrameworkCellStep = 8;
-constexpr int TextColumns = WasmGUIWindowImp::SourceWidth / CellSourceWidth;
 constexpr std::size_t FrameBytes =
     WasmGUIWindowImp::CanvasWidth * WasmGUIWindowImp::CanvasHeight * 4U;
 
-constexpr bool IsGlyphPixelSet(std::uint16_t row, int sourceX) {
-  return (row & (1u << sourceX)) != 0;
-}
-
-// The vertical stroke in the font's 'F' glyph is encoded as 0x02. It belongs
-// near the left edge (x=1), not the right edge (x=8).
-static_assert(IsGlyphPixelSet(0x02, 1));
-static_assert(!IsGlyphPixelSet(0x02, 8));
-
 WasmFrameSnapshot<FrameBytes> frameSnapshot;
-
-int ScaleXFloor(int x) {
-  return (x * WasmGUIWindowImp::CanvasWidth) /
-         WasmGUIWindowImp::SourceWidth;
-}
-
-int ScaleXCeil(int x) {
-  return (x * WasmGUIWindowImp::CanvasWidth +
-          WasmGUIWindowImp::SourceWidth - 1) /
-         WasmGUIWindowImp::SourceWidth;
-}
-
-void StorePixel(std::uint8_t *destination, std::uint32_t rgba) {
-  destination[0] = static_cast<std::uint8_t>((rgba >> 24) & 0xFF);
-  destination[1] = static_cast<std::uint8_t>((rgba >> 16) & 0xFF);
-  destination[2] = static_cast<std::uint8_t>((rgba >> 8) & 0xFF);
-  destination[3] = static_cast<std::uint8_t>(rgba & 0xFF);
-}
 
 constexpr char VertexShaderSource[] = R"(
 attribute vec2 a_position;
@@ -90,10 +54,9 @@ unsigned int CompileShader(unsigned int type, const char *source) {
 
 WasmGUIWindowImp *WasmGUIWindowImp::instance_ = nullptr;
 
-WasmGUIWindowImp::WasmGUIWindowImp(GUICreateWindowParams &params)
+WasmGUIWindowImp::WasmGUIWindowImp()
     : ui2Presenter_(ui2Frame_.data(), ui2Frame_.size(),
                     &WasmGUIWindowImp::CommitUi2Frame, this) {
-  (void)params;
   SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
 #ifdef SDL_HINT_EMSCRIPTEN_CANVAS_SELECTOR
   SDL_SetHint(SDL_HINT_EMSCRIPTEN_CANVAS_SELECTOR, "#picotracker-canvas");
@@ -108,16 +71,10 @@ WasmGUIWindowImp::WasmGUIWindowImp(GUICreateWindowParams &params)
     return;
   }
   instance_ = this;
-  std::fill(frame_.begin(), frame_.end(), 0);
-  for (std::size_t i = 3; i < frame_.size(); i += 4) {
-    frame_[i] = 0xFF;
-  }
   std::fill(ui2Frame_.begin(), ui2Frame_.end(), 0);
   for (std::size_t i = 3; i < ui2Frame_.size(); i += 4) {
     ui2Frame_[i] = 0xFF;
   }
-  dirtyRect_ = {0, 0, CanvasWidth, CanvasHeight};
-  dirty_ = true;
 }
 
 WasmGUIWindowImp::~WasmGUIWindowImp() {
@@ -127,234 +84,6 @@ WasmGUIWindowImp::~WasmGUIWindowImp() {
   DestroyPresenter();
   if (window_ != nullptr) {
     SDL_DestroyWindow(window_);
-  }
-}
-
-std::uint32_t WasmGUIWindowImp::ClampColor(const GUIColor &color) {
-  const auto r = static_cast<std::uint32_t>(std::min<unsigned short>(color._r, 255));
-  const auto g = static_cast<std::uint32_t>(std::min<unsigned short>(color._g, 255));
-  const auto b = static_cast<std::uint32_t>(std::min<unsigned short>(color._b, 255));
-  return (r << 24) | (g << 16) | (b << 8) | 0xFFu;
-}
-
-void WasmGUIWindowImp::SetColor(GUIColor &color) {
-  std::lock_guard<std::recursive_mutex> lock(mutex_);
-  currentColor_ = ClampColor(color);
-}
-
-SDL_Rect WasmGUIWindowImp::TransformRect(const GUIRect &rect) {
-  const int left = std::clamp(ScaleXFloor(rect.Left()), 0, CanvasWidth);
-  const int right = std::clamp(ScaleXCeil(rect.Right()), 0, CanvasWidth);
-  const int top = std::clamp(rect.Top(), 0, CanvasHeight);
-  const int bottom = std::clamp(rect.Bottom(), 0, CanvasHeight);
-  return SDL_Rect{left, top, std::max(0, right - left),
-                  std::max(0, bottom - top)};
-}
-
-void WasmGUIWindowImp::FillRect(const SDL_Rect &rect, std::uint32_t color) {
-  const int left = std::clamp(rect.x, 0, CanvasWidth);
-  const int top = std::clamp(rect.y, 0, CanvasHeight);
-  const int right = std::clamp(rect.x + rect.w, 0, CanvasWidth);
-  const int bottom = std::clamp(rect.y + rect.h, 0, CanvasHeight);
-  if (left >= right || top >= bottom) {
-    return;
-  }
-  for (int y = top; y < bottom; ++y) {
-    for (int x = left; x < right; ++x) {
-      StorePixel(frame_.data() + (y * CanvasWidth + x) * 4, color);
-    }
-  }
-  MarkDirty(SDL_Rect{left, top, right - left, bottom - top});
-}
-
-void WasmGUIWindowImp::MarkDirty(const SDL_Rect &rect) {
-  if (rect.w <= 0 || rect.h <= 0) {
-    return;
-  }
-  if (!dirty_) {
-    dirtyRect_ = rect;
-    dirty_ = true;
-    return;
-  }
-  const int left = std::min(dirtyRect_.x, rect.x);
-  const int top = std::min(dirtyRect_.y, rect.y);
-  const int right = std::max(dirtyRect_.x + dirtyRect_.w, rect.x + rect.w);
-  const int bottom = std::max(dirtyRect_.y + dirtyRect_.h, rect.y + rect.h);
-  dirtyRect_ = {left, top, right - left, bottom - top};
-}
-
-void WasmGUIWindowImp::DrawRect(GUIRect &rect) {
-  std::lock_guard<std::recursive_mutex> lock(mutex_);
-  FillRect(TransformRect(rect), currentColor_);
-}
-
-void WasmGUIWindowImp::DrawGlyph(std::uint8_t character, int cellX,
-                                 int cellY, bool inverted) {
-  if (cellX < 0 || cellX >= TextColumns || cellY < 0 || cellY >= 24) {
-    return;
-  }
-  const int left = ScaleXFloor(cellX * CellSourceWidth);
-  const int right = ScaleXFloor((cellX + 1) * CellSourceWidth);
-  const int top = cellY * CellSourceHeight;
-  const int bottom = top + CellSourceHeight;
-  const std::uint32_t foreground = inverted ? backgroundColor_ : currentColor_;
-  const std::uint32_t background = inverted ? currentColor_ : backgroundColor_;
-
-  const std::uint16_t *regularRows = nullptr;
-  const std::uint8_t *specialRows = nullptr;
-  if (character >= 32 && character < 128) {
-    int fontIndex = 0;
-    Config *config = Config::GetInstance();
-    if (config != nullptr) {
-      Variable *fontVariable = config->FindVariable(FourCC::VarUIFont);
-      if (fontVariable != nullptr) {
-        fontIndex = fontVariable->GetInt();
-      }
-    }
-    const std::size_t glyphIndex = character - 32;
-    regularRows = fontIndex == 0 ? FONT_STEALTH57_BITMAP[glyphIndex]
-                                 : FONT_YOU_SQUARED_BITMAP[glyphIndex];
-  } else if (character >= 128) {
-    specialRows = FONT_SPECIAL_CHARACTERS_BITMAP[character - 128];
-  }
-
-  for (int y = top; y < bottom; ++y) {
-    const int sourceY = y - top;
-    const std::uint16_t row = regularRows != nullptr
-                                  ? regularRows[sourceY]
-                              : specialRows != nullptr
-                                  ? specialRows[sourceY]
-                                  : 0;
-    for (int x = left; x < right; ++x) {
-      const int sourceX = ((x - left) * CellSourceWidth) /
-                          std::max(1, right - left);
-      // Match the Node display writer: pixel x uses mask (1 << x), so bit 0
-      // is the leftmost pixel in an ordinary browser framebuffer.
-      const bool set = IsGlyphPixelSet(row, sourceX);
-      StorePixel(frame_.data() + (y * CanvasWidth + x) * 4,
-                 set ? foreground : background);
-    }
-  }
-  MarkDirty(SDL_Rect{left, top, right - left, bottom - top});
-}
-
-void WasmGUIWindowImp::DrawChar(char character, const GUIPoint &position,
-                                const GUITextProperties &properties) {
-  std::lock_guard<std::recursive_mutex> lock(mutex_);
-  DrawGlyph(static_cast<std::uint8_t>(character),
-            static_cast<int>(position._x / FrameworkCellStep),
-            static_cast<int>(position._y / FrameworkCellStep),
-            properties.invert_);
-}
-
-void WasmGUIWindowImp::DrawString(const char *string,
-                                  const GUIPoint &position,
-                                  const GUITextProperties &properties,
-                                  bool overlay) {
-  (void)overlay;
-  if (string == nullptr) {
-    return;
-  }
-  std::lock_guard<std::recursive_mutex> lock(mutex_);
-  int cellX = static_cast<int>(position._x / FrameworkCellStep);
-  const int cellY = static_cast<int>(position._y / FrameworkCellStep);
-  while (*string != '\0' && cellX < TextColumns) {
-    DrawGlyph(static_cast<std::uint8_t>(*string), cellX, cellY,
-              properties.invert_);
-    ++string;
-    ++cellX;
-  }
-}
-
-void WasmGUIWindowImp::ClearTextRect(GUIRect &rect) {
-  std::lock_guard<std::recursive_mutex> lock(mutex_);
-  FillRect(TransformRect(rect), backgroundColor_);
-}
-
-GUIRect WasmGUIWindowImp::GetRect() {
-  return GUIRect(0, 0, SourceWidth, SourceHeight);
-}
-
-void WasmGUIWindowImp::Invalidate() {
-  std::lock_guard<std::recursive_mutex> lock(mutex_);
-  dirtyRect_ = {0, 0, CanvasWidth, CanvasHeight};
-  dirty_ = true;
-  if (_window != nullptr) {
-    _window->Update(true);
-  }
-}
-
-void WasmGUIWindowImp::Flush() {
-  std::lock_guard<std::recursive_mutex> lock(mutex_);
-  // The legacy View still runs while UI2 owns the browser display so it can
-  // keep the existing input and model behavior. Its independent framebuffer
-  // stays warm for immediate fallback, but it must not replace the UI2 frame.
-  if (ui2OwnsDisplay_) {
-    InputFrameLatencyTracker::ObserveNoPresentation();
-    return;
-  }
-  if (!dirty_ || context_ <= 0) {
-    InputFrameLatencyTracker::ObserveNoPresentation();
-    return;
-  }
-  if (PresentFrame(frame_)) {
-    // PresentFrame returns true only after explicit WebGL swap control commits
-    // successfully. This is the presentation boundary, not DispatchEvent.
-    InputFrameLatencyTracker::PresentedFrame();
-    frameSnapshot.Publish(frame_);
-    dirty_ = false;
-    dirtyRect_ = {0, 0, 0, 0};
-    hasPresentedFrame_ = true;
-  } else {
-    InputFrameLatencyTracker::ObserveNoPresentation();
-  }
-}
-
-void WasmGUIWindowImp::Lock() { mutex_.lock(); }
-
-void WasmGUIWindowImp::Unlock() { mutex_.unlock(); }
-
-void WasmGUIWindowImp::Clear(GUIColor &color, bool overlay) {
-  (void)overlay;
-  std::lock_guard<std::recursive_mutex> lock(mutex_);
-  backgroundColor_ = ClampColor(color);
-  FillRect(SDL_Rect{0, 0, CanvasWidth, CanvasHeight}, backgroundColor_);
-}
-
-void WasmGUIWindowImp::PushEvent(GUIEvent &event) {
-  SDL_Event sdlEvent{};
-  sdlEvent.type = SDL_USEREVENT;
-  sdlEvent.user.code = 1;
-  sdlEvent.user.data1 = new GUIEvent(event);
-  if (SDL_PushEvent(&sdlEvent) < 0) {
-    delete static_cast<GUIEvent *>(sdlEvent.user.data1);
-  }
-}
-
-void WasmGUIWindowImp::ProcessExpose() {
-  if (_window != nullptr) {
-    _window->Update(true);
-  }
-}
-
-void WasmGUIWindowImp::ProcessQuit() {
-  if (_window == nullptr) {
-    return;
-  }
-  GUIPoint position;
-  GUIEvent event(position, ET_SYSQUIT);
-  _window->DispatchEvent(event);
-}
-
-void WasmGUIWindowImp::SetUi2DisplayOwnership(bool ownsDisplay) {
-  std::lock_guard<std::recursive_mutex> lock(mutex_);
-  if (ui2OwnsDisplay_ == ownsDisplay) return;
-  ui2OwnsDisplay_ = ownsDisplay;
-  if (!ownsDisplay) {
-    // The next legacy Flush uploads the complete warm framebuffer instead of
-    // leaving the last UI2 frame visible on an unsupported page.
-    dirtyRect_ = {0, 0, CanvasWidth, CanvasHeight};
-    dirty_ = true;
   }
 }
 
