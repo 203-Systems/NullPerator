@@ -18,6 +18,7 @@
 #include "Application/UI2/Controllers/Ui2SettingsBrowserController.h"
 #include "Application/UI2/Ui2BrightnessMapping.h"
 #include "Application/UI2/Ui2ConfigSaveState.h"
+#include "Application/UI2/Workflows/Ui2GrooveWorkflow.h"
 
 namespace {
 
@@ -536,6 +537,34 @@ TEST_CASE("UI2 Groove step policy initializes only empty cells and clamps") {
   CHECK(Ui2GrooveStepPolicy::Adjust(1U, -1) == 1U);
   CHECK(Ui2GrooveStepPolicy::Adjust(15U, 1) == 15U);
   CHECK(Ui2GrooveStepPolicy::Adjust(7U, 1) == 8U);
+}
+
+TEST_CASE("UI2 Groove workflow reports only effective mutations") {
+  using namespace ui2;
+  std::uint8_t steps[Ui2GrooveController::RowCount]{};
+  steps[3] = Ui2GrooveStepPolicy::Empty;
+
+  auto result = Ui2GrooveWorkflow::Execute(
+      {.type = Ui2GrooveCommandType::InitializeStep, .row = 3}, steps);
+  CHECK(result.projectMutated);
+  CHECK(steps[3] == Ui2GrooveStepPolicy::Initial);
+
+  result = Ui2GrooveWorkflow::Execute(
+      {.type = Ui2GrooveCommandType::InitializeStep, .row = 3}, steps);
+  CHECK_FALSE(result.projectMutated);
+
+  steps[4] = 15U;
+  result = Ui2GrooveWorkflow::Execute(
+      {.type = Ui2GrooveCommandType::AdjustStep, .value = 1, .row = 4},
+      steps);
+  CHECK_FALSE(result.projectMutated);
+
+  result = Ui2GrooveWorkflow::Execute(
+      {.type = Ui2GrooveCommandType::SelectNumber}, steps);
+  CHECK(result.selectNumber);
+  result = Ui2GrooveWorkflow::Execute(
+      {.type = Ui2GrooveCommandType::StartPlayback}, steps);
+  CHECK(result.startPlayback);
 }
 
 TEST_CASE("UI2 settings controllers keep fixed-capacity trivial state") {

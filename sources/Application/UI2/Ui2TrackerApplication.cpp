@@ -2161,35 +2161,13 @@ void Ui2TrackerApplication::ExecuteProject(Ui2ProjectCommand command) {
   case Ui2ProjectCommandType::AdjustScale:
   case Ui2ProjectCommandType::AdjustRoot: {
     Project &project = session_.ProjectModel();
-    FourCC id = FourCC::VarTempo;
-    int minimum = MIN_TEMPO;
-    int maximum = MAX_TEMPO;
-    if (command.type == Ui2ProjectCommandType::AdjustTranspose) {
-      id = FourCC::VarTranspose;
-      minimum = -48;
-      maximum = 48;
-    } else if (command.type == Ui2ProjectCommandType::AdjustScale) {
-      id = FourCC::VarScale;
-      minimum = 0;
-      maximum = numScales - 1;
-    } else if (command.type == Ui2ProjectCommandType::AdjustRoot) {
-      id = FourCC::VarScaleRoot;
-      minimum = 0;
-      maximum = 11;
-    }
-    if (Variable *variable = project.FindVariable(id)) {
-      if (command.type == Ui2ProjectCommandType::AdjustScale ||
-          command.type == Ui2ProjectCommandType::AdjustRoot) {
-        const int count = maximum - minimum + 1;
-        const int wrapped =
-            ((variable->GetInt() + command.value - minimum) % count + count) %
-                count +
-            minimum;
-        variable->SetInt(wrapped);
-      } else {
-        variable->SetInt(
-            std::clamp(variable->GetInt() + command.value, minimum, maximum));
-      }
+    const Ui2ProjectValuePlan plan = Ui2ProjectWorkflow::ValuePlan(command);
+    if (Variable *variable = project.FindVariable(plan.variable)) {
+      const int previous = variable->GetInt();
+      const int adjusted = Ui2ProjectWorkflow::ApplyValue(previous, plan);
+      if (adjusted == previous)
+        break;
+      variable->SetInt(adjusted);
       MarkProjectDirty();
     }
     break;
@@ -2248,35 +2226,16 @@ void Ui2TrackerApplication::ExecuteGroove(Ui2GrooveCommand command) {
     return;
   const std::uint8_t number = groove_.Number();
   std::uint8_t *steps = Groove::GetInstance()->GetGrooveData(number);
-  switch (command.type) {
-  case Ui2GrooveCommandType::InitializeStep:
-    if (steps[command.row] == Ui2GrooveStepPolicy::Empty) {
-      steps[command.row] =
-          Ui2GrooveStepPolicy::Initialize(steps[command.row]);
-      MarkProjectDirty();
-    }
-    break;
-  case Ui2GrooveCommandType::ClearStep:
-    steps[command.row] = 0xFFU;
+  const Ui2GrooveWorkflowResult result =
+      Ui2GrooveWorkflow::Execute(command, steps);
+  if (result.projectMutated)
     MarkProjectDirty();
-    break;
-  case Ui2GrooveCommandType::AdjustStep: {
-    std::uint8_t &step = steps[command.row];
-    step = Ui2GrooveStepPolicy::Adjust(step, command.value);
-    MarkProjectDirty();
-    break;
-  }
-  case Ui2GrooveCommandType::SelectNumber:
+  if (result.selectNumber)
     session_.EditorState().currentGroove_ = groove_.Number();
-    break;
-  case Ui2GrooveCommandType::StartPlayback:
+  if (result.startPlayback)
     Player::GetInstance()->OnStartButton(
         PM_PHRASE, session_.EditorState().songX_, false,
         static_cast<unsigned char>(session_.EditorState().chainRow_));
-    break;
-  case Ui2GrooveCommandType::None:
-    break;
-  }
 }
 
 void Ui2TrackerApplication::SynchronizeGridPage() {

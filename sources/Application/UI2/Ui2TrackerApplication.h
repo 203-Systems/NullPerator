@@ -39,6 +39,8 @@
 #include "Application/UI2/Ui2SampleWaveformBackend.h"
 #include "Application/UI2/Ui2StatusBridge.h"
 #include "Application/UI2/Ui2TrackerSessionModelPort.h"
+#include "Application/UI2/Workflows/Ui2GrooveWorkflow.h"
+#include "Application/UI2/Workflows/Ui2ProjectWorkflow.h"
 
 #include <array>
 #include <type_traits>

@@ -1,4 +1,5 @@
 #include "Application/UI2/Controllers/Ui2ProjectController.h"
+#include "Application/UI2/Workflows/Ui2ProjectWorkflow.h"
 
 #include "doctest/doctest.h"
 
@@ -169,4 +170,28 @@ TEST_CASE("UI2 Project value rows preserve legacy fine and coarse steps") {
   CHECK(controller.Adjust(TrackerAction::Down).type ==
         Ui2ProjectCommandType::AdjustRoot);
   CHECK(controller.Adjust(TrackerAction::Down).value == -1);
+}
+
+TEST_CASE("UI2 Project workflow clamps numeric values and wraps selectors") {
+  using ui2::Ui2ProjectCommand;
+  using ui2::Ui2ProjectWorkflow;
+
+  const auto tempo = Ui2ProjectWorkflow::ValuePlan(
+      {Ui2ProjectCommandType::AdjustTempo, 10});
+  REQUIRE(tempo.valid);
+  CHECK(Ui2ProjectWorkflow::ApplyValue(395, tempo) == 400);
+  CHECK(Ui2ProjectWorkflow::ApplyValue(400, tempo) == 400);
+
+  const auto transpose = Ui2ProjectWorkflow::ValuePlan(
+      {Ui2ProjectCommandType::AdjustTranspose, -12});
+  CHECK(Ui2ProjectWorkflow::ApplyValue(-44, transpose) == -48);
+
+  const auto root = Ui2ProjectWorkflow::ValuePlan(
+      {Ui2ProjectCommandType::AdjustRoot, -1});
+  REQUIRE(root.wraps);
+  CHECK(Ui2ProjectWorkflow::ApplyValue(0, root) == 11);
+
+  const auto scale = Ui2ProjectWorkflow::ValuePlan(
+      {Ui2ProjectCommandType::AdjustScale, 10});
+  CHECK(Ui2ProjectWorkflow::ApplyValue(numScales - 2, scale) == 8);
 }
