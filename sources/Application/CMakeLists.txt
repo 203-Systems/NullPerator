@@ -1,10 +1,6 @@
 add_subdirectory(Model)
 add_subdirectory(Session)
 
-option(PICOTRACKER_UI2_LEGACY_STATE_SOURCE
-  "Build the AppWindow/View compatibility source for UiApplicationRuntime"
-  ON)
-
 set(PICOTRACKER_APPLICATION_UI2_SOURCES
   UI2/Ui2ApplicationRuntime.cpp
   UI2/Ui2NativeApplicationStateSource.cpp
@@ -27,12 +23,6 @@ if(PICOTRACKER_BUILD_LEGACY_APPLICATION)
     Application.cpp
     ${PICOTRACKER_APPLICATION_UI2_SOURCES}
   )
-
-  if(PICOTRACKER_UI2_LEGACY_STATE_SOURCE)
-    target_sources(application PRIVATE
-      UI2/Ui2LegacyApplicationStateSource.cpp
-    )
-  endif()
 
   target_link_libraries(application PUBLIC
     uiframework_simplebaseclasses
@@ -59,7 +49,7 @@ if(PICOTRACKER_BUILD_LEGACY_APPLICATION)
 endif()
 
 # Native UI2 application boundary for product adapters that no longer compile
-# AppWindow, Application, Ui2LegacyApplicationStateSource, or legacy View
+# AppWindow, Application, or legacy View
 # implementations. Keep this as a separate archive while the current products
 # still link `application`; selecting it is an explicit adapter cutover.
 add_library(application_ui2

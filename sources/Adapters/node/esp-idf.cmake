@@ -40,15 +40,9 @@ macro(adapter_node_setup)
   endif()
 
   if(PICOTRACKER_UI STREQUAL "ui2")
-    add_compile_definitions(PICOTRACKER_UI2_PRODUCT=1
-                            PICOTRACKER_UI2_DEFAULT=1)
-    set(PICOTRACKER_UI2_LEGACY_STATE_SOURCE OFF CACHE BOOL
-        "Build legacy AppWindow state source" FORCE)
+    add_compile_definitions(PICOTRACKER_UI2_PRODUCT=1)
   else()
-    add_compile_definitions(PICOTRACKER_UI2_PRODUCT=0
-                            PICOTRACKER_UI2_DEFAULT=0)
-    set(PICOTRACKER_UI2_LEGACY_STATE_SOURCE ON CACHE BOOL
-        "Build legacy AppWindow state source" FORCE)
+    add_compile_definitions(PICOTRACKER_UI2_PRODUCT=0)
   endif()
   message(STATUS "Node UI product: ${PICOTRACKER_UI}")
 

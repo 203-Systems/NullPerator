@@ -1,7 +1,4 @@
 #include "GUIWindowImp.h"
-#include "Application/Views/ViewData.h"
-#include "Application/AppWindow.h"
-#include "Application/UI2/Ui2LegacyApplicationStateSource.h"
 #include "Application/Model/Config.h"
 #include "System/Console/Trace.h"
 #include "System/System/System.h"
@@ -15,13 +12,6 @@
 #include "RemoteUI.h"
 #endif
 #include "freertos/semphr.h"
-#include "esp_attr.h"
-#include <string>
-#include "esp_log.h"
-
-#ifndef PICOTRACKER_UI2_DEFAULT
-#define PICOTRACKER_UI2_DEFAULT 0
-#endif
 
 #define to_rgb565(color)                                                       \
   ((color._r & 0b11111000) << 8) | ((color._g & 0b11111100) << 3) |            \
@@ -43,19 +33,10 @@ static GUIEventPadButtonType eventMappingPico[11] = {
 
 static GUIEventPadButtonType *eventMapping = eventMappingPico;
 
-DMA_ATTR static std::uint16_t
-    s_ui2TransferPixels[ui2::UiRgb565Presenter::kTransferPixels];
-
 NodeGUIWindowImp *instance_;
 static SemaphoreHandle_t s_displayMutex = nullptr;
 
-NodeGUIWindowImp::NodeGUIWindowImp(GUICreateWindowParams &p)
-    : ui2Presenter_(s_ui2TransferPixels,
-                    ui2::UiRgb565Presenter::kTransferPixels,
-                    &NodeGUIWindowImp::WriteUi2Chunk, this,
-                    ui2::UiRgb565ByteOrder::MostSignificantByteFirst),
-      ui2Runtime_(*this),
-      ui2Enabled_(PICOTRACKER_UI2_DEFAULT != 0) {
+NodeGUIWindowImp::NodeGUIWindowImp(GUICreateWindowParams &p) {
   display_init();
   instance_ = this;
   if (s_displayMutex == nullptr) {
@@ -170,20 +151,8 @@ void NodeGUIWindowImp::Unlock() {
 };
 
 void NodeGUIWindowImp::Flush() {
-  // AppWindow continues building the complete legacy character surface while
-  // UI2 owns the LCD. Suppressing only the SPI flush gives us an immediate,
-  // reversible fallback without paying for two physical redraws per tick.
-  if (Ui2ShouldOwnDisplay()) {
-    return;
-  }
   Lock();
-  if (ui2Active_) {
-    display_draw_screen();
-    ui2Active_ = false;
-    ui2Runtime_.Invalidate();
-  } else {
-    display_draw_changed();
-  }
+  display_draw_changed();
   Unlock();
 };
 
@@ -214,7 +183,6 @@ void NodeGUIWindowImp::ProcessEvent(NodeEvent &event) {
   case LAST:
     break;
   }
-  instance_->PresentUi2Frame();
 }
 
 void NodeGUIWindowImp::ProcessButtonChange(uint16_t changeMask,
@@ -245,66 +213,4 @@ void NodeGUIWindowImp::Update(Observable &o, I_ObservableData *d) {
     display_set_font_index(uifont);
   } break;
   }
-}
-
-ui2::PresentResult
-NodeGUIWindowImp::Present(const ui2::UiIndexedSurface &surface,
-                          const ui2::UiPalette &palette,
-                          std::span<const ui2::DirtyStrip> strips) {
-  Lock();
-  const ui2::PresentResult result =
-      ui2Presenter_.Present(surface, palette, strips);
-  Unlock();
-  return result;
-}
-
-bool NodeGUIWindowImp::WriteUi2Chunk(void *, std::uint16_t x,
-                                     std::uint16_t y, std::uint16_t width,
-                                     std::uint16_t height,
-                                     const std::uint16_t *pixels) {
-  return display_draw_rgb565_region(x, y, width, height, pixels);
-}
-
-bool NodeGUIWindowImp::Ui2ShouldOwnDisplay() const {
-  if (!ui2Enabled_ || _window == nullptr) return false;
-  ui2::UiLegacyApplicationStateSource source(
-      *static_cast<AppWindow *>(_window));
-  return ui2Runtime_.Supports(source);
-}
-
-void NodeGUIWindowImp::RestoreLegacyFrame() {
-  Lock();
-  display_draw_screen();
-  Unlock();
-  ui2Active_ = false;
-  ui2Runtime_.Invalidate();
-}
-
-void NodeGUIWindowImp::PresentUi2Frame() {
-  if (!Ui2ShouldOwnDisplay()) {
-    // Do not restore here: REDRAW is posted immediately after input and the
-    // legacy character surface may still describe the previous view. The next
-    // AppWindow::Flush restores the fully redrawn legacy frame atomically.
-    return;
-  }
-
-  if (!ui2Active_) ui2Runtime_.Invalidate();
-  ui2::UiLegacyApplicationStateSource source(
-      *static_cast<AppWindow *>(_window));
-  const ui2::PresentResult result =
-      ui2Runtime_.Present(source);
-  if (result == ui2::PresentResult::Presented) {
-    ui2Active_ = true;
-  } else if (result == ui2::PresentResult::Failed) {
-    ESP_LOGE("NODE_UI2", "UI2 presenter failed; restoring legacy display");
-    ui2Enabled_ = false;
-    RestoreLegacyFrame();
-  }
-}
-
-void NodeGUIWindowImp::SetUi2Enabled(bool enabled) {
-  if (ui2Enabled_ == enabled) return;
-  ui2Enabled_ = enabled;
-  ui2Runtime_.Invalidate();
-  if (!enabled && ui2Active_) RestoreLegacyFrame();
 }

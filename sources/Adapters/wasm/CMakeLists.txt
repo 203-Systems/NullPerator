@@ -11,9 +11,7 @@ include_directories(
 add_compile_definitions(NODE)
 set(PICOTRACKER_UI "ui2" CACHE STRING
   "Browser UI product (UI2 only)" FORCE)
-set(PICOTRACKER_UI2_LEGACY_STATE_SOURCE OFF CACHE BOOL
-  "Legacy UI state source is not part of the browser product" FORCE)
-add_compile_definitions(PICOTRACKER_UI2_PRODUCT=1 PICOTRACKER_UI2_DEFAULT=1)
+add_compile_definitions(PICOTRACKER_UI2_PRODUCT=1)
 
 set(PICOTRACKER_WEB_WASM_DIR
   "${CMAKE_CURRENT_SOURCE_DIR}/../../../web/public/wasm"
