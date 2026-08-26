@@ -255,6 +255,7 @@ target_sources(picoTracker_tests PRIVATE
   ui2_tracker_grid_controller_tests.cpp
   ui2_tracker_controller_hub_tests.cpp
   ui2_instrument_import_transaction_tests.cpp
+  ui2_instrument_workflow_tests.cpp
   instrument_export_transaction_tests.cpp
   ui2_instrument_parameter_tests.cpp
   ui2_project_render_controller_tests.cpp

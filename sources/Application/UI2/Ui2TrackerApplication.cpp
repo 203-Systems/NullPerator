@@ -7,12 +7,11 @@
 #include "Application/UI2/Ui2TrackerApplication.h"
 #include "Application/UI2/Ui2BrightnessMapping.h"
 #include "Application/UI2/Ui2DeviceLifecycleService.h"
-#include "Application/UI2/Ui2InstrumentImportTransaction.h"
 #include "Application/UI2/Ui2InstrumentParameters.h"
 #include "Application/UI2/Ui2InstrumentTableAllocation.h"
-#include "Application/UI2/Ui2InstrumentTypeTransaction.h"
 #include "Application/UI2/Ui2SampleFileOperations.h"
 #include "Application/UI2/Ui2TransportPolicy.h"
+#include "Application/UI2/Workflows/Ui2InstrumentWorkflow.h"
 
 #include "Application/Audio/RecordingPlatform.h"
 #include "Application/Instruments/SampleInstrument.h"
@@ -827,32 +826,18 @@ void Ui2TrackerApplication::HandleBrowser(TrackerAction action, bool pressed) {
         static_cast<std::uint8_t>(editor.currentInstrumentID_);
     InstrumentBank *bank = session_.ProjectModel().GetInstrumentBank();
     PersistencyService *persistence = PersistencyService::GetInstance();
-    if (bank == nullptr || persistence == nullptr) {
-      instrumentBrowser_.SetError("INSTRUMENT LOAD UNAVAILABLE");
-      Status::Set("INSTRUMENT LOAD UNAVAILABLE");
-      runtime_.Invalidate();
-      return;
-    }
-    const InstrumentType importedType =
-        persistence->DetectInstrumentType(command.filename.data());
-    if (importedType == IT_NONE || importedType >= IT_LAST) {
-      instrumentBrowser_.SetError("INVALID INSTRUMENT FILE");
-      Status::Set("INVALID INSTRUMENT FILE");
-      runtime_.Invalidate();
-      return;
-    }
-
-    const Ui2InstrumentImportResult result = Ui2ImportInstrumentAtomically(
-        *bank, number, importedType, [&](I_Instrument *candidate) {
+    const Ui2InstrumentImportOutcome result = Ui2InstrumentWorkflow::Import(
+        bank, number, command.filename.data(), persistence != nullptr,
+        [persistence](const char *filename) {
+          return persistence->DetectInstrumentType(filename);
+        },
+        [persistence, &command](I_Instrument *candidate) {
           return persistence->ImportInstrument(candidate,
                                                command.filename.data()) ==
                  PERSIST_LOADED;
         });
-    if (result != Ui2InstrumentImportResult::Imported) {
-      const char *message =
-          result == Ui2InstrumentImportResult::AllocationFailed
-              ? "NO FREE INSTRUMENT SLOT"
-              : "INSTRUMENT LOAD FAILED";
+    if (result != Ui2InstrumentImportOutcome::Imported) {
+      const char *message = Ui2InstrumentImportFailureText(result);
       instrumentBrowser_.SetError(message);
       Status::Set("%s", message);
       runtime_.Invalidate();
@@ -1758,25 +1743,18 @@ void Ui2TrackerApplication::ExecuteInstrumentLifecycle(
   if (command.type != Ui2InstrumentLifecycleCommandType::ApplyType)
     return;
   InstrumentBank *bank = session_.ProjectModel().GetInstrumentBank();
-  if (bank == nullptr)
-    return;
   const auto slot = static_cast<unsigned short>(
       session_.EditorState().currentInstrumentID_);
-  I_Instrument *current = bank->GetInstrument(slot);
-  if (current != nullptr && current->GetType() == command.instrumentType)
-    return;
-  // A transport can start outside this modal's input path. Recheck at the
-  // destructive boundary so an explicit YES can never replace an instrument
-  // that the player has begun using since the dialog opened.
-  if (Player::GetInstance()->IsRunning()) {
+  const Ui2InstrumentTypeOutcome result = Ui2InstrumentWorkflow::ChangeType(
+      bank, slot, command.instrumentType, Player::GetInstance()->IsRunning());
+  if (result == Ui2InstrumentTypeOutcome::PlayingBlocked) {
+    I_Instrument *current = bank == nullptr ? nullptr : bank->GetInstrument(slot);
     (void)instrumentLifecycle_.RequestTypeChange(
         command.instrumentType,
         current == nullptr ? IT_NONE : current->GetType(), false, true);
     return;
   }
-  if (Ui2ChangeInstrumentTypeAtomically(*bank, slot,
-                                        command.instrumentType) !=
-      Ui2InstrumentTypeChangeResult::Changed) {
+  if (result != Ui2InstrumentTypeOutcome::Changed) {
     // The current slot is deliberately retained. Legacy's allocation dialog
     // promises "Trying next..." and then changes to another type; UI2 needs an
     // approved error state before it can report this without misleading text.
@@ -1791,25 +1769,29 @@ void Ui2TrackerApplication::SaveCurrentInstrument(bool overwrite) {
       session_.EditorState().currentInstrumentID_);
   I_Instrument *instrument =
       bank == nullptr ? nullptr : bank->GetInstrument(slot);
-  if (instrument == nullptr || instrument->GetType() == IT_NONE) {
-    Status::Set("NO INSTRUMENT TO SAVE");
-    runtime_.Invalidate();
-    return;
-  }
-  const auto name = instrument->GetUserSetName();
-  if (name.empty()) {
-    Status::Set("NAME INSTRUMENT FIRST");
-    runtime_.Invalidate();
-    return;
-  }
   PersistencyService *persistence = PersistencyService::GetInstance();
-  const PersistencyResult result =
-      persistence == nullptr
-          ? PERSIST_ERROR
-          : persistence->ExportInstrument(instrument, name, overwrite);
-  if (result == PERSIST_SAVED) {
+  const Ui2InstrumentExportOutcome result = Ui2InstrumentWorkflow::Export(
+      instrument, overwrite,
+      [persistence](I_Instrument *candidate, const char *name,
+                    bool replaceExisting) {
+        if (persistence == nullptr)
+          return Ui2InstrumentStorageResult::Failed;
+        const PersistencyResult stored = persistence->ExportInstrument(
+            candidate, etl::string<MAX_INSTRUMENT_NAME_LENGTH>(name),
+            replaceExisting);
+        if (stored == PERSIST_SAVED)
+          return Ui2InstrumentStorageResult::Saved;
+        if (stored == PERSIST_EXISTS)
+          return Ui2InstrumentStorageResult::Exists;
+        return Ui2InstrumentStorageResult::Failed;
+      });
+  if (result == Ui2InstrumentExportOutcome::NoInstrument) {
+    Status::Set("NO INSTRUMENT TO SAVE");
+  } else if (result == Ui2InstrumentExportOutcome::MissingName) {
+    Status::Set("NAME INSTRUMENT FIRST");
+  } else if (result == Ui2InstrumentExportOutcome::Saved) {
     Status::Set("INSTRUMENT SAVED");
-  } else if (result == PERSIST_EXISTS && !overwrite) {
+  } else if (result == Ui2InstrumentExportOutcome::Exists) {
     Status::Set("INSTRUMENT FILE EXISTS");
     instrumentLifecycle_.RequestExportOverwrite();
   } else {
