@@ -11,17 +11,19 @@
 #include "Application/Instruments/CommandList.h"
 #include "Application/Instruments/SampleInstrument.h"
 #include "Application/Instruments/SamplePool.h"
+#include "Application/Persistency/PersistencyAttribute.h"
 #include "Application/Persistency/PersistencyService.h"
 #include "Application/Player/SyncMaster.h"
 #include "Foundation/Variables/WatchedVariable.h"
 #include "Groove.h"
+#include "ProjectParameterRestore.h"
 #include "Scale.h"
 #include "Services/Midi/MidiService.h"
 #include "System/Console/Trace.h"
 #include "System/io/Status.h"
 #include "Table.h"
 
-#include <math.h>
+#include <cstring>
 
 #define DEFAULT_CHANNEL_VOLUME 99
 #define DEFAULT_PREVIEW_VOLUME 60
@@ -235,7 +237,7 @@ void Project::Purge() {
   song_.phrase_.ClearAllocation();
 
   unsigned char *data = song_.data_;
-  for (int i = 0; i < 256 * SONG_CHANNEL_COUNT; i++) {
+  for (int i = 0; i < SONG_ROW_COUNT * SONG_CHANNEL_COUNT; i++) {
     if (*data != DATA_UNUSED_VALUE) {
       song_.chain_.SetUsed(*data);
     }
@@ -322,7 +324,7 @@ void Project::PurgeSamples() {
     if (instrument->GetType() == IT_SAMPLE) {
       SampleInstrument *si = (SampleInstrument *)instrument;
       int index = si->GetSampleIndex();
-      if (index >= 0)
+      if (index >= 0 && index < MAX_SAMPLES)
         isUsed[index] = true;
     };
   }
@@ -375,43 +377,63 @@ void Project::PurgeInstruments() {
 
 void Project::RestoreContent(PersistencyDocument *doc) {
   bool attr = doc->NextAttribute();
-  doc->version_ = 32;
+  int version = 32;
   int tableRatio = 0;
+  bool sawVersion = false;
+  bool sawTableRatio = false;
   while (attr) {
     if (!strcmp(doc->attrname_, "VERSION")) {
-      doc->version_ = int(atof(doc->attrval_) * 100);
+      char persisted[MAX_VARIABLE_STRING_LENGTH + 1U]{};
+      if (sawVersion || !CopyPersistedVariableAttribute(
+                            *doc, persisted, sizeof(persisted), false) ||
+          !ParseProjectVersionHundredthsForRestore(persisted, version)) {
+        doc->MarkError();
+        return;
+      }
+      sawVersion = true;
     }
     if (!strcmp(doc->attrname_, "TABLERATIO")) {
-      tableRatio = atoi(doc->attrval_);
+      char persisted[MAX_VARIABLE_STRING_LENGTH + 1U]{};
+      if (sawTableRatio || !CopyPersistedVariableAttribute(
+                               *doc, persisted, sizeof(persisted), false) ||
+          !ParsePersistedIntegerAttribute(persisted, 1, 64, tableRatio)) {
+        doc->MarkError();
+        return;
+      }
+      sawTableRatio = true;
     }
     attr = doc->NextAttribute();
   }
-  if (!tableRatio)
-    tableRatio = (doc->version_ <= 32) ? 2 : 1;
-  SyncMaster::GetInstance()->SetTableRatio(tableRatio);
-
-  // Now loop on all variables
-  bool elem = doc->FirstChild();
-  while (elem) {
-    bool attr = doc->NextAttribute();
-    char name[MAX_VARIABLE_STRING_LENGTH + 1];
-    char value[MAX_VARIABLE_STRING_LENGTH + 1];
-    while (attr) {
-      if (!strcmp(doc->attrname_, "NAME")) {
-        strcpy(name, doc->attrval_);
-      }
-      if (!strcmp(doc->attrname_, "VALUE")) {
-        strcpy(value, doc->attrval_);
-      }
-      attr = doc->NextAttribute();
-    }
-    Variable *v = FindVariable(name);
-    // Project name now comes from the directory, so ignore any persisted value.
-    if (v && v->GetID() != FourCC::VarProjectName) {
-      v->SetString(value);
-    }
-    elem = doc->NextSibling();
+  if (doc->HadError()) {
+    doc->MarkError();
+    return;
   }
+
+  ProjectParameterRestorePacket packet{};
+  const auto resolve = [](void *context, const char *name) -> Variable * {
+    return static_cast<Project *>(context)->FindVariable(name);
+  };
+  if (!StageProjectParameterRestore(doc, this, resolve, packet))
+    return;
+  if (!ValidateProjectParameterRestorePacket(packet, MIN_TEMPO, MAX_TEMPO)) {
+    doc->MarkError();
+    return;
+  }
+
+  // Commit only after every PARAMETER has been validated and the closing
+  // PROJECT tag has been consumed. Project name remains directory-derived.
+  for (std::uint8_t index = 0U; index < packet.count; ++index) {
+    ProjectParameterUpdate &update = packet.updates[index];
+    if (update.target != nullptr &&
+        update.target->GetID() != FourCC::VarProjectName) {
+      update.target->SetString(update.value.data());
+    }
+  }
+
+  doc->version_ = version;
+  if (!tableRatio)
+    tableRatio = (version <= 32) ? 2 : 1;
+  SyncMaster::GetInstance()->SetTableRatio(tableRatio);
 }
 
 void Project::SaveContent(tinyxml2::XMLPrinter *printer) {

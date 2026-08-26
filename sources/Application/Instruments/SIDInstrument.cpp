@@ -121,6 +121,15 @@ void SIDInstrument::OnStart() {
       ((byte) & 0x02 ? '1' : '0'), ((byte) & 0x01 ? '1' : '0')
 
 bool SIDInstrument::Start(int c, unsigned char note, bool retrigger) {
+  // The SID frequency table starts at MIDI note 24 and has 96 entries. Reject
+  // notes outside that hardware range before touching render-master or chip
+  // state; the player treats a false return as a silent/unassigned channel.
+  if (!IsPlayableNote(note)) {
+    Trace::Error("SID note outside hardware range: %u",
+                 static_cast<unsigned int>(note));
+    return false;
+  }
+
   Trace::Debug("Retrigger: %i", retrigger);
   gate_ = retrigger;
   // Select master render instrument
@@ -156,8 +165,9 @@ bool SIDInstrument::Start(int c, unsigned char note, bool retrigger) {
 
   int osc = GetOsc();
 
-  sid_->Register[0 + osc * 7] = sid_notes[note - 24] & 0xFF; // V1 Freq Lo
-  sid_->Register[1 + osc * 7] = sid_notes[note - 24] >> 8;   // V1 Freq Hi
+  const unsigned int noteIndex = note - LowestPlayableNote;
+  sid_->Register[0 + osc * 7] = sid_notes[noteIndex] & 0xFF; // V1 Freq Lo
+  sid_->Register[1 + osc * 7] = sid_notes[noteIndex] >> 8;   // V1 Freq Hi
   sid_->Register[2 + osc * 7] = vpw_.GetInt() & 0xFF;        // V1 PW Lo
   sid_->Register[3 + osc * 7] = vpw_.GetInt() >> 8;          // V1 PW Hi
   sid_->Register[4 + osc * 7] = vwf_.GetInt() << 4 | vring_.GetInt() << 2 |

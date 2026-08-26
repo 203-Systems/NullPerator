@@ -1,4 +1,5 @@
 add_library(application_persistency
+  InstrumentFileValidator.cpp
   Persistent.cpp
   PersistencyService.cpp
   PersistencyDocument.cpp

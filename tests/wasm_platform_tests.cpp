@@ -3,6 +3,7 @@
 #include "Adapters/wasm/input/InputMap.h"
 #include "Adapters/wasm/system/WasmSystem.h"
 #include "Adapters/wasm/timer/WasmTimer.h"
+#include "System/FileSystem/CopyFileJournal.h"
 
 #include "doctest/doctest.h"
 
@@ -61,6 +62,22 @@ public:
   std::filesystem::path root;
   std::filesystem::path outside;
 };
+
+std::string CopyJournalPath(const char *destination, const char *prefix) {
+  const std::size_t capacity =
+      FileCopyJournal::SiblingPathCapacity(destination, prefix);
+  REQUIRE(capacity > 1U);
+  std::string path(capacity, '\0');
+  REQUIRE(FileCopyJournal::BuildSiblingPath(destination, prefix, path.data(),
+                                            path.size()));
+  path.resize(capacity - 1U);
+  return path;
+}
+
+std::filesystem::path HostPath(const ScopedFilesystemFixture &fixture,
+                               const std::string &logicalPath) {
+  return fixture.root / std::filesystem::path(logicalPath).relative_path();
+}
 
 struct InputQueueFixture {
   static bool Queue(std::uint16_t action, bool pressed) {
@@ -271,6 +288,17 @@ TEST_CASE("WASM filesystem rolls back failed parent creation without persistence
   CHECK_FALSE(std::filesystem::exists(fixture.root / "move-parent"));
 
   {
+    std::ofstream existing(fixture.root / "existing.dat", std::ios::binary);
+    existing << "keep-me";
+  }
+  CHECK_FALSE(filesystem.CopyFile("/missing.dat", "/existing.dat"));
+  {
+    std::ifstream existing(fixture.root / "existing.dat", std::ios::binary);
+    CHECK(std::string(std::istreambuf_iterator<char>(existing), {}) ==
+          "keep-me");
+  }
+
+  {
     std::ofstream source(fixture.root / "source.dat", std::ios::binary);
     source << "x";
   }
@@ -281,6 +309,71 @@ TEST_CASE("WASM filesystem rolls back failed parent creation without persistence
   CHECK(storageMutationNotifications == 0);
 
   WasmStorage_SetMutationNotifierForTesting(nullptr);
+}
+
+TEST_CASE("WASM copy overwrite preserves old bytes when journal preparation fails") {
+  ScopedFilesystemFixture fixture;
+  WasmFileSystem filesystem(fixture.root.string());
+  {
+    std::ofstream source(fixture.root / "source.dat", std::ios::binary);
+    source << "new-bytes";
+    std::ofstream destination(fixture.root / "target.dat", std::ios::binary);
+    destination << "old-bytes";
+  }
+
+  const std::string temporary =
+      CopyJournalPath("/target.dat", FileCopyJournal::TempPrefix);
+  const std::filesystem::path blocked = HostPath(fixture, temporary);
+  std::filesystem::create_directory(blocked);
+  {
+    std::ofstream blocker(blocked / "keep");
+    blocker << "reserved";
+  }
+
+  CHECK_FALSE(filesystem.CopyFile("/source.dat", "/target.dat"));
+  std::ifstream destination(fixture.root / "target.dat", std::ios::binary);
+  CHECK(std::string(std::istreambuf_iterator<char>(destination), {}) ==
+        "old-bytes");
+}
+
+TEST_CASE("WASM copy recovers an interrupted backup and avoids legacy suffix collision") {
+  ScopedFilesystemFixture fixture;
+  WasmFileSystem filesystem(fixture.root.string());
+  {
+    std::ofstream source(fixture.root / "source.dat", std::ios::binary);
+    source << "new-bytes";
+    std::ofstream legacy(fixture.root / "target.dat.copy.tmp",
+                         std::ios::binary);
+    legacy << "user-file";
+  }
+
+  const std::string temporary =
+      CopyJournalPath("/target.dat", FileCopyJournal::TempPrefix);
+  const std::string backup =
+      CopyJournalPath("/target.dat", FileCopyJournal::BackupPrefix);
+  {
+    std::ofstream interruptedTemp(HostPath(fixture, temporary),
+                                  std::ios::binary);
+    interruptedTemp << "partial";
+    std::ofstream interruptedBackup(HostPath(fixture, backup),
+                                    std::ios::binary);
+    interruptedBackup << "old-bytes";
+  }
+
+  CHECK(filesystem.CopyFile("/source.dat", "/target.dat"));
+  {
+    std::ifstream destination(fixture.root / "target.dat", std::ios::binary);
+    CHECK(std::string(std::istreambuf_iterator<char>(destination), {}) ==
+          "new-bytes");
+  }
+  {
+    std::ifstream legacy(fixture.root / "target.dat.copy.tmp",
+                         std::ios::binary);
+    CHECK(std::string(std::istreambuf_iterator<char>(legacy), {}) ==
+          "user-file");
+  }
+  CHECK_FALSE(std::filesystem::exists(HostPath(fixture, temporary)));
+  CHECK_FALSE(std::filesystem::exists(HostPath(fixture, backup)));
 }
 
 TEST_CASE("WASM action queue orders concurrent releases after accepted presses") {
@@ -306,6 +399,33 @@ TEST_CASE("WASM action queue orders concurrent releases after accepted presses")
     }
   }
   CHECK(InputMap::GetHeldActionMask() == 0);
+  InputMap::ResetQueueForTesting();
+}
+
+TEST_CASE("WASM semantic action edges are idempotent and reserved ids reject") {
+  InputQueueFixture::Reset();
+  InputMap::SetQueueForTesting(&InputQueueFixture::Queue);
+  InputMap::ReleaseAllActions();
+
+  constexpr std::uint16_t shift =
+      static_cast<std::uint16_t>(TrackerAction::Shift);
+  REQUIRE(InputMap::SetAction(shift, true));
+  REQUIRE(InputMap::SetAction(shift, true));
+  REQUIRE(InputMap::SetAction(shift, false));
+  REQUIRE(InputMap::SetAction(shift, false));
+
+  REQUIRE(InputQueueFixture::events.size() == 2U);
+  CHECK(InputQueueFixture::events[0].first == shift);
+  CHECK(InputQueueFixture::events[0].second);
+  CHECK(InputQueueFixture::events[1].first == shift);
+  CHECK_FALSE(InputQueueFixture::events[1].second);
+  CHECK(InputMap::GetHeldActionMask() == 0U);
+
+  CHECK_FALSE(InputMap::SetAction(
+      static_cast<std::uint16_t>(TrackerAction::Reserved8), true));
+  CHECK_FALSE(InputMap::SetAction(
+      static_cast<std::uint16_t>(TrackerAction::Reserved9), true));
+  CHECK(InputQueueFixture::events.size() == 2U);
   InputMap::ResetQueueForTesting();
 }
 

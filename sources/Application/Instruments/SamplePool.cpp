@@ -8,6 +8,7 @@
  */
 
 #include "SamplePool.h"
+#include "SamplePoolLoading.h"
 #include "Application/Model/Config.h"
 #include "Application/Persistency/PersistencyService.h"
 #include "Application/Utils/DrawUtils.h"
@@ -56,28 +57,41 @@ void SamplePool::updateStatus(uint32_t index, uint32_t total,
 
 };
 
-void SamplePool::Load(const char *projectName) {
+bool SamplePool::Load(const char *projectName) {
   auto fs = FileSystem::GetInstance();
-  if (!fs->chdir(PROJECTS_DIR) || !fs->chdir(projectName) ||
-      !fs->chdir(PROJECT_SAMPLES_DIR)) {
+  if (fs == nullptr) {
+    Trace::Error("SAMPLEPOOL: Filesystem is unavailable");
+    return false;
+  }
+
+  etl::vector<int, MAX_FILE_INDEX_SIZE> fileIndexes;
+  if (!SamplePoolLoading::EnterAndList(*fs, projectName, fileIndexes)) {
     Trace::Error("Failed to chdir into %s/%s/%s", PROJECTS_DIR, projectName,
                  PROJECT_SAMPLES_DIR);
+    return false;
   }
-  // First, find all wav files
-  etl::vector<int, MAX_FILE_INDEX_SIZE> fileIndexes;
-  fs->list(&fileIndexes, ".wav", false);
-  char name[PFILENAME_SIZE];
-  uint totalSamples = fileIndexes.size();
+
+  const uint totalSamples = fileIndexes.size();
+  if (totalSamples > MAX_SAMPLES - count_) {
+    Trace::Error("SAMPLEPOOL: Project contains too many sample entries");
+    return false;
+  }
 
   // store for ui updates
   importCount = totalSamples;
 
   for (uint i = 0; i < totalSamples; i++) {
+    char name[PFILENAME_SIZE]{};
     importIndex = i;
-    importName = name;
 
     fs->getFileName(fileIndexes[i], name, PFILENAME_SIZE);
-    if (fs->getFileType(fileIndexes[i]) == PFT_FILE) {
+    const PicoFileType type = fs->getFileType(fileIndexes[i]);
+    if (name[0] == '\0' || type == PFT_UNKNOWN) {
+      Trace::Error("SAMPLEPOOL: Invalid sample directory entry");
+      return false;
+    }
+    importName = name;
+    if (type == PFT_FILE) {
       // Check if the filename exceeds the maximum allowed length
       if (strlen(name) > MAX_INSTRUMENT_FILENAME_LENGTH) {
         Trace::Error(
@@ -87,16 +101,14 @@ void SamplePool::Load(const char *projectName) {
         continue;
       }
 
-      // Show progress as percentage
-      int progress = (int)((i * 100) / totalSamples);
-
       updateStatus(importIndex, importCount, "Loading");
-      loadSample(name);
+      // A missing/corrupt/too-large individual WAV remains an unresolved
+      // filename in SampleVariable. Directory I/O itself is the transaction
+      // boundary, while media availability is allowed to recover later.
+      if (!loadSample(name)) {
+        Trace::Error("SAMPLEPOOL: Sample unavailable: %s", name);
+      }
     }
-    if (i == MAX_SAMPLES) {
-      Trace::Error("Warning maximum sample count reached");
-      break;
-    };
   };
 
   // now sort the samples
@@ -111,6 +123,7 @@ void SamplePool::Load(const char *projectName) {
     swapEntries(index, rest - 1);
     rest--;
   };
+  return true;
 };
 
 SoundSource *SamplePool::GetSource(uint32_t i) {

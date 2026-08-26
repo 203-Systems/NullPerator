@@ -28,7 +28,7 @@
 #define THEMES_DIR "/themes"
 #define RECORDINGS_DIR "/recordings"
 #define INSTRUMENT_FILE_EXTENSION ".pti"
-#define THEME_FILE_EXTENSION ".ptt"
+#define THEME_FILE_EXTENSION ".npt"
 
 #define RECORDING_FILENAME "REC01.wav"
 

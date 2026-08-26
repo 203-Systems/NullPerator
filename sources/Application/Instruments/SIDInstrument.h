@@ -54,6 +54,15 @@ static const unsigned short sid_notes[96] = {
 class SIDInstrument : public I_Instrument {
 
 public:
+  static constexpr unsigned int LowestPlayableNote = 24U;
+  static constexpr unsigned int PlayableNoteCount =
+      sizeof(sid_notes) / sizeof(sid_notes[0]);
+
+  [[nodiscard]] static constexpr bool IsPlayableNote(unsigned int note) {
+    return note >= LowestPlayableNote &&
+           note < LowestPlayableNote + PlayableNoteCount;
+  }
+
   SIDInstrument(SIDInstrumentInstance chip);
   virtual ~SIDInstrument();
 

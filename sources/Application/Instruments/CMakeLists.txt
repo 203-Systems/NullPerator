@@ -10,6 +10,7 @@ add_library(application_instruments
   SRPUpdaters.cpp
   SampleInstrument.cpp
   SamplePool.cpp
+  SamplePoolLoading.cpp
   SampleVariable.cpp
   SIDInstrument.cpp
   SoundSource.cpp

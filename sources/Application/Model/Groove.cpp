@@ -9,6 +9,9 @@
 
 #include "Groove.h"
 
+#include <array>
+#include <cstring>
+
 unsigned char Groove::data_[MAX_GROOVES][16];
 
 Groove::Groove() : Persistent("GROOVES") { Clear(); };
@@ -17,7 +20,7 @@ Groove::~Groove(){};
 
 void Groove::Clear() {
   // Init all grooves with basic datas
-  memset(data_, NO_GROOVE_DATA, MAX_GROOVES * 0xF);
+  memset(data_, NO_GROOVE_DATA, sizeof(data_));
   for (int i = 0; i < MAX_GROOVES; i++) {
     data_[i][0] = 6;
     data_[i][1] = 6;
@@ -53,7 +56,31 @@ void Groove::SaveContent(tinyxml2::XMLPrinter *printer) {
 
 void Groove::RestoreContent(PersistencyDocument *doc) {
   if (doc->FirstChild()) {
-    restoreHexBuffer(doc, (unsigned char *)data_);
+    // Restore into a staging buffer so a malformed payload cannot leave a
+    // partially updated groove table behind. Existing projects may omit the
+    // unused tail, so preserve the current values before overlaying the file.
+    std::array<unsigned char, sizeof(data_)> staged{};
+    std::memcpy(staged.data(), data_, sizeof(data_));
+    if (!restoreHexBuffer(doc, staged.data(), staged.size()))
+      return;
+    for (const unsigned char ticks : staged) {
+      // 0xFF terminates the groove. A real step is 1..15; zero would make
+      // TriggerChannel() evaluate modulo zero and values above 15 are outside
+      // the editor/model contract.
+      if (ticks != NO_GROOVE_DATA && (ticks == 0U || ticks > 15U)) {
+        doc->MarkError();
+        return;
+      }
+    }
+    std::memcpy(data_, staged.data(), sizeof(data_));
+
+    // restoreHexBuffer consumed the nested DATA wrapper. Consume the closing
+    // GROOVES element as well so PersistencyService can advance to the next
+    // registered model node instead of mistaking this close for end-of-root.
+    if (doc->NextSibling()) {
+      doc->MarkError();
+      return;
+    }
   }
 }
 

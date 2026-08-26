@@ -8,6 +8,7 @@
 #include "WasmStorageBridge.h"
 #include "Adapters/wasm/tracing/WasmProfiler.h"
 #include "System/Console/Trace.h"
+#include "System/FileSystem/CopyFileJournal.h"
 
 #include <algorithm>
 #include <cctype>
@@ -193,7 +194,7 @@ bool WasmFileSystem::chdir(const char *path) {
   return true;
 }
 
-void WasmFileSystem::RefreshDirectory(const char *filter, bool subDirOnly,
+bool WasmFileSystem::RefreshDirectory(const char *filter, bool subDirOnly,
                                       bool includeHidden) {
   WASM_TRACE_SCOPE(WasmTraceCategory::Files, WasmTraceName::FileScan);
   entries_.clear();
@@ -238,8 +239,7 @@ void WasmFileSystem::RefreshDirectory(const char *filter, bool subDirOnly,
     if (!directory) {
       size = entry.file_size(error);
       if (error) {
-        error.clear();
-        size = 0;
+        break;
       }
     }
     entries_.push_back(
@@ -250,20 +250,34 @@ void WasmFileSystem::RefreshDirectory(const char *filter, bool subDirOnly,
             [](const DirEntry &left, const DirEntry &right) {
               return left.name < right.name;
             });
+  return !error;
 }
 
 void WasmFileSystem::list(etl::ivector<int> *fileIndexes, const char *filter,
                           bool subDirOnly, bool includeHidden) {
   std::lock_guard<std::recursive_mutex> lock(mutex_);
-  RefreshDirectory(filter, subDirOnly, includeHidden);
+  (void)List_(fileIndexes, filter, subDirOnly, includeHidden);
+}
+
+bool WasmFileSystem::listChecked(etl::ivector<int> *fileIndexes,
+                                 const char *filter, bool subDirOnly,
+                                 bool includeHidden) {
+  std::lock_guard<std::recursive_mutex> lock(mutex_);
+  return List_(fileIndexes, filter, subDirOnly, includeHidden);
+}
+
+bool WasmFileSystem::List_(etl::ivector<int> *fileIndexes, const char *filter,
+                           bool subDirOnly, bool includeHidden) {
+  const bool scanned = RefreshDirectory(filter, subDirOnly, includeHidden);
   if (fileIndexes == nullptr) {
-    return;
+    return false;
   }
   fileIndexes->clear();
   for (std::size_t index = 0;
        index < entries_.size() && !fileIndexes->full(); ++index) {
     fileIndexes->push_back(static_cast<int>(index));
   }
+  return scanned;
 }
 
 void WasmFileSystem::getFileName(int index, char *name, int length) {
@@ -370,7 +384,8 @@ bool WasmFileSystem::CopyFile(const char *srcFilename,
   std::lock_guard<std::recursive_mutex> lock(mutex_);
   std::string source;
   std::string destination;
-  if (!Resolve(srcFilename, source) || !Resolve(destFilename, destination)) {
+  if (!Resolve(srcFilename, source) || !Resolve(destFilename, destination) ||
+      source == destination) {
     return false;
   }
   std::error_code error;
@@ -395,16 +410,153 @@ bool WasmFileSystem::CopyFile(const char *srcFilename,
     }
     return false;
   }
-  error.clear();
-  const bool copied = fs::copy_file(source, destination,
-                                    fs::copy_options::overwrite_existing, error) &&
-                      !error;
-  if (!copied) {
+
+  const std::size_t tempCapacity = FileCopyJournal::SiblingPathCapacity(
+      destination.c_str(), FileCopyJournal::TempPrefix);
+  const std::size_t backupCapacity = FileCopyJournal::SiblingPathCapacity(
+      destination.c_str(), FileCopyJournal::BackupPrefix);
+  if (tempCapacity == 0U || backupCapacity == 0U) {
     if (!createdParents.empty() && !RollbackCreatedDirectories(createdParents)) {
       WasmStorage_NotifyMutation();
     }
     return false;
   }
+
+  std::string temporary(tempCapacity, '\0');
+  std::string backup(backupCapacity, '\0');
+  if (!FileCopyJournal::BuildSiblingPath(
+          destination.c_str(), FileCopyJournal::TempPrefix, temporary.data(),
+          temporary.size()) ||
+      !FileCopyJournal::BuildSiblingPath(
+          destination.c_str(), FileCopyJournal::BackupPrefix, backup.data(),
+          backup.size())) {
+    if (!createdParents.empty() && !RollbackCreatedDirectories(createdParents)) {
+      WasmStorage_NotifyMutation();
+    }
+    return false;
+  }
+  temporary.resize(tempCapacity - 1U);
+  backup.resize(backupCapacity - 1U);
+
+  bool journalMutated = false;
+  auto notifyFailureMutation = [&]() {
+    bool rollbackFailed = false;
+    if (!createdParents.empty())
+      rollbackFailed = !RollbackCreatedDirectories(createdParents);
+    if (journalMutated || rollbackFailed)
+      WasmStorage_NotifyMutation();
+    return false;
+  };
+  auto pathExists = [&](const std::string &path, bool &exists) {
+    error.clear();
+    exists = fs::exists(path, error);
+    return !error;
+  };
+  auto removePath = [&](const std::string &path) {
+    error.clear();
+    const bool removed = fs::remove(path, error);
+    if (removed)
+      journalMutated = true;
+    return removed && !error;
+  };
+
+  // Finish recovery from an interrupted FAT-style replacement before this
+  // copy starts. A fully installed destination wins; if it is absent, the
+  // synced backup is the only known-good version and is restored.
+  bool backupExists = false;
+  bool currentDestinationExists = destinationExists;
+  if (!pathExists(backup, backupExists))
+    return notifyFailureMutation();
+  if (backupExists) {
+    if (currentDestinationExists) {
+      if (!removePath(backup))
+        return notifyFailureMutation();
+    } else {
+      error.clear();
+      fs::rename(backup, destination, error);
+      if (error)
+        return notifyFailureMutation();
+      journalMutated = true;
+      currentDestinationExists = true;
+    }
+  }
+
+  bool temporaryExists = false;
+  if (!pathExists(temporary, temporaryExists))
+    return notifyFailureMutation();
+  if (temporaryExists && !removePath(temporary))
+    return notifyFailureMutation();
+
+  error.clear();
+  const bool copied =
+      fs::copy_file(source, temporary, fs::copy_options::overwrite_existing,
+                    error) &&
+      !error;
+  journalMutated = journalMutated || copied;
+  if (!copied) {
+    bool partialExists = false;
+    if (pathExists(temporary, partialExists) && partialExists)
+      removePath(temporary);
+    return notifyFailureMutation();
+  }
+
+  error.clear();
+  const std::uintmax_t sourceSize = fs::file_size(source, error);
+  if (error) {
+    removePath(temporary);
+    return notifyFailureMutation();
+  }
+  error.clear();
+  const std::uintmax_t temporarySize = fs::file_size(temporary, error);
+  if (error || sourceSize != temporarySize) {
+    removePath(temporary);
+    return notifyFailureMutation();
+  }
+
+  // POSIX/IDBFS normally installs by atomic rename-overwrite. Filesystems
+  // which reject overwrite fall back to a recoverable sibling backup.
+  error.clear();
+  fs::rename(temporary, destination, error);
+  if (!error) {
+    WasmStorage_NotifyMutation();
+    return true;
+  }
+  if (!currentDestinationExists) {
+    removePath(temporary);
+    return notifyFailureMutation();
+  }
+
+  if (!pathExists(backup, backupExists)) {
+    removePath(temporary);
+    return notifyFailureMutation();
+  }
+  if (backupExists && !removePath(backup)) {
+    removePath(temporary);
+    return notifyFailureMutation();
+  }
+  error.clear();
+  fs::rename(destination, backup, error);
+  if (error) {
+    removePath(temporary);
+    return notifyFailureMutation();
+  }
+  journalMutated = true;
+
+  error.clear();
+  fs::rename(temporary, destination, error);
+  if (error) {
+    std::error_code restoreError;
+    fs::rename(backup, destination, restoreError);
+    if (restoreError)
+      Trace::Error("WASM_FILESYSTEM", "cannot restore copy destination: %s",
+                   destination.c_str());
+    removePath(temporary);
+    return notifyFailureMutation();
+  }
+  journalMutated = true;
+  if (!removePath(backup))
+    Trace::Error("WASM_FILESYSTEM", "copy backup cleanup deferred: %s",
+                 backup.c_str());
   WasmStorage_NotifyMutation();
   return true;
 }

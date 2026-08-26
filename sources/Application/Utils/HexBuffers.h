@@ -14,6 +14,8 @@
 #include "Externals/TinyXML2/tinyxml2.h"
 #include "Foundation/Types/Types.h"
 
+#include <cstddef>
+
 void saveHexBuffer(tinyxml2::XMLPrinter *printer, const char *nodeName,
                    unsigned char *src, unsigned len);
 void saveHexBuffer(tinyxml2::XMLPrinter *printer, const char *nodeName,
@@ -22,6 +24,10 @@ void saveHexBuffer(tinyxml2::XMLPrinter *printer, const char *nodeName,
                    unsigned int *src, unsigned len);
 void saveHexBuffer(tinyxml2::XMLPrinter *printer, const char *nodeName,
                    FourCC *src, unsigned len);
-void restoreHexBuffer(PersistencyDocument *doc, unsigned char *dst);
+[[nodiscard]] bool restoreHexBuffer(PersistencyDocument *doc,
+                                    unsigned char *dst,
+                                    std::size_t destinationCapacity);
+[[nodiscard]] bool restoreHexBuffer(PersistencyDocument *doc, FourCC *dst,
+                                    unsigned len);
 
 #endif

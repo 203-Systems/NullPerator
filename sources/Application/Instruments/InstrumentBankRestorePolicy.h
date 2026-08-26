@@ -117,4 +117,3 @@ private:
   std::array<bool, MAX_INSTRUMENT_COUNT> seen_{};
   std::array<std::uint8_t, IT_LAST> counts_{};
 };
-

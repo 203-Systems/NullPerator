@@ -89,15 +89,18 @@ void picoTrackerSamplePool::Reset() {
 
 bool picoTrackerSamplePool::loadSample(const char *name) {
   Trace::Log("SAMPLEPOOL", "Loading sample into flash: %s", name);
+  // Capacity is checked before pausing core1. Returning while the lockout is
+  // active would leave the audio core blocked permanently when a project
+  // contains more than MAX_SAMPLES WAV files.
+  if (count_ >= MAX_SAMPLES)
+    return false;
+
   // Pause core1 in order to be able to write to flash and ensure core1 is
   // not reading from it, it also disables IRQs on it
   // https://www.raspberrypi.com/documentation/pico-sdk/high_level.html#multicore_lockout
   if (multicore_lockout_victim_is_initialized(1)) {
     multicore_lockout_start_blocking();
   }
-
-  if (count_ == MAX_SAMPLES)
-    return false;
 
   auto res = wav_[count_].Open(name);
   if (!res) {

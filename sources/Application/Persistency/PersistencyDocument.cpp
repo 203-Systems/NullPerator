@@ -180,7 +180,13 @@ bool PersistencyDocument::NextSibling() {
     }
   }
 
-  Trace::Error("NextSibling reached EOF");
+  // EOF is not itself a sibling boundary. Ask yxml to distinguish a fully
+  // closed document from a truncated parent instead of leaving the previous
+  // YXML_ELEMEND token in r_, which can make a caller accept an unclosed
+  // container after a self-closing child.
+  r_ = yxml_eof(state_);
+  if (r_ != YXML_OK)
+    Trace::Error("NextSibling reached invalid EOF: %d", r_);
   return false;
 }
 
@@ -326,4 +332,18 @@ bool PersistencyDocument::HasContent() {
     }
   }
   return false;
+}
+
+bool PersistencyDocument::Finish() {
+  if (!fp_ || HadError())
+    return false;
+
+  int c;
+  while ((c = fp_->GetC()) != EOF) {
+    r_ = yxml_parse(state_, c);
+    if (r_ < YXML_OK)
+      return false;
+  }
+  r_ = yxml_eof(state_);
+  return r_ == YXML_OK;
 }

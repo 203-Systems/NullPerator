@@ -22,6 +22,8 @@ public:
   bool chdir(const char *path) override;
   void list(etl::ivector<int> *fileIndexes, const char *filter,
             bool subDirOnly, bool includeHidden = false) override;
+  bool listChecked(etl::ivector<int> *fileIndexes, const char *filter,
+                   bool subDirOnly, bool includeHidden = false) override;
   void getFileName(int index, char *name, int length) override;
   PicoFileType getFileType(int index) override;
   bool isParentRoot() override;
@@ -46,8 +48,10 @@ private:
   static bool EnsureParentDirectories(const std::string &path,
                                       std::vector<std::string> &created);
   static bool RollbackCreatedDirectories(const std::vector<std::string> &created);
-  void RefreshDirectory(const char *filter, bool subDirOnly,
+  bool RefreshDirectory(const char *filter, bool subDirOnly,
                         bool includeHidden);
+  bool List_(etl::ivector<int> *fileIndexes, const char *filter,
+             bool subDirOnly, bool includeHidden);
 
   mutable std::recursive_mutex mutex_;
   std::string root_;

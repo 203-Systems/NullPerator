@@ -32,6 +32,9 @@ public:
   virtual bool chdir(const char *path) override;
   virtual void list(etl::ivector<int> *fileIndexes, const char *filter,
                     bool subDirOnly, bool includeHidden = false) override;
+  virtual bool listChecked(etl::ivector<int> *fileIndexes, const char *filter,
+                           bool subDirOnly,
+                           bool includeHidden = false) override;
   virtual void getFileName(int index, char *name, int length) override;
   virtual PicoFileType getFileType(int index) override;
   virtual bool isParentRoot() override;
@@ -49,6 +52,8 @@ public:
 
 private:
   SdFs sd;
+  bool List_(etl::ivector<int> *fileIndexes, const char *filter,
+             bool subDirOnly, bool includeHidden);
   void tolowercase(char *temp);
   // buffer needs to be allocated here as too big for allocation as local
   // variable on the stack

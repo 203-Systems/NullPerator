@@ -28,7 +28,7 @@ struct SamplePoolEvent : public I_ObservableData {
 
 class SamplePool : public T_Factory<SamplePool>, public Observable {
 public:
-  void Load(const char *projectName);
+  [[nodiscard]] bool Load(const char *projectName);
   SamplePool();
   virtual void Reset() = 0;
   virtual ~SamplePool();

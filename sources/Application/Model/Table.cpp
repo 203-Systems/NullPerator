@@ -68,7 +68,7 @@ bool Table::IsEmpty() {
 TableHolder::TableHolder() : Persistent("TABLES") { Reset(); }
 
 void TableHolder::Reset() {
-  for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {
+  for (int i = 0; i < TABLE_COUNT; i++) {
     table_[i].Reset();
   }
   for (int i = 0; i < TABLE_COUNT; i++) {
@@ -110,17 +110,44 @@ void TableHolder::RestoreContent(PersistencyDocument *doc) {
     // Check it is a table
     if (!strcmp(doc->ElemName(), "TABLE")) {
       // Get the table ID
-      unsigned char id = '\0';
+      unsigned char id = 0U;
+      bool gotId = false;
       bool attr = doc->NextAttribute();
       while (attr) {
         if (!strcmp(doc->attrname_, "ID")) {
-          unsigned char b1 = (c2h__(doc->attrval_[0])) << 4;
-          unsigned char b2 = c2h__(doc->attrval_[1]);
-          id = b1 + b2;
+          const char highChar = doc->attrval_[0];
+          const char lowChar = doc->attrval_[1];
+          const bool highValid =
+              (highChar >= '0' && highChar <= '9') ||
+              (highChar >= 'A' && highChar <= 'F') ||
+              (highChar >= 'a' && highChar <= 'f');
+          const bool lowValid =
+              (lowChar >= '0' && lowChar <= '9') ||
+              (lowChar >= 'A' && lowChar <= 'F') ||
+              (lowChar >= 'a' && lowChar <= 'f');
+          if (!highValid || !lowValid || doc->attrval_[2] != '\0') {
+            doc->MarkError();
+            return;
+          }
+          auto nibble = [](char value) -> unsigned char {
+            if (value >= '0' && value <= '9')
+              return static_cast<unsigned char>(value - '0');
+            if (value >= 'A' && value <= 'F')
+              return static_cast<unsigned char>(value - 'A' + 10);
+            return static_cast<unsigned char>(value - 'a' + 10);
+          };
+          id = static_cast<unsigned char>((nibble(highChar) << 4U) |
+                                          nibble(lowChar));
+          gotId = true;
           // found what we wanted
           break;
         }
         attr = doc->NextAttribute();
+      }
+
+      if (!gotId || id >= TABLE_COUNT) {
+        doc->MarkError();
+        return;
       }
 
       Table &table = table_[id];
@@ -128,22 +155,34 @@ void TableHolder::RestoreContent(PersistencyDocument *doc) {
       bool subelem = doc->FirstChild();
       while (subelem) {
         if (!strcmp("CMD1", doc->ElemName())) {
-          restoreHexBuffer(doc, (unsigned char *)table.cmd1_);
+          if (!restoreHexBuffer(doc, table.cmd1_, TABLE_STEPS))
+            return;
         };
         if (!strcmp("PARAM1", doc->ElemName())) {
-          restoreHexBuffer(doc, (unsigned char *)table.param1_);
+          if (!restoreHexBuffer(
+                  doc, reinterpret_cast<unsigned char *>(table.param1_),
+                  sizeof(table.param1_)))
+            return;
         };
         if (!strcmp("CMD2", doc->ElemName())) {
-          restoreHexBuffer(doc, (unsigned char *)table.cmd2_);
+          if (!restoreHexBuffer(doc, table.cmd2_, TABLE_STEPS))
+            return;
         };
         if (!strcmp("PARAM2", doc->ElemName())) {
-          restoreHexBuffer(doc, (unsigned char *)table.param2_);
+          if (!restoreHexBuffer(
+                  doc, reinterpret_cast<unsigned char *>(table.param2_),
+                  sizeof(table.param2_)))
+            return;
         };
         if (!strcmp("CMD3", doc->ElemName())) {
-          restoreHexBuffer(doc, (unsigned char *)table.cmd3_);
+          if (!restoreHexBuffer(doc, table.cmd3_, TABLE_STEPS))
+            return;
         };
         if (!strcmp("PARAM3", doc->ElemName())) {
-          restoreHexBuffer(doc, (unsigned char *)table.param3_);
+          if (!restoreHexBuffer(
+                  doc, reinterpret_cast<unsigned char *>(table.param3_),
+                  sizeof(table.param3_)))
+            return;
         };
         subelem = doc->NextSibling();
       }
@@ -154,9 +193,8 @@ void TableHolder::RestoreContent(PersistencyDocument *doc) {
 }
 
 void TableHolder::SetUsed(int i) {
-  if (i >= TABLE_COUNT) {
-    NAssert(i < 128);
-  }
+  if (i < 0 || i >= TABLE_COUNT)
+    return;
   allocation_[i] = true;
 };
 

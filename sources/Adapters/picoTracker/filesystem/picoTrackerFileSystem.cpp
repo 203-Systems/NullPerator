@@ -8,7 +8,9 @@
 
 #include "picoTrackerFileSystem.h"
 #include "Externals/etl/include/etl/pool.h"
+#include "System/FileSystem/CopyFileJournal.h"
 #include "pico/multicore.h"
+#include <cstdio>
 #include <cstring>
 
 // Global mutex for thread safety
@@ -123,6 +125,21 @@ void picoTrackerFileSystem::list(etl::ivector<int> *fileIndexes,
                                  const char *filter, bool subDirOnly,
                                  bool includeHidden) {
   std::lock_guard<Mutex> lock(mutex);
+  (void)List_(fileIndexes, filter, subDirOnly, includeHidden);
+}
+
+bool picoTrackerFileSystem::listChecked(etl::ivector<int> *fileIndexes,
+                                        const char *filter, bool subDirOnly,
+                                        bool includeHidden) {
+  std::lock_guard<Mutex> lock(mutex);
+  return List_(fileIndexes, filter, subDirOnly, includeHidden);
+}
+
+bool picoTrackerFileSystem::List_(etl::ivector<int> *fileIndexes,
+                                  const char *filter, bool subDirOnly,
+                                  bool includeHidden) {
+  if (fileIndexes == nullptr)
+    return false;
 
   fileIndexes->clear();
 
@@ -131,7 +148,7 @@ void picoTrackerFileSystem::list(etl::ivector<int> *fileIndexes,
     char name[PFILENAME_SIZE];
     cwd.getName(name, PFILENAME_SIZE);
     Trace::Error("Failed to open cwd");
-    return;
+    return false;
   }
   char buffer[PFILENAME_SIZE];
   cwd.getName(buffer, PFILENAME_SIZE);
@@ -139,15 +156,21 @@ void picoTrackerFileSystem::list(etl::ivector<int> *fileIndexes,
 
   if (!cwd.isDir()) {
     Trace::Error("Path is not a directory");
-    return;
+    cwd.close();
+    return false;
   }
 
   File entry;
   uint16_t count = 0;
   // ref: https://github.com/greiman/SdFat/issues/353#issuecomment-1003422848
-  while (entry.openNext(&cwd, O_READ) && (count < fileIndexes->capacity())) {
+  bool scanned = true;
+  while (count < fileIndexes->capacity() && entry.openNext(&cwd, O_READ)) {
     uint32_t index = entry.dirIndex();
-    entry.getName(buffer, PFILENAME_SIZE);
+    if (entry.getName(buffer, PFILENAME_SIZE) == 0U) {
+      scanned = false;
+      entry.close();
+      break;
+    }
 
     bool matchesFilter = true;
     if (strlen(filter) > 0) {
@@ -171,11 +194,17 @@ void picoTrackerFileSystem::list(etl::ivector<int> *fileIndexes,
     } else {
       // Trace::Log("FILESYSTEM", "skipped hidden: %s", buffer);
     }
-    entry.close();
+    if (!entry.close()) {
+      scanned = false;
+      break;
+    }
   }
-  cwd.close();
+  const bool directoryReadOk = cwd.getError() == 0;
+  const bool directoryClosed = cwd.close();
+  scanned = scanned && directoryReadOk && directoryClosed;
   Trace::Log("FILESYSTEM", "scanned: %d, added file indexes:%d", count,
              fileIndexes->size());
+  return scanned;
 }
 
 void picoTrackerFileSystem::getFileName(int index, char *name, int length) {
@@ -274,26 +303,109 @@ uint64_t picoTrackerFileSystem::getFileSize(const int index) {
 bool picoTrackerFileSystem::CopyFile(const char *srcFilename,
                                      const char *destFilename) {
   std::lock_guard<Mutex> lock(mutex);
-  auto fSrc = sd.open(srcFilename, O_READ);
-  auto fDest = sd.open(destFilename, O_WRITE | O_CREAT);
+  if (srcFilename == nullptr || destFilename == nullptr ||
+      std::strcmp(srcFilename, destFilename) == 0) {
+    return false;
+  }
 
-  int n = 0;
-  int bufferSize = sizeof(fileBuffer_);
-  while (true) {
-    n = fSrc.read(fileBuffer_, bufferSize);
-    // check for read error and only write if no error
-    if (n >= 0) {
-      fDest.write(fileBuffer_, n);
-    } else {
-      Trace::Error("Failed to read file: %s", srcFilename);
+  // Open the source before touching any destination-side state. A missing
+  // source or exhausted file slot must never truncate/delete an existing WAV.
+  auto fSrc = sd.open(srcFilename, O_READ);
+  if (!fSrc.isOpen()) {
+    Trace::Error("Failed to open copy source: %s", srcFilename);
+    return false;
+  }
+
+  char tempFilename[PFILENAME_SIZE]{};
+  char backupFilename[PFILENAME_SIZE]{};
+  if (!FileCopyJournal::BuildSiblingPath(
+          destFilename, FileCopyJournal::TempPrefix, tempFilename,
+          sizeof(tempFilename)) ||
+      !FileCopyJournal::BuildSiblingPath(
+          destFilename, FileCopyJournal::BackupPrefix, backupFilename,
+          sizeof(backupFilename))) {
+    fSrc.close();
+    return false;
+  }
+
+  // Recover the only ambiguous FAT state from a prior interrupted copy before
+  // starting a new one. A present destination is authoritative; otherwise the
+  // backup is restored. Temporary data is never promoted without this call's
+  // successful Sync/close sequence.
+  if (sd.exists(backupFilename)) {
+    if (sd.exists(destFilename)) {
+      if (!sd.remove(backupFilename)) {
+        fSrc.close();
+        return false;
+      }
+    } else if (!sd.rename(backupFilename, destFilename)) {
+      fSrc.close();
       return false;
     }
-    if (n < bufferSize) {
+  }
+  if (sd.exists(tempFilename) && !sd.remove(tempFilename)) {
+    fSrc.close();
+    return false;
+  }
+
+  auto fDest = sd.open(tempFilename, O_WRITE | O_CREAT | O_TRUNC);
+  if (!fDest.isOpen()) {
+    Trace::Error("Failed to open copy temp: %s", tempFilename);
+    fSrc.close();
+    sd.remove(tempFilename);
+    return false;
+  }
+
+  bool copied = true;
+  const int bufferSize = sizeof(fileBuffer_);
+  while (copied) {
+    const int count = fSrc.read(fileBuffer_, bufferSize);
+    if (count < 0) {
+      Trace::Error("Failed to read file: %s", srcFilename);
+      copied = false;
       break;
     }
+    if (count > 0 &&
+        fDest.write(fileBuffer_, static_cast<size_t>(count)) !=
+            static_cast<size_t>(count)) {
+      Trace::Error("Short write copying file: %s", tempFilename);
+      copied = false;
+      break;
+    }
+    if (count < bufferSize)
+      break;
   }
-  fSrc.close();
-  fDest.close();
+  copied = copied && fSrc.getError() == 0 && fDest.getError() == 0 &&
+           fDest.sync();
+  const bool sourceClosed = fSrc.close();
+  const bool destinationClosed = fDest.close();
+  copied = copied && sourceClosed && destinationClosed;
+  if (!copied) {
+    sd.remove(tempFilename);
+    return false;
+  }
+
+  // New destinations install in one rename. SdFat refuses overwrite, so an
+  // existing destination uses a sibling backup journal and is restored on any
+  // install failure. Only this call's temp is ever deleted on copy failure.
+  if (sd.rename(tempFilename, destFilename))
+    return true;
+  if (!sd.exists(destFilename)) {
+    sd.remove(tempFilename);
+    return false;
+  }
+  if (!sd.rename(destFilename, backupFilename)) {
+    sd.remove(tempFilename);
+    return false;
+  }
+  if (!sd.rename(tempFilename, destFilename)) {
+    if (!sd.rename(backupFilename, destFilename))
+      Trace::Error("Failed to restore copy destination: %s", destFilename);
+    sd.remove(tempFilename);
+    return false;
+  }
+  if (!sd.remove(backupFilename))
+    Trace::Error("Copy backup cleanup deferred: %s", backupFilename);
   return true;
 }
 

@@ -124,5 +124,15 @@ bool WasmSamplePool::unloadSample(std::uint32_t index) {
   wav_[last].Close();
   nameStore_[last][0] = '\0';
   --count_;
+
+  // Keep SampleVariable indices coherent after compacting the pool. The
+  // firmware/Node adapter emits the same event from unloadSample(); without
+  // it, deleting an unused entry before a referenced entry silently retargets
+  // that instrument to the wrong sample in the Web UI.
+  SetChanged();
+  SamplePoolEvent event;
+  event.index_ = static_cast<int>(index);
+  event.type_ = SPET_DELETE;
+  NotifyObservers(&event);
   return true;
 }

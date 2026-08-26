@@ -5,6 +5,7 @@ add_library(application_model
   Mixer.cpp
   Phrase.cpp
   Project.cpp
+  ProjectParameterRestore.cpp
   Scale.cpp
   Song.cpp
   Table.cpp

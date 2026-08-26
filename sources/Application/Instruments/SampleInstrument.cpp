@@ -10,6 +10,7 @@
 #include "SampleInstrument.h"
 #include "Application/Instruments/Filters.h"
 #include "Application/Model/Table.h"
+#include "Application/Persistency/PersistencyAttribute.h"
 #include "Application/Player/PlayerMixer.h" // For MIX_BUFFER_SIZE.. kick out pls
 #include "Application/Player/SyncMaster.h"
 #include "Application/Utils/fixed.h"
@@ -23,6 +24,9 @@
 
 #include "System/Console/nanoprintf.h"
 #include <algorithm>
+#include <array>
+#include <climits>
+#include <cstdint>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,6 +34,7 @@
 
 #include "Application/Player/SyncMaster.h"
 #include "SampleInstrumentDatas.h"
+#include "SampleInstrumentParameterLimits.h"
 
 namespace {
 void renderMonoUnityPitch(short *input, fixed *output, int frameCount,
@@ -49,6 +54,63 @@ void renderStereoUnityPitch(short *input, fixed *output, int frameCount,
     *output++ = fp_mul(left, panLeft);
     *output++ = fp_mul(right, panRight);
   }
+}
+
+bool parseSliceParameterName(const char *name, std::size_t &index) {
+  if (name == nullptr || strncasecmp(name, "SL", 2) != 0)
+    return false;
+  std::uint32_t parsed = 0U;
+  if (!ParsePersistedUnsignedIntegerAttribute(
+          name + 2, static_cast<std::uint32_t>(SampleInstrument::MaxSlices - 1U),
+          parsed)) {
+    return false;
+  }
+  index = static_cast<std::size_t>(parsed);
+  return true;
+}
+
+bool validateSampleInstrumentVariable(Variable &variable, const char *value) {
+  if (value == nullptr)
+    return false;
+
+  if (variable.GetID() == FourCC::SampleInstrumentSample)
+    return strlen(value) <= MAX_INSTRUMENT_FILENAME_LENGTH;
+
+  if (variable.GetID() == FourCC::SampleInstrumentTable) {
+    int table = 0;
+    return ParsePersistedIntegerAttribute(value, VAR_OFF, TABLE_COUNT - 1,
+                                          table);
+  }
+
+  int minimum = 0;
+  int maximum = 0;
+  const bool hasIntegerBounds =
+      SampleInstrumentParameterLimits::TryGetPersistedIntegerRange(
+          variable.GetID(), minimum, maximum);
+
+  switch (variable.GetType()) {
+  case Variable::INT: {
+    int parsed = 0;
+    return hasIntegerBounds &&
+           ParsePersistedIntegerAttribute(value, minimum, maximum, parsed);
+  }
+  case Variable::BOOL:
+    return strcmp(value, "true") == 0 || strcmp(value, "false") == 0;
+  case Variable::CHAR_LIST:
+    for (std::uint8_t index = 0U; index < variable.GetListSize(); ++index) {
+      const char *option = variable.GetListPointer()[index];
+      if (option != nullptr && strcasecmp(option, value) == 0)
+        return true;
+    }
+    return false;
+  case Variable::FLOAT:
+    // Sample instruments currently expose no persisted floating parameters.
+    // Reject rather than reintroducing atof at this trust boundary.
+    return false;
+  case Variable::STRING:
+    return strlen(value) <= MAX_VARIABLE_STRING_LENGTH;
+  }
+  return false;
 }
 } // namespace
 
@@ -1541,64 +1603,169 @@ void SampleInstrument::SaveContent(tinyxml2::XMLPrinter *printer) {
 }
 
 void SampleInstrument::RestoreContent(PersistencyDocument *doc) {
-  auto setSliceFromString = [this](const char *indexStr, const char *valueStr) {
-    int idx = atoi(indexStr);
-    if (idx < 0 || idx >= static_cast<int>(MaxSlices)) {
-      return;
-    }
-    uint32_t value = static_cast<uint32_t>(strtoul(valueStr, nullptr, 10));
-    slicePoints_[static_cast<size_t>(idx)] = value;
-  };
-
-  bool hasAttr = doc->NextAttribute();
-  while (hasAttr) {
-    if (!strcasecmp(doc->attrname_, "TYPE")) {
-      Trace::Log("I_INSTRUMENT", "Instrument type from XML: %s", doc->attrval_);
-    } else if (!strncasecmp(doc->attrname_, "SL", 2)) {
-      setSliceFromString(doc->attrname_ + 2, doc->attrval_);
-    }
-    hasAttr = doc->NextAttribute();
+  if (doc == nullptr || doc->HadError()) {
+    if (doc != nullptr)
+      doc->MarkError();
+    return;
   }
 
-  bool subelem = doc->FirstChild();
+  struct StagedUpdate {
+    Variable *target = nullptr;
+    std::array<char, MAX_VARIABLE_STRING_LENGTH + 1U> value{};
+  };
+  constexpr std::size_t kMaxUpdates = 24U;
+  std::array<StagedUpdate, kMaxUpdates> updates{};
+  std::size_t updateCount = 0U;
+  auto stagedSlices = slicePoints_;
+  std::array<bool, MaxSlices> sawSlice{};
+  std::array<char, MAX_INSTRUMENT_NAME_LENGTH + 1U> stagedName{};
+  bool hasStagedName = false;
+
+  const auto fail = [doc]() { doc->MarkError(); };
+  const auto stageSlice = [&](const char *name, const char *value) {
+    std::size_t index = 0U;
+    std::uint32_t point = 0U;
+    if (!parseSliceParameterName(name, index) || sawSlice[index] ||
+        !ParsePersistedUnsignedIntegerAttribute(value, UINT32_MAX, point)) {
+      return false;
+    }
+    stagedSlices[index] = point;
+    sawSlice[index] = true;
+    return true;
+  };
+
+  const bool childAlreadySelected =
+      doc->r_ == YXML_ELEMSTART &&
+      strcasecmp(doc->ElemName(), "PARAM") == 0;
+  if (!childAlreadySelected) {
+    bool typeSeen = doc->r_ == YXML_ATTREND;
+    bool hasAttr = doc->NextAttribute();
+    while (hasAttr) {
+      if (!strcasecmp(doc->attrname_, "TYPE")) {
+        if (typeSeen) {
+          fail();
+          return;
+        }
+        typeSeen = true;
+        Trace::Log("I_INSTRUMENT", "Instrument type from XML: %s",
+                   doc->attrval_);
+      } else if (!strcasecmp(doc->attrname_, "ID")) {
+        fail();
+        return;
+      } else if (!strncasecmp(doc->attrname_, "SL", 2)) {
+        if (!stageSlice(doc->attrname_, doc->attrval_)) {
+          fail();
+          return;
+        }
+      }
+      hasAttr = doc->NextAttribute();
+    }
+    if (doc->HadError())
+      return;
+  }
+
+  bool subelem = childAlreadySelected || doc->r_ == YXML_ELEMSTART ||
+                 doc->FirstChild();
 
   while (subelem) {
+    if (strcasecmp(doc->ElemName(), "PARAM") != 0) {
+      fail();
+      return;
+    }
     bool attr = doc->NextAttribute();
-    etl::string<MAX_INSTRUMENT_FILENAME_LENGTH> name;
-    etl::string<MAX_INSTRUMENT_FILENAME_LENGTH> value;
+    std::array<char, MAX_VARIABLE_STRING_LENGTH + 1U> name{};
+    std::array<char, MAX_VARIABLE_STRING_LENGTH + 1U> value{};
+    bool hasName = false;
+    bool hasValue = false;
 
     while (attr) {
       if (!strcasecmp(doc->attrname_, "NAME")) {
-        name = doc->attrval_;
+        if (hasName || !CopyPersistedVariableAttribute(
+                           *doc, name.data(), name.size(), false)) {
+          fail();
+          return;
+        }
+        hasName = true;
       }
       if (!strcasecmp(doc->attrname_, "VALUE")) {
-        value = doc->attrval_;
+        if (hasValue || !CopyPersistedVariableAttribute(
+                            *doc, value.data(), value.size(), true)) {
+          fail();
+          return;
+        }
+        hasValue = true;
       }
       attr = doc->NextAttribute();
     }
+    if (doc->HadError() || doc->r_ != YXML_ELEMEND || !hasName ||
+        !hasValue) {
+      fail();
+      return;
+    }
 
-    if (!name.empty() && !value.empty()) {
-      if (!strcasecmp(name.c_str(), "InstrumentName")) {
-        SetName(value.c_str());
-      } else if (!strncasecmp(name.c_str(), "SL", 2)) {
-        setSliceFromString(name.c_str() + 2, value.c_str());
-      } else {
-        bool found = false;
-        for (auto it = Variables()->begin(); it != Variables()->end(); it++) {
-          if (!strcasecmp((*it)->GetName(), name.c_str())) {
-            (*it)->SetString(value.c_str());
-            found = true;
-            break;
+    if (!strcasecmp(name.data(), "InstrumentName")) {
+      const std::size_t length = strlen(value.data());
+      if (hasStagedName || length > MAX_INSTRUMENT_NAME_LENGTH) {
+        fail();
+        return;
+      }
+      memcpy(stagedName.data(), value.data(), length + 1U);
+      hasStagedName = true;
+    } else if (!strncasecmp(name.data(), "SL", 2)) {
+      if (!stageSlice(name.data(), value.data())) {
+        fail();
+        return;
+      }
+    } else {
+      Variable *target = nullptr;
+      for (auto *candidate : *Variables()) {
+        if (!strcasecmp(candidate->GetName(), name.data())) {
+          target = candidate;
+          break;
+        }
+      }
+      if (target != nullptr) {
+        if (!validateSampleInstrumentVariable(*target, value.data()) ||
+            updateCount >= updates.size()) {
+          fail();
+          return;
+        }
+        for (std::size_t index = 0U; index < updateCount; ++index) {
+          if (updates[index].target == target) {
+            fail();
+            return;
           }
         }
-        if (!found) {
-          Trace::Error("Parameter '%s' not found in instrument", name.c_str());
-        }
+        updates[updateCount].target = target;
+        updates[updateCount].value = value;
+        ++updateCount;
+      } else {
+        Trace::Error("Parameter '%s' not found in instrument", name.data());
       }
     }
 
     subelem = doc->NextSibling();
   }
+  if (doc->HadError() || doc->r_ != YXML_ELEMEND) {
+    fail();
+    return;
+  }
+
+  // The parser has consumed the complete INSTRUMENT element, so model
+  // mutation can no longer leave a half-restored sample instrument.
+  for (std::size_t index = 0U; index < updateCount; ++index)
+    updates[index].target->SetString(updates[index].value.data());
+  slicePoints_ = stagedSlices;
+  if (source_ != nullptr && !source_->IsMulti()) {
+    const int sampleSize = source_->GetSize(-1);
+    const int lastSample = std::max(0, sampleSize - 1);
+    start_.SetInt(std::clamp(start_.GetInt(), 0, lastSample));
+    loopStart_.SetInt(std::clamp(loopStart_.GetInt(), 0, lastSample));
+    loopEnd_.SetInt(std::clamp(loopEnd_.GetInt(), 0, std::max(0, sampleSize)));
+    clampSlicePoints(static_cast<std::uint32_t>(std::max(0, sampleSize)));
+  }
+  if (hasStagedName)
+    SetName(stagedName.data());
 
   Variable *nameVar = FindVariable(FourCC::InstrumentName);
   if (nameVar && !name_.empty()) {
@@ -1617,15 +1784,12 @@ void SampleInstrument::Purge() {
 };
 bool SampleInstrument::IsEmpty() {
   Variable *v = FindVariable(FourCC::SampleInstrumentSample);
-  return (v->GetInt() == -1);
+  return v->GetInt() == -1 && !sample_.HasUnresolvedName();
 };
 
 int SampleInstrument::GetTable() {
-  int result = table_.GetInt();
-  if (result > TABLE_COUNT) {
-    return VAR_OFF;
-  }
-  return result;
+  const int table = table_.GetInt();
+  return IsValidInstrumentTableValue(table) ? table : VAR_OFF;
 };
 
 bool SampleInstrument::GetTableAutomation() { return tableAuto_.GetBool(); };

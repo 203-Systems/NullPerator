@@ -35,7 +35,7 @@ public:
   const char *GetName();
 
   Type GetType();
-  void SetInt(int value, bool notify = true);
+  virtual void SetInt(int value, bool notify = true);
   int GetInt();
   void SetFloat(float value, bool notify = true);
   float GetFloat();

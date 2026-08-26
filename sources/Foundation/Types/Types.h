@@ -17,7 +17,11 @@ struct FourCC {
   // While the names of the FourCC codes can be changed, their values CANNOT.
   // Values are used as is in save files, so any changes would cause save files
   // to break.
-  enum enum_type {
+  // FourCC values are persisted as one-byte command/variable identifiers.
+  // Giving the enum an explicit underlying type keeps the in-memory wrapper
+  // ABI identical on ARM, native hosts and WebAssembly; relying on each
+  // compiler's enum size made raw project command buffers non-portable.
+  enum enum_type : uint8_t {
     InstrumentCommandArpeggiator = 0,          // ARPG
     InstrumentCommandCrush = 2,                // CRSH
     InstrumentCommandDelay = 4,                // DLAY
@@ -262,10 +266,11 @@ struct FourCC {
     VarImportResampler = 185,
     ActionAutoSlice = 186,
     ActionShowRecordView = 187,
+    VarUITextCase = 188,
 
     Default = 255, // "    "
   };
-  ETL_DECLARE_ENUM_TYPE(FourCC, char)
+  ETL_DECLARE_ENUM_TYPE(FourCC, uint8_t)
   // Not all enums need reflection. Only cases where we need reflection is the
   // FourCC codes that need to be converted to text in order to display on
   // screen
@@ -419,10 +424,25 @@ struct FourCC {
   ETL_ENUM_TYPE(VarRecordMicGain, "recordmicgain")
   ETL_ENUM_TYPE(VarOutputVolume, "outputvolume")
   ETL_ENUM_TYPE(VarImportResampler, "IMPORTRESAMP")
+  ETL_ENUM_TYPE(VarUITextCase, "UITEXTCASE")
 
   ETL_ENUM_TYPE(Default, "   ")
   ETL_END_ENUM_TYPE
 };
+
+// Project XML persists FourCC identifiers as bytes. Keep both the wrapper ABI
+// and representative compatibility-critical command IDs pinned at compile
+// time so a toolchain or enum edit cannot silently create another platform-
+// dependent project format.
+static_assert(sizeof(FourCC::enum_type) == 1U);
+static_assert(sizeof(FourCC::value_type) == 1U);
+static_assert(sizeof(FourCC) == 1U);
+static_assert(static_cast<uint8_t>(FourCC::InstrumentCommandArpeggiator) == 0U);
+static_assert(static_cast<uint8_t>(FourCC::InstrumentCommandNone) == 45U);
+static_assert(static_cast<uint8_t>(FourCC::InstrumentCommandTable) == 58U);
+static_assert(static_cast<uint8_t>(FourCC::InstrumentCommandMidiChord) == 143U);
+static_assert(FourCC(FourCC::VarOutputVolume).get_value() == 184U);
+static_assert(FourCC(FourCC::Default).get_value() == UINT8_MAX);
 
 typedef unsigned short ushort;
 typedef unsigned int uint;

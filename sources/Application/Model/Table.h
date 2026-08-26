@@ -20,6 +20,18 @@
 
 #define NO_MORE_TABLE TABLE_COUNT + 10
 
+// Table references are persisted as signed integers so VAR_OFF (-1) can be
+// represented alongside the 00..1F table IDs. Keep these checks at the model
+// boundary as well as in editors: older or externally-authored files can carry
+// values that no current UI would generate.
+[[nodiscard]] constexpr bool IsValidTableIndex(int table) {
+  return table >= 0 && table < TABLE_COUNT;
+}
+
+[[nodiscard]] constexpr bool IsValidInstrumentTableValue(int table) {
+  return table == -1 || IsValidTableIndex(table);
+}
+
 class Table {
 public:
   Table();

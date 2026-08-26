@@ -28,6 +28,14 @@ public:
   bool NextSibling();
   bool NextAttribute();
   bool HasContent();
+  // Consume the remainder of the stream and ask yxml to validate that every
+  // opened element was closed.  Streaming restore code otherwise cannot tell
+  // a clean closing tag from a truncated file that merely reached EOF.
+  bool Finish();
+  // Restore helpers use the parser error channel for semantic payload errors
+  // too. This keeps the legacy void RestoreContent interface while ensuring a
+  // malformed binary field makes the enclosing project load fail.
+  void MarkError() { r_ = YXML_ESYN; }
   char *ElemName();
 
   char attrname_[64];

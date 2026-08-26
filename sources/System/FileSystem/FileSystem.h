@@ -38,6 +38,14 @@ public:
   } // Default implementation
   virtual void list(etl::ivector<int> *fileIndexes, const char *filter,
                     bool subDirOnly, bool includeHidden = false) = 0;
+  // Transactional callers must be able to distinguish a genuinely empty
+  // directory from a failed/short enumeration. Existing UI callers retain
+  // the void API; adapters with detectable errors override this checked form.
+  virtual bool listChecked(etl::ivector<int> *fileIndexes, const char *filter,
+                           bool subDirOnly, bool includeHidden = false) {
+    list(fileIndexes, filter, subDirOnly, includeHidden);
+    return true;
+  }
   virtual void getFileName(int index, char *name, int length) = 0;
   virtual PicoFileType getFileType(int index) = 0;
   virtual bool isParentRoot() = 0;

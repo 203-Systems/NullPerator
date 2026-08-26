@@ -55,31 +55,63 @@ void Song::RestoreContent(PersistencyDocument *doc) {
 
   while (elem) {
     if (!strcmp("SONG", doc->ElemName())) {
-      restoreHexBuffer(doc, data_);
+      if (!restoreHexBuffer(doc, data_, sizeof(data_)))
+        return;
+      // CHAIN_COUNT is 0xFF: every byte 0x00..0xFE is a valid legacy chain ID
+      // and 0xFF alone is the empty sentinel. Do not narrow this to 7 bits;
+      // older projects legitimately use the upper half of the chain bank.
     };
     if (!strcmp("CHAINS", doc->ElemName())) {
-      restoreHexBuffer(doc, chain_.data_);
+      if (!restoreHexBuffer(doc, chain_.data_, sizeof(chain_.data_)))
+        return;
+      // 0xFF is the only empty sentinel. Phrase storage has 0x80 entries, so
+      // 0x80..0xFE would index past Phrase::isUsed_ during allocation restore.
+      for (const unsigned char phrase : chain_.data_) {
+        if (phrase != 0xFF && phrase >= PHRASE_COUNT) {
+          doc->MarkError();
+          return;
+        }
+      }
     };
     if (!strcmp("TRANSPOSES", doc->ElemName())) {
-      restoreHexBuffer(doc, chain_.transpose_);
+      if (!restoreHexBuffer(doc, chain_.transpose_, sizeof(chain_.transpose_)))
+        return;
     };
     if (!strcmp("NOTES", doc->ElemName())) {
-      restoreHexBuffer(doc, phrase_.note_);
+      if (!restoreHexBuffer(doc, phrase_.note_, sizeof(phrase_.note_)))
+        return;
     };
     if (!strcmp("INSTRUMENTS", doc->ElemName())) {
-      restoreHexBuffer(doc, phrase_.instr_);
+      if (!restoreHexBuffer(doc, phrase_.instr_, sizeof(phrase_.instr_)))
+        return;
+      // 0xFF is the only empty sentinel. Reject corrupt instrument slots
+      // before later Project/InstrumentBank code uses them as array indexes.
+      for (const unsigned char instrument : phrase_.instr_) {
+        if (instrument != 0xFF && instrument >= MAX_INSTRUMENT_COUNT) {
+          doc->MarkError();
+          return;
+        }
+      }
     };
     if (!strcmp("COMMAND1", doc->ElemName())) {
-      restoreHexBuffer(doc, (uchar *)phrase_.cmd1_);
+      if (!restoreHexBuffer(doc, phrase_.cmd1_,
+                            PHRASE_COUNT * STEPS_PER_PHRASE))
+        return;
     };
     if (!strcmp("PARAM1", doc->ElemName())) {
-      restoreHexBuffer(doc, (uchar *)phrase_.param1_);
+      if (!restoreHexBuffer(doc, reinterpret_cast<uchar *>(phrase_.param1_),
+                            sizeof(phrase_.param1_)))
+        return;
     };
     if (!strcmp("COMMAND2", doc->ElemName())) {
-      restoreHexBuffer(doc, (uchar *)phrase_.cmd2_);
+      if (!restoreHexBuffer(doc, phrase_.cmd2_,
+                            PHRASE_COUNT * STEPS_PER_PHRASE))
+        return;
     };
     if (!strcmp("PARAM2", doc->ElemName())) {
-      restoreHexBuffer(doc, (uchar *)phrase_.param2_);
+      if (!restoreHexBuffer(doc, reinterpret_cast<uchar *>(phrase_.param2_),
+                            sizeof(phrase_.param2_)))
+        return;
     };
     elem = doc->NextSibling();
   }
@@ -90,11 +122,8 @@ void Song::RestoreContent(PersistencyDocument *doc) {
 
   unsigned char *data = data_;
   for (int i = 0; i < SONG_ROW_COUNT * SONG_CHANNEL_COUNT; i++) {
-    if (*data != 0xFF) {
-      if (*data < 0x80) {
-        chain_.SetUsed(*data);
-      }
-    }
+    if (*data != EMPTY_SONG_VALUE)
+      chain_.SetUsed(*data);
     data++;
   }
 
@@ -127,10 +156,18 @@ void Song::RestoreContent(PersistencyDocument *doc) {
       }
       if (*table1 == FourCC::InstrumentCommandTable) {
         *param1 &= 0x7F;
+        if (*param1 >= TABLE_COUNT) {
+          doc->MarkError();
+          return;
+        }
         th->SetUsed((*param1));
       };
       if (*table2 == FourCC::InstrumentCommandTable) {
         *param2 &= 0x7F;
+        if (*param2 >= TABLE_COUNT) {
+          doc->MarkError();
+          return;
+        }
         th->SetUsed((*param2));
       };
       table1++;

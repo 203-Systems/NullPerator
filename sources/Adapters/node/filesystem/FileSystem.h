@@ -24,6 +24,8 @@ public:
   bool chdir(const char *path) override;
   void list(etl::ivector<int> *fileIndexes, const char *filter,
             bool subDirOnly, bool includeHidden = false) override;
+  bool listChecked(etl::ivector<int> *fileIndexes, const char *filter,
+                   bool subDirOnly, bool includeHidden = false) override;
   void getFileName(int index, char *name, int length) override;
   PicoFileType getFileType(int index) override;
   bool isParentRoot() override;
@@ -38,7 +40,9 @@ public:
   bool isExFat() override;
 
 private:
-  void RefreshDir(const char *filter, bool subDirOnly, bool includeHidden);
+  bool RefreshDir(const char *filter, bool subDirOnly, bool includeHidden);
+  bool List_(etl::ivector<int> *fileIndexes, const char *filter,
+             bool subDirOnly, bool includeHidden);
 
   std::mutex mutex_;
   std::string cwd_;

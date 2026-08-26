@@ -348,7 +348,8 @@ etl::string<MAX_INSTRUMENT_NAME_LENGTH> MidiInstrument::GetDefaultName() {
 
 int MidiInstrument::GetTable() {
   Variable *v = FindVariable(FourCC::MidiInstrumentTable);
-  return v->GetInt();
+  const int table = v->GetInt();
+  return IsValidInstrumentTableValue(table) ? table : VAR_OFF;
 };
 
 bool MidiInstrument::GetTableAutomation() {
