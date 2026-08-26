@@ -14,6 +14,7 @@
 #include "System/Console/Trace.h"
 #include "System/Profiler/Profiler.h"
 #include "bit.h"
+#include <iterator>
 #include <string.h>
 
 static const char *algorithms[2] = {"1*2", "1+2"};
@@ -33,7 +34,8 @@ static const unsigned int noteFNumbers[] = {342, 363, 385, 408, 432, 458,
 
 OpalInstrument::OpalInstrument()
     : I_Instrument(&variables_),
-      algorithm_(FourCC::OPALInstrumentAlgorithm, algorithms, 6, 0),
+      algorithm_(FourCC::OPALInstrumentAlgorithm, algorithms,
+                 static_cast<int>(std::size(algorithms)), 0),
       feedback_(FourCC::OPALInstrumentFeedback, 0),
       deepTremeloVibrato_(FourCC::OPALInstrumentDeepTremeloVibrato, 0),
       op1Level_(FourCC::OPALInstrumentOp1Level, 0x17),

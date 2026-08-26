@@ -8,6 +8,7 @@
  */
 
 #include "InstrumentBank.h"
+#include "Application/Instruments/InstrumentBankRestorePolicy.h"
 #include "Application/Instruments/MidiInstrument.h"
 #include "Application/Instruments/SIDInstrument.h"
 #include "Application/Instruments/SampleInstrument.h"
@@ -36,6 +37,17 @@ InstrumentBank::InstrumentBank()
 };
 
 InstrumentBank::~InstrumentBank() { Reset(); };
+
+InstrumentBank::Replacement::~Replacement() { Cancel(); }
+
+bool InstrumentBank::Replacement::Commit() {
+  return bank_ != nullptr && bank_->commitReplacement(*this);
+}
+
+void InstrumentBank::Replacement::Cancel() {
+  if (bank_ != nullptr)
+    bank_->cancelReplacement(*this);
+}
 
 void InstrumentBank::Reset() {
   sampleInstrumentPool_.release_all();
@@ -70,64 +82,82 @@ void InstrumentBank::SaveContent(tinyxml2::XMLPrinter *printer) {
 };
 
 void InstrumentBank::RestoreContent(PersistencyDocument *doc) {
+  if (doc == nullptr || doc->HadError()) {
+    if (doc != nullptr)
+      doc->MarkError();
+    return;
+  }
 
+  InstrumentBankRestorePolicy policy;
+  std::array<Replacement, MAX_INSTRUMENT_COUNT> staged;
   bool elem = doc->FirstChild();
   while (elem) {
-    // Check it is an instrument
-    if (!strcasecmp(doc->ElemName(), "INSTRUMENT")) {
-      // Get the instrument ID
-      unsigned char id = '\0';
-      char instype[16];
-      instype[0] = '\0';
-      bool hasId = false;
-      bool hasType = false;
-      bool hasAttr = doc->NextAttribute();
-      while (hasAttr) {
-        if (!strcasecmp(doc->attrname_, "ID")) {
-          unsigned char b1 = (c2h__(doc->attrval_[0])) << 4;
-          unsigned char b2 = c2h__(doc->attrval_[1]);
-          id = b1 + b2;
-          hasId = true;
-#if XML_DEBUG_LOGGING
-          Trace::Log("INSTRUMENTBANK", "instrument ID from xml:%d", id);
-#endif
-        }
-        if (!strcasecmp(doc->attrname_, "TYPE")) {
-          strncpy(instype, doc->attrval_, sizeof(instype) - 1);
-          instype[sizeof(instype) - 1] = '\0';
-          hasType = true;
-#if XML_DEBUG_LOGGING
-          Trace::Log("INSTRUMENTBANK", "instrument type from xml:%s", instype);
-#endif
-        }
-        if (hasId && hasType) {
-          break;
-        }
-        hasAttr = doc->NextAttribute();
-      }
-
-      InstrumentType instrType = IT_SAMPLE; // default if no type in project XML
-      if (instype[0] != '\0') {
-        for (uint i = 0; i < IT_LAST; i++) {
-          if (!strcasecmp(instype, InstrumentTypeNames[i])) {
-            instrType = (InstrumentType)i;
-            break;
-          }
-        }
-      }
-      if (id < MAX_INSTRUMENT_COUNT) {
-        if (GetNextAndAssignID(instrType, id) == NO_MORE_INSTRUMENT) {
-          Trace::Error("Failed to allocate instrument type:%d", instrType);
-          // TODO: need to show user error message that proj file is invalid
-        }
-        I_Instrument *instr = instruments_[id];
-
-        // Let the instrument restore its own content
-        instr->RestoreContent(doc);
-      }
+    if (strcasecmp(doc->ElemName(), "INSTRUMENT") != 0) {
+      doc->MarkError();
+      return;
     }
+
+    std::uint8_t id = 0U;
+    InstrumentType instrumentType = IT_SAMPLE; // Legacy files omitted TYPE.
+    bool hasId = false;
+    bool hasType = false;
+    bool hasAttr = doc->NextAttribute();
+    while (hasAttr) {
+      if (!strcasecmp(doc->attrname_, "ID")) {
+        if (hasId || !DecodeInstrumentBankSlotId(doc->attrval_, id)) {
+          doc->MarkError();
+          return;
+        }
+        hasId = true;
+#if XML_DEBUG_LOGGING
+        Trace::Log("INSTRUMENTBANK", "instrument ID from xml:%d", id);
+#endif
+      } else if (!strcasecmp(doc->attrname_, "TYPE")) {
+        if (hasType ||
+            !DecodeInstrumentBankType(doc->attrval_, instrumentType)) {
+          doc->MarkError();
+          return;
+        }
+        hasType = true;
+#if XML_DEBUG_LOGGING
+        Trace::Log("INSTRUMENTBANK", "instrument type from xml:%s",
+                   doc->attrval_);
+#endif
+      }
+      // Leave instrument-specific root attributes (legacy sample SLxx fields)
+      // for the concrete instrument restore. That restore also rejects any
+      // later ID/TYPE token as a duplicate of the envelope consumed here.
+      if (hasId && hasType)
+        break;
+      hasAttr = doc->NextAttribute();
+    }
+
+    if (doc->HadError() || !hasId ||
+        !policy.Reserve(id, instrumentType) ||
+        !BeginReplacement(id, instrumentType, staged[id])) {
+      Trace::Error("Invalid or exhausted instrument bank entry");
+      doc->MarkError();
+      return;
+    }
+
+    I_Instrument *instrument = staged[id].Candidate();
+    instrument->RestoreContent(doc);
+    if (doc->HadError())
+      return;
     elem = doc->NextSibling();
-  };
+  }
+  if (doc->HadError())
+    return;
+
+  // Every instrument parsed and validated successfully. Publish candidates
+  // only now, so a late duplicate, truncation, or pool failure cannot mutate
+  // the current bank before the enclosing project transaction accepts it.
+  for (std::uint8_t id = 0U; id < MAX_INSTRUMENT_COUNT; ++id) {
+    if (policy.Seen(id) && !staged[id].Commit()) {
+      doc->MarkError();
+      return;
+    }
+  }
 };
 
 void InstrumentBank::Init() {}
@@ -136,70 +166,119 @@ void InstrumentBank::Init() {}
 // unused Instruments and assign it to the given instrument "slot id"
 unsigned short InstrumentBank::GetNextAndAssignID(InstrumentType type,
                                                   uint8_t id) {
+  if (id >= instruments_.size())
+    return NO_MORE_INSTRUMENT;
+
+  I_Instrument *instrument = createInstrument(type);
+  if (instrument == nullptr)
+    return NO_MORE_INSTRUMENT;
+  instruments_[id] = instrument;
+  return id;
+};
+
+I_Instrument *InstrumentBank::createInstrument(InstrumentType type) {
   switch (type) {
   case IT_SAMPLE: {
     SampleInstrument *si = sampleInstrumentPool_.create();
     if (si == nullptr) {
       Trace::Log("INSTRUMENTBANK", "Sample INSTRUMENT EXHAUSTED!");
-      return NO_MORE_INSTRUMENT;
+      return nullptr;
     }
     si->Init();
 
     Variable *sample = si->FindVariable(FourCC::SampleInstrumentSample);
-    if (sample) {
-      if (sample->GetInt() == -1) {
-        instruments_[id] = si;
-      } else {
-        Trace::Log("INSTRUMENTBANK",
-                   "unexpected sample value for new instrument: %d",
-                   sample->GetInt());
-      }
+    if (sample == nullptr || sample->GetInt() != -1) {
+      Trace::Log("INSTRUMENTBANK",
+                 "unexpected sample value for new instrument: %d",
+                 sample == nullptr ? 0 : sample->GetInt());
+      sampleInstrumentPool_.destroy(si);
+      return nullptr;
     }
-    return id;
+    return si;
   } break;
   case IT_MIDI: {
     MidiInstrument *mi = midiInstrumentPool_.create();
     if (mi == nullptr) {
       Trace::Error("MIDI INSTRUMENT EXHAUSTED!");
-      return NO_MORE_INSTRUMENT;
+      return nullptr;
     }
     mi->Init();
-    instruments_[id] = mi;
-    return id;
+    return mi;
   } break;
   case IT_SID: {
     // TODO need to figure out how to properly manage sid oc count
     SIDInstrument *si = sidInstrumentPool_.create(SID1);
     if (si == nullptr) {
       Trace::Error("SID INSTRUMENT EXHAUSTED!");
-      return NO_MORE_INSTRUMENT;
+      return nullptr;
     }
     si->Init();
-    instruments_[id] = si;
-    return id;
+    return si;
   } break;
   case IT_OPAL: {
     OpalInstrument *oi = opalInstrumentPool_.create();
     if (oi == nullptr) {
       Trace::Error("Opal INSTRUMENT EXHAUSTED!");
-      return NO_MORE_INSTRUMENT;
+      return nullptr;
     }
     oi->Init();
-    instruments_[id] = oi;
-    return id;
+    return oi;
   } break;
   case IT_NONE:
-    instruments_[id] = &none_;
-    return id;
+    return &none_;
   default:
     break;
   }
 
-  return NO_MORE_INSTRUMENT;
+  return nullptr;
 };
 
-void InstrumentBank::releaseInstrument(unsigned short id) {
-  auto instrument = instruments_[id];
+bool InstrumentBank::BeginReplacement(unsigned short id, InstrumentType type,
+                                      Replacement &replacement) {
+  replacement.Cancel();
+  if (id >= instruments_.size() || type < IT_NONE || type >= IT_LAST)
+    return false;
+
+  I_Instrument *candidate = createInstrument(type);
+  if (candidate == nullptr)
+    return false;
+
+  replacement.bank_ = this;
+  replacement.candidate_ = candidate;
+  replacement.original_ = instruments_[id];
+  replacement.slot_ = id;
+  return true;
+}
+
+bool InstrumentBank::commitReplacement(Replacement &replacement) {
+  if (replacement.bank_ != this || replacement.candidate_ == nullptr ||
+      replacement.slot_ >= instruments_.size() ||
+      instruments_[replacement.slot_] != replacement.original_)
+    return false;
+
+  I_Instrument *original = replacement.original_;
+  instruments_[replacement.slot_] = replacement.candidate_;
+  replacement.bank_ = nullptr;
+  replacement.candidate_ = nullptr;
+  replacement.original_ = nullptr;
+  replacement.slot_ = NO_MORE_INSTRUMENT;
+  destroyInstrument(original);
+  return true;
+}
+
+void InstrumentBank::cancelReplacement(Replacement &replacement) {
+  if (replacement.bank_ != this)
+    return;
+  destroyInstrument(replacement.candidate_);
+  replacement.bank_ = nullptr;
+  replacement.candidate_ = nullptr;
+  replacement.original_ = nullptr;
+  replacement.slot_ = NO_MORE_INSTRUMENT;
+}
+
+void InstrumentBank::destroyInstrument(I_Instrument *instrument) {
+  if (instrument == nullptr || instrument == &none_)
+    return;
 
   switch (instrument->GetType()) {
   case IT_SAMPLE:
@@ -215,11 +294,14 @@ void InstrumentBank::releaseInstrument(unsigned short id) {
     opalInstrumentPool_.destroy(instrument);
     break;
   case IT_NONE:
-    // NA: None is a "singleton" so no need to release from pool
-    // BUT it can be assigned to any number of slots
   default:
     break;
   }
+}
+
+void InstrumentBank::releaseInstrument(unsigned short id) {
+  auto instrument = instruments_[id];
+  destroyInstrument(instrument);
   instruments_[id] = &none_;
 }
 

@@ -24,6 +24,31 @@
 
 class InstrumentBank : public Persistent {
 public:
+  // Fixed-capacity staging handle used when an existing slot must be replaced
+  // transactionally.  The candidate lives in the bank's normal type pool but
+  // is not visible through InstrumentsList() until Commit().  Destroying an
+  // uncommitted handle returns that candidate to its pool, so parse/restore
+  // failures cannot mutate or release the instrument currently in the slot.
+  class Replacement {
+  public:
+    Replacement() = default;
+    ~Replacement();
+
+    Replacement(const Replacement &) = delete;
+    Replacement &operator=(const Replacement &) = delete;
+
+    I_Instrument *Candidate() const { return candidate_; }
+    bool Commit();
+    void Cancel();
+
+  private:
+    friend class InstrumentBank;
+    InstrumentBank *bank_ = nullptr;
+    I_Instrument *candidate_ = nullptr;
+    I_Instrument *original_ = nullptr;
+    unsigned short slot_ = NO_MORE_INSTRUMENT;
+  };
+
   InstrumentBank();
   ~InstrumentBank();
   void Reset();
@@ -34,6 +59,8 @@ public:
   void Init();
   void OnStart();
   unsigned short GetNextAndAssignID(InstrumentType type, unsigned char id);
+  bool BeginReplacement(unsigned short id, InstrumentType type,
+                        Replacement &replacement);
   void releaseInstrument(unsigned short id);
   unsigned short Clone(unsigned short i);
   unsigned short GetNextFreeInstrumentSlotId();
@@ -44,6 +71,11 @@ public:
   }
 
 private:
+  I_Instrument *createInstrument(InstrumentType type);
+  void destroyInstrument(I_Instrument *instrument);
+  bool commitReplacement(Replacement &replacement);
+  void cancelReplacement(Replacement &replacement);
+
   etl::array<I_Instrument *, MAX_INSTRUMENT_COUNT> instruments_;
   etl::pool<SampleInstrument, MAX_SAMPLEINSTRUMENT_COUNT> sampleInstrumentPool_;
   etl::pool<MidiInstrument, MAX_MIDIINSTRUMENT_COUNT> midiInstrumentPool_;
