@@ -16,7 +16,7 @@
 namespace ui2 {
 namespace {
 
-constexpr std::array<std::int16_t, 6> kColumnX{28, 61, 88, 115, 148, 175};
+constexpr const auto &kColumnX = UiTrackerGridMetrics::kPhraseColumnX;
 constexpr std::array<std::uint8_t, 6> kColumnCharacters{4, 3, 3, 4, 3, 4};
 
 bool IsParameterColumn(std::uint8_t column) {
@@ -255,14 +255,22 @@ UiBuildStatus UiPhraseView::Build(const UiPhraseViewData &data, UiPalette &,
   editTracks.trackSelectionRect = data.bottomTrackVisualRect;
   editTracks.trackSelectionOverride = data.bottomTrackVisualOverride;
   editTracks.trackInkVisible = data.bottomTrackInkVisible;
-  const UiAdjustmentLegendModel adjustment{.fineStep = 1U,
-                                            .coarseStep = 10U};
+  const UiAdjustmentLegendModel noteAdjustment{
+      .coarseOctave = true,
+      .fineLabel = "NOTE",
+      .coarseLabel = "OCT",
+  };
   const UiBarInputs barInputs{
       .pageTop = pageTop,
       .pageDefault = pageBottom,
       .cursorContext = data.numberFocus ? nullptr : &data.cursorBottom,
       .editHeldTracks = &editTracks,
-      .enterHeldAdjustment = data.adjustmentFocus ? &adjustment : nullptr,
+      // FX and parameter cells retain their contextual help while held. Only
+      // Note is a semantic coarse/fine domain (note / octave).
+      .enterHeldAdjustment =
+          data.adjustmentFocus && data.activeHeader == UiPhraseHeader::Note
+              ? &noteAdjustment
+              : nullptr,
       .editHeldNumber = data.numberFocus,
   };
   const UiResolvedChrome chrome = UiBarResolver::Resolve(barInputs);
@@ -290,7 +298,7 @@ UiBuildStatus UiPhraseView::Build(const UiPhraseViewData &data, UiPalette &,
     builder.RowHighlight(data.selectionVisualRect);
   } else if (!data.numberFocus && data.editRow < 16U) {
     builder.RowHighlight(
-        {5, UiTrackerGridMetrics::RowBoundsY(data.editRow), 230,
+        {5, UiTrackerGridMetrics::RowHighlightY(data.editRow), 230,
          UiTrackerGridMetrics::kRowHeight});
   }
   for (std::uint8_t row = 0; row < 16U; ++row) {

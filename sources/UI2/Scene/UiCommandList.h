@@ -98,7 +98,8 @@ public:
   }
 
   [[nodiscard]] bool Text(PointI16 origin, std::string_view text,
-                          PaletteIndex color, std::uint8_t scale = 1) {
+                          PaletteIndex color, std::uint8_t scale = 1,
+                          bool preserveCase = false) {
     if (text.size() > TextCapacity - textSize_ || text.size() > 255U) {
       overflowed_ = true;
       return false;
@@ -112,8 +113,10 @@ public:
                                       ? 0
                                       : text.size() * 6U * scale - scale),
         static_cast<std::int16_t>(7U * scale)};
+    const std::uint8_t parameter = static_cast<std::uint8_t>(
+        scale | (preserveCase ? std::uint8_t{0x80} : std::uint8_t{0}));
     if (!Push({bounds, offset, UiCommandKind::Text, color,
-               static_cast<PaletteIndex>(text.size()), scale})) {
+               static_cast<PaletteIndex>(text.size()), parameter})) {
       textSize_ = offset;
       return false;
     }

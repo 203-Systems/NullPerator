@@ -12,7 +12,11 @@ namespace ui2 {
 
 void UiRasterizer::Render(UiCommandStream stream, UiIndexedSurface &surface,
                           const UiPalette *palette, PointI16 origin,
-                          RectI16 clip) {
+                          RectI16 clip, UiTextCaseMode textCase,
+                          const UiRasterColorMap *colorMap) {
+  const auto mapped = [colorMap](PaletteIndex color) {
+    return colorMap == nullptr ? color : colorMap->Apply(color);
+  };
   for (const UiCommand &command : stream.commands) {
     RectI16 bounds = command.bounds;
     bounds.x = static_cast<std::int16_t>(bounds.x + origin.x);
@@ -21,20 +25,31 @@ void UiRasterizer::Render(UiCommandStream stream, UiIndexedSurface &surface,
       continue;
     switch (command.kind) {
     case UiCommandKind::FillRect:
-      surface.FillRect(bounds, command.color, clip);
+      surface.FillRect(bounds, mapped(command.color), clip);
       break;
     case UiCommandKind::FillRoundedRect:
-      surface.FillRoundedRect(bounds, command.color, command.auxiliaryColor,
+      surface.FillRoundedRect(bounds, mapped(command.color),
+                              mapped(command.auxiliaryColor),
                               command.parameter, clip);
       break;
     case UiCommandKind::FillCoverageRoundedRect:
       if (palette != nullptr) {
-        surface.FillCoverageRoundedRect(
-            bounds, command.color, *palette,
-            static_cast<UiCoverage>(command.auxiliaryColor), command.parameter,
-            clip);
+        const PaletteIndex fill = mapped(command.color);
+        if (fill != command.color) {
+          // A transitional opacity color is already precomposited over the
+          // bar. Applying the cursor coverage cache a second time would make
+          // its corners brighter than its body, so flatten only this
+          // short-lived frame; the final static render restores normal AA.
+          surface.FillRoundedRect(bounds, fill, fill, command.parameter, clip);
+        } else {
+          surface.FillCoverageRoundedRect(
+              bounds, command.color, *palette,
+              static_cast<UiCoverage>(command.auxiliaryColor),
+              command.parameter, clip);
+        }
       } else {
-        surface.FillRoundedRect(bounds, command.color, command.color,
+        surface.FillRoundedRect(bounds, mapped(command.color),
+                                mapped(command.color),
                                 command.parameter, clip);
       }
       break;
@@ -53,7 +68,7 @@ void UiRasterizer::Render(UiCommandStream stream, UiIndexedSurface &surface,
         surface.FillRect(
             {bounds.x, static_cast<std::int16_t>(bounds.y + row), bounds.width,
              1},
-            static_cast<PaletteIndex>(command.color + row), clip);
+            mapped(static_cast<PaletteIndex>(command.color + row)), clip);
       }
       break;
     }
@@ -110,12 +125,28 @@ void UiRasterizer::Render(UiCommandStream stream, UiIndexedSurface &surface,
         break;
       }
       PointI16 glyphOrigin{bounds.x, bounds.y};
+      const std::uint8_t scale = command.parameter & 0x7FU;
+      const bool preserveCase = (command.parameter & 0x80U) != 0U;
+      bool wordStart = true;
       for (const char character :
            stream.text.subspan(command.payload, length)) {
-        surface.DrawGlyph5x7(glyphOrigin, UiFont5x7::Glyph(character),
-                             command.color, command.parameter, clip);
+        char displayed = character;
+        const bool lower = displayed >= 'a' && displayed <= 'z';
+        const bool upper = displayed >= 'A' && displayed <= 'Z';
+        if (!preserveCase && (lower || upper)) {
+          if (textCase == UiTextCaseMode::Upper ||
+              (textCase == UiTextCaseMode::Title && wordStart))
+            displayed = static_cast<char>(displayed & ~0x20);
+          else
+            displayed = static_cast<char>(displayed | 0x20);
+          wordStart = false;
+        } else if (!lower && !upper && displayed != '_' && displayed != '-') {
+          wordStart = true;
+        }
+        surface.DrawGlyph5x7(glyphOrigin, UiFont5x7::Glyph(displayed),
+                             mapped(command.color), scale, clip);
         glyphOrigin.x = static_cast<std::int16_t>(
-            glyphOrigin.x + UiFont5x7::kAdvance * command.parameter);
+            glyphOrigin.x + UiFont5x7::kAdvance * scale);
       }
       break;
     }

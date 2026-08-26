@@ -59,6 +59,21 @@ public:
     Accept(commands_.Text({x, y}, text, Index(color), scale));
   }
 
+  // User-authored names, paths and filenames must never inherit the global
+  // UI label casing preference.
+  void UserText(std::string_view text, std::int16_t x, std::int16_t y,
+                UiColorToken color, std::uint8_t scale = 1) {
+    Accept(commands_.Text({x, y}, text, Index(color), scale, true));
+  }
+
+  // Some UI values use letter case as data (for example the three Font
+  // choices "Case", "CASE", and "case"). Render those examples literally so
+  // the preference being edited cannot transform all choices into one label.
+  void LiteralText(std::string_view text, std::int16_t x, std::int16_t y,
+                   UiColorToken color, std::uint8_t scale = 1) {
+    Accept(commands_.Text({x, y}, text, Index(color), scale, true));
+  }
+
   void CenteredText(std::string_view text, std::int16_t center,
                     std::int16_t y, UiColorToken color,
                     std::uint8_t scale = 1) {
@@ -67,6 +82,15 @@ public:
     const std::int16_t x =
         static_cast<std::int16_t>(center - width / 2 - (width % 2 < 0));
     Text(text, x, y, color, scale);
+  }
+
+  void CenteredLiteralText(std::string_view text, std::int16_t center,
+                           std::int16_t y, UiColorToken color,
+                           std::uint8_t scale = 1) {
+    const std::int16_t width = UiFont5x7::TextWidth(text.size(), scale);
+    const std::int16_t x =
+        static_cast<std::int16_t>(center - width / 2 - (width % 2 < 0));
+    LiteralText(text, x, y, color, scale);
   }
 
   [[nodiscard]] bool Ok() const { return ok_ && !commands_.Overflowed(); }

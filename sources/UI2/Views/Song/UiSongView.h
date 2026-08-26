@@ -22,8 +22,7 @@ struct UiSongViewData {
   std::string_view elapsed = "00:08";
   std::array<std::array<std::uint8_t, 8>, 16> rows{};
   std::array<std::string_view, 8> notes{};
-  std::array<std::int8_t, 8> playbackRows{-1, -1, -1, -1,
-                                          -1, -1, -1, -1};
+  std::array<std::int8_t, 8> playbackRows{-1, -1, -1, -1, -1, -1, -1, -1};
   std::array<std::uint8_t, 2> vuLevelTop{14, 34};
   std::uint8_t rowOffset = 0;
   std::uint8_t editRow = 8;
@@ -44,23 +43,19 @@ struct UiSongViewData {
 
 class UiSongView {
 public:
-  [[nodiscard]] static UiBuildStatus Build(const UiSongViewData &data,
-                                           UiPalette &palette,
-                                           UiFrameScene &scene);
+  [[nodiscard]] static UiBuildStatus
+  Build(const UiSongViewData &data, UiPalette &palette, UiFrameScene &scene);
   static void RenderDelta(const UiSongViewData &previous,
                           const UiSongViewData &current,
                           const UiFrameScene &currentScene,
-                          UiIndexedSurface &surface,
-                          const UiPalette &palette);
+                          UiIndexedSurface &surface, const UiPalette &palette);
   [[nodiscard]] static RectI16 CellDamageRect(std::uint8_t track,
                                               std::uint8_t row);
   [[nodiscard]] static RectI16 CursorTargetRect(std::uint8_t track,
                                                 std::uint8_t row);
-  [[nodiscard]] static RectI16 SelectionTargetRect(std::int16_t left,
-                                                   std::int16_t top,
-                                                   std::int16_t right,
-                                                   std::int16_t bottom,
-                                                   std::uint8_t rowOffset);
+  [[nodiscard]] static RectI16
+  SelectionTargetRect(std::int16_t left, std::int16_t top, std::int16_t right,
+                      std::int16_t bottom, std::uint8_t rowOffset);
   [[nodiscard]] static RectI16 PlaybackTickRect(std::uint8_t track,
                                                 std::uint8_t row);
   [[nodiscard]] static RectI16 RowDamageRect(std::uint8_t row);
@@ -69,8 +64,9 @@ public:
   [[nodiscard]] static RectI16 VuDamageRect(std::uint8_t channel);
 
 private:
-  [[nodiscard]] static bool RequiresFullInvalidation(
-      const UiSongViewData &previous, const UiSongViewData &current);
+  [[nodiscard]] static bool
+  RequiresFullInvalidation(const UiSongViewData &previous,
+                           const UiSongViewData &current);
 };
 
 } // namespace ui2

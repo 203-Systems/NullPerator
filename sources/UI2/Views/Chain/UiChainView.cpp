@@ -6,6 +6,7 @@
 
 #include "UI2/Views/Chain/UiChainView.h"
 
+#include "Application/UI2/Ui2ChainTranspose.h"
 #include "UI2/Render/UiFrameRenderer.h"
 #include "UI2/Render/UiVuGradient.h"
 #include "UI2/Views/Tracker/UiTrackerGridMetrics.h"
@@ -16,9 +17,7 @@
 namespace ui2 {
 namespace {
 
-// Chain's PH/TR pair shares Song's first two track anchors so navigation
-// between the pages does not make the content jump horizontally.
-constexpr std::array<std::int16_t, 2> kColumnX{28, 49};
+constexpr const auto &kColumnX = UiTrackerGridMetrics::kChainColumnX;
 
 std::array<char, 3> HexByte(std::uint8_t value) {
   constexpr char digits[] = "0123456789ABCDEF";
@@ -48,7 +47,8 @@ RectI16 UiChainView::CursorTargetRect(const UiChainViewData &data) {
   if (data.editRow >= 16U || data.editColumn >= 2U)
     return {};
   return {static_cast<std::int16_t>(kColumnX[data.editColumn] - 2),
-          UiTrackerGridMetrics::RowBoundsY(data.editRow), 15, 9};
+          UiTrackerGridMetrics::RowBoundsY(data.editRow),
+          static_cast<std::int16_t>(data.editColumn == 0U ? 15 : 21), 9};
 }
 
 RectI16 UiChainView::SelectionTargetRect(std::int16_t left, std::int16_t top,
@@ -64,7 +64,8 @@ RectI16 UiChainView::SelectionTargetRect(std::int16_t left, std::int16_t top,
     std::swap(top, bottom);
   const auto cell = [](std::int16_t column, std::int16_t row) {
     return RectI16{static_cast<std::int16_t>(kColumnX[column] - 2),
-                   UiTrackerGridMetrics::RowBoundsY(row), 15, 9};
+                   UiTrackerGridMetrics::RowBoundsY(row),
+                   static_cast<std::int16_t>(column == 0 ? 15 : 21), 9};
   };
   return Union(cell(left, top), cell(right, bottom));
 }
@@ -174,7 +175,7 @@ UiBuildStatus UiChainView::Build(const UiChainViewData &data,
   const UiAdjustmentLegendModel adjustment{
       .fineStep = 1U,
       .coarseStep = 10U,
-      .coarseOctave = data.editColumn == 1U,
+      .coarseLabel = data.editColumn == 1U ? "OCT" : "",
   };
   const UiBarInputs barInputs{
       .pageTop = top,
@@ -209,7 +210,7 @@ UiBuildStatus UiChainView::Build(const UiChainViewData &data,
   if (!data.numberFocus && !data.selectionVisualRect.Empty()) {
     builder.RowHighlight(data.selectionVisualRect);
   } else if (!data.numberFocus && data.editRow < 16U) {
-    builder.RowHighlight({5, UiTrackerGridMetrics::RowBoundsY(data.editRow),
+    builder.RowHighlight({5, UiTrackerGridMetrics::RowHighlightY(data.editRow),
                           213, UiTrackerGridMetrics::kRowHeight});
   }
   for (std::uint8_t row = 0; row < 16U; ++row) {
@@ -224,12 +225,13 @@ UiBuildStatus UiChainView::Build(const UiChainViewData &data,
     builder.Text(phraseText, kColumnX[0], y,
                  data.phrases[row] == 0xFFU ? UiColorToken::DerivedTextFaint
                                             : UiColorToken::TextNormal);
-    const auto transpose = HexByte(data.transposes[row]);
-    const char *transposeText =
-        data.transposes[row] == 0xFFU ? "--" : transpose.data();
-    builder.Text(transposeText, kColumnX[1], y,
-                 data.transposes[row] == 0xFFU ? UiColorToken::DerivedTextFaint
-                                               : UiColorToken::TextDim);
+    const auto transpose = Ui2ChainTranspose::Format(data.transposes[row]);
+    const bool rowEmpty = data.phrases[row] == 0xFFU;
+    builder.Text(rowEmpty ? "---" : transpose.data(), kColumnX[1], y,
+                 rowEmpty ? UiColorToken::DerivedTextFaint
+                          : data.transposes[row] == 0U
+                                ? UiColorToken::TextDim
+                                : UiColorToken::TextNormal);
   }
   if (!data.numberFocus) {
     builder.Selection(cursor);
@@ -238,8 +240,13 @@ UiBuildStatus UiChainView::Build(const UiChainViewData &data,
       const std::uint8_t value = data.editColumn == 0U
                                      ? data.phrases[data.editRow]
                                      : data.transposes[data.editRow];
-      const auto text = HexByte(value);
-      const char *display = value == 0xFFU ? "--" : text.data();
+      const auto phraseText = HexByte(value);
+      const auto transposeText = Ui2ChainTranspose::Format(value);
+      const char *display = data.editColumn == 0U
+                                ? (value == 0xFFU ? "--" : phraseText.data())
+                                : (data.phrases[data.editRow] == 0xFFU
+                                       ? "---"
+                                       : transposeText.data());
       builder.Text(display, kColumnX[data.editColumn],
                    UiTrackerGridMetrics::RowTextY(data.editRow),
                    UiColorToken::TextHighlighted);

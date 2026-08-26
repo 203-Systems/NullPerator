@@ -41,6 +41,12 @@ public:
   void DrawGlyph5x7(PointI16 origin, const std::array<std::uint8_t, 7> &rows,
                     PaletteIndex color, std::uint8_t scale, RectI16 clip);
   void SetPixel(std::int16_t x, std::int16_t y, PaletteIndex color);
+  void RemapRect(
+      RectI16 rect,
+      const std::array<PaletteIndex, UiPalette::kColorCount> &mapping);
+  void MarkDirty(RectI16 rect) { storage_.dirty.Mark(rect); }
+  void ScrollRect(RectI16 rect, std::int16_t deltaX, std::int16_t deltaY,
+                  PaletteIndex fill);
 
   [[nodiscard]] PaletteIndex Pixel(std::int16_t x, std::int16_t y) const;
   [[nodiscard]] std::span<const PaletteIndex> Pixels() const {

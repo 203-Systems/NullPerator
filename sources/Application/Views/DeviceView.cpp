@@ -9,6 +9,7 @@
 
 #include "DeviceView.h"
 #include "Application/AppWindow.h"
+#include "Application/Model/ProjectVersion.h"
 #include "Application/Model/Scale.h"
 #include "Application/Persistency/PersistencyService.h"
 #include "Application/Utils/char.h"

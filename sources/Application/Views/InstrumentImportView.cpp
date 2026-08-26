@@ -11,6 +11,7 @@
 #include "Application/AppWindow.h"
 #include "Application/Instruments/I_Instrument.h"
 #include "Application/Persistency/PersistencyService.h"
+#include "Application/Views/Ui2BrowserItemFormat.h"
 #include "ModalDialogs/MessageBox.h"
 #include <cstring>
 #include <memory>
@@ -70,11 +71,8 @@ Ui2BrowserSnapshot InstrumentImportView::SnapshotForUi2() const {
       filename[sizeof(filename) - 1U] = '\0';
       const bool isDirectory = fs->getFileType(fileIndex) == PFT_DIR;
       char display[PFILENAME_SIZE + 3U]{};
-      if (isDirectory) {
-        npf_snprintf(display, sizeof(display), "[%s]", filename);
-      } else {
-        npf_snprintf(display, sizeof(display), "%s", filename);
-      }
+      ui2::FormatInstrumentImportBrowserItem(display, sizeof(display),
+                                             filename, isDirectory);
       Ui2BrowserSnapshot::CopyText(snapshot.items[row], display);
       if (row == snapshot.selectedRow) {
         selectedIsDirectory = isDirectory;

@@ -132,7 +132,7 @@ void ThemeImportView::DrawView() {
     unsigned fileIndex = fileIndexList_[i];
     fs->getFileName(fileIndex, buffer, PFILENAME_SIZE);
 
-    // Remove the .ptt extension for display
+    // Remove the .npt extension for display
     char *dot = strrchr(buffer, '.');
     if (dot) {
       *dot = '\0';

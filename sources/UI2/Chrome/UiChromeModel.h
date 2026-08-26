@@ -34,6 +34,29 @@ enum class UiNavTarget : std::uint8_t {
   Groove,
   PhraseTable,
   InstrumentTable,
+  // Pages without an approved tracker-map route keep NAV intentionally blank.
+  // This prevents a default Song map from leaking into Device/Theme/Browser.
+  None,
+};
+
+using UiNavTargetMask = std::uint16_t;
+
+[[nodiscard]] constexpr UiNavTargetMask UiNavTargetBit(UiNavTarget target) {
+  return static_cast<UiNavTargetMask>(
+      UiNavTargetMask{1U} << static_cast<std::uint8_t>(target));
+}
+
+// A NAV map is an explicit visibility set. The renderer keeps the horizontal
+// S/C/P/I spine visible and adds the vertical branch containing the current
+// cursor. A compact mask keeps that topology independent from highlight state.
+struct UiNavMapModel {
+  UiNavTargetMask visible = 0U;
+
+  [[nodiscard]] constexpr bool Contains(UiNavTarget target) const {
+    return (visible & UiNavTargetBit(target)) != 0U;
+  }
+
+  bool operator==(const UiNavMapModel &) const = default;
 };
 
 struct UiNavCursorModel {
@@ -50,12 +73,15 @@ struct UiTopBarModel {
   std::string_view elapsed = "00:08";
   std::int16_t metaX = -1;
   UiPowerState power = UiPowerState::BatteryNormal;
-  UiNavTarget navTarget = UiNavTarget::Song;
+  UiNavTarget navTarget = UiNavTarget::None;
+  UiNavMapModel navMap{};
+  bool navMapOverride = false;
   UiNavCursorModel navCursor{};
   bool metaSelected = false;
   RectI16 metaSelectionRect{};
   bool metaSelectionOverride = false;
   bool metaInkVisible = true;
+  bool metaUserData = false;
   bool showBatteryPercent = false;
   std::uint8_t batteryPercent = 60;
 };
@@ -73,6 +99,9 @@ struct UiColoredText {
   std::string_view text;
   UiColorToken color = UiColorToken::TextNormal;
   std::int16_t x = -1;
+  // User-authored names and filenames bypass the global UI label casing
+  // transform. This is a rendering semantic, not a separate palette slot.
+  bool userData = false;
 };
 
 struct UiContextBarModel {
@@ -92,12 +121,18 @@ struct UiSelectorBarModel {
   std::span<const std::string_view> options;
   std::uint8_t current = 0;
   bool wrap = false;
+  // Preserve option spelling when letter case is the value being selected.
+  bool preserveCase = false;
 };
 
 struct UiAdjustmentLegendModel {
   std::uint8_t fineStep = 1;
   std::uint8_t coarseStep = 10;
   bool coarseOctave = false;
+  // Optional semantic labels for non-numeric domains such as notes. Empty
+  // labels retain the compact numeric +/- presentation.
+  std::string_view fineLabel{};
+  std::string_view coarseLabel{};
 };
 
 enum class UiBottomBarKind : std::uint8_t {

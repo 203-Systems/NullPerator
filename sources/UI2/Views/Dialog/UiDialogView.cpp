@@ -67,7 +67,8 @@ std::int16_t ActionCenter(std::uint8_t index, std::uint8_t count) {
 }
 
 void RenderActions(const UiDialogViewData &data,
-                   UiSceneBuilder<80, 256> &builder, std::int16_t y) {
+                   UiSceneBuilder<80, 256> &builder, std::int16_t y,
+                   bool retainSelectedAccent = false) {
   const std::uint8_t count = static_cast<std::uint8_t>(
       std::min<std::size_t>(data.actionCount, data.actions.size()));
   for (std::uint8_t index = 0; index < count; ++index) {
@@ -81,9 +82,13 @@ void RenderActions(const UiDialogViewData &data,
           {static_cast<std::int16_t>(center - width / 2),
            static_cast<std::int16_t>(y - 2), width, 11});
     }
-    builder.CenteredText(label, center, y,
-                         selected ? UiColorToken::TextHighlighted
-                                  : UiColorToken::TextDim);
+    const bool accented = retainSelectedAccent &&
+                          index == data.selectedAction;
+    builder.CenteredText(
+        label, center, y,
+        selected   ? UiColorToken::TextHighlighted
+        : accented ? UiColorToken::TextColored
+                   : UiColorToken::TextDim);
   }
 }
 
@@ -105,10 +110,9 @@ void RenderRename(const UiDialogViewData &data,
   if (inputSelected && !data.cursorVisualOverride) {
     builder.Selection({9, 53, 222, 15});
   }
-  builder.Text(data.value, 14, 57,
-               inputInk
-                   ? UiColorToken::TextHighlighted
-                   : UiColorToken::TextNormal);
+  builder.UserText(data.value, 14, 57,
+                   inputInk ? UiColorToken::TextHighlighted
+                            : UiColorToken::TextNormal);
   builder.Fill({9, 74, 222, 1}, UiColorToken::CursorRow);
 
   std::uint8_t keyIndex = 0;
@@ -310,26 +314,20 @@ UiBuildStatus UiDialogView::Apply(const UiDialogViewData &data,
           {selectionX, 105,
            static_cast<std::int16_t>(192 - selectionX), 11});
     }
-    builder.Text(data.value, valueX, 107,
-                 data.actionsFocused ? UiColorToken::TextNormal
-                                     : UiColorToken::TextHighlighted);
-    RenderActions(data, builder, 139);
+    builder.UserText(data.value, valueX, 107,
+                     data.actionsFocused ? UiColorToken::TextNormal
+                                         : UiColorToken::TextHighlighted);
+    RenderActions(data, builder, 139, true);
     break;
   }
   case UiDialogKind::RenderProgress:
-    if (data.label.empty()) {
-      builder.CenteredText(data.title, 120, 91,
-                           UiColorToken::SystemWarning);
-      builder.CenteredText(data.elapsed, 120, 108,
-                           UiColorToken::SystemWarning);
-    } else {
-      builder.CenteredText(data.title, 120, 83,
-                           UiColorToken::SystemWarning);
-      builder.CenteredText(data.label, 120, 98,
-                           UiColorToken::TextNormal);
-      builder.CenteredText(data.elapsed, 120, 113,
-                           UiColorToken::SystemWarning);
-    }
+    // Render Progress has one status line plus elapsed/progress. Legacy
+    // diagnostic snapshots may carry both a generic title and a useful label;
+    // the label wins instead of silently expanding the approved two-line UI.
+    builder.CenteredText(data.label.empty() ? data.title : data.label, 120, 91,
+                         UiColorToken::SystemWarning);
+    builder.CenteredText(data.elapsed, 120, 108,
+                         UiColorToken::SystemWarning);
     builder.Fill({48, 126, 144, 7},
                  UiColorToken::DerivedVuTrack);
     builder.Fill(

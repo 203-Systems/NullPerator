@@ -18,8 +18,12 @@
 
 namespace ui2 {
 
+enum class UiFontCursor : std::uint8_t { TextCase, Browse };
+
 struct UiFontViewData {
   std::string_view font = "REGULAR 5X7";
+  std::string_view textCase = "Case";
+  UiFontCursor cursor = UiFontCursor::TextCase;
   RectI16 cursorVisualRect{};
   bool cursorVisualOverride = false;
   bool cursorInkVisible = true;
@@ -33,6 +37,8 @@ struct UiFontViewState {
 
   std::array<char, FontCapacity> font{
       'R', 'E', 'G', 'U', 'L', 'A', 'R', ' ', '5', 'X', '7', '\0'};
+  std::array<char, 5> textCase{'C', 'a', 's', 'e', '\0'};
+  UiFontCursor cursor = UiFontCursor::TextCase;
   RectI16 cursorVisualRect{};
   bool cursorVisualOverride = false;
   bool cursorInkVisible = true;
@@ -53,8 +59,9 @@ public:
                           const UiFontViewData &current,
                           const UiFrameScene &currentScene,
                           UiIndexedSurface &surface, const UiPalette &palette);
-  [[nodiscard]] static constexpr RectI16 CursorTargetRect() {
-    return {7, 53, 226, 9};
+  [[nodiscard]] static constexpr RectI16 CursorTargetRect(UiFontCursor cursor) {
+    return cursor == UiFontCursor::TextCase ? RectI16{7, 53, 226, 9}
+                                            : RectI16{7, 85, 226, 9};
   }
 };
 

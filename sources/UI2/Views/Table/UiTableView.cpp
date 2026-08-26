@@ -16,7 +16,7 @@
 namespace ui2 {
 namespace {
 
-constexpr std::array<std::int16_t, 6> kColumnX{29, 58, 92, 121, 155, 184};
+constexpr const auto &kColumnX = UiTrackerGridMetrics::kTableColumnX;
 constexpr std::array<std::uint8_t, 6> kColumnCharacters{3, 4, 3, 4, 3, 4};
 
 bool IsParameterColumn(std::uint8_t column) { return (column & 1U) != 0U; }
@@ -229,14 +229,14 @@ UiBuildStatus UiTableView::Build(const UiTableViewData &data, UiPalette &,
   tracks.trackSelectionRect = data.bottomTrackVisualRect;
   tracks.trackSelectionOverride = data.bottomTrackVisualOverride;
   tracks.trackInkVisible = data.bottomTrackInkVisible;
-  const UiAdjustmentLegendModel adjustment{.fineStep = 1U,
-                                            .coarseStep = 10U};
   const UiBarInputs inputs{
       .pageTop = pageTop,
       .pageDefault = hidden,
       .cursorContext = data.numberFocus ? nullptr : &data.cursorBottom,
       .editHeldTracks = &tracks,
-      .enterHeldAdjustment = data.adjustmentFocus ? &adjustment : nullptr,
+      // Table values are command-specific. Their help remains more useful
+      // than a generic +/- legend; digit focus still appears in the cell.
+      .enterHeldAdjustment = nullptr,
       .editHeldNumber = data.numberFocus,
   };
   const UiResolvedChrome chrome = UiBarResolver::Resolve(inputs);
@@ -263,7 +263,7 @@ UiBuildStatus UiTableView::Build(const UiTableViewData &data, UiPalette &,
     builder.RowHighlight(data.selectionVisualRect);
   } else if (!data.numberFocus && data.editRow < 16U) {
     builder.RowHighlight(
-        {5, UiTrackerGridMetrics::RowBoundsY(data.editRow), 230,
+        {5, UiTrackerGridMetrics::RowHighlightY(data.editRow), 230,
          UiTrackerGridMetrics::kRowHeight});
   }
   for (std::uint8_t row = 0; row < 16U; ++row) {

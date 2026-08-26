@@ -16,8 +16,7 @@
 namespace ui2 {
 namespace {
 
-constexpr std::array<std::int16_t, 8> kTrackX{28, 49, 70, 91,
-                                              112, 133, 154, 175};
+constexpr const auto &kTrackX = UiTrackerGridMetrics::kSongTrackX;
 constexpr std::array<std::string_view, 2> kSongModes{"SONG", "LIVE"};
 
 std::array<char, 3> HexByte(std::uint8_t value) {
@@ -33,7 +32,8 @@ RectI16 ResolvedCursorRect(const UiSongViewData &data) {
 }
 
 RectI16 ExpandedCursorDamage(RectI16 rect) {
-  if (rect.Empty()) return {};
+  if (rect.Empty())
+    return {};
   return Intersect({static_cast<std::int16_t>(rect.x - 1),
                     static_cast<std::int16_t>(rect.y - 1),
                     static_cast<std::int16_t>(rect.width + 2),
@@ -44,20 +44,21 @@ RectI16 ExpandedCursorDamage(RectI16 rect) {
 } // namespace
 
 RectI16 UiSongView::CellDamageRect(std::uint8_t track, std::uint8_t row) {
-  if (track >= 8U || row >= 16U) return {};
+  if (track >= 8U || row >= 16U)
+    return {};
   return {static_cast<std::int16_t>(kTrackX[track] - 3),
           UiTrackerGridMetrics::RowBoundsY(row), 17, 11};
 }
 
 RectI16 UiSongView::CursorTargetRect(std::uint8_t track, std::uint8_t row) {
-  if (track >= 8U || row >= 16U) return {};
+  if (track >= 8U || row >= 16U)
+    return {};
   return {static_cast<std::int16_t>(kTrackX[track] - 2),
           UiTrackerGridMetrics::RowBoundsY(row), 15, 9};
 }
 
 RectI16 UiSongView::SelectionTargetRect(std::int16_t left, std::int16_t top,
-                                        std::int16_t right,
-                                        std::int16_t bottom,
+                                        std::int16_t right, std::int16_t bottom,
                                         std::uint8_t rowOffset) {
   left = std::clamp<std::int16_t>(left, 0, 7);
   right = std::clamp<std::int16_t>(right, 0, 7);
@@ -71,37 +72,42 @@ RectI16 UiSongView::SelectionTargetRect(std::int16_t left, std::int16_t top,
   bottom = std::min(bottom, lastVisible);
   if (top > bottom)
     return {};
-  return Union(CursorTargetRect(static_cast<std::uint8_t>(left),
-                                static_cast<std::uint8_t>(top - firstVisible)),
-               CursorTargetRect(
-                   static_cast<std::uint8_t>(right),
-                   static_cast<std::uint8_t>(bottom - firstVisible)));
+  return Union(
+      CursorTargetRect(static_cast<std::uint8_t>(left),
+                       static_cast<std::uint8_t>(top - firstVisible)),
+      CursorTargetRect(static_cast<std::uint8_t>(right),
+                       static_cast<std::uint8_t>(bottom - firstVisible)));
 }
 
 RectI16 UiSongView::PlaybackTickRect(std::uint8_t track, std::uint8_t row) {
-  if (track >= 8U || row >= 16U) return {};
+  if (track >= 8U || row >= 16U)
+    return {};
   return {static_cast<std::int16_t>(kTrackX[track] - 3),
-          static_cast<std::int16_t>(UiTrackerGridMetrics::RowTextY(row) + 1),
-          2, 5};
+          static_cast<std::int16_t>(UiTrackerGridMetrics::RowTextY(row) + 1), 2,
+          5};
 }
 
 RectI16 UiSongView::RowDamageRect(std::uint8_t row) {
-  if (row >= 16U) return {};
+  if (row >= 16U)
+    return {};
   return UiTrackerGridMetrics::RowDamage(row, 213);
 }
 
 RectI16 UiSongView::TrackHeaderDamageRect(std::uint8_t track) {
-  if (track >= 8U) return {};
+  if (track >= 8U)
+    return {};
   return {static_cast<std::int16_t>(kTrackX[track] - 2), 36, 16, 10};
 }
 
 RectI16 UiSongView::BottomTrackDamageRect(std::uint8_t track) {
-  if (track >= 8U) return {};
+  if (track >= 8U)
+    return {};
   return {static_cast<std::int16_t>(track * 30), 208, 30, 32};
 }
 
 RectI16 UiSongView::VuDamageRect(std::uint8_t channel) {
-  if (channel >= 2U) return {};
+  if (channel >= 2U)
+    return {};
   return {static_cast<std::int16_t>(219 + channel * 9), 47, 7, 153};
 }
 
@@ -130,9 +136,12 @@ void UiSongView::RenderDelta(const UiSongViewData &previous,
     UiFrameRenderer::RenderRegion(currentScene, surface, palette, rect);
   };
 
-  if (previous.liveMode != current.liveMode) render({0, 0, 61, 34});
-  if (previous.name != current.name) render({59, 0, 132, 34});
-  if (previous.elapsed != current.elapsed) render({190, 0, 50, 34});
+  if (previous.liveMode != current.liveMode)
+    render({0, 0, 61, 34});
+  if (previous.name != current.name)
+    render({59, 0, 132, 34});
+  if (previous.elapsed != current.elapsed)
+    render({190, 0, 50, 34});
 
   const RectI16 previousCursor = ResolvedCursorRect(previous);
   const RectI16 currentCursor = ResolvedCursorRect(current);
@@ -182,7 +191,8 @@ void UiSongView::RenderDelta(const UiSongViewData &previous,
     rowRendered.fill(true);
   } else {
     for (std::uint8_t row = 0; row < 16U; ++row) {
-      if (rowRendered[row]) continue;
+      if (rowRendered[row])
+        continue;
       for (std::uint8_t track = 0; track < 8U; ++track) {
         if (previous.rows[row][track] != current.rows[row][track]) {
           render(CellDamageRect(track, row));
@@ -195,13 +205,10 @@ void UiSongView::RenderDelta(const UiSongViewData &previous,
     if (previous.playbackRows[track] != current.playbackRows[track]) {
       const std::int8_t previousRow = previous.playbackRows[track];
       const std::int8_t currentRow = current.playbackRows[track];
-      if (previousRow >= 0 && previousRow < 16 &&
-          !rowRendered[previousRow]) {
-        render(CellDamageRect(track,
-                              static_cast<std::uint8_t>(previousRow)));
+      if (previousRow >= 0 && previousRow < 16 && !rowRendered[previousRow]) {
+        render(CellDamageRect(track, static_cast<std::uint8_t>(previousRow)));
       }
-      if (currentRow >= 0 && currentRow < 16 &&
-          !rowRendered[currentRow]) {
+      if (currentRow >= 0 && currentRow < 16 && !rowRendered[currentRow]) {
         render(CellDamageRect(track, static_cast<std::uint8_t>(currentRow)));
       }
     }
@@ -211,8 +218,10 @@ void UiSongView::RenderDelta(const UiSongViewData &previous,
   }
   if (previous.adjustmentFocus != current.adjustmentFocus ||
       previous.modeFocus != current.modeFocus ||
-      previous.liveMode != current.liveMode)
+      (previous.liveMode != current.liveMode &&
+       (previous.modeFocus || current.modeFocus))) {
     render({0, 208, 240, 32});
+  }
 
   for (std::uint8_t channel = 0; channel < 2U; ++channel) {
     if (previous.vuLevelTop[channel] != current.vuLevelTop[channel]) {
@@ -221,8 +230,8 @@ void UiSongView::RenderDelta(const UiSongViewData &previous,
   }
 }
 
-UiBuildStatus UiSongView::Build(const UiSongViewData &data,
-                                UiPalette &palette, UiFrameScene &scene) {
+UiBuildStatus UiSongView::Build(const UiSongViewData &data, UiPalette &palette,
+                                UiFrameScene &scene) {
   scene.Clear();
   scene.topHeight = 34;
   scene.bottomTop = 208;
@@ -238,9 +247,11 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data,
       .power = data.power,
       .navTarget = UiNavTarget::Song,
       .navCursor = data.navCursor,
+      .metaUserData = true,
   };
   const UiBuildStatus topStatus = UiChromeRenderer::BuildTop(top, scene.top);
-  if (topStatus != UiBuildStatus::Built) return topStatus;
+  if (topStatus != UiBuildStatus::Built)
+    return topStatus;
 
   UiBottomBarModel bottom{.kind = UiBottomBarKind::Hidden};
   if (data.showBottom && data.adjustmentFocus) {
@@ -253,13 +264,15 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data,
   } else if (data.showBottom) {
     bottom.kind = UiBottomBarKind::TrackNotes;
   }
-  if (bottom.kind == UiBottomBarKind::TrackNotes)
+  if (bottom.kind == UiBottomBarKind::TrackNotes) {
     bottom.trackNotes.notes = data.notes;
+  }
   if (bottom.kind == UiBottomBarKind::AdjustmentLegend)
     bottom.adjustment = {.fineStep = 1U, .coarseStep = 10U};
   const UiBuildStatus bottomStatus =
       UiChromeRenderer::BuildBottom(bottom, scene.bottom);
-  if (bottomStatus != UiBuildStatus::Built) return bottomStatus;
+  if (bottomStatus != UiBuildStatus::Built)
+    return bottomStatus;
 
   UiSceneBuilder<256, 1024> builder(scene.content);
   for (std::uint8_t track = 0; track < 8; ++track) {
@@ -273,7 +286,7 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data,
   if (!data.selectionVisualRect.Empty()) {
     builder.RowHighlight(data.selectionVisualRect);
   } else {
-    builder.RowHighlight({5, UiTrackerGridMetrics::RowBoundsY(data.editRow),
+    builder.RowHighlight({5, UiTrackerGridMetrics::RowHighlightY(data.editRow),
                           213, UiTrackerGridMetrics::kRowHeight});
   }
   const RectI16 cursorRect = ResolvedCursorRect(data);
@@ -290,12 +303,11 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data,
       const char *displayValue =
           data.rows[row][track] == 0xFFU ? "--" : value.data();
       const bool target = row == data.editRow && track == data.editTrack;
-      const bool playback = data.playing &&
-                            data.playbackRows[track] ==
-                                static_cast<std::int8_t>(row);
+      const bool playback = data.playing && data.playbackRows[track] ==
+                                                static_cast<std::int8_t>(row);
+      // Chain 00 is valid song data. Only FF (rendered as --) is empty.
       builder.Text(displayValue, kTrackX[track], y,
-                   data.rows[row][track] == 0 ||
-                           data.rows[row][track] == 0xFFU
+                   data.rows[row][track] == 0xFFU
                        ? UiColorToken::DerivedTextFaint
                        : UiColorToken::TextNormal);
       if (playback && !(target && cursorRect == targetRect)) {
@@ -310,9 +322,9 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data,
     for (std::uint8_t track = 0; track < 8; ++track) {
       const std::int8_t playbackRow = data.playbackRows[track];
       if (playbackRow >= 0 && playbackRow < 16 &&
-          !Intersect(cursorRect, PlaybackTickRect(
-                                     track, static_cast<std::uint8_t>(
-                                                playbackRow)))
+          !Intersect(
+               cursorRect,
+               PlaybackTickRect(track, static_cast<std::uint8_t>(playbackRow)))
                .Empty()) {
         cursorOverPlayback = true;
         break;
@@ -338,15 +350,13 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data,
       const std::int16_t x = static_cast<std::int16_t>(219 + channel * 9);
       builder.Fill({x, 47, 7, 153}, UiColorToken::DerivedVuTrack);
       const std::uint8_t level = data.vuLevelTop[channel];
-      builder.VerticalPaletteRamp(
-          {x, static_cast<std::int16_t>(47 + level), 7,
-           static_cast<std::int16_t>(153 - level)},
-          UiVuGradient::IndexAt(level));
+      builder.VerticalPaletteRamp({x, static_cast<std::int16_t>(47 + level), 7,
+                                   static_cast<std::int16_t>(153 - level)},
+                                  UiVuGradient::IndexAt(level));
     }
   }
 
-  return builder.Ok() ? UiBuildStatus::Built
-                      : UiBuildStatus::CommandOverflow;
+  return builder.Ok() ? UiBuildStatus::Built : UiBuildStatus::CommandOverflow;
 }
 
 } // namespace ui2

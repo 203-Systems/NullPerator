@@ -11,6 +11,7 @@
 #include "UI2/Interaction/UiVerticalList.h"
 #include "UI2/Render/UiIndexedSurface.h"
 #include "UI2/Scene/UiFrameScene.h"
+#include "UI2/Views/Instrument/UiInstrumentCapacity.h"
 
 #include <array>
 #include <cstdint>
@@ -32,6 +33,7 @@ struct UiInstrumentField {
   std::string_view label;
   std::string_view value;
   std::int16_t y = 0;
+  bool userData = false;
   bool operator==(const UiInstrumentField &) const = default;
 };
 
@@ -47,7 +49,7 @@ struct UiInstrumentViewData {
   std::string_view elapsed = "00:08";
   std::string_view name = "--";
   UiInstrumentKind kind = UiInstrumentKind::None;
-  std::array<UiInstrumentField, 16> fields{};
+  std::array<UiInstrumentField, kUiInstrumentMaximumFields> fields{};
   std::uint8_t fieldCount = 0;
   std::array<UiInstrumentOperatorRow, 6> operators{};
   std::uint8_t operatorCount = 0;
@@ -67,6 +69,13 @@ struct UiInstrumentViewData {
   bool topMetaInkVisible = true;
   bool bottomTrackInkVisible = true;
   bool numberFocus = false;
+  bool enterSubfieldFocus = false;
+  bool adjustmentFocus = false;
+  bool adjustmentNote = false;
+  std::uint8_t adjustmentFineStep = 1;
+  std::uint8_t adjustmentCoarseStep = 10;
+  std::uint8_t selectedSubfield = 0;
+  std::uint8_t subfieldTextOffset = 0;
   std::int16_t scrollOffset = 0;
   UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;

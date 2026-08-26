@@ -41,9 +41,12 @@ RectI16 ExpandedCursorDamage(RectI16 rect) {
 
 void DrawField(UiSceneBuilder<256, 1024> &builder, std::string_view label,
                std::string_view value, std::int16_t y,
-               UiColorToken valueColor) {
+               UiColorToken valueColor, bool userData = false) {
   builder.Text(label, 9, y, UiColorToken::TextDim);
-  builder.Text(value, 92, y, valueColor);
+  if (userData)
+    builder.UserText(value, 92, y, valueColor);
+  else
+    builder.Text(value, 92, y, valueColor);
 }
 
 void DrawSection(UiSceneBuilder<256, 1024> &builder, std::string_view label,
@@ -56,9 +59,68 @@ void DrawSection(UiSceneBuilder<256, 1024> &builder, std::string_view label,
                UiColorToken::CursorRow);
 }
 
+struct SelectedValueLayout {
+  std::string_view text{};
+  std::int16_t x = 0;
+  std::int16_t y = 0;
+  bool userData = false;
+};
+
+SelectedValueLayout SelectedValue(const UiInstrumentViewData &data) {
+  if (data.cursor == UiInstrumentCursor::Field &&
+      data.selectedField < data.fieldCount) {
+    const UiInstrumentField &field = data.fields[data.selectedField];
+    return {.text = field.value,
+            .x = 92,
+            .y = field.y,
+            .userData = field.userData};
+  }
+  if ((data.cursor == UiInstrumentCursor::Operator1 ||
+       data.cursor == UiInstrumentCursor::Operator2) &&
+      data.selectedOperator < data.operatorCount) {
+    const UiInstrumentOperatorRow &row =
+        data.operators[data.selectedOperator];
+    return {.text = data.cursor == UiInstrumentCursor::Operator1 ? row.op1
+                                                                  : row.op2,
+            .x = static_cast<std::int16_t>(
+                data.cursor == UiInstrumentCursor::Operator1 ? 144 : 190),
+            .y = static_cast<std::int16_t>(144 +
+                                           data.selectedOperator * 9)};
+  }
+  return {};
+}
+
+bool SelectedSubfield(const UiInstrumentViewData &data,
+                      SelectedValueLayout &layout,
+                      std::uint8_t &textIndex) {
+  if (!data.enterSubfieldFocus)
+    return false;
+  layout = SelectedValue(data);
+  const std::uint16_t index = static_cast<std::uint16_t>(
+      data.subfieldTextOffset + data.selectedSubfield);
+  if (layout.text.empty() || index >= layout.text.size())
+    return false;
+  textIndex = static_cast<std::uint8_t>(index);
+  return true;
+}
+
+bool BottomVisible(const UiInstrumentViewData &data) {
+  return data.numberFocus || data.adjustmentFocus ||
+         data.cursor == UiInstrumentCursor::Name ||
+         data.cursor == UiInstrumentCursor::Type;
+}
+
 } // namespace
 
 RectI16 UiInstrumentView::CursorTargetRect(const UiInstrumentViewData &data) {
+  SelectedValueLayout layout;
+  std::uint8_t textIndex = 0U;
+  if (SelectedSubfield(data, layout, textIndex)) {
+    return {static_cast<std::int16_t>(
+                layout.x + textIndex * UiFont5x7::kAdvance - 2),
+            static_cast<std::int16_t>(layout.y - 1),
+            static_cast<std::int16_t>(UiFont5x7::kGlyphWidth + 4), 9};
+  }
   switch (data.cursor) {
   case UiInstrumentCursor::Name:
     return {7, 41, 226, 9};
@@ -103,8 +165,9 @@ std::int16_t UiInstrumentView::ContentBottom(
 
 std::int16_t UiInstrumentView::RevealCursor(
     std::int16_t currentOffset, const UiInstrumentViewData &data) {
-  return UiVerticalList::Reveal(currentOffset, CursorTargetRect(data), 34, 208,
-                                ContentBottom(data));
+  const std::int16_t viewportBottom = BottomVisible(data) ? 208 : 240;
+  return UiVerticalList::Reveal(currentOffset, CursorTargetRect(data), 34,
+                                viewportBottom, ContentBottom(data));
 }
 
 RectI16 UiInstrumentView::FieldDamageRect(std::int16_t y) {
@@ -146,7 +209,11 @@ void UiInstrumentView::RenderDelta(const UiInstrumentViewData &previous,
     render({184, 0, 56, 34});
   }
   const bool contentRedrawn = previous.scrollOffset != current.scrollOffset;
-  if (contentRedrawn) render({0, 34, 240, 174});
+  if (contentRedrawn) {
+    render({0, 34, 240,
+            static_cast<std::int16_t>(currentScene.bottomVisible ? 174
+                                                                 : 206)});
+  }
   if (!contentRedrawn && previous.name != current.name)
     render(contentRect(FieldDamageRect(42)));
 
@@ -177,12 +244,27 @@ void UiInstrumentView::RenderDelta(const UiInstrumentViewData &previous,
       previous.selectedField != current.selectedField ||
       previous.selectedOperator != current.selectedOperator ||
       previous.nameAction != current.nameAction ||
+      previous.adjustmentFocus != current.adjustmentFocus ||
+      previous.adjustmentNote != current.adjustmentNote ||
+      previous.adjustmentFineStep != current.adjustmentFineStep ||
+      previous.adjustmentCoarseStep != current.adjustmentCoarseStep ||
       previous.trackNotes != current.trackNotes ||
       previous.selectedTrack != current.selectedTrack ||
       previous.bottomTrackVisualRect != current.bottomTrackVisualRect ||
       previous.bottomTrackVisualOverride != current.bottomTrackVisualOverride ||
       previous.bottomTrackInkVisible != current.bottomTrackInkVisible) {
     render({0, 208, 240, 32});
+  }
+  const auto operatorHeader = [](UiInstrumentCursor cursor) {
+    return cursor == UiInstrumentCursor::Operator1
+               ? 1
+           : cursor == UiInstrumentCursor::Operator2
+               ? 2
+               : 0;
+  };
+  if (!contentRedrawn && operatorHeader(previous.cursor) !=
+                             operatorHeader(current.cursor)) {
+    render(contentRect(FieldDamageRect(132)));
   }
 }
 
@@ -192,7 +274,8 @@ UiBuildStatus UiInstrumentView::Build(const UiInstrumentViewData &data,
   scene.topHeight = 34;
   scene.bottomTop = 208;
   scene.contentOffsetY = UiVerticalList::Clamp(
-      data.scrollOffset, 208, ContentBottom(data));
+      data.scrollOffset, BottomVisible(data) ? 208 : 240,
+      ContentBottom(data));
   scene.topBackground = UiColorToken::SurfaceTopBar;
   scene.bottomBackground = UiColorToken::SurfaceBottomBar;
 
@@ -225,10 +308,20 @@ UiBuildStatus UiInstrumentView::Build(const UiInstrumentViewData &data,
   tracks.trackSelectionRect = data.bottomTrackVisualRect;
   tracks.trackSelectionOverride = data.bottomTrackVisualOverride;
   tracks.trackInkVisible = data.bottomTrackInkVisible;
+  const UiAdjustmentLegendModel adjustment{
+      .fineStep = data.adjustmentFineStep,
+      .coarseStep = data.adjustmentCoarseStep,
+      .coarseOctave = data.adjustmentNote,
+      .fineLabel = data.adjustmentNote ? std::string_view("NOTE")
+                                       : std::string_view{},
+      .coarseLabel = data.adjustmentNote ? std::string_view("OCT")
+                                         : std::string_view{},
+  };
   const UiBarInputs inputs{
       .pageTop = pageTop,
       .pageDefault = bottom,
       .editHeldTracks = &tracks,
+      .enterHeldAdjustment = data.adjustmentFocus ? &adjustment : nullptr,
       .editHeldNumber = data.numberFocus,
   };
   const UiResolvedChrome chrome = UiBarResolver::Resolve(inputs);
@@ -239,7 +332,7 @@ UiBuildStatus UiInstrumentView::Build(const UiInstrumentViewData &data,
   if (data.kind == UiInstrumentKind::Sid ||
       data.kind == UiInstrumentKind::Opal) {
     UiSceneBuilder<64, 256> topBuilder(scene.top);
-    topBuilder.Text("EXPERIMENTAL", 62, 21, UiColorToken::PlaybackActive);
+    topBuilder.Text("EXPERIMENTAL", 62, 21, UiColorToken::SystemWarning);
     if (!topBuilder.Ok())
       return UiBuildStatus::CommandOverflow;
   }
@@ -252,7 +345,8 @@ UiBuildStatus UiInstrumentView::Build(const UiInstrumentViewData &data,
   UiSceneBuilder<256, 1024> builder(scene.content);
   const UiColorToken nameColor =
       data.name == "--" ? UiColorToken::DerivedTextFaint : UiColorToken::TextNormal;
-  DrawField(builder, "NAME", data.name, 42, nameColor);
+  builder.Text("NAME", 9, 42, UiColorToken::TextDim);
+  builder.UserText(data.name, 92, 42, nameColor);
   DrawField(builder, "TYPE", TypeName(data.kind), 54,
             UiColorToken::TextNormal);
 
@@ -262,11 +356,18 @@ UiBuildStatus UiInstrumentView::Build(const UiInstrumentViewData &data,
       DrawField(builder, data.fields[index].label, data.fields[index].value,
                 data.fields[index].y,
                 data.fields[index].value == "--" ? UiColorToken::DerivedTextFaint
-                                                 : UiColorToken::TextNormal);
+                                                 : UiColorToken::TextNormal,
+                data.fields[index].userData);
     }
     DrawSection(builder, "OPERATOR SETTINGS", 120);
-    builder.Text("OP 1", 144, 132, UiColorToken::TextColored);
-    builder.Text("OP 2", 190, 132, UiColorToken::TextDim);
+    const bool operator2Focused =
+        data.cursor == UiInstrumentCursor::Operator2;
+    builder.Text("OP 1", 144, 132,
+                 operator2Focused ? UiColorToken::TextDim
+                                  : UiColorToken::TextColored);
+    builder.Text("OP 2", 190, 132,
+                 operator2Focused ? UiColorToken::TextColored
+                                  : UiColorToken::TextDim);
     for (std::uint8_t index = 0; index < data.operatorCount; ++index) {
       const std::int16_t y = static_cast<std::int16_t>(144 + index * 9);
       builder.Text(data.operators[index].label, 9, y, UiColorToken::TextDim);
@@ -291,15 +392,30 @@ UiBuildStatus UiInstrumentView::Build(const UiInstrumentViewData &data,
     if (data.cursorInkVisible) {
       if (data.cursor == UiInstrumentCursor::Name) {
         builder.Text("NAME", 9, 42, UiColorToken::TextHighlighted);
-        builder.Text(data.name, 92, 42, UiColorToken::TextHighlighted);
+        builder.UserText(data.name, 92, 42, UiColorToken::TextHighlighted);
       } else if (data.cursor == UiInstrumentCursor::Type) {
         builder.Text("TYPE", 9, 54, UiColorToken::TextHighlighted);
         builder.Text(TypeName(data.kind), 92, 54, UiColorToken::TextHighlighted);
       } else if (data.cursor == UiInstrumentCursor::Field &&
                  data.selectedField < data.fieldCount) {
         const UiInstrumentField &field = data.fields[data.selectedField];
-        builder.Text(field.label, 9, field.y, UiColorToken::TextHighlighted);
-        builder.Text(field.value, 92, field.y, UiColorToken::TextHighlighted);
+        SelectedValueLayout layout;
+        std::uint8_t textIndex = 0U;
+        if (SelectedSubfield(data, layout, textIndex)) {
+          builder.Text(layout.text.substr(textIndex, 1),
+                       static_cast<std::int16_t>(
+                           layout.x + textIndex * UiFont5x7::kAdvance),
+                       layout.y, UiColorToken::TextHighlighted);
+        } else {
+          builder.Text(field.label, 9, field.y,
+                       UiColorToken::TextHighlighted);
+          if (field.userData)
+            builder.UserText(field.value, 92, field.y,
+                             UiColorToken::TextHighlighted);
+          else
+            builder.Text(field.value, 92, field.y,
+                         UiColorToken::TextHighlighted);
+        }
       } else if ((data.cursor == UiInstrumentCursor::Operator1 ||
                   data.cursor == UiInstrumentCursor::Operator2) &&
                  data.selectedOperator < data.operatorCount) {
@@ -307,7 +423,14 @@ UiBuildStatus UiInstrumentView::Build(const UiInstrumentViewData &data,
             static_cast<std::int16_t>(144 + data.selectedOperator * 9);
         const UiInstrumentOperatorRow &row =
             data.operators[data.selectedOperator];
-        if (data.cursor == UiInstrumentCursor::Operator1) {
+        SelectedValueLayout layout;
+        std::uint8_t textIndex = 0U;
+        if (SelectedSubfield(data, layout, textIndex)) {
+          builder.Text(layout.text.substr(textIndex, 1),
+                       static_cast<std::int16_t>(
+                           layout.x + textIndex * UiFont5x7::kAdvance),
+                       layout.y, UiColorToken::TextHighlighted);
+        } else if (data.cursor == UiInstrumentCursor::Operator1) {
           builder.Text(row.op1, 144, y, UiColorToken::TextHighlighted);
         } else {
           builder.Text(row.op2, 190, y, UiColorToken::TextHighlighted);

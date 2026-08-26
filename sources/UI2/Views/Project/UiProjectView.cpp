@@ -55,7 +55,7 @@ void DrawSelectedInk(UiSceneBuilder<256, 1024> &builder,
   switch (data.cursor) {
   case UiProjectCursor::Name:
     builder.Text("NAME", 9, 42, UiColorToken::TextHighlighted);
-    builder.Text(data.name, 92, 42, UiColorToken::TextHighlighted);
+    builder.UserText(data.name, 92, 42, UiColorToken::TextHighlighted);
     break;
   case UiProjectCursor::Tempo:
     builder.Text("TEMPO", 9, 70, UiColorToken::TextHighlighted);
@@ -254,7 +254,8 @@ UiBuildStatus UiProjectView::Build(const UiProjectViewData &data, UiPalette &,
     return bottomStatus;
 
   UiSceneBuilder<256, 1024> builder(scene.content);
-  DrawField(builder, "NAME", data.name, 42);
+  builder.Text("NAME", 9, 42, UiColorToken::TextDim);
+  builder.UserText(data.name, 92, 42, UiColorToken::TextNormal);
   DrawSection(builder, "PLAYBACK", 58);
   DrawField(builder, "TEMPO", data.tempo, 70);
   DrawField(builder, "TRANSPOSE", data.transpose, 81);

@@ -23,6 +23,7 @@ struct UiFrameScene {
   std::int16_t bottomTop = kBottomBarTop;
   std::int16_t contentOffsetY = 0;
   bool bottomVisible = true;
+  UiTextCaseMode textCase = UiTextCaseMode::Upper;
 
   void Clear() {
     top.Clear();

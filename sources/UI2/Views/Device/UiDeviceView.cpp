@@ -292,6 +292,7 @@ void UiDeviceView::RenderDelta(const UiDeviceViewData &previous,
       previous.selectorCount != current.selectorCount ||
       previous.selectorCurrent != current.selectorCurrent ||
       previous.selectorWrap != current.selectorWrap ||
+      previous.editHeld != current.editHeld ||
       previous.midiDevice != current.midiDevice) {
     render({0, 208, 240, 32});
   }
@@ -315,7 +316,14 @@ UiBuildStatus UiDeviceView::Build(const UiDeviceViewData &data, UiPalette &,
     return topStatus;
 
   UiBottomBarModel bottom{.kind = UiBottomBarKind::Hidden};
-  if (CursorUsesSelector(data.cursor)) {
+  const bool numericAdjustment =
+      data.editHeld && (data.cursor == UiDeviceCursor::Volume ||
+                        data.cursor == UiDeviceCursor::Brightness);
+  if (numericAdjustment) {
+    bottom.kind = UiBottomBarKind::AdjustmentLegend;
+    bottom.adjustment.fineStep = 1U;
+    bottom.adjustment.coarseStep = 10U;
+  } else if (CursorUsesSelector(data.cursor)) {
     bottom.kind = UiBottomBarKind::Selector;
     if (data.selectorCount > 0) {
       const std::uint8_t count = std::min<std::uint8_t>(

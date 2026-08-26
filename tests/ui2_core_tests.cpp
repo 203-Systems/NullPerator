@@ -1,9 +1,17 @@
+#include "Adapters/wasm/gui/WasmUiPresenter.h"
+#include "Application/UI2/Ui2ApplicationRuntime.h"
+#include "Application/UI2/Ui2ChainTranspose.h"
+#include "Application/UI2/Ui2ModalInputGate.h"
+#include "Application/UI2/Ui2SampleAdapters.h"
+#include "Application/UI2/Ui2SettingsAdapters.h"
+#include "Application/UI2/Ui2SettingsControllerAdapters.h"
 #include "UI2/Animation/UiMotionTrack.h"
 #include "UI2/Animation/UiTransitionTimeline.h"
 #include "UI2/Chrome/UiBarResolver.h"
 #include "UI2/Chrome/UiChromeRenderer.h"
 #include "UI2/Render/IUiPresenter.h"
 #include "UI2/Render/UiDirtyTiles.h"
+#include "UI2/Render/UiFrameRenderer.h"
 #include "UI2/Render/UiIndexedSurface.h"
 #include "UI2/Render/UiRasterizer.h"
 #include "UI2/Render/UiRgb565Presenter.h"
@@ -12,40 +20,33 @@
 #include "UI2/Theme/UiPalette.h"
 #include "UI2/Theme/UiThemeSchema.h"
 #include "UI2/UiEngine.h"
-#include "UI2/Render/UiFrameRenderer.h"
 #include "UI2/Views/Browser/UiBrowserView.h"
 #include "UI2/Views/Chain/UiChainView.h"
 #include "UI2/Views/Device/UiDeviceView.h"
 #include "UI2/Views/Dialog/UiDialogView.h"
 #include "UI2/Views/Font/UiFontView.h"
 #include "UI2/Views/Groove/UiGrooveView.h"
-#include "UI2/Views/Song/UiSongView.h"
-#include "UI2/Views/Phrase/UiPhraseView.h"
 #include "UI2/Views/Instrument/UiInstrumentView.h"
 #include "UI2/Views/Mixer/UiMixerView.h"
+#include "UI2/Views/Phrase/UiPhraseView.h"
 #include "UI2/Views/Project/UiProjectView.h"
 #include "UI2/Views/Record/UiRecordView.h"
 #include "UI2/Views/Sample/UiSampleViews.h"
+#include "UI2/Views/Song/UiSongView.h"
 #include "UI2/Views/Table/UiTableView.h"
 #include "UI2/Views/Theme/UiThemeView.h"
 #include "UI2/Views/Tracker/UiTrackerGridMetrics.h"
-#include "Adapters/wasm/gui/WasmUiPresenter.h"
-#include "Application/UI2/Ui2SettingsControllerAdapters.h"
-#include "Application/UI2/Ui2SettingsAdapters.h"
-#include "Application/UI2/Ui2ApplicationRuntime.h"
-#include "Application/UI2/Ui2ModalInputGate.h"
-#include "Application/UI2/Ui2SampleAdapters.h"
 
-#include "ui2_song_fixture.h"
 #include "ui2_browser_fixture.h"
 #include "ui2_chain_fixture.h"
 #include "ui2_device_fixture.h"
 #include "ui2_groove_fixture.h"
-#include "ui2_phrase_fixture.h"
 #include "ui2_instrument_fixture.h"
 #include "ui2_mixer_fixture.h"
+#include "ui2_phrase_fixture.h"
 #include "ui2_project_fixture.h"
 #include "ui2_sample_fixture.h"
+#include "ui2_song_fixture.h"
 #include "ui2_table_fixture.h"
 
 #include "doctest/doctest.h"
@@ -87,6 +88,7 @@ public:
   ui2::UiApplicationBatteryState ReadBattery() const override {
     return {.percentage = 73, .available = true, .charging = false};
   }
+  bool NavigationHeld() const override { return navigationHeld; }
   bool HasDialog() const override { return false; }
   Ui2DialogSnapshot DialogSnapshot() const override { return {}; }
   std::uint32_t DialogInstanceId() const override { return 0; }
@@ -165,6 +167,7 @@ public:
 
   ui2::UiApplicationPage page = ui2::UiApplicationPage::Song;
   std::uint32_t nowMs = 0;
+  bool navigationHeld = false;
 };
 
 } // namespace
@@ -197,8 +200,8 @@ struct Rgb565WriteProbe {
     auto &probe = *static_cast<Rgb565WriteProbe *>(context);
     const std::size_t index = probe.calls++;
     if (index < probe.records.size()) {
-      probe.records[index] =
-          {x, y, width, height, pixels[0], pixels[width * height - 1U]};
+      probe.records[index] = {x,      y,         width,
+                              height, pixels[0], pixels[width * height - 1U]};
     }
     return probe.failOnCall == 0 || probe.calls != probe.failOnCall;
   }
@@ -213,16 +216,14 @@ void CheckDeltaMatchesFullFrame(const Data &previous, const Data &current,
                                 Build build, RenderDelta renderDelta) {
   ui2::UiPalette palette;
   ui2::UiFrameScene previousScene;
-  REQUIRE(build(previous, palette, previousScene) ==
-          ui2::UiBuildStatus::Built);
+  REQUIRE(build(previous, palette, previousScene) == ui2::UiBuildStatus::Built);
   ui2::UiSurfaceStorage deltaStorage;
   ui2::UiIndexedSurface delta(deltaStorage);
   ui2::UiFrameRenderer::RenderStatic(previousScene, delta, palette);
   delta.ClearDirty();
 
   ui2::UiFrameScene currentScene;
-  REQUIRE(build(current, palette, currentScene) ==
-          ui2::UiBuildStatus::Built);
+  REQUIRE(build(current, palette, currentScene) == ui2::UiBuildStatus::Built);
   renderDelta(previous, current, currentScene, delta, palette);
 
   ui2::UiSurfaceStorage fullStorage;
@@ -255,8 +256,7 @@ TEST_CASE("UI2 geometry clips and unions signed pixel rectangles") {
   CHECK(ui2::Intersect({-4, 2, 10, 8}, ui2::RectI16::Screen()) ==
         ui2::RectI16{0, 2, 6, 8});
   CHECK(ui2::Intersect({250, 2, 4, 8}, ui2::RectI16::Screen()).Empty());
-  CHECK(ui2::Union({3, 4, 5, 6}, {1, 7, 10, 2}) ==
-        ui2::RectI16{1, 4, 10, 6});
+  CHECK(ui2::Union({3, 4, 5, 6}, {1, 7, 10, 2}) == ui2::RectI16{1, 4, 10, 6});
 }
 
 TEST_CASE("UI2 indexed surface owns no RGB framebuffer and clips fills") {
@@ -273,7 +273,8 @@ TEST_CASE("UI2 indexed surface owns no RGB framebuffer and clips fills") {
   CHECK(sizeof(storage) < 58'000);
 }
 
-TEST_CASE("UI2 rounded bubble keeps straight edges crisp and softens corners only") {
+TEST_CASE(
+    "UI2 rounded bubble keeps straight edges crisp and softens corners only") {
   ui2::UiSurfaceStorage storage;
   ui2::UiIndexedSurface surface(storage);
   surface.Clear(0);
@@ -402,17 +403,13 @@ TEST_CASE("UI2 semantic palette reproduces exact quarter coverage colors") {
   ui2::UiPalette palette;
   const ui2::PaletteIndex background =
       palette.Index(ui2::UiColorToken::DerivedVuTrack);
-  CHECK(palette.Get(
-            palette.AntialiasIndex(ui2::UiCoverage::Cursor, 1)) ==
+  CHECK(palette.Get(palette.AntialiasIndex(ui2::UiCoverage::Cursor, 1)) ==
         ui2::Rgb888{0x14, 0x42, 0x42});
-  CHECK(palette.Get(
-            palette.AntialiasIndex(ui2::UiCoverage::Cursor, 2)) ==
+  CHECK(palette.Get(palette.AntialiasIndex(ui2::UiCoverage::Cursor, 2)) ==
         ui2::Rgb888{0x24, 0x75, 0x79});
-  CHECK(palette.Get(
-            palette.AntialiasIndex(ui2::UiCoverage::Cursor, 3)) ==
+  CHECK(palette.Get(palette.AntialiasIndex(ui2::UiCoverage::Cursor, 3)) ==
         ui2::Rgb888{0x35, 0xA9, 0xB1});
-  CHECK(palette.Get(
-            palette.AntialiasIndex(ui2::UiCoverage::Playback, 3)) ==
+  CHECK(palette.Get(palette.AntialiasIndex(ui2::UiCoverage::Playback, 3)) ==
         ui2::Rgb888{0x4F, 0xB0, 0x76});
 }
 
@@ -430,7 +427,8 @@ TEST_CASE("UI2 user palette exposes exactly the approved semantic fields") {
   }
 }
 
-TEST_CASE("UI2 user colors remain independent while element colors regenerate") {
+TEST_CASE(
+    "UI2 user colors remain independent while element colors regenerate") {
   ui2::UiPalette palette;
   const ui2::Rgb888 batteryLow =
       palette.Get(palette.Index(ui2::UiColorToken::BatteryLow));
@@ -448,8 +446,7 @@ TEST_CASE("UI2 user colors remain independent while element colors regenerate") 
   palette.Set(ui2::UiColorToken::CursorPrimary, {0x90, 0x20, 0x40});
   CHECK(palette.Get(palette.CoverageIndex(
             ui2::UiCoverage::Cursor,
-            palette.Index(ui2::UiColorToken::SurfaceBackground))) !=
-        oldCorner);
+            palette.Index(ui2::UiColorToken::SurfaceBackground))) != oldCorner);
 }
 
 TEST_CASE("UI2 screen background covers the full 240 by 240 surface") {
@@ -461,8 +458,7 @@ TEST_CASE("UI2 screen background covers the full 240 by 240 surface") {
   ui2::UiSurfaceStorage storage;
   ui2::UiIndexedSurface surface(storage);
   ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
-  const auto background =
-      palette.Index(ui2::UiColorToken::SurfaceBackground);
+  const auto background = palette.Index(ui2::UiColorToken::SurfaceBackground);
   CHECK(surface.Pixel(0, 0) == background);
   CHECK(surface.Pixel(239, 239) == background);
 }
@@ -479,6 +475,53 @@ TEST_CASE("UI2 tracker pages share one ten-pixel vertical rhythm") {
     CHECK(ui2::UiSongView::CursorTargetRect(0, row + 1).y - songY ==
           ui2::UiTrackerGridMetrics::kRowPitch);
   }
+  CHECK(ui2::UiTrackerGridMetrics::kRowLabelX == 7);
+  CHECK(ui2::UiTrackerGridMetrics::kSongTrackX[0] ==
+        ui2::UiTrackerGridMetrics::kChainColumnX[0]);
+  CHECK(ui2::UiTrackerGridMetrics::kSongTrackX[1] ==
+        ui2::UiTrackerGridMetrics::kChainColumnX[1]);
+  CHECK(ui2::UiTrackerGridMetrics::kPhraseColumnX ==
+        ui2::UiTrackerGridMetrics::kTableColumnX);
+  CHECK(ui2::UiTrackerGridMetrics::RowHighlightY(0) == 46);
+  CHECK(ui2::UiTrackerGridMetrics::RowBoundsY(0) == 47);
+}
+
+TEST_CASE("UI2 tracker row band has rounded corners and crisp straight edges") {
+  ui2::UiSongViewData data = ui2::test::ApprovedSongFixture();
+  data.editRow = 0;
+  data.editTrack = 0;
+  data.playbackRows.fill(-1);
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiSongView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+
+  const auto fill = palette.Index(ui2::UiColorToken::CursorRow);
+  const auto corner = palette.Index(ui2::UiColorToken::DerivedCursorRowCorner);
+  CHECK(surface.Pixel(5, 46) == corner);
+  CHECK(surface.Pixel(6, 46) == fill);
+  CHECK(surface.Pixel(5, 47) == fill);
+  CHECK(surface.Pixel(217, 46) == corner);
+}
+
+TEST_CASE("UI2 tracker headers omit Table VAL and share approved columns") {
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiTableView::Build(ui2::test::ApprovedTableFixture("instrument"),
+                                  palette, scene) == ui2::UiBuildStatus::Built);
+  CHECK(FindTextCommand(scene.content.Stream(), "VAL") == nullptr);
+  const auto *fx1 = FindTextCommand(scene.content.Stream(), "FX1");
+  const auto *fx2 = FindTextCommand(scene.content.Stream(), "FX2");
+  const auto *fx3 = FindTextCommand(scene.content.Stream(), "FX3");
+  REQUIRE(fx1 != nullptr);
+  REQUIRE(fx2 != nullptr);
+  REQUIRE(fx3 != nullptr);
+  CHECK(fx1->bounds.x == ui2::UiTrackerGridMetrics::kPhraseColumnX[0]);
+  CHECK(fx2->bounds.x == ui2::UiTrackerGridMetrics::kPhraseColumnX[2]);
+  CHECK(fx3->bounds.x == ui2::UiTrackerGridMetrics::kPhraseColumnX[4]);
 }
 
 TEST_CASE("UI2 tracker selections resolve to one clipped rounded region") {
@@ -486,13 +529,13 @@ TEST_CASE("UI2 tracker selections resolve to one clipped rounded region") {
         ui2::RectI16{47, 67, 57, 39});
   CHECK(ui2::UiSongView::SelectionTargetRect(0, 0, 7, 15, 16).Empty());
   CHECK(ui2::UiChainView::SelectionTargetRect(0, 2, 1, 4) ==
-        ui2::RectI16{26, 67, 36, 29});
+        ui2::RectI16{26, 67, 42, 29});
   CHECK(ui2::UiPhraseView::SelectionTargetRect(1, 1, 4, 3) ==
         ui2::RectI16{59, 57, 108, 29});
   // Legacy Table selection may transiently report column 6. UI2 clips that
   // endpoint to the sixth visible value column without escaping the screen.
   CHECK(ui2::UiTableView::SelectionTargetRect(2, 0, 6, 15) ==
-        ui2::RectI16{90, 47, 119, 159});
+        ui2::RectI16{86, 47, 114, 159});
 }
 
 TEST_CASE("UI2 tracker selection deltas match complete redraws") {
@@ -501,18 +544,16 @@ TEST_CASE("UI2 tracker selection deltas match complete redraws") {
     ui2::UiSongViewData current = previous;
     current.selectionVisualRect =
         ui2::UiSongView::SelectionTargetRect(0, 8, 3, 11, 0);
-    CheckDeltaMatchesFullFrame(
-        previous, current, ui2::UiSongView::Build,
-        ui2::UiSongView::RenderDelta);
+    CheckDeltaMatchesFullFrame(previous, current, ui2::UiSongView::Build,
+                               ui2::UiSongView::RenderDelta);
   }
   {
     const ui2::UiChainViewData previous = ui2::test::ApprovedChainFixture();
     ui2::UiChainViewData current = previous;
     current.selectionVisualRect =
         ui2::UiChainView::SelectionTargetRect(0, 0, 1, 5);
-    CheckDeltaMatchesFullFrame(
-        previous, current, ui2::UiChainView::Build,
-        ui2::UiChainView::RenderDelta);
+    CheckDeltaMatchesFullFrame(previous, current, ui2::UiChainView::Build,
+                               ui2::UiChainView::RenderDelta);
   }
   {
     const ui2::UiPhraseViewData previous =
@@ -520,9 +561,8 @@ TEST_CASE("UI2 tracker selection deltas match complete redraws") {
     ui2::UiPhraseViewData current = previous;
     current.selectionVisualRect =
         ui2::UiPhraseView::SelectionTargetRect(1, 2, 5, 6);
-    CheckDeltaMatchesFullFrame(
-        previous, current, ui2::UiPhraseView::Build,
-        ui2::UiPhraseView::RenderDelta);
+    CheckDeltaMatchesFullFrame(previous, current, ui2::UiPhraseView::Build,
+                               ui2::UiPhraseView::RenderDelta);
   }
   {
     const ui2::UiTableViewData previous =
@@ -530,9 +570,8 @@ TEST_CASE("UI2 tracker selection deltas match complete redraws") {
     ui2::UiTableViewData current = previous;
     current.selectionVisualRect =
         ui2::UiTableView::SelectionTargetRect(0, 4, 5, 9);
-    CheckDeltaMatchesFullFrame(
-        previous, current, ui2::UiTableView::Build,
-        ui2::UiTableView::RenderDelta);
+    CheckDeltaMatchesFullFrame(previous, current, ui2::UiTableView::Build,
+                               ui2::UiTableView::RenderDelta);
   }
 }
 
@@ -566,8 +605,7 @@ TEST_CASE("UI2 vertical list reveals items and reconciles contextual bars") {
                     expected.Pixels().begin(), expected.Pixels().end());
   CAPTURE(std::distance(surface.Pixels().begin(), mismatch.first));
   CHECK(mismatch.first == surface.Pixels().end());
-  CHECK(surface.Pixel(0, 0) ==
-        palette.Index(ui2::UiColorToken::SurfaceTopBar));
+  CHECK(surface.Pixel(0, 0) == palette.Index(ui2::UiColorToken::SurfaceTopBar));
   CHECK(surface.Pixel(0, 239) ==
         palette.Index(ui2::UiColorToken::SurfaceBackground));
 }
@@ -577,11 +615,9 @@ TEST_CASE("UI2 sparse coverage masks copy bounded data and decode columns") {
   ui2::UiContentScene scene;
   ui2::UiSceneBuilder<256, 1024> builder(scene);
   builder.Fill({10, 10, 20, 10}, ui2::UiColorToken::DerivedVuTrack);
-  std::array<std::uint8_t, 11> encoded{
-      0x00, 0x01, 0x00, 0x02, 0x04, 0x39,
-      0xFF, 0x00, 0x05, 0x02, 0x07};
-  builder.SparseCoverageMask({10, 10, 4, 10}, encoded,
-                             ui2::UiCoverage::Cursor,
+  std::array<std::uint8_t, 11> encoded{0x00, 0x01, 0x00, 0x02, 0x04, 0x39,
+                                       0xFF, 0x00, 0x05, 0x02, 0x07};
+  builder.SparseCoverageMask({10, 10, 4, 10}, encoded, ui2::UiCoverage::Cursor,
                              ui2::UiColorToken::DerivedVuTrack);
   REQUIRE(builder.Ok());
   encoded.fill(0);
@@ -643,18 +679,16 @@ TEST_CASE("UI2 bar resolver applies the documented central priority") {
 
 TEST_CASE("UI2 NAV targets share one movable seven by nine bubble") {
   ui2::UiBarScene scene;
-  CHECK(ui2::UiChromeRenderer::BuildTop(
-            {.title = "SONG",
-             .meta = "ONECYCAC",
-             .power = ui2::UiPowerState::Navigation,
-             .navTarget = ui2::UiNavTarget::Song},
-            scene) == ui2::UiBuildStatus::Built);
-  CHECK(ui2::UiChromeRenderer::BuildTop(
-            {.title = "SONG",
-             .meta = "ONECYCAC",
-             .power = ui2::UiPowerState::Navigation,
-             .navTarget = ui2::UiNavTarget::Mixer},
-            scene) == ui2::UiBuildStatus::Built);
+  CHECK(ui2::UiChromeRenderer::BuildTop({.title = "SONG",
+                                         .meta = "ONECYCAC",
+                                         .power = ui2::UiPowerState::Navigation,
+                                         .navTarget = ui2::UiNavTarget::Song},
+                                        scene) == ui2::UiBuildStatus::Built);
+  CHECK(ui2::UiChromeRenderer::BuildTop({.title = "SONG",
+                                         .meta = "ONECYCAC",
+                                         .power = ui2::UiPowerState::Navigation,
+                                         .navTarget = ui2::UiNavTarget::Mixer},
+                                        scene) == ui2::UiBuildStatus::Built);
   CHECK(ui2::UiChromeRenderer::NavTargetRect(ui2::UiNavTarget::Project) ==
         ui2::RectI16{201, 2, 7, 9});
   CHECK(ui2::UiChromeRenderer::NavTargetRect(ui2::UiNavTarget::Instrument) ==
@@ -663,12 +697,92 @@ TEST_CASE("UI2 NAV targets share one movable seven by nine bubble") {
         ui2::RectI16{201, 23, 7, 9});
   CHECK(ui2::UiChromeRenderer::NavTargetRect(ui2::UiNavTarget::Groove) ==
         ui2::RectI16{217, 2, 7, 9});
-  CHECK(ui2::UiChromeRenderer::NavTargetRect(
-            ui2::UiNavTarget::PhraseTable) ==
+  CHECK(ui2::UiChromeRenderer::NavTargetRect(ui2::UiNavTarget::PhraseTable) ==
         ui2::RectI16{217, 23, 7, 9});
   CHECK(ui2::UiChromeRenderer::NavTargetRect(
-            ui2::UiNavTarget::InstrumentTable) ==
-        ui2::RectI16{225, 23, 7, 9});
+            ui2::UiNavTarget::InstrumentTable) == ui2::RectI16{225, 23, 7, 9});
+}
+
+TEST_CASE("UI2 NAV maps retain SCPI and the active vertical column") {
+  using Target = ui2::UiNavTarget;
+  const auto song = ui2::UiChromeRenderer::NavigationMap(Target::Song);
+  CHECK(song.Contains(Target::Project));
+  CHECK(song.Contains(Target::Song));
+  CHECK(song.Contains(Target::Chain));
+  CHECK(song.Contains(Target::Phrase));
+  CHECK(song.Contains(Target::Instrument));
+  CHECK(song.Contains(Target::Mixer));
+
+  const auto chain = ui2::UiChromeRenderer::NavigationMap(Target::Chain);
+  CHECK(chain.Contains(Target::Song));
+  CHECK(chain.Contains(Target::Chain));
+  CHECK(chain.Contains(Target::Phrase));
+  CHECK(chain.Contains(Target::Instrument));
+  CHECK_FALSE(chain.Contains(Target::Project));
+  CHECK_FALSE(chain.Contains(Target::Mixer));
+  CHECK_FALSE(chain.Contains(Target::Groove));
+
+  const auto mixer = ui2::UiChromeRenderer::NavigationMap(Target::Mixer);
+  CHECK(mixer.Contains(Target::Project));
+  CHECK(mixer.Contains(Target::Song));
+  CHECK(mixer.Contains(Target::Chain));
+  CHECK(mixer.Contains(Target::Phrase));
+  CHECK(mixer.Contains(Target::Instrument));
+  CHECK(mixer.Contains(Target::Mixer));
+
+  const auto instrument =
+      ui2::UiChromeRenderer::NavigationMap(Target::Instrument);
+  CHECK(instrument.Contains(Target::Song));
+  CHECK(instrument.Contains(Target::Chain));
+  CHECK(instrument.Contains(Target::Phrase));
+  CHECK(instrument.Contains(Target::Instrument));
+  CHECK(instrument.Contains(Target::InstrumentTable));
+  CHECK_FALSE(instrument.Contains(Target::PhraseTable));
+
+  const auto phraseTable =
+      ui2::UiChromeRenderer::NavigationMap(Target::PhraseTable);
+  CHECK(phraseTable.Contains(Target::Song));
+  CHECK(phraseTable.Contains(Target::Chain));
+  CHECK(phraseTable.Contains(Target::Phrase));
+  CHECK(phraseTable.Contains(Target::Instrument));
+  CHECK(phraseTable.Contains(Target::Groove));
+  CHECK(phraseTable.Contains(Target::PhraseTable));
+  CHECK_FALSE(phraseTable.Contains(Target::InstrumentTable));
+
+  const auto instrumentTable =
+      ui2::UiChromeRenderer::NavigationMap(Target::InstrumentTable);
+  CHECK(instrumentTable.Contains(Target::Song));
+  CHECK(instrumentTable.Contains(Target::Chain));
+  CHECK(instrumentTable.Contains(Target::Phrase));
+  CHECK(instrumentTable.Contains(Target::Instrument));
+  CHECK(instrumentTable.Contains(Target::InstrumentTable));
+  CHECK_FALSE(instrumentTable.Contains(Target::PhraseTable));
+
+  const auto project = ui2::UiChromeRenderer::NavigationMap(Target::Project);
+  CHECK(project.Contains(Target::Project));
+  CHECK(project.Contains(Target::Song));
+  CHECK(project.Contains(Target::Chain));
+  CHECK(project.Contains(Target::Phrase));
+  CHECK(project.Contains(Target::Instrument));
+  CHECK(project.Contains(Target::Mixer));
+}
+
+TEST_CASE("UI2 pages without an explicit NAV target do not inherit Song map") {
+  ui2::UiBarScene scene;
+  REQUIRE(ui2::UiChromeRenderer::BuildTop(
+              {.title = "DEVICE", .power = ui2::UiPowerState::Navigation},
+              scene) == ui2::UiBuildStatus::Built);
+  // The title is the only command. No selection bubble and no P/S/C/M glyph
+  // is invented for a page whose navigation map has not been approved.
+  CHECK(scene.Size() == 1);
+  CHECK(ui2::UiChromeRenderer::NavigationMap(ui2::UiNavTarget::None).visible ==
+        0U);
+  CHECK(ui2::UiChromeRenderer::NavTargetRect(ui2::UiNavTarget::None).Empty());
+
+  const ui2::UiResolvedChrome resolved = ui2::UiBarResolver::Resolve(
+      {.pageTop = {.title = "THEME"}, .navHeld = true});
+  CHECK(resolved.top.power == ui2::UiPowerState::Navigation);
+  CHECK(resolved.top.navTarget == ui2::UiNavTarget::None);
 }
 
 TEST_CASE("UI2 fixed-point easing is nonlinear and lands exactly") {
@@ -722,25 +836,261 @@ TEST_CASE("UI2 cursor retarget continues from its current visual position") {
   CHECK(cursor.Sample(1'160) == ui2::RectI16{60, 80, 15, 9});
 }
 
-TEST_CASE("UI2 content slides as whole layers while bars crossfade") {
+TEST_CASE("UI2 content slides as whole layers with nonlinear timing") {
   ui2::UiTransitionTimeline timeline;
   timeline.StartContent(ui2::UiSlideDirection::Left, 1'000);
-  timeline.StartBarFade(1'000);
   const ui2::UiLayerOffsets quarter = timeline.Content(1'045);
   CHECK(quarter.outgoing.x < -60);
   CHECK(quarter.incoming.x < 180);
   CHECK(quarter.outgoing.y == 0);
-  const ui2::UiCrossfadeOpacity fade = timeline.BarFade(1'030);
-  CHECK(fade.incoming > 16'383);
-  CHECK(fade.outgoing < 49'152);
   CHECK(timeline.Content(1'180).incoming == ui2::PointI16{0, 0});
+}
+
+TEST_CASE("UI2 bar cross-fade uses nonlinear fixed-point fade-through timing") {
+  ui2::UiBarCrossFadeTimeline timeline;
+  timeline.Start(1'000);
+  const ui2::UiBarCrossFadeSample start = timeline.Sample(1'000);
+  CHECK(start.outgoingAlpha == 255);
+  CHECK(start.incomingAlpha == 0);
+  CHECK_FALSE(start.incomingPhase);
+
+  const ui2::UiBarCrossFadeSample early = timeline.Sample(1'035);
+  CHECK(early.outgoingAlpha < 128); // ease-out is ahead of linear
+  CHECK(early.incomingAlpha == 0);
+  const ui2::UiBarCrossFadeSample middle = timeline.Sample(1'070);
+  CHECK(middle.outgoingAlpha == 0);
+  CHECK(middle.incomingAlpha == 0);
+  CHECK(middle.incomingPhase);
+  const ui2::UiBarCrossFadeSample end = timeline.Sample(1'140);
+  CHECK(end.incomingAlpha == 255);
+  CHECK(end.complete);
+}
+
+TEST_CASE("UI2 indexed surface scrolls a clipped region in place") {
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  surface.Clear(1);
+  surface.SetPixel(10, 10, 2);
+  surface.SetPixel(11, 10, 3);
+
+  surface.ScrollRect({10, 10, 4, 2}, 1, 0, 9);
+  CHECK(surface.Pixel(10, 10) == 9);
+  CHECK(surface.Pixel(11, 10) == 2);
+  CHECK(surface.Pixel(12, 10) == 3);
+  CHECK(surface.Pixel(9, 10) == 1);
+
+  surface.ScrollRect({10, 10, 4, 2}, 0, 1, 8);
+  CHECK(surface.Pixel(10, 10) == 8);
+  CHECK(surface.Pixel(11, 11) == 2);
+  CHECK(surface.Pixel(9, 11) == 1);
+}
+
+TEST_CASE("UI2 page transition slides content without top-bar fade-through") {
+  ui2::UiPalette palette;
+  ui2::UiFrameScene outgoing;
+  REQUIRE(outgoing.content.FillRect(
+      {0, outgoing.topHeight, ui2::kScreenWidth,
+       static_cast<std::int16_t>(outgoing.bottomTop - outgoing.topHeight)},
+      palette.Index(ui2::UiColorToken::TextNormal)));
+  REQUIRE(outgoing.top.Text({9, 10}, "SAME",
+                            palette.Index(ui2::UiColorToken::TextNormal)));
+  REQUIRE(outgoing.top.Text({80, 10}, "OLD",
+                            palette.Index(ui2::UiColorToken::TextColored)));
+  REQUIRE(outgoing.bottom.Text(
+      {9, 220}, "UNCHANGED", palette.Index(ui2::UiColorToken::TextDim)));
+
+  ui2::UiFrameScene incoming;
+  REQUIRE(incoming.content.FillRect(
+      {0, incoming.topHeight, ui2::kScreenWidth,
+       static_cast<std::int16_t>(incoming.bottomTop - incoming.topHeight)},
+      palette.Index(ui2::UiColorToken::TextColored)));
+  REQUIRE(incoming.top.Text({9, 10}, "SAME",
+                            palette.Index(ui2::UiColorToken::TextNormal)));
+  REQUIRE(incoming.top.Text({80, 10}, "NEW",
+                            palette.Index(ui2::UiColorToken::TextColored)));
+  REQUIRE(incoming.bottom.Text(
+      {9, 220}, "UNCHANGED", palette.Index(ui2::UiColorToken::TextDim)));
+
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(outgoing, surface, palette);
+  surface.ClearDirty();
+  ui2::UiPageBarTransition bars;
+  bars.Begin(outgoing, palette, 1'000);
+  ui2::UiTransitionTimeline timeline;
+  timeline.StartContent(ui2::UiSlideDirection::Left, 1'000);
+  const ui2::UiLayerOffsets previous = timeline.Content(1'000);
+  const ui2::UiLayerOffsets midpoint = timeline.Content(1'090);
+  ui2::UiFrameRenderer::AdvancePageTransition(
+      incoming, midpoint, previous, 1'070, bars, surface, palette);
+
+  std::size_t oldContent = 0;
+  std::size_t newContent = 0;
+  for (std::int16_t x = 0; x < ui2::kScreenWidth; ++x) {
+    oldContent +=
+        surface.Pixel(x, 100) == palette.Index(ui2::UiColorToken::TextNormal);
+    newContent +=
+        surface.Pixel(x, 100) == palette.Index(ui2::UiColorToken::TextColored);
+  }
+  CHECK(oldContent > 0);
+  CHECK(newContent > 0);
+  CHECK_FALSE(bars.TopActive(1'070));
+  CHECK_FALSE(bars.BottomActive(1'070));
+
+  // The new top-bar ink is installed immediately. Page motion must never
+  // insert a frame containing only the bar background.
+  std::size_t unchangedInk = 0;
+  std::size_t changedNonBackground = 0;
+  const ui2::Rgb888 topBackground =
+      palette.Get(palette.Index(ui2::UiColorToken::SurfaceTopBar));
+  for (std::int16_t y = 10; y < 17; ++y) {
+    for (std::int16_t x = 9; x < 32; ++x)
+      unchangedInk += surface.Pixel(x, y) ==
+                      palette.Index(ui2::UiColorToken::TextNormal);
+    for (std::int16_t x = 80; x < 97; ++x)
+      changedNonBackground +=
+          palette.Get(surface.Pixel(x, y)) != topBackground;
+  }
+  CHECK(unchangedInk > 0);
+  CHECK(changedNonBackground > 0);
+
+  ui2::UiFrameRenderer::AdvancePageTransition(
+      incoming, midpoint, midpoint, 1'105, bars, surface, palette);
+  std::size_t nonStaticInk = 0;
+  for (std::int16_t y = 10; y < 17; ++y) {
+    for (std::int16_t x = 80; x < 97; ++x) {
+      const ui2::Rgb888 color = palette.Get(surface.Pixel(x, y));
+      nonStaticInk +=
+          color != topBackground &&
+          color != palette.Get(palette.Index(ui2::UiColorToken::TextColored));
+    }
+  }
+  CHECK(nonStaticInk == 0);
+
+  ui2::UiFrameRenderer::AdvancePageTransition(
+      incoming, midpoint, midpoint, 1'140, bars, surface, palette);
+  CHECK_FALSE(bars.TopActive(1'140));
+  std::size_t finalInk = 0;
+  for (std::int16_t y = 10; y < 17; ++y)
+    for (std::int16_t x = 80; x < 97; ++x)
+      finalInk += surface.Pixel(x, y) ==
+                  palette.Index(ui2::UiColorToken::TextColored);
+  CHECK(finalInk > 0);
+}
+
+TEST_CASE("UI2 interrupted page motion replaces top-bar ink immediately") {
+  ui2::UiPalette palette;
+  ui2::UiFrameScene first;
+  ui2::UiFrameScene second;
+  ui2::UiFrameScene third;
+  REQUIRE(first.top.Text({80, 10}, "ONE",
+                         palette.Index(ui2::UiColorToken::TextColored)));
+  REQUIRE(second.top.Text({80, 10}, "TWO",
+                          palette.Index(ui2::UiColorToken::TextColored)));
+  REQUIRE(third.top.Text({80, 10}, "THREE",
+                         palette.Index(ui2::UiColorToken::TextColored)));
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(first, surface, palette);
+
+  ui2::UiPageBarTransition bars;
+  bars.Begin(first, palette, 1'000);
+  ui2::UiFrameRenderer::AdvancePageTransition(
+      second, {}, {}, 1'035, bars, surface, palette);
+  CHECK_FALSE(bars.TopActive(1'035));
+
+  bars.Begin(second, palette, 1'035);
+  ui2::UiFrameRenderer::AdvancePageTransition(
+      third, {}, {}, 1'035, bars, surface, palette);
+  CHECK_FALSE(bars.TopActive(1'035));
+}
+
+TEST_CASE("UI2 page transition keeps a disappearing bottom bar anchored") {
+  ui2::UiPalette palette;
+  ui2::UiFrameScene outgoing;
+  REQUIRE(outgoing.bottom.FillRect(
+      {10, 220, 8, 7}, palette.Index(ui2::UiColorToken::TextColored)));
+
+  ui2::UiFrameScene incoming;
+  incoming.bottomVisible = false;
+  REQUIRE(incoming.content.FillRect(
+      {0, incoming.topHeight, ui2::kScreenWidth,
+       static_cast<std::int16_t>(ui2::kScreenHeight - incoming.topHeight)},
+      palette.Index(ui2::UiColorToken::TextNormal)));
+
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(outgoing, surface, palette);
+  ui2::UiPageBarTransition bars;
+  bars.Begin(outgoing, palette, 1'000);
+  ui2::UiFrameRenderer::AdvancePageTransition(
+      incoming, {{-60, 0}, {180, 0}}, {}, 1'035, bars, surface, palette);
+
+  // The old implementation used the incoming full-height content clip and
+  // scrolled this source pixel 60 px left before its fade could begin.
+  CHECK(palette.Get(surface.Pixel(10, 220)) !=
+        palette.Get(palette.Index(ui2::UiColorToken::SurfaceBackground)));
+  CHECK(bars.BottomActive(1'035));
+
+  // prepare() now describes the hidden incoming bar. A second animation frame
+  // must still retain the original page's protected bottom strip.
+  ui2::UiFrameRenderer::AdvancePageTransition(
+      incoming, {{-120, 0}, {120, 0}}, {{-60, 0}, {180, 0}}, 1'050, bars,
+      surface, palette);
+  CHECK(palette.Get(surface.Pixel(10, 220)) !=
+        palette.Get(palette.Index(ui2::UiColorToken::SurfaceBackground)));
+}
+
+TEST_CASE("UI2 top bar replaces NAV state without dynamic fade colors") {
+  ui2::UiPalette palette;
+  ui2::UiFrameScene outgoing;
+  ui2::UiFrameScene navHeld;
+  ui2::UiFrameScene navReleased;
+  REQUIRE(outgoing.top.FillRect(
+      {20, 10, 12, 7}, palette.Index(ui2::UiColorToken::TextDim)));
+  REQUIRE(navHeld.top.FillRect(
+      {20, 10, 12, 7}, palette.Index(ui2::UiColorToken::TextColored)));
+  REQUIRE(navHeld.top.FillRect(
+      {180, 8, 30, 18}, palette.Index(ui2::UiColorToken::TextNormal)));
+  REQUIRE(navReleased.top.FillRect(
+      {20, 10, 12, 7}, palette.Index(ui2::UiColorToken::TextColored)));
+
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(outgoing, surface, palette);
+  ui2::UiPageBarTransition bars;
+  bars.Begin(outgoing, palette, 1'000);
+  ui2::UiFrameRenderer::AdvancePageTransition(
+      navHeld, {}, {}, 1'035, bars, surface, palette);
+  const ui2::Rgb888 displayed = palette.Get(surface.Pixel(20, 10));
+  const ui2::PaletteIndex displayedIndex = surface.Pixel(20, 10);
+  REQUIRE(displayedIndex < ui2::UiPalette::kFirstDynamicIndex);
+
+  // Song/Chain/Mixer rebuild their VU gradient before the runtime asks the
+  // renderer to retarget. The renderer must retain the palette that produced
+  // the preceding visual instead of mistaking this new VU color for bar ink.
+  REQUIRE(ui2::UiVuGradient::Configure(palette, 153));
+  REQUIRE(palette.Get(displayedIndex) == displayed);
+
+  // No new Begin() call: this is the normal source.NavigationHeld() change
+  // while the same page transition remains active.
+  ui2::UiFrameRenderer::AdvancePageTransition(
+      navReleased, {}, {}, 1'040, bars, surface, palette);
+  CHECK_FALSE(bars.TopActive(1'040));
+  CHECK(palette.Get(surface.Pixel(180, 8)) ==
+        palette.Get(palette.Index(ui2::UiColorToken::SurfaceTopBar)));
+
+  surface.ClearDirty();
+  ui2::UiFrameRenderer::AdvancePageTransition(
+      navReleased, {}, {}, 1'190, bars, surface, palette);
+  CHECK_FALSE(surface.DirtyTiles().Any());
 }
 
 TEST_CASE("UI2 approved Song fixture fits fixed scene buffers") {
   ui2::UiPalette palette;
   ui2::UiFrameScene scene;
   REQUIRE(ui2::UiSongView::Build(ui2::test::ApprovedSongFixture(), palette,
-                                scene) == ui2::UiBuildStatus::Built);
+                                 scene) == ui2::UiBuildStatus::Built);
   CHECK_FALSE(scene.top.Overflowed());
   CHECK_FALSE(scene.content.Overflowed());
   CHECK_FALSE(scene.bottom.Overflowed());
@@ -749,12 +1099,10 @@ TEST_CASE("UI2 approved Song fixture fits fixed scene buffers") {
   ui2::UiSurfaceStorage storage;
   ui2::UiIndexedSurface surface(storage);
   ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
-  CHECK(surface.Pixel(0, 0) ==
-        palette.Index(ui2::UiColorToken::SurfaceTopBar));
+  CHECK(surface.Pixel(0, 0) == palette.Index(ui2::UiColorToken::SurfaceTopBar));
   CHECK(surface.Pixel(5, 34) ==
         palette.Index(ui2::UiColorToken::SurfaceBackground));
-  CHECK(surface.Pixel(5, 128) ==
-        palette.Index(ui2::UiColorToken::CursorRow));
+  CHECK(surface.Pixel(5, 128) == palette.Index(ui2::UiColorToken::CursorRow));
   CHECK(surface.Pixel(219, 47) ==
         palette.Index(ui2::UiColorToken::DerivedVuTrack));
   const ui2::RectI16 cursor = ui2::UiSongView::CursorTargetRect(0, 8);
@@ -825,8 +1173,7 @@ TEST_CASE("UI2 RGB565 presenter chunks dirty strips without a framebuffer") {
   surface.SetPixel(4, 5, cursor);
 
   const std::array<ui2::DirtyStrip, 1> strips{{{4, 5, 3, 10}}};
-  std::array<std::uint16_t, ui2::UiRgb565Presenter::kTransferPixels>
-      transfer{};
+  std::array<std::uint16_t, ui2::UiRgb565Presenter::kTransferPixels> transfer{};
   Rgb565WriteProbe probe;
   ui2::UiRgb565Presenter presenter(
       transfer.data(), transfer.size(), &Rgb565WriteProbe::Write, &probe,
@@ -856,9 +1203,9 @@ TEST_CASE("UI2 RGB565 presenter chunks dirty strips without a framebuffer") {
 
   std::array<std::uint16_t, 1> undersized{};
   Rgb565WriteProbe rejectedProbe;
-  ui2::UiRgb565Presenter rejected(
-      undersized.data(), undersized.size(), &Rgb565WriteProbe::Write,
-      &rejectedProbe, ui2::UiRgb565ByteOrder::Native);
+  ui2::UiRgb565Presenter rejected(undersized.data(), undersized.size(),
+                                  &Rgb565WriteProbe::Write, &rejectedProbe,
+                                  ui2::UiRgb565ByteOrder::Native);
   CHECK(rejected.Present(surface, palette, strips) ==
         ui2::PresentResult::Failed);
   CHECK(rejectedProbe.calls == 0);
@@ -879,6 +1226,57 @@ TEST_CASE("UI2 application runtime consumes the pure state-source boundary") {
   CHECK(presenter.calls == 1);
 }
 
+TEST_CASE("UI2 runtime applies all persisted semantic theme colors globally") {
+  RecordingPresenter presenter;
+  ui2::UiApplicationRuntime runtime(presenter);
+  TestApplicationStateSource source;
+  std::array<std::uint32_t, ui2::UiPalette::kUserColorCount> colors{};
+  for (std::size_t index = 0; index < colors.size(); ++index)
+    colors[index] = static_cast<std::uint32_t>(0x102030U + index * 0x010203U);
+
+  runtime.ApplyThemeColors(colors);
+  REQUIRE(runtime.Present(source) == ui2::PresentResult::Presented);
+  const std::uint32_t top = colors[static_cast<std::size_t>(
+      ui2::UiColorToken::SurfaceTopBar)];
+  CHECK(presenter.firstColor ==
+        ui2::Rgb888{static_cast<std::uint8_t>(top >> 16U),
+                    static_cast<std::uint8_t>(top >> 8U),
+                    static_cast<std::uint8_t>(top)});
+}
+
+TEST_CASE("UI2 held NAV persists through movement and clears on release") {
+  RecordingPresenter presenter;
+  ui2::UiApplicationRuntime runtime(presenter);
+  TestApplicationStateSource source;
+  source.navigationHeld = true;
+
+  REQUIRE(runtime.Present(source) == ui2::PresentResult::Presented);
+  source.page = ui2::UiApplicationPage::Chain;
+  source.nowMs = 10;
+  // Content has not moved at the first sample, but the independent solid bars
+  // switch immediately and therefore require one transfer.
+  CHECK(runtime.Present(source) == ui2::PresentResult::Presented);
+  const int pageSwitchCalls = presenter.calls;
+
+  // An unchanged state still presents intermediate fixed-point animation
+  // frames while NAV remains physically held.
+  source.nowMs = 90;
+  REQUIRE(runtime.Present(source) == ui2::PresentResult::Presented);
+  CHECK(presenter.calls == pageSwitchCalls + 1);
+  source.nowMs = 190;
+  REQUIRE(runtime.Present(source) == ui2::PresentResult::Presented);
+
+  // The true key-up changes chrome state once; a repeated idle frame cannot
+  // resurrect the NAV map or leave the transition stuck.
+  source.navigationHeld = false;
+  source.nowMs = 191;
+  REQUIRE(runtime.Present(source) == ui2::PresentResult::Presented);
+  const int releaseCalls = presenter.calls;
+  source.nowMs = 192;
+  CHECK(runtime.Present(source) == ui2::PresentResult::Deferred);
+  CHECK(presenter.calls == releaseCalls);
+}
+
 TEST_CASE("UI2 VU mapping is bounded monotonic and integer only") {
   CHECK(ui2::UiApplicationRuntime::VuTopFromAmplitude(0) == 153);
   CHECK(ui2::UiApplicationRuntime::VuTopFromAmplitude(32) == 153);
@@ -895,7 +1293,10 @@ TEST_CASE("UI2 VU mapping is bounded monotonic and integer only") {
 
 TEST_CASE("UI2 firmware runtime keeps a fixed bounded memory footprint") {
   // 64-bit Host is the larger layout; the ESP32-S3 build uses 32-bit pointers.
-  CHECK(sizeof(ui2::UiApplicationRuntime) < 74'000);
+  // The interruptible two-bar fade adds a 2.3 KiB fixed command-fingerprint
+  // cache; it still avoids a second 57.7 KiB framebuffer and frame-time heap.
+  CHECK(sizeof(ui2::UiPageBarTransition) < 2'300);
+  CHECK(sizeof(ui2::UiApplicationRuntime) < 77'000);
   CHECK(sizeof(ui2::UiRgb565Presenter) <= 64);
   CHECK(ui2::UiRgb565Presenter::kTransferPixels * sizeof(std::uint16_t) ==
         3'840);
@@ -976,7 +1377,7 @@ TEST_CASE("UI2 Song damage geometry keeps stereo VU channels separate") {
   CHECK(ui2::UiSongView::VuDamageRect(0).Right() <
         ui2::UiSongView::VuDamageRect(1).x);
   CHECK(ui2::Intersect(ui2::UiSongView::RowDamageRect(15),
-                      ui2::RectI16::Screen()) ==
+                       ui2::RectI16::Screen()) ==
         ui2::UiSongView::RowDamageRect(15));
 }
 
@@ -998,6 +1399,74 @@ TEST_CASE("UI2 Song LIVE title is part of the shared delta-rendered scene") {
                              ui2::UiSongView::RenderDelta);
 }
 
+TEST_CASE("UI2 Song two-option mode selector has no carousel arrows") {
+  ui2::UiSongViewData data = ui2::test::ApprovedSongFixture();
+  data.modeFocus = true;
+  data.liveMode = false;
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiSongView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+
+  const ui2::UiCommand *song = FindTextCommand(scene.bottom.Stream(), "SONG");
+  const ui2::UiCommand *live = FindTextCommand(scene.bottom.Stream(), "LIVE");
+  REQUIRE(song != nullptr);
+  REQUIRE(live != nullptr);
+  CHECK(song->color ==
+        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextColored));
+  CHECK(live->color ==
+        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextDim));
+  CHECK(FindTextCommand(scene.bottom.Stream(), "<") == nullptr);
+  CHECK(FindTextCommand(scene.bottom.Stream(), ">") == nullptr);
+}
+
+TEST_CASE("UI2 Song bottom bar does not select a track by default") {
+  ui2::UiSongViewData data = ui2::test::ApprovedSongFixture();
+  data.editTrack = 4U;
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiSongView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+
+  CHECK(std::none_of(scene.bottom.Stream().commands.begin(),
+                     scene.bottom.Stream().commands.end(),
+                     [](const ui2::UiCommand &command) {
+                       return command.kind ==
+                              ui2::UiCommandKind::FillCoverageRoundedRect;
+                     }));
+}
+
+TEST_CASE("UI2 Song renders chain zero as normal data rather than empty") {
+  ui2::UiSongViewData data = ui2::test::ApprovedSongFixture();
+  for (auto &row : data.rows)
+    row.fill(0xFFU);
+  data.rows[0][0] = 0x00U;
+  data.editRow = 1U;
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiSongView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+
+  const auto &stream = scene.content.Stream();
+  const ui2::UiCommand *chainZero = nullptr;
+  for (const ui2::UiCommand &command : stream.commands) {
+    if (command.kind != ui2::UiCommandKind::Text ||
+        command.bounds.x != ui2::UiTrackerGridMetrics::kSongTrackX[0] ||
+        command.auxiliaryColor != 2U) {
+      continue;
+    }
+    const std::size_t begin = command.payload;
+    if (begin + 2U <= stream.text.size() && stream.text[begin] == '0' &&
+        stream.text[begin + 1U] == '0') {
+      chainZero = &command;
+      break;
+    }
+  }
+  REQUIRE(chainZero != nullptr);
+  CHECK(chainZero->color ==
+        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextNormal));
+}
+
 TEST_CASE("UI2 Song delta rendering is pixel-identical to a full redraw") {
   ui2::UiPalette deltaPalette;
   ui2::UiSongViewData previous = ui2::test::ApprovedSongFixture();
@@ -1006,8 +1475,7 @@ TEST_CASE("UI2 Song delta rendering is pixel-identical to a full redraw") {
           ui2::UiBuildStatus::Built);
   ui2::UiSurfaceStorage deltaStorage;
   ui2::UiIndexedSurface deltaSurface(deltaStorage);
-  ui2::UiFrameRenderer::RenderStatic(previousScene, deltaSurface,
-                                     deltaPalette);
+  ui2::UiFrameRenderer::RenderStatic(previousScene, deltaSurface, deltaPalette);
   deltaSurface.ClearDirty();
 
   ui2::UiSongViewData current = previous;
@@ -1046,8 +1514,7 @@ TEST_CASE("UI2 Song animated cursor delta matches the same full visual frame") {
           ui2::UiBuildStatus::Built);
   ui2::UiSurfaceStorage deltaStorage;
   ui2::UiIndexedSurface deltaSurface(deltaStorage);
-  ui2::UiFrameRenderer::RenderStatic(previousScene, deltaSurface,
-                                     deltaPalette);
+  ui2::UiFrameRenderer::RenderStatic(previousScene, deltaSurface, deltaPalette);
   deltaSurface.ClearDirty();
 
   ui2::UiSongViewData current = previous;
@@ -1105,8 +1572,7 @@ TEST_CASE("UI2 Song idle is clean and a cursor move stays locally dirty") {
   REQUIRE(surface.DirtyTiles().Collect(strips));
   std::uint32_t transferredPixels = 0;
   for (const ui2::DirtyStrip strip : strips.Strips()) {
-    transferredPixels +=
-        static_cast<std::uint32_t>(strip.width) * strip.height;
+    transferredPixels += static_cast<std::uint32_t>(strip.width) * strip.height;
   }
   CHECK(transferredPixels < 5'000);
   CHECK(transferredPixels < 240U * 240U / 10U);
@@ -1114,15 +1580,13 @@ TEST_CASE("UI2 Song idle is clean and a cursor move stays locally dirty") {
 
 TEST_CASE("UI2 Phrase delta rendering is pixel-identical to a full redraw") {
   ui2::UiPalette deltaPalette;
-  ui2::UiPhraseViewData previous =
-      ui2::test::ApprovedPhraseFixture("note");
+  ui2::UiPhraseViewData previous = ui2::test::ApprovedPhraseFixture("note");
   ui2::UiFrameScene previousScene;
   REQUIRE(ui2::UiPhraseView::Build(previous, deltaPalette, previousScene) ==
           ui2::UiBuildStatus::Built);
   ui2::UiSurfaceStorage deltaStorage;
   ui2::UiIndexedSurface deltaSurface(deltaStorage);
-  ui2::UiFrameRenderer::RenderStatic(previousScene, deltaSurface,
-                                     deltaPalette);
+  ui2::UiFrameRenderer::RenderStatic(previousScene, deltaSurface, deltaPalette);
   deltaSurface.ClearDirty();
 
   ui2::UiPhraseViewData current = previous;
@@ -1130,16 +1594,15 @@ TEST_CASE("UI2 Phrase delta rendering is pixel-identical to a full redraw") {
   current.editColumn = 2;
   current.activeHeader = ui2::UiPhraseHeader::Fx1;
   current.rows[7][3] = "BEEF";
-  current.cursorBottom =
-      ui2::test::ApprovedPhraseFixture("fx").cursorBottom;
+  current.cursorBottom = ui2::test::ApprovedPhraseFixture("fx").cursorBottom;
   current.cursorVisualOverride = true;
   current.cursorVisualRect = {75, 76, 20, 9};
   current.cursorInkVisible = false;
   ui2::UiFrameScene currentScene;
   REQUIRE(ui2::UiPhraseView::Build(current, deltaPalette, currentScene) ==
           ui2::UiBuildStatus::Built);
-  ui2::UiPhraseView::RenderDelta(previous, current, currentScene,
-                                 deltaSurface, deltaPalette);
+  ui2::UiPhraseView::RenderDelta(previous, current, currentScene, deltaSurface,
+                                 deltaPalette);
 
   ui2::UiPalette fullPalette;
   ui2::UiFrameScene fullScene;
@@ -1154,10 +1617,46 @@ TEST_CASE("UI2 Phrase delta rendering is pixel-identical to a full redraw") {
   CHECK(deltaSurface.DirtyTiles().Any());
 }
 
+TEST_CASE("UI2 Phrase bottom bar keeps Note adjustment and FX help distinct") {
+  ui2::UiPalette palette;
+
+  ui2::UiPhraseViewData note = ui2::test::ApprovedPhraseFixture("note");
+  note.adjustmentFocus = true;
+  note.activeHeader = ui2::UiPhraseHeader::Note;
+  ui2::UiFrameScene noteScene;
+  REQUIRE(ui2::UiPhraseView::Build(note, palette, noteScene) ==
+          ui2::UiBuildStatus::Built);
+  const auto noteText = noteScene.bottom.Stream().text;
+  constexpr std::array<char, 4> noteLabel{'N', 'O', 'T', 'E'};
+  constexpr std::array<char, 3> octaveLabel{'O', 'C', 'T'};
+  CHECK(std::search(noteText.begin(), noteText.end(), noteLabel.begin(),
+                    noteLabel.end()) != noteText.end());
+  CHECK(std::search(noteText.begin(), noteText.end(), octaveLabel.begin(),
+                    octaveLabel.end()) != noteText.end());
+
+  ui2::UiPhraseViewData fx = ui2::test::ApprovedPhraseFixture("fx");
+  fx.adjustmentFocus = true;
+  fx.activeHeader = ui2::UiPhraseHeader::Fx1;
+  ui2::UiFrameScene fxScene;
+  REQUIRE(ui2::UiPhraseView::Build(fx, palette, fxScene) ==
+          ui2::UiBuildStatus::Built);
+  const auto fxText = fxScene.bottom.Stream().text;
+  constexpr std::array<char, 4> killLabel{'K', 'I', 'L', 'L'};
+  CHECK(std::search(fxText.begin(), fxText.end(), killLabel.begin(),
+                    killLabel.end()) != fxText.end());
+  CHECK(std::search(fxText.begin(), fxText.end(), noteLabel.begin(),
+                    noteLabel.end()) == fxText.end());
+
+  ui2::UiPhraseViewData empty = ui2::test::ApprovedPhraseFixture("empty");
+  ui2::UiFrameScene emptyScene;
+  REQUIRE(ui2::UiPhraseView::Build(empty, palette, emptyScene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK_FALSE(emptyScene.bottomVisible);
+}
+
 TEST_CASE("UI2 Phrase dual cursor animation renders exact visual overrides") {
   ui2::UiPalette palette;
-  ui2::UiPhraseViewData data =
-      ui2::test::ApprovedPhraseFixture("number");
+  ui2::UiPhraseViewData data = ui2::test::ApprovedPhraseFixture("number");
   data.topMetaVisualOverride = true;
   data.topMetaVisualRect = {75, 9, 15, 9};
   data.topMetaInkVisible = false;
@@ -1179,13 +1678,12 @@ TEST_CASE("UI2 Phrase dual cursor animation renders exact visual overrides") {
             {.title = "PHRASE", .meta = "3A", .metaX = 85}) ==
         ui2::RectI16{83, 9, 15, 9});
   CHECK(ui2::UiChromeRenderer::BottomTrackTargetRect(2) ==
-        ui2::RectI16{68, 212, 15, 9});
+        ui2::RectI16{68, 212, 15, 8});
 }
 
 TEST_CASE("UI2 Phrase idle is clean and a cursor move stays locally dirty") {
   ui2::UiPalette palette;
-  ui2::UiPhraseViewData previous =
-      ui2::test::ApprovedPhraseFixture("note");
+  ui2::UiPhraseViewData previous = ui2::test::ApprovedPhraseFixture("note");
   ui2::UiFrameScene previousScene;
   REQUIRE(ui2::UiPhraseView::Build(previous, palette, previousScene) ==
           ui2::UiBuildStatus::Built);
@@ -1209,8 +1707,7 @@ TEST_CASE("UI2 Phrase idle is clean and a cursor move stays locally dirty") {
   REQUIRE(surface.DirtyTiles().Collect(strips));
   std::uint32_t transferredPixels = 0;
   for (const ui2::DirtyStrip strip : strips.Strips()) {
-    transferredPixels +=
-        static_cast<std::uint32_t>(strip.width) * strip.height;
+    transferredPixels += static_cast<std::uint32_t>(strip.width) * strip.height;
   }
   CHECK(transferredPixels < 8'000);
   CHECK(transferredPixels < 240U * 240U / 7U);
@@ -1218,8 +1715,7 @@ TEST_CASE("UI2 Phrase idle is clean and a cursor move stays locally dirty") {
 
 TEST_CASE("UI2 Phrase animated bottom cursor delta matches a full frame") {
   ui2::UiPalette palette;
-  ui2::UiPhraseViewData previous =
-      ui2::test::ApprovedPhraseFixture("number");
+  ui2::UiPhraseViewData previous = ui2::test::ApprovedPhraseFixture("number");
   ui2::UiFrameScene previousScene;
   REQUIRE(ui2::UiPhraseView::Build(previous, palette, previousScene) ==
           ui2::UiBuildStatus::Built);
@@ -1248,8 +1744,7 @@ TEST_CASE("UI2 Phrase animated bottom cursor delta matches a full frame") {
 
 TEST_CASE("UI2 Table delta rendering is pixel-identical to a full redraw") {
   ui2::UiPalette palette;
-  ui2::UiTableViewData previous =
-      ui2::test::ApprovedTableFixture("phrase");
+  ui2::UiTableViewData previous = ui2::test::ApprovedTableFixture("phrase");
   ui2::UiFrameScene previousScene;
   REQUIRE(ui2::UiTableView::Build(previous, palette, previousScene) ==
           ui2::UiBuildStatus::Built);
@@ -1283,10 +1778,32 @@ TEST_CASE("UI2 Table delta rendering is pixel-identical to a full redraw") {
   CHECK(surface.DirtyTiles().Any());
 }
 
+TEST_CASE("UI2 Table ENTER-held cells retain command help without legend") {
+  ui2::UiPalette palette;
+  ui2::UiTableViewData data = ui2::test::ApprovedTableFixture("phrase");
+  data.adjustmentFocus = true;
+  data.enterDigitFocus = false;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiTableView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  const auto text = scene.bottom.Stream().text;
+  constexpr std::array<char, 4> killLabel{'K', 'I', 'L', 'L'};
+  constexpr std::array<char, 3> octaveLabel{'O', 'C', 'T'};
+  CHECK(std::search(text.begin(), text.end(), killLabel.begin(),
+                    killLabel.end()) != text.end());
+  CHECK(std::search(text.begin(), text.end(), octaveLabel.begin(),
+                    octaveLabel.end()) == text.end());
+
+  data.cursorBottom.kind = ui2::UiBottomBarKind::Hidden;
+  ui2::UiFrameScene emptyScene;
+  REQUIRE(ui2::UiTableView::Build(data, palette, emptyScene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK_FALSE(emptyScene.bottomVisible);
+}
+
 TEST_CASE("UI2 Table idle is clean and row motion stays locally dirty") {
   ui2::UiPalette palette;
-  ui2::UiTableViewData previous =
-      ui2::test::ApprovedTableFixture("phrase");
+  ui2::UiTableViewData previous = ui2::test::ApprovedTableFixture("phrase");
   ui2::UiFrameScene previousScene;
   REQUIRE(ui2::UiTableView::Build(previous, palette, previousScene) ==
           ui2::UiBuildStatus::Built);
@@ -1309,14 +1826,14 @@ TEST_CASE("UI2 Table idle is clean and row motion stays locally dirty") {
   REQUIRE(surface.DirtyTiles().Collect(strips));
   std::uint32_t transferredPixels = 0;
   for (const ui2::DirtyStrip strip : strips.Strips()) {
-    transferredPixels +=
-        static_cast<std::uint32_t>(strip.width) * strip.height;
+    transferredPixels += static_cast<std::uint32_t>(strip.width) * strip.height;
   }
   CHECK(transferredPixels < 8'000);
   CHECK(transferredPixels < 240U * 240U / 7U);
 }
 
-TEST_CASE("UI2 Instrument delta rendering is pixel-identical to a full redraw") {
+TEST_CASE(
+    "UI2 Instrument delta rendering is pixel-identical to a full redraw") {
   ui2::UiPalette palette;
   ui2::UiInstrumentViewData previous =
       ui2::test::ApprovedInstrumentFixture("sample");
@@ -1348,7 +1865,8 @@ TEST_CASE("UI2 Instrument delta rendering is pixel-identical to a full redraw") 
                    expected.Pixels().begin(), expected.Pixels().end()));
   CHECK(surface.DirtyTiles().Any());
 }
-TEST_CASE("UI2 Instrument idle is clean and cursor motion stays locally dirty") {
+TEST_CASE(
+    "UI2 Instrument idle is clean and cursor motion stays locally dirty") {
   ui2::UiPalette palette;
   ui2::UiInstrumentViewData previous =
       ui2::test::ApprovedInstrumentFixture("sample");
@@ -1360,8 +1878,8 @@ TEST_CASE("UI2 Instrument idle is clean and cursor motion stays locally dirty") 
   ui2::UiFrameRenderer::RenderStatic(previousScene, surface, palette);
   surface.ClearDirty();
 
-  ui2::UiInstrumentView::RenderDelta(previous, previous, previousScene,
-                                     surface, palette);
+  ui2::UiInstrumentView::RenderDelta(previous, previous, previousScene, surface,
+                                     palette);
   CHECK_FALSE(surface.DirtyTiles().Any());
 
   ui2::UiInstrumentViewData current = previous;
@@ -1377,8 +1895,7 @@ TEST_CASE("UI2 Instrument idle is clean and cursor motion stays locally dirty") 
   REQUIRE(surface.DirtyTiles().Collect(strips));
   std::uint32_t transferredPixels = 0;
   for (const ui2::DirtyStrip strip : strips.Strips()) {
-    transferredPixels +=
-        static_cast<std::uint32_t>(strip.width) * strip.height;
+    transferredPixels += static_cast<std::uint32_t>(strip.width) * strip.height;
   }
   CHECK(transferredPixels < 8'000);
   CHECK(transferredPixels < 240U * 240U / 7U);
@@ -1407,7 +1924,8 @@ TEST_CASE("UI2 Instrument enter mode resolves both independent cursors") {
         palette.Index(ui2::UiColorToken::CursorPrimary));
 }
 
-TEST_CASE("UI2 Instrument exposes fixed cursor targets for fields and OPAL operators") {
+TEST_CASE("UI2 Instrument exposes fixed cursor targets for fields and OPAL "
+          "operators") {
   ui2::UiInstrumentViewData sample =
       ui2::test::ApprovedInstrumentFixture("sample");
   sample.cursor = ui2::UiInstrumentCursor::Field;
@@ -1415,8 +1933,7 @@ TEST_CASE("UI2 Instrument exposes fixed cursor targets for fields and OPAL opera
   CHECK(ui2::UiInstrumentView::CursorTargetRect(sample) ==
         ui2::RectI16{7, 95, 226, 9});
 
-  ui2::UiInstrumentViewData opal =
-      ui2::test::ApprovedInstrumentFixture("opal");
+  ui2::UiInstrumentViewData opal = ui2::test::ApprovedInstrumentFixture("opal");
   opal.selectedOperator = 2;
   opal.cursor = ui2::UiInstrumentCursor::Operator1;
   CHECK(ui2::UiInstrumentView::CursorTargetRect(opal) ==
@@ -1424,9 +1941,107 @@ TEST_CASE("UI2 Instrument exposes fixed cursor targets for fields and OPAL opera
   opal.cursor = ui2::UiInstrumentCursor::Operator2;
   CHECK(ui2::UiInstrumentView::CursorTargetRect(opal) ==
         ui2::RectI16{185, 161, 40, 9});
+
+  opal.enterSubfieldFocus = true;
+  opal.selectedSubfield = 2;
+  CHECK(ui2::UiInstrumentView::CursorTargetRect(opal) ==
+        ui2::RectI16{200, 161, 9, 9});
 }
 
-TEST_CASE("UI2 Instrument field focus delta is pixel-identical to a full redraw") {
+TEST_CASE("UI2 Instrument warning operator headers and approved adjustment "
+          "legend stay semantic") {
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+
+  ui2::UiInstrumentViewData sid =
+      ui2::test::ApprovedInstrumentFixture("sid");
+  REQUIRE(ui2::UiInstrumentView::Build(sid, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  const ui2::UiCommand *experimental =
+      FindTextCommand(scene.top.Stream(), "EXPERIMENTAL");
+  REQUIRE(experimental != nullptr);
+  CHECK(experimental->color ==
+        palette.Index(ui2::UiColorToken::SystemWarning));
+
+  ui2::UiInstrumentViewData op1 =
+      ui2::test::ApprovedInstrumentFixture("opal");
+  op1.cursor = ui2::UiInstrumentCursor::Operator1;
+  op1.selectedOperator = 0U;
+  REQUIRE(ui2::UiInstrumentView::Build(op1, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  REQUIRE(FindTextCommand(scene.content.Stream(), "OP 1") != nullptr);
+  REQUIRE(FindTextCommand(scene.content.Stream(), "OP 2") != nullptr);
+  CHECK(FindTextCommand(scene.content.Stream(), "OP 1")->color ==
+        palette.Index(ui2::UiColorToken::TextColored));
+  CHECK(FindTextCommand(scene.content.Stream(), "OP 2")->color ==
+        palette.Index(ui2::UiColorToken::TextDim));
+
+  ui2::UiInstrumentViewData op2 = op1;
+  op2.cursor = ui2::UiInstrumentCursor::Operator2;
+  REQUIRE(ui2::UiInstrumentView::Build(op2, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK(FindTextCommand(scene.content.Stream(), "OP 1")->color ==
+        palette.Index(ui2::UiColorToken::TextDim));
+  CHECK(FindTextCommand(scene.content.Stream(), "OP 2")->color ==
+        palette.Index(ui2::UiColorToken::TextColored));
+  CheckDeltaMatchesFullFrame(op1, op2, ui2::UiInstrumentView::Build,
+                             ui2::UiInstrumentView::RenderDelta);
+
+  ui2::UiInstrumentViewData numeric =
+      ui2::test::ApprovedInstrumentFixture("sample");
+  numeric.cursor = ui2::UiInstrumentCursor::Field;
+  numeric.selectedField = 2U;
+  numeric.adjustmentFocus = true;
+  numeric.adjustmentFineStep = 1U;
+  numeric.adjustmentCoarseStep = 10U;
+  REQUIRE(ui2::UiInstrumentView::Build(numeric, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK(scene.bottomVisible);
+  CHECK(FindTextCommand(scene.bottom.Stream(), "1") != nullptr);
+  CHECK(FindTextCommand(scene.bottom.Stream(), "10") != nullptr);
+  ui2::UiInstrumentViewData numericHidden = numeric;
+  numericHidden.adjustmentFocus = false;
+  CheckDeltaMatchesFullFrame(numericHidden, numeric,
+                             ui2::UiInstrumentView::Build,
+                             ui2::UiInstrumentView::RenderDelta);
+
+  ui2::UiInstrumentViewData note = numeric;
+  note.selectedField = 4U;
+  note.adjustmentNote = true;
+  note.adjustmentCoarseStep = 12U;
+  REQUIRE(ui2::UiInstrumentView::Build(note, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK(FindTextCommand(scene.bottom.Stream(), "NOTE") != nullptr);
+  CHECK(FindTextCommand(scene.bottom.Stream(), "OCT") != nullptr);
+}
+
+TEST_CASE("UI2 Instrument reveals the fixed-capacity Sample tail") {
+  ui2::UiInstrumentViewData sample =
+      ui2::test::ApprovedInstrumentFixture("sample");
+  sample.fieldCount = 17U;
+  sample.fields[11] = {"INTERPOLATION", "LINEAR", 176};
+  sample.fields[12] = {"START", "0000000", 186};
+  sample.fields[13] = {"LOOP START", "0000000", 196};
+  sample.fields[14] = {"LOOP END", "0000258", 206};
+  sample.fields[15] = {"TABLE", "--", 216};
+  sample.fields[16] = {"AUTOMATION", "FALSE", 226};
+  sample.fields[17] = {"FILTER TYPE", "00", 236};
+  sample.fields[18] = {"FILTER MODE", "ORIGINAL", 246};
+  sample.fields[19] = {"RESERVED", "--", 256};
+  sample.fieldCount = 20U;
+  sample.cursor = ui2::UiInstrumentCursor::Field;
+  sample.selectedField = 19U;
+  sample.scrollOffset = ui2::UiInstrumentView::RevealCursor(0, sample);
+  CHECK(sample.scrollOffset == 24);
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiInstrumentView::Build(sample, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK(scene.contentOffsetY == 24);
+}
+
+TEST_CASE(
+    "UI2 Instrument field focus delta is pixel-identical to a full redraw") {
   ui2::UiPalette palette;
   ui2::UiInstrumentViewData previous =
       ui2::test::ApprovedInstrumentFixture("sample");
@@ -1455,8 +2070,7 @@ TEST_CASE("UI2 Instrument field focus delta is pixel-identical to a full redraw"
 }
 
 TEST_CASE("UI2 Mixer stereo meters use separate damage columns") {
-  CHECK(ui2::UiMixerView::MeterDamageRect(0, 0) ==
-        ui2::RectI16{7, 46, 7, 153});
+  CHECK(ui2::UiMixerView::MeterDamageRect(0, 0) == ui2::RectI16{7, 46, 7, 153});
   CHECK(ui2::UiMixerView::MeterDamageRect(0, 1) ==
         ui2::RectI16{17, 46, 7, 153});
   CHECK(ui2::UiMixerView::MeterDamageRect(8, 0) ==
@@ -1525,8 +2139,7 @@ TEST_CASE("UI2 Mixer idle is clean and one meter change stays local") {
   REQUIRE(surface.DirtyTiles().Collect(strips));
   std::uint32_t transferredPixels = 0;
   for (const ui2::DirtyStrip strip : strips.Strips()) {
-    transferredPixels +=
-        static_cast<std::uint32_t>(strip.width) * strip.height;
+    transferredPixels += static_cast<std::uint32_t>(strip.width) * strip.height;
   }
   CHECK(transferredPixels < 3'000);
 }
@@ -1569,8 +2182,7 @@ TEST_CASE("UI2 Mixer all stereo meters can advance within one frame budget") {
   REQUIRE(surface.DirtyTiles().Collect(strips));
   std::uint32_t transferredPixels = 0;
   for (const ui2::DirtyStrip strip : strips.Strips()) {
-    transferredPixels +=
-        static_cast<std::uint32_t>(strip.width) * strip.height;
+    transferredPixels += static_cast<std::uint32_t>(strip.width) * strip.height;
   }
   CHECK(transferredPixels <= 4'608);
   CHECK(transferredPixels <= 240U * 240U / 12U);
@@ -1630,19 +2242,58 @@ TEST_CASE("UI2 Groove idle is clean and a row move stays locally dirty") {
   REQUIRE(surface.DirtyTiles().Collect(strips));
   std::uint32_t transferredPixels = 0;
   for (const ui2::DirtyStrip strip : strips.Strips()) {
-    transferredPixels +=
-        static_cast<std::uint32_t>(strip.width) * strip.height;
+    transferredPixels += static_cast<std::uint32_t>(strip.width) * strip.height;
   }
   CHECK(transferredPixels < 3'000);
 }
 
 TEST_CASE("UI2 Chain keeps stereo VU channels physically separate") {
-  CHECK(ui2::UiChainView::RowDamageRect(0) ==
-        ui2::RectI16{5, 47, 213, 11});
-  CHECK(ui2::UiChainView::VuDamageRect(0) ==
-        ui2::RectI16{219, 47, 7, 153});
-  CHECK(ui2::UiChainView::VuDamageRect(1) ==
-        ui2::RectI16{228, 47, 7, 153});
+  CHECK(ui2::UiChainView::RowDamageRect(0) == ui2::RectI16{5, 46, 213, 12});
+  CHECK(ui2::UiChainView::VuDamageRect(0) == ui2::RectI16{219, 47, 7, 153});
+  CHECK(ui2::UiChainView::VuDamageRect(1) == ui2::RectI16{228, 47, 7, 153});
+}
+
+TEST_CASE("UI2 Chain transpose uses signed three-glyph decimal semantics") {
+  CHECK(ui2::Ui2ChainTranspose::Format(0U) ==
+        std::array<char, 4>{'+', '0', '0', 0});
+  CHECK(ui2::Ui2ChainTranspose::Format(ui2::Ui2ChainTranspose::Encode(-12)) ==
+        std::array<char, 4>{'-', '1', '2', 0});
+  CHECK(ui2::Ui2ChainTranspose::Format(0xFFU) ==
+        std::array<char, 4>{'-', '0', '1', 0});
+  CHECK(ui2::Ui2ChainTranspose::Format(ui2::Ui2ChainTranspose::Encode(7)) ==
+        std::array<char, 4>{'+', '0', '7', 0});
+  CHECK(ui2::Ui2ChainTranspose::Decode(
+            ui2::Ui2ChainTranspose::Adjust(0U, -12)) == -12);
+  CHECK(ui2::Ui2ChainTranspose::Decode(ui2::Ui2ChainTranspose::Adjust(
+            ui2::Ui2ChainTranspose::Encode(-95), -12)) == -99);
+  CHECK(ui2::Ui2ChainTranspose::Decode(ui2::Ui2ChainTranspose::Adjust(
+            ui2::Ui2ChainTranspose::Encode(95), 12)) == 99);
+
+  ui2::UiChainViewData data = ui2::test::ApprovedChainFixture();
+  data.transposes[0] = ui2::Ui2ChainTranspose::Encode(-12);
+  data.transposes[1] = ui2::Ui2ChainTranspose::Encode(7);
+  data.transposes[2] = 0U;
+  data.editColumn = 1U;
+  data.adjustmentFocus = true;
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiChainView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK(FindTextCommand(scene.content.Stream(), "-12") != nullptr);
+  CHECK(FindTextCommand(scene.content.Stream(), "+07") != nullptr);
+  CHECK(FindTextCommand(scene.content.Stream(), "---") != nullptr);
+  CHECK(FindTextCommand(scene.bottom.Stream(), "OCT") != nullptr);
+  CHECK(ui2::UiChainView::CursorTargetRect(data) ==
+        ui2::RectI16{47, 47, 21, 9});
+
+  bool coarsePlusMinusPresent = false;
+  for (const ui2::UiCommand &command : scene.bottom.Commands()) {
+    if (command.kind == ui2::UiCommandKind::FillRect &&
+        command.bounds.x >= 170 && command.bounds.x < 175) {
+      coarsePlusMinusPresent = true;
+    }
+  }
+  CHECK_FALSE(coarsePlusMinusPresent);
 }
 
 TEST_CASE("UI2 Chain delta rendering is pixel-identical to a full redraw") {
@@ -1701,8 +2352,7 @@ TEST_CASE("UI2 Chain idle is clean and a cursor move stays locally dirty") {
   REQUIRE(surface.DirtyTiles().Collect(strips));
   std::uint32_t transferredPixels = 0;
   for (const ui2::DirtyStrip strip : strips.Strips()) {
-    transferredPixels +=
-        static_cast<std::uint32_t>(strip.width) * strip.height;
+    transferredPixels += static_cast<std::uint32_t>(strip.width) * strip.height;
   }
   CHECK(transferredPixels < 8'000);
 }
@@ -1710,21 +2360,21 @@ TEST_CASE("UI2 Chain idle is clean and a cursor move stays locally dirty") {
 TEST_CASE("UI2 Project resolves cursor-specific bottom bars") {
   ui2::UiPalette palette;
   ui2::UiFrameScene scene;
-  REQUIRE(ui2::UiProjectView::Build(
-              ui2::test::ApprovedProjectFixture("name"), palette, scene) ==
-          ui2::UiBuildStatus::Built);
+  REQUIRE(ui2::UiProjectView::Build(ui2::test::ApprovedProjectFixture("name"),
+                                    palette,
+                                    scene) == ui2::UiBuildStatus::Built);
   CHECK(scene.bottomVisible);
-  REQUIRE(ui2::UiProjectView::Build(
-              ui2::test::ApprovedProjectFixture("playback"), palette,
-              scene) == ui2::UiBuildStatus::Built);
+  REQUIRE(
+      ui2::UiProjectView::Build(ui2::test::ApprovedProjectFixture("playback"),
+                                palette, scene) == ui2::UiBuildStatus::Built);
   CHECK(scene.bottomVisible);
-  REQUIRE(ui2::UiProjectView::Build(
-              ui2::test::ApprovedProjectFixture("cleanup"), palette, scene) ==
-          ui2::UiBuildStatus::Built);
+  REQUIRE(
+      ui2::UiProjectView::Build(ui2::test::ApprovedProjectFixture("cleanup"),
+                                palette, scene) == ui2::UiBuildStatus::Built);
   CHECK(scene.bottomVisible);
-  REQUIRE(ui2::UiProjectView::Build(
-              ui2::test::ApprovedProjectFixture("render"), palette, scene) ==
-          ui2::UiBuildStatus::Built);
+  REQUIRE(ui2::UiProjectView::Build(ui2::test::ApprovedProjectFixture("render"),
+                                    palette,
+                                    scene) == ui2::UiBuildStatus::Built);
   CHECK(scene.bottomVisible);
 }
 
@@ -1757,8 +2407,7 @@ TEST_CASE("UI2 Project exposes every approved conceptual row and action bar") {
 
 TEST_CASE("UI2 Project delta rendering is pixel-identical to a full redraw") {
   ui2::UiPalette palette;
-  ui2::UiProjectViewData previous =
-      ui2::test::ApprovedProjectFixture("name");
+  ui2::UiProjectViewData previous = ui2::test::ApprovedProjectFixture("name");
   ui2::UiFrameScene previousScene;
   REQUIRE(ui2::UiProjectView::Build(previous, palette, previousScene) ==
           ui2::UiBuildStatus::Built);
@@ -1767,8 +2416,7 @@ TEST_CASE("UI2 Project delta rendering is pixel-identical to a full redraw") {
   ui2::UiFrameRenderer::RenderStatic(previousScene, surface, palette);
   surface.ClearDirty();
 
-  ui2::UiProjectViewData current =
-      ui2::test::ApprovedProjectFixture("render");
+  ui2::UiProjectViewData current = ui2::test::ApprovedProjectFixture("render");
   current.name = "LIVE SET";
   current.tempo = "140";
   ui2::UiFrameScene currentScene;
@@ -1795,8 +2443,7 @@ TEST_CASE("UI2 Project idle is clean and animated cursor damage stays local") {
   ui2::UiIndexedSurface surface(storage);
   ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
   surface.ClearDirty();
-  ui2::UiProjectView::RenderDelta(previous, previous, scene, surface,
-                                  palette);
+  ui2::UiProjectView::RenderDelta(previous, previous, scene, surface, palette);
   CHECK_FALSE(surface.DirtyTiles().Any());
 
   ui2::UiProjectViewData current = previous;
@@ -1812,8 +2459,7 @@ TEST_CASE("UI2 Project idle is clean and animated cursor damage stays local") {
   REQUIRE(surface.DirtyTiles().Collect(strips));
   std::uint32_t transferredPixels = 0;
   for (const ui2::DirtyStrip strip : strips.Strips()) {
-    transferredPixels +=
-        static_cast<std::uint32_t>(strip.width) * strip.height;
+    transferredPixels += static_cast<std::uint32_t>(strip.width) * strip.height;
   }
   CHECK(transferredPixels < 240U * 240U / 4U);
 }
@@ -1895,16 +2541,11 @@ TEST_CASE("UI2 Device represents all approved rows and reveals optional rows") {
   data.selectorCount = 4;
   data.selectorCurrent = 2;
   constexpr std::array cursors{
-      ui2::UiDeviceCursor::MidiDevice,
-      ui2::UiDeviceCursor::MidiSync,
-      ui2::UiDeviceCursor::LineOut,
-      ui2::UiDeviceCursor::RemoteUi,
-      ui2::UiDeviceCursor::Resampler,
-      ui2::UiDeviceCursor::Volume,
-      ui2::UiDeviceCursor::Brightness,
-      ui2::UiDeviceCursor::Theme,
-      ui2::UiDeviceCursor::Font,
-      ui2::UiDeviceCursor::UpdateFirmware};
+      ui2::UiDeviceCursor::MidiDevice, ui2::UiDeviceCursor::MidiSync,
+      ui2::UiDeviceCursor::LineOut,    ui2::UiDeviceCursor::RemoteUi,
+      ui2::UiDeviceCursor::Resampler,  ui2::UiDeviceCursor::Volume,
+      ui2::UiDeviceCursor::Brightness, ui2::UiDeviceCursor::Theme,
+      ui2::UiDeviceCursor::Font,       ui2::UiDeviceCursor::UpdateFirmware};
   for (const auto cursor : cursors) {
     data.cursor = cursor;
     CHECK_FALSE(ui2::UiDeviceView::CursorTargetRect(data).Empty());
@@ -1935,7 +2576,45 @@ TEST_CASE("UI2 Theme and Font remain separate page contracts") {
 
   REQUIRE(ui2::UiFontView::Build({}, palette, scene) ==
           ui2::UiBuildStatus::Built);
-  CHECK_FALSE(scene.bottomVisible);
+  CHECK(scene.bottomVisible);
+}
+
+TEST_CASE("UI2 Font case choices remain literal under every case mode") {
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  ui2::UiFontViewData data;
+  data.textCase = "CASE";
+  REQUIRE(ui2::UiFontView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+
+  for (const std::string_view option : {"Case", "CASE", "case"}) {
+    const ui2::UiCommand *command = FindTextCommand(scene.bottom.Stream(), option);
+    REQUIRE(command != nullptr);
+    CHECK((command->parameter & 0x80U) != 0U);
+  }
+
+  ui2::UiSurfaceStorage upperStorage;
+  ui2::UiIndexedSurface upper(upperStorage);
+  scene.textCase = ui2::UiTextCaseMode::Upper;
+  ui2::UiFrameRenderer::RenderStatic(scene, upper, palette);
+
+  ui2::UiSurfaceStorage lowerStorage;
+  ui2::UiIndexedSurface lower(lowerStorage);
+  scene.textCase = ui2::UiTextCaseMode::Lower;
+  ui2::UiFrameRenderer::RenderStatic(scene, lower, palette);
+
+  bool pageLabelsChanged = false;
+  for (std::int16_t y = 0; y < 208; ++y) {
+    for (std::int16_t x = 0; x < 240; ++x) {
+      pageLabelsChanged = pageLabelsChanged ||
+                          upper.Pixel(x, y) != lower.Pixel(x, y);
+    }
+  }
+  CHECK(pageLabelsChanged);
+  for (std::int16_t y = 208; y < 240; ++y) {
+    for (std::int16_t x = 0; x < 240; ++x)
+      CHECK(upper.Pixel(x, y) == lower.Pixel(x, y));
+  }
 }
 
 TEST_CASE("UI2 Theme and Font adapters retain owned fixed-capacity text") {
@@ -1947,8 +2626,7 @@ TEST_CASE("UI2 Theme and Font adapters retain owned fixed-capacity text") {
   themeSnapshot.nameAction = 2;
 
   const ui2::UiThemeViewState themeState =
-      ui2::MakeUiThemeViewState(themeSnapshot,
-                                ui2::UiPowerState::BatteryHigh);
+      ui2::MakeUiThemeViewState(themeSnapshot, ui2::UiPowerState::BatteryHigh);
   themeSnapshot.name[0] = 'X';
   const ui2::UiThemeViewData themeData = themeState.ToViewData();
   CHECK(themeData.name == "NIGHT");
@@ -1960,8 +2638,7 @@ TEST_CASE("UI2 Theme and Font adapters retain owned fixed-capacity text") {
   constexpr std::array fontName{'W', 'I', 'D', 'E', '\0'};
   std::copy(fontName.begin(), fontName.end(), fontSnapshot.font.begin());
   const ui2::UiFontViewState fontState =
-      ui2::MakeUiFontViewState(fontSnapshot,
-                               ui2::UiPowerState::Charging);
+      ui2::MakeUiFontViewState(fontSnapshot, ui2::UiPowerState::Charging);
   fontSnapshot.font[0] = 'X';
   const ui2::UiFontViewData fontData = fontState.ToViewData();
   CHECK(fontData.font == "WIDE");
@@ -1983,8 +2660,7 @@ TEST_CASE("UI2 settings adapters terminate malformed fixed-capacity text") {
 
   FontViewUi2Snapshot fontSnapshot;
   fontSnapshot.font.fill('F');
-  const ui2::UiFontViewState fontState =
-      ui2::MakeUiFontViewState(fontSnapshot);
+  const ui2::UiFontViewState fontState = ui2::MakeUiFontViewState(fontSnapshot);
   CHECK(fontState.ToViewData().font.size() ==
         FontViewUi2Snapshot::FontCapacity - 1U);
 }
@@ -2032,8 +2708,7 @@ TEST_CASE("UI2 Theme palette synchronization is explicit and reversible") {
   snapshot.colorsValid = true;
   for (std::size_t index = 0; index < snapshot.colors.size(); ++index) {
     snapshot.colors[index] =
-        static_cast<std::uint32_t>(0x010203U + index * 0x070B0DU) &
-        0x00FFFFFFU;
+        static_cast<std::uint32_t>(0x010203U + index * 0x070B0DU) & 0x00FFFFFFU;
   }
 
   ui2::UiPalette palette;
@@ -2046,10 +2721,9 @@ TEST_CASE("UI2 Theme palette synchronization is explicit and reversible") {
   ui2::UiPalette sequentialReference;
   for (std::size_t index = 0; index < snapshot.colors.size(); ++index) {
     const std::uint32_t packed = snapshot.colors[index];
-    const ui2::Rgb888 expected{
-        static_cast<std::uint8_t>(packed >> 16U),
-        static_cast<std::uint8_t>(packed >> 8U),
-        static_cast<std::uint8_t>(packed)};
+    const ui2::Rgb888 expected{static_cast<std::uint8_t>(packed >> 16U),
+                               static_cast<std::uint8_t>(packed >> 8U),
+                               static_cast<std::uint8_t>(packed)};
     CHECK(palette.Get(static_cast<ui2::PaletteIndex>(index)) == expected);
     sequentialReference.Set(static_cast<ui2::PaletteIndex>(index), expected);
   }
@@ -2077,11 +2751,11 @@ TEST_CASE("UI2 Theme bottom action changes use a pixel-identical delta") {
   ui2::UiThemeViewData current = previous;
   current.nameAction = 3;
   CheckDeltaMatchesFullFrame(previous, current, ui2::UiThemeView::Build,
-                            ui2::UiThemeView::RenderDelta);
+                             ui2::UiThemeView::RenderDelta);
 
   current.selectedColor = 0;
   CheckDeltaMatchesFullFrame(previous, current, ui2::UiThemeView::Build,
-                            ui2::UiThemeView::RenderDelta);
+                             ui2::UiThemeView::RenderDelta);
 }
 
 TEST_CASE("UI2 Theme delta rendering is pixel-identical to a full redraw") {
@@ -2201,8 +2875,7 @@ TEST_CASE("UI2 shared browser uses a bounded visible window and scroll thumb") {
 }
 
 TEST_CASE("UI2 shared browser clamps malformed action metadata") {
-  ui2::UiBrowserViewData data =
-      ui2::test::ApprovedBrowserFixture("projects");
+  ui2::UiBrowserViewData data = ui2::test::ApprovedBrowserFixture("projects");
   data.actions = {"LOAD", "DELETE", "RENAME"};
   data.actionCount = 0xFFU;
   data.activeAction = 0xFFU;
@@ -2357,8 +3030,7 @@ TEST_CASE("UI2 Record idle is clean and animated cursor damage stays local") {
   REQUIRE(surface.DirtyTiles().Collect(strips));
   std::uint32_t transferredPixels = 0;
   for (const ui2::DirtyStrip strip : strips.Strips()) {
-    transferredPixels +=
-        static_cast<std::uint32_t>(strip.width) * strip.height;
+    transferredPixels += static_cast<std::uint32_t>(strip.width) * strip.height;
   }
   CHECK(transferredPixels < 240U * 240U / 4U);
 }
@@ -2403,11 +3075,9 @@ TEST_CASE("UI2 Record centers semantic state text and saving progress") {
       const ui2::UiCommand *progress =
           FindTextCommand(scene.content.Stream(), "42%");
       REQUIRE(progress != nullptr);
-      CHECK(progress->bounds.x ==
-            120 - ui2::UiFont5x7::TextWidth(3U, 2U) / 2);
+      CHECK(progress->bounds.x == 120 - ui2::UiFont5x7::TextWidth(3U, 2U) / 2);
       CHECK(progress->bounds.y == 132);
-      CHECK(progress->color ==
-            palette.Index(ui2::UiColorToken::SystemWarning));
+      CHECK(progress->color == palette.Index(ui2::UiColorToken::SystemWarning));
     }
   }
 }
@@ -2462,8 +3132,8 @@ TEST_CASE("UI2 Sample Editor delta is pixel-identical to a full redraw") {
   ui2::UiFrameScene currentScene;
   REQUIRE(ui2::UiSampleEditorView::Build(current, palette, currentScene) ==
           ui2::UiBuildStatus::Built);
-  ui2::UiSampleEditorView::RenderDelta(previous, current, currentScene,
-                                       surface, palette);
+  ui2::UiSampleEditorView::RenderDelta(previous, current, currentScene, surface,
+                                       palette);
   ui2::UiSurfaceStorage expectedStorage;
   ui2::UiIndexedSurface expected(expectedStorage);
   ui2::UiFrameRenderer::RenderStatic(currentScene, expected, palette);
@@ -2496,8 +3166,8 @@ TEST_CASE("UI2 Sample Slices delta is pixel-identical to a full redraw") {
   ui2::UiFrameScene currentScene;
   REQUIRE(ui2::UiSampleSlicesView::Build(current, palette, currentScene) ==
           ui2::UiBuildStatus::Built);
-  ui2::UiSampleSlicesView::RenderDelta(previous, current, currentScene,
-                                       surface, palette);
+  ui2::UiSampleSlicesView::RenderDelta(previous, current, currentScene, surface,
+                                       palette);
   ui2::UiSurfaceStorage expectedStorage;
   ui2::UiIndexedSurface expected(expectedStorage);
   ui2::UiFrameRenderer::RenderStatic(currentScene, expected, palette);
@@ -2507,8 +3177,7 @@ TEST_CASE("UI2 Sample Slices delta is pixel-identical to a full redraw") {
 
 TEST_CASE("UI2 Sample pages remain clean while their state is idle") {
   ui2::UiPalette palette;
-  ui2::UiSampleEditorViewData editor =
-      ui2::test::ApprovedSampleEditorFixture();
+  ui2::UiSampleEditorViewData editor = ui2::test::ApprovedSampleEditorFixture();
   ui2::UiFrameScene editorScene;
   REQUIRE(ui2::UiSampleEditorView::Build(editor, palette, editorScene) ==
           ui2::UiBuildStatus::Built);
@@ -2520,8 +3189,7 @@ TEST_CASE("UI2 Sample pages remain clean while their state is idle") {
                                        palette);
   CHECK_FALSE(surface.DirtyTiles().Any());
 
-  ui2::UiSampleSlicesViewData slices =
-      ui2::test::ApprovedSampleSlicesFixture();
+  ui2::UiSampleSlicesViewData slices = ui2::test::ApprovedSampleSlicesFixture();
   ui2::UiFrameScene sliceScene;
   REQUIRE(ui2::UiSampleSlicesView::Build(slices, palette, sliceScene) ==
           ui2::UiBuildStatus::Built);
@@ -2570,18 +3238,16 @@ TEST_CASE("UI2 Sample Editor adapter owns controller text waveform and modes") {
         ui2::test::kApprovedSampleEditorWaveform.front());
   REQUIRE(data.markers.size() == 2U);
   CHECK(data.markers[0] ==
-        ui2::UiSampleWaveformMarker{13U,
-                                    ui2::UiSampleWaveformMarkerKind::Start,
+        ui2::UiSampleWaveformMarker{13U, ui2::UiSampleWaveformMarkerKind::Start,
                                     false});
-  CHECK(data.markers[1].kind ==
-        ui2::UiSampleWaveformMarkerKind::Playhead);
+  CHECK(data.markers[1].kind == ui2::UiSampleWaveformMarkerKind::Playhead);
   CHECK(data.cursor == ui2::UiSampleEditorCursor::End);
   CHECK(data.enterDigitFocus);
   CHECK(data.focusDigit == 5U);
   CHECK(ui2::UiSampleEditorView::CursorTargetRect(data) ==
         ui2::RectI16{120, 155, 9, 9});
   CHECK(data.power == ui2::UiPowerState::Playing);
-  CHECK(data.help == "ENTER+ARROWS ADJUST END");
+  CHECK(data.help == "EDIT+ARROWS ADJUST END");
   ui2::UiPalette palette;
   ui2::UiFrameScene scene;
   REQUIRE(ui2::UiSampleEditorView::Build(data, palette, scene) ==
@@ -2645,8 +3311,7 @@ TEST_CASE("UI2 Sample Slices adapter maps real markers focus and help") {
   REQUIRE(data.markers.size() == 3U);
   CHECK(data.markers[1].x == 103U);
   CHECK(data.markers[1].selected);
-  CHECK(data.markers[2].kind ==
-        ui2::UiSampleWaveformMarkerKind::Playhead);
+  CHECK(data.markers[2].kind == ui2::UiSampleWaveformMarkerKind::Playhead);
   CHECK(data.cursor == ui2::UiSampleSlicesCursor::Waveform);
   CHECK(ui2::UiSampleSlicesView::CursorTargetRect(data) ==
         ui2::RectI16{7, 43, 226, 86});
@@ -2689,8 +3354,7 @@ TEST_CASE("UI2 Sample marker changes use pixel-identical deltas") {
   previous.markers = previousMarkers;
   ui2::UiSampleEditorViewData current = previous;
   current.markers = currentMarkers;
-  CheckDeltaMatchesFullFrame(previous, current,
-                             ui2::UiSampleEditorView::Build,
+  CheckDeltaMatchesFullFrame(previous, current, ui2::UiSampleEditorView::Build,
                              ui2::UiSampleEditorView::RenderDelta);
 }
 
@@ -2706,8 +3370,7 @@ TEST_CASE("UI2 Dialog overlay preserves its page and suppresses Bottom Bar") {
           ui2::UiBuildStatus::Built);
   const std::size_t baseCommands = scene.content.Size();
   ui2::UiDialogViewData dialog;
-  REQUIRE(ui2::UiDialogView::Apply(dialog, scene) ==
-          ui2::UiBuildStatus::Built);
+  REQUIRE(ui2::UiDialogView::Apply(dialog, scene) == ui2::UiBuildStatus::Built);
   CHECK_FALSE(scene.bottomVisible);
   CHECK(scene.top.Size() > 0);
   CHECK(scene.content.Size() == baseCommands);
@@ -2735,29 +3398,26 @@ TEST_CASE("UI2 Dialog fits every live base-page scene") {
   REQUIRE(ui2::UiChainView::Build(ui2::test::ApprovedChainFixture(), palette,
                                   scene) == ui2::UiBuildStatus::Built);
   apply();
-  REQUIRE(ui2::UiPhraseView::Build(
-              ui2::test::ApprovedPhraseFixture("fx"), palette, scene) ==
-          ui2::UiBuildStatus::Built);
+  REQUIRE(ui2::UiPhraseView::Build(ui2::test::ApprovedPhraseFixture("fx"),
+                                   palette,
+                                   scene) == ui2::UiBuildStatus::Built);
   apply();
-  REQUIRE(ui2::UiTableView::Build(
-              ui2::test::ApprovedTableFixture("instrument"), palette,
-              scene) == ui2::UiBuildStatus::Built);
+  REQUIRE(ui2::UiTableView::Build(ui2::test::ApprovedTableFixture("instrument"),
+                                  palette, scene) == ui2::UiBuildStatus::Built);
   apply();
   REQUIRE(ui2::UiInstrumentView::Build(
-              ui2::test::ApprovedInstrumentFixture("opal"), palette,
-              scene) == ui2::UiBuildStatus::Built);
-  apply();
-  REQUIRE(ui2::UiDeviceView::Build(ui2::test::ApprovedDeviceFixture(),
-                                   palette, scene) ==
+              ui2::test::ApprovedInstrumentFixture("opal"), palette, scene) ==
           ui2::UiBuildStatus::Built);
   apply();
-  REQUIRE(ui2::UiBrowserView::Build(
-              ui2::test::ApprovedBrowserFixture("projects"), palette,
-              scene) == ui2::UiBuildStatus::Built);
+  REQUIRE(ui2::UiDeviceView::Build(ui2::test::ApprovedDeviceFixture(), palette,
+                                   scene) == ui2::UiBuildStatus::Built);
   apply();
-  REQUIRE(ui2::UiGrooveView::Build(ui2::test::ApprovedGrooveFixture(),
-                                   palette, scene) ==
-          ui2::UiBuildStatus::Built);
+  REQUIRE(
+      ui2::UiBrowserView::Build(ui2::test::ApprovedBrowserFixture("projects"),
+                                palette, scene) == ui2::UiBuildStatus::Built);
+  apply();
+  REQUIRE(ui2::UiGrooveView::Build(ui2::test::ApprovedGrooveFixture(), palette,
+                                   scene) == ui2::UiBuildStatus::Built);
   apply();
   REQUIRE(ui2::UiMixerView::Build(ui2::test::ApprovedMixerFixture(), palette,
                                   scene) == ui2::UiBuildStatus::Built);
@@ -2815,15 +3475,13 @@ TEST_CASE("UI2 Dialog renders real lines actions and selected action") {
   dialog.title = "DELETE PROJECT?";
   dialog.label = "THIS CANNOT BE UNDONE";
   dialog.actions = {ui2::UiDialogAction::Yes, ui2::UiDialogAction::No,
-                    ui2::UiDialogAction::Ok,
-                    ui2::UiDialogAction::Cancel};
+                    ui2::UiDialogAction::Ok, ui2::UiDialogAction::Cancel};
   dialog.actionCount = 2;
   dialog.selectedAction = 1;
   dialog.actionsFocused = true;
 
   ui2::UiFrameScene scene;
-  REQUIRE(ui2::UiDialogView::Apply(dialog, scene) ==
-          ui2::UiBuildStatus::Built);
+  REQUIRE(ui2::UiDialogView::Apply(dialog, scene) == ui2::UiBuildStatus::Built);
   const ui2::UiCommandStream stream = scene.overlay.Stream();
   const std::string_view text(stream.text.data(), stream.text.size());
   CHECK(text.find("DELETE PROJECT?") != std::string_view::npos);
@@ -2838,14 +3496,63 @@ TEST_CASE("UI2 Dialog renders real lines actions and selected action") {
 
   dialog.actionsFocused = false;
   scene.Clear();
-  REQUIRE(ui2::UiDialogView::Apply(dialog, scene) ==
+  REQUIRE(ui2::UiDialogView::Apply(dialog, scene) == ui2::UiBuildStatus::Built);
+  CHECK(std::none_of(
+      scene.overlay.Commands().begin(), scene.overlay.Commands().end(),
+      [](const ui2::UiCommand &command) {
+        return command.kind == ui2::UiCommandKind::FillCoverageRoundedRect;
+      }));
+}
+
+TEST_CASE("UI2 Text Input retains its default action accent while editing") {
+  ui2::UiDialogViewData input;
+  input.kind = ui2::UiDialogKind::TextInput;
+  input.title = "RENAME";
+  input.label = "NAME";
+  input.value = "ONECYCAC";
+  input.actions = {ui2::UiDialogAction::Ok,
+                   ui2::UiDialogAction::Cancel,
+                   ui2::UiDialogAction::Yes,
+                   ui2::UiDialogAction::No};
+  input.actionCount = 2;
+  input.selectedAction = 0;
+  input.actionsFocused = false;
+
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiDialogView::Apply(input, scene) ==
           ui2::UiBuildStatus::Built);
-  CHECK(std::none_of(scene.overlay.Commands().begin(),
-                     scene.overlay.Commands().end(),
-                     [](const ui2::UiCommand &command) {
-                       return command.kind ==
-                              ui2::UiCommandKind::FillCoverageRoundedRect;
-                     }));
+  const ui2::UiCommand *ok = FindTextCommand(scene.overlay.Stream(), "OK");
+  const ui2::UiCommand *cancel =
+      FindTextCommand(scene.overlay.Stream(), "CANCEL");
+  REQUIRE(ok != nullptr);
+  REQUIRE(cancel != nullptr);
+  CHECK(ok->color == static_cast<ui2::PaletteIndex>(
+                         ui2::UiColorToken::TextColored));
+  CHECK(cancel->color ==
+        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextDim));
+}
+
+TEST_CASE("UI2 Render Progress keeps one status line plus elapsed") {
+  ui2::UiDialogViewData render;
+  render.kind = ui2::UiDialogKind::RenderProgress;
+  render.title = "DIAGNOSTIC";
+  render.label = "RENDERING";
+  render.elapsed = "00:08";
+  render.actions[0] = ui2::UiDialogAction::Cancel;
+  render.actionCount = 1;
+
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiDialogView::Apply(render, scene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK(FindTextCommand(scene.overlay.Stream(), "DIAGNOSTIC") == nullptr);
+  const ui2::UiCommand *status =
+      FindTextCommand(scene.overlay.Stream(), "RENDERING");
+  const ui2::UiCommand *elapsed =
+      FindTextCommand(scene.overlay.Stream(), "00:08");
+  REQUIRE(status != nullptr);
+  REQUIRE(elapsed != nullptr);
+  CHECK(status->bounds.y == 91);
+  CHECK(elapsed->bounds.y == 108);
 }
 
 TEST_CASE("UI2 Dialog uses full-screen and render snapshot text") {
@@ -2876,7 +3583,7 @@ TEST_CASE("UI2 Dialog uses full-screen and render snapshot text") {
   const ui2::UiCommandStream renderStream = renderScene.overlay.Stream();
   const std::string_view renderText(renderStream.text.data(),
                                     renderStream.text.size());
-  CHECK(renderText.find("STEMS RENDERING") != std::string_view::npos);
+  CHECK(renderText.find("STEMS RENDERING") == std::string_view::npos);
   CHECK(renderText.find("RENDER COMPLETE!") != std::string_view::npos);
   CHECK(renderText.find("100%") != std::string_view::npos);
   CHECK(renderText.find("OK") != std::string_view::npos);
@@ -2926,8 +3633,7 @@ TEST_CASE("UI2 full-screen diagnostic replaces every retained page layer") {
                                  scene) == ui2::UiBuildStatus::Built);
   ui2::UiDialogViewData dialog;
   dialog.kind = ui2::UiDialogKind::FullScreen;
-  REQUIRE(ui2::UiDialogView::Apply(dialog, scene) ==
-          ui2::UiBuildStatus::Built);
+  REQUIRE(ui2::UiDialogView::Apply(dialog, scene) == ui2::UiBuildStatus::Built);
   CHECK(scene.topHeight == 0);
   CHECK_FALSE(scene.bottomVisible);
   CHECK(scene.top.Size() == 0);
@@ -2936,7 +3642,8 @@ TEST_CASE("UI2 full-screen diagnostic replaces every retained page layer") {
   CHECK(scene.overlay.Size() == 4);
 }
 
-TEST_CASE("UI2 retained full-screen dialog is independent of hidden base state") {
+TEST_CASE(
+    "UI2 retained full-screen dialog is independent of hidden base state") {
   ui2::UiPalette palette;
   ui2::UiDialogViewData dialog;
   dialog.kind = ui2::UiDialogKind::FullScreen;
@@ -2980,8 +3687,7 @@ TEST_CASE("UI2 Dialog idle frame stays clean") {
   REQUIRE(ui2::UiSongView::Build(song, palette, scene) ==
           ui2::UiBuildStatus::Built);
   ui2::UiDialogViewData dialog;
-  REQUIRE(ui2::UiDialogView::Apply(dialog, scene) ==
-          ui2::UiBuildStatus::Built);
+  REQUIRE(ui2::UiDialogView::Apply(dialog, scene) == ui2::UiBuildStatus::Built);
   ui2::UiSurfaceStorage storage;
   ui2::UiIndexedSurface surface(storage);
   ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);

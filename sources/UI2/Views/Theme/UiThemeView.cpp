@@ -105,7 +105,7 @@ UiBuildStatus UiThemeView::Build(const UiThemeViewData &data, UiPalette &,
 
   UiSceneBuilder<256, 1024> builder(scene.content);
   builder.Text("NAME", 9, 42, UiColorToken::TextDim);
-  builder.Text(data.name, 92, 42, UiColorToken::TextNormal);
+  builder.UserText(data.name, 92, 42, UiColorToken::TextNormal);
   for (std::uint8_t index = 0; index < kUiThemeColors.size(); ++index) {
     const std::int16_t topY = static_cast<std::int16_t>(58 + index * 14);
     builder.Text(kUiThemeColors[index].label, 9,
@@ -117,7 +117,7 @@ UiBuildStatus UiThemeView::Build(const UiThemeViewData &data, UiPalette &,
   if (data.cursorInkVisible) {
     if (data.selectedColor < 0) {
       builder.Text("NAME", 9, 42, UiColorToken::TextHighlighted);
-      builder.Text(data.name, 92, 42, UiColorToken::TextHighlighted);
+      builder.UserText(data.name, 92, 42, UiColorToken::TextHighlighted);
     } else if (static_cast<std::size_t>(data.selectedColor) <
                kUiThemeColors.size()) {
       const std::uint8_t index = static_cast<std::uint8_t>(data.selectedColor);

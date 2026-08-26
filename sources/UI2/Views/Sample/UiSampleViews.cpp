@@ -181,7 +181,7 @@ UiBuildStatus UiSampleEditorView::Build(const UiSampleEditorViewData &data,
   if (data.cursorInkVisible) {
     switch (data.cursor) {
     case UiSampleEditorCursor::Name:
-      builder.Text(data.name, 9, 42, UiColorToken::TextHighlighted);
+      builder.UserText(data.name, 9, 42, UiColorToken::TextHighlighted);
       break;
     case UiSampleEditorCursor::Start:
       if (data.enterDigitFocus && !data.start.empty()) {

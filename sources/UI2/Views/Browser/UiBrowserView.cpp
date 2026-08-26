@@ -23,6 +23,12 @@ constexpr RectI16 kListDamageRect{5, 40, 233, 148};
 constexpr RectI16 kScrollTrackRect{236, kListTop, 1, kListHeight};
 constexpr std::size_t kMaximumItemCharacters = 35;
 
+std::int16_t ItemTextX(std::string_view item) {
+  // Keep the parent affordance in the directory-name column without putting
+  // brackets back into its actual label.
+  return item == ".." ? 27 : 21;
+}
+
 std::uint8_t VisibleItemCount(const UiBrowserViewData &data) {
   return std::min<std::uint8_t>(
       data.visibleItemCount,
@@ -124,7 +130,8 @@ UiBuildStatus UiBrowserView::Build(const UiBrowserViewData &data, UiPalette &,
   scene.topBackground = UiColorToken::SurfaceTopBar;
   scene.bottomBackground = UiColorToken::SurfaceBottomBar;
   const UiTopBarModel top{
-      .title = data.title, .meta = data.meta, .power = data.power};
+      .title = data.title, .meta = data.meta, .power = data.power,
+      .metaUserData = true};
   const UiBuildStatus topStatus = UiChromeRenderer::BuildTop(top, scene.top);
   if (topStatus != UiBuildStatus::Built)
     return topStatus;
@@ -148,9 +155,10 @@ UiBuildStatus UiBrowserView::Build(const UiBrowserViewData &data, UiPalette &,
   UiSceneBuilder<256, 1024> builder(scene.content);
   const std::uint8_t visibleCount = VisibleItemCount(data);
   for (std::uint8_t row = 0; row < visibleCount; ++row) {
-    builder.Text(data.items[row].substr(0, kMaximumItemCharacters), 21,
-                 static_cast<std::int16_t>(kFirstRowTextY + row * kRowStep),
-                 UiColorToken::TextNormal);
+    builder.UserText(data.items[row].substr(0, kMaximumItemCharacters),
+                     ItemTextX(data.items[row]),
+                     static_cast<std::int16_t>(kFirstRowTextY + row * kRowStep),
+                     UiColorToken::TextNormal);
   }
 
   if (TotalItemCount(data) > kUiBrowserVisibleRowCapacity) {
@@ -166,9 +174,10 @@ UiBuildStatus UiBrowserView::Build(const UiBrowserViewData &data, UiPalette &,
     const std::int16_t selectedY = static_cast<std::int16_t>(
         kFirstRowTextY + data.selectedRow * kRowStep);
     builder.Text(">", 10, selectedY, UiColorToken::TextHighlighted);
-    builder.Text(data.items[data.selectedRow].substr(
-                     0, kMaximumItemCharacters),
-                 21, selectedY, UiColorToken::TextHighlighted);
+    builder.UserText(
+        data.items[data.selectedRow].substr(0, kMaximumItemCharacters),
+        ItemTextX(data.items[data.selectedRow]), selectedY,
+        UiColorToken::TextHighlighted);
   }
   builder.Text(data.footer, 9, 192, UiColorToken::DerivedTextFaint);
   return builder.Ok() ? UiBuildStatus::Built : UiBuildStatus::CommandOverflow;
