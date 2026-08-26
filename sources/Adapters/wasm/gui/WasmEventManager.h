@@ -6,10 +6,8 @@
 
 #include "Foundation/T_Singleton.h"
 #include "UIFramework/SimpleBaseClasses/EventManager.h"
-#include "Application/UI2/Ui2ApplicationRuntime.h"
 
 #include <atomic>
-#include <optional>
 
 class WasmGUIWindowImp;
 namespace ui2 {
@@ -41,7 +39,6 @@ private:
   static constexpr std::uint32_t NoDiagnosticModal = 0xFFFFFFFFu;
   static void RunFrame(void *context);
   void PumpFrame();
-  void PumpNativeFrame();
   void StopRuntime();
 
   std::atomic<bool> finished_{false};
@@ -56,10 +53,6 @@ private:
   std::atomic<std::uint32_t> diagnosticModalGeneration_{0};
   std::atomic<std::uint32_t> diagnosticInputGeneration_{0};
   std::uint32_t diagnosticViewAwaitingDraw_ = NoDiagnosticView;
-  std::uint32_t diagnosticModalAwaitingDraw_ = NoDiagnosticModal;
-  std::atomic<bool> ui2Enabled_{false};
-  std::optional<ui2::UiApplicationRuntime> ui2Runtime_;
-  bool ui2Active_ = false;
   WasmGUIWindowImp *nativeWindow_ = nullptr;
   ui2::Ui2TrackerApplication *nativeApplication_ = nullptr;
 };

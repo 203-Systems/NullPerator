@@ -16,10 +16,6 @@
 #include "Adapters/wasm/platform/wasm_bridge.h"
 #include "Adapters/wasm/system/WasmSystem.h"
 #include "Adapters/wasm/tracing/WasmProfiler.h"
-#include "Application/Application.h"
-#include "Application/Views/ViewData.h"
-#include "Application/AppWindow.h"
-#include "Application/UI2/Ui2LegacyApplicationStateSource.h"
 #include "Application/UI2/Ui2TrackerApplication.h"
 #include "Application/Instruments/SamplePool.h"
 #include "Application/Model/Project.h"
@@ -32,36 +28,6 @@
 #include <emscripten/emscripten.h>
 
 namespace {
-void PublishApplicationSnapshot(AppWindow &window) noexcept {
-  Project &project = window.ProjectForDiagnostics();
-  char projectName[MAX_PROJECT_NAME_LENGTH + 1U]{};
-  project.GetProjectName(projectName);
-
-  std::uint32_t sampleCount = 0U;
-  if (auto *pool = SamplePool::GetInstance()) {
-    const int loaded = pool->GetNameListSize();
-    if (loaded > 0) {
-      sampleCount = static_cast<std::uint32_t>(loaded);
-    }
-  }
-
-  bool playerRunning = false;
-  std::uint32_t masterLevel = 0U;
-  if (window.PlayerInitializedForDiagnostics()) {
-    Player *player = Player::GetInstance();
-    playerRunning = player->IsRunning();
-    // Mixer levels are produced and sampled on this same application pthread.
-    // Do not query Player or MixerService from browser main.
-    if (playerRunning) {
-      masterLevel = player->GetMasterLevel();
-    }
-  }
-
-  Wasm_ApplicationSnapshot().Publish(
-      projectName, static_cast<std::uint32_t>(project.GetTempo()), sampleCount,
-      playerRunning, masterLevel);
-}
-
 void PublishApplicationSnapshot(
     ui2::Ui2TrackerApplication &application) noexcept {
   Project &project = application.Session().ProjectModel();
@@ -138,10 +104,6 @@ bool WasmEventManager::Init() {
   diagnosticModalGeneration_.store(0, std::memory_order_release);
   diagnosticInputGeneration_.store(0, std::memory_order_release);
   diagnosticViewAwaitingDraw_ = NoDiagnosticView;
-  diagnosticModalAwaitingDraw_ = NoDiagnosticModal;
-  ui2Enabled_.store(false, std::memory_order_release);
-  ui2Runtime_.reset();
-  ui2Active_ = false;
   if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_TIMER) != 0) {
     return false;
   }
@@ -164,10 +126,6 @@ void WasmEventManager::RunFrame(void *context) {
 }
 
 void WasmEventManager::PumpFrame() {
-  if (nativeApplication_ != nullptr && nativeWindow_ != nullptr) {
-    PumpNativeFrame();
-    return;
-  }
   if (runtimeStopped_) {
     return;
   }
@@ -179,226 +137,12 @@ void WasmEventManager::PumpFrame() {
     StopRuntime();
     return;
   }
+  if (nativeApplication_ == nullptr || nativeWindow_ == nullptr) {
+    PicoTracker_Wasm_Fail("Native UI2 application was not configured");
+    StopRuntime();
+    return;
+  }
   WASM_TRACE_SCOPE(WasmTraceCategory::Ui, WasmTraceName::Frame);
-
-  GUIWindow *window = Application::GetInstance()->GetWindow();
-  if (window == nullptr) {
-    PicoTracker_Wasm_Fail("PicoTracker application did not create a window");
-    StopRuntime();
-    return;
-  }
-  auto *wasmWindow = static_cast<WasmGUIWindowImp *>(window->GetImpWindow());
-  if (wasmWindow == nullptr) {
-    PicoTracker_Wasm_Fail("PicoTracker did not create a browser window");
-    StopRuntime();
-    return;
-  }
-  if (!ui2Runtime_.has_value()) {
-    ui2Runtime_.emplace(*wasmWindow);
-  }
-  ui2::UiLegacyApplicationStateSource ui2Source(
-      *static_cast<AppWindow *>(window));
-  const auto ui2ShouldOwnDisplay = [&]() {
-    return ui2Enabled_.load(std::memory_order_acquire) &&
-           ui2Runtime_->Supports(ui2Source);
-  };
-  const auto presentUi2 = [&]() {
-    const bool supported = ui2ShouldOwnDisplay();
-    wasmWindow->SetUi2DisplayOwnership(supported);
-    if (!supported) {
-      ui2Active_ = false;
-      return;
-    }
-    const bool entering = !ui2Active_;
-    if (entering) ui2Runtime_->Invalidate();
-    const ui2::PresentResult result =
-        ui2Runtime_->Present(ui2Source);
-    if (result == ui2::PresentResult::Failed) {
-      ui2Enabled_.store(false, std::memory_order_release);
-      wasmWindow->SetUi2DisplayOwnership(false);
-      ui2Active_ = false;
-    } else if (result == ui2::PresentResult::Presented) {
-      ui2Active_ = true;
-    }
-  };
-  // Establish ownership before legacy event/tick drawing. UI2 pages keep the
-  // legacy View alive for behavior, but only the UI2 presenter may publish.
-  wasmWindow->SetUi2DisplayOwnership(ui2ShouldOwnDisplay());
-  if (booting_) {
-    // The browser main and application pthread both get a scheduling turn
-    // before the first expensive UI clock tick. This avoids startup races in
-    // SDL/OffscreenCanvas while preserving the normal frame lifecycle.
-    {
-      WASM_TRACE_SCOPE(WasmTraceCategory::Ui, WasmTraceName::UiUpdate);
-      window->Update(true);
-    }
-    {
-      WASM_TRACE_SCOPE(WasmTraceCategory::Ui, WasmTraceName::ClockTick);
-      window->ClockTick();
-    }
-    presentUi2();
-    if (!wasmWindow->HasPresentedFrame()) {
-      PicoTracker_Wasm_Fail("PicoTracker did not present an initial browser frame");
-      StopRuntime();
-      return;
-    }
-    // This application rAF is the only writer of the browser metrics
-    // seqlock. Browser-main setup/teardown and the realtime callback publish
-    // source atomics only, so there can be no competing writer.
-    WasmAudio::PublishSnapshot();
-    PublishApplicationSnapshot(*static_cast<AppWindow *>(window));
-    WasmStorage_FlushMutationNotifications();
-    PicoTracker_Wasm_MarkReady();
-    booting_ = false;
-    nextTick_ = SDL_GetTicks64() + PICO_CLOCK_INTERVAL;
-    return;
-  }
-  if (runtimeState != static_cast<std::uint32_t>(WasmRuntimeState::Ready)) {
-    StopRuntime();
-    return;
-  }
-
-  auto *appWindow = static_cast<AppWindow *>(window);
-  const std::uint32_t requestedView = requestedDiagnosticView_.exchange(
-      NoDiagnosticView, std::memory_order_acq_rel);
-  if (requestedView != NoDiagnosticView) {
-    if (appWindow->SwitchViewForDiagnostics(requestedView)) {
-      // Publish only after the next normal ClockTick has returned, proving the
-      // selected view's DrawView path ran on the application pthread.
-      diagnosticViewAwaitingDraw_ = requestedView;
-    } else {
-      diagnosticView_.store(NoDiagnosticView, std::memory_order_release);
-      diagnosticViewGeneration_.fetch_add(1, std::memory_order_acq_rel);
-    }
-  }
-
-  const std::uint32_t requestedModal = requestedDiagnosticModal_.exchange(
-      NoDiagnosticModal, std::memory_order_acq_rel);
-  if (requestedModal != NoDiagnosticModal) {
-    if (appWindow->SwitchModalForDiagnostics(requestedModal)) {
-      // The modal-count sentinel is the close request. Open and close are
-      // published only after the regular ClockTick redraw path returns.
-      diagnosticModalAwaitingDraw_ = requestedModal;
-    } else {
-      diagnosticModal_.store(NoDiagnosticModal, std::memory_order_release);
-      diagnosticModalGeneration_.fetch_add(1, std::memory_order_acq_rel);
-    }
-  }
-
-  // SDL can temporarily reject an event when its queue is full. InputMap keeps
-  // the browser's latest desired state and retries it here in frame order.
-  {
-    WASM_TRACE_SCOPE(WasmTraceCategory::Input, WasmTraceName::InputRetry);
-    InputMap::RetryPendingTransitions();
-  }
-  if (auto *midi = WasmMidiService::Instance()) {
-    midi->Poll();
-  }
-  if (auto *audio = WasmAudioDriver::Instance()) {
-    audio->PumpProducer();
-  }
-  // The browser reads audio diagnostics from shared atomic words. Publish on
-  // the application frame rather than from the realtime worklet callback.
-  WasmAudio::PublishSnapshot();
-
-  SDL_Event event{};
-  while (SDL_PollEvent(&event) != 0) {
-    switch (event.type) {
-    case SDL_QUIT:
-      wasmWindow->ProcessQuit();
-      break;
-    case SDL_WINDOWEVENT:
-      if (event.window.event == SDL_WINDOWEVENT_EXPOSED) {
-        wasmWindow->ProcessExpose();
-      }
-      break;
-    case SDL_USEREVENT: {
-      if (event.user.code == InputMap::ActionEventCode) {
-        std::uint16_t action = 0;
-        bool pressed = false;
-        if (InputMap::DecodeActionEvent(
-                reinterpret_cast<std::uintptr_t>(event.user.data1), action,
-                pressed)) {
-          GUIEvent guiEvent(static_cast<long>(action),
-                            pressed ? ET_PADBUTTONDOWN : ET_PADBUTTONUP,
-                            System::GetInstance()->GetClock(), false, false,
-                            false);
-          {
-            WASM_TRACE_SCOPE(WasmTraceCategory::Input,
-                             WasmTraceName::InputDispatch);
-            window->DispatchEvent(guiEvent);
-          }
-          if (diagnosticView_.load(std::memory_order_acquire) !=
-              NoDiagnosticView) {
-            // DispatchEvent returning proves the active C++ view processed the
-            // input; InputMap's generation alone only proves queue delivery.
-            diagnosticInputGeneration_.fetch_add(1, std::memory_order_acq_rel);
-          }
-          InputMap::AcknowledgeAction(action, pressed);
-        }
-      } else {
-        auto *guiEvent = static_cast<GUIEvent *>(event.user.data1);
-        if (guiEvent != nullptr) {
-          {
-            WASM_TRACE_SCOPE(WasmTraceCategory::Input,
-                             WasmTraceName::InputDispatch);
-            window->DispatchEvent(*guiEvent);
-          }
-          delete guiEvent;
-        }
-      }
-      break;
-    }
-    default:
-      break;
-    }
-  }
-
-  const double now = SDL_GetTicks64();
-  if (now >= nextTick_) {
-    WASM_TRACE_SCOPE(WasmTraceCategory::Ui, WasmTraceName::ClockTick);
-    window->ClockTick();
-    presentUi2();
-    if (diagnosticViewAwaitingDraw_ != NoDiagnosticView) {
-      diagnosticView_.store(appWindow->CurrentViewForDiagnostics(),
-                            std::memory_order_release);
-      diagnosticViewGeneration_.fetch_add(1, std::memory_order_acq_rel);
-      diagnosticViewAwaitingDraw_ = NoDiagnosticView;
-    } else if (diagnosticView_.load(std::memory_order_acquire) !=
-               NoDiagnosticView) {
-      diagnosticView_.store(appWindow->CurrentViewForDiagnostics(),
-                            std::memory_order_release);
-    }
-    if (diagnosticModalAwaitingDraw_ != NoDiagnosticModal) {
-      diagnosticModal_.store(appWindow->CurrentModalForDiagnostics(),
-                             std::memory_order_release);
-      diagnosticModalGeneration_.fetch_add(1, std::memory_order_acq_rel);
-      diagnosticModalAwaitingDraw_ = NoDiagnosticModal;
-    } else if (diagnosticModal_.load(std::memory_order_acquire) !=
-               NoDiagnosticModal) {
-      diagnosticModal_.store(appWindow->CurrentModalForDiagnostics(),
-                             std::memory_order_release);
-    }
-    nextTick_ = now + PICO_CLOCK_INTERVAL;
-  }
-  PublishApplicationSnapshot(*appWindow);
-  // DispatchEvent may perform a multi-step atomic file replacement. Only let
-  // browser-main start IDBFS after the whole event batch has returned.
-  WasmStorage_FlushMutationNotifications();
-}
-
-void WasmEventManager::PumpNativeFrame() {
-  if (runtimeStopped_)
-    return;
-  const auto runtimeState = PicoTracker_Wasm_GetState();
-  if (finished_.load(std::memory_order_acquire) ||
-      runtimeState == static_cast<std::uint32_t>(WasmRuntimeState::Stopping) ||
-      runtimeState == static_cast<std::uint32_t>(WasmRuntimeState::Stopped) ||
-      runtimeState == static_cast<std::uint32_t>(WasmRuntimeState::Failed)) {
-    StopRuntime();
-    return;
-  }
-
   WasmGUIWindowImp &window = *nativeWindow_;
   ui2::Ui2TrackerApplication &application = *nativeApplication_;
   window.SetUi2DisplayOwnership(true);
@@ -440,46 +184,59 @@ void WasmEventManager::PumpNativeFrame() {
   const std::uint32_t requestedModal = requestedDiagnosticModal_.exchange(
       NoDiagnosticModal, std::memory_order_acq_rel);
   if (requestedModal != NoDiagnosticModal) {
-    // Native modal controllers are added independently from page ownership.
-    // Acknowledge the request without ever routing it through a legacy View.
     diagnosticModal_.store(requestedModal, std::memory_order_release);
     diagnosticModalGeneration_.fetch_add(1, std::memory_order_acq_rel);
   }
 
-  InputMap::RetryPendingTransitions();
-  if (auto *midi = WasmMidiService::Instance())
+  // SDL can temporarily reject an event when its queue is full. InputMap keeps
+  // the browser's latest desired state and retries it here in frame order.
+  {
+    WASM_TRACE_SCOPE(WasmTraceCategory::Input, WasmTraceName::InputRetry);
+    InputMap::RetryPendingTransitions();
+  }
+  if (auto *midi = WasmMidiService::Instance()) {
     midi->Poll();
-  if (auto *audio = WasmAudioDriver::Instance())
+  }
+  if (auto *audio = WasmAudioDriver::Instance()) {
     audio->PumpProducer();
+  }
+  // The browser reads audio diagnostics from shared atomic words. Publish on
+  // the application frame rather than from the realtime worklet callback.
   WasmAudio::PublishSnapshot();
 
   SDL_Event event{};
   while (SDL_PollEvent(&event) != 0) {
-    if (event.type == SDL_QUIT) {
+    switch (event.type) {
+    case SDL_QUIT:
       window.ProcessQuit();
-    } else if (event.type == SDL_WINDOWEVENT &&
-               event.window.event == SDL_WINDOWEVENT_EXPOSED) {
-      window.ProcessExpose();
-    } else if (event.type == SDL_USEREVENT &&
-               event.user.code == InputMap::ActionEventCode) {
-      std::uint16_t action = 0;
-      bool pressed = false;
-      if (InputMap::DecodeActionEvent(
-              reinterpret_cast<std::uintptr_t>(event.user.data1), action,
-              pressed)) {
-        application.DispatchTrackerAction(static_cast<TrackerAction>(action),
-                                          pressed);
-        diagnosticInputGeneration_.fetch_add(1, std::memory_order_acq_rel);
-        InputMap::AcknowledgeAction(action, pressed);
+      break;
+    case SDL_WINDOWEVENT:
+      if (event.window.event == SDL_WINDOWEVENT_EXPOSED) {
+        window.ProcessExpose();
       }
+      break;
+    case SDL_USEREVENT: {
+      if (event.user.code == InputMap::ActionEventCode) {
+        std::uint16_t action = 0;
+        bool pressed = false;
+        if (InputMap::DecodeActionEvent(
+                reinterpret_cast<std::uintptr_t>(event.user.data1), action,
+                pressed)) {
+          application.DispatchTrackerAction(static_cast<TrackerAction>(action),
+                                            pressed);
+          diagnosticInputGeneration_.fetch_add(1, std::memory_order_acq_rel);
+          InputMap::AcknowledgeAction(action, pressed);
+        }
+      }
+      break;
+    }
+    default:
+      break;
     }
   }
 
   const double now = SDL_GetTicks64();
   if (now >= nextTick_) {
-    // Lifecycle work must continue even when presentation is a no-op. The
-    // application tick is shared with embedded UI2 hosts and deliberately
-    // remains outside Ui2ApplicationRuntime::Present().
     application.Tick(static_cast<std::uint32_t>(now));
     if (application.Present() == ui2::PresentResult::Failed) {
       PicoTracker_Wasm_Fail("UI2 frame presentation failed");
@@ -495,6 +252,8 @@ void WasmEventManager::PumpNativeFrame() {
     nextTick_ = now + PICO_CLOCK_INTERVAL;
   }
   PublishApplicationSnapshot(application);
+  // DispatchEvent may perform a multi-step atomic file replacement. Only let
+  // browser-main start IDBFS after the whole event batch has returned.
   WasmStorage_FlushMutationNotifications();
 }
 
@@ -527,19 +286,17 @@ std::uint32_t WasmEventManager::DiagnosticInputGeneration() const {
 }
 
 void WasmEventManager::SetUi2Enabled(bool enabled) {
-  ui2Enabled_.store(enabled, std::memory_order_release);
+  (void)enabled;
 }
 
 bool WasmEventManager::Ui2Enabled() const {
-  return ui2Enabled_.load(std::memory_order_acquire);
+  return true;
 }
 
 void WasmEventManager::ConfigureNative(
     WasmGUIWindowImp &window, ui2::Ui2TrackerApplication &application) {
   nativeWindow_ = &window;
   nativeApplication_ = &application;
-  ui2Enabled_.store(true, std::memory_order_release);
-  ui2Active_ = true;
 }
 
 void WasmEventManager::StopRuntime() {

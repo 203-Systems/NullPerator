@@ -9,6 +9,11 @@ include_directories(
 # application-side 30-column layout identical to the firmware instead of
 # compiling the legacy 320x240 picoTracker layout and squeezing it later.
 add_compile_definitions(NODE)
+set(PICOTRACKER_UI "ui2" CACHE STRING
+  "Browser UI product (UI2 only)" FORCE)
+set(PICOTRACKER_UI2_LEGACY_STATE_SOURCE OFF CACHE BOOL
+  "Legacy UI state source is not part of the browser product" FORCE)
+add_compile_definitions(PICOTRACKER_UI2_PRODUCT=1 PICOTRACKER_UI2_DEFAULT=1)
 
 set(PICOTRACKER_WEB_WASM_DIR
   "${CMAKE_CURRENT_SOURCE_DIR}/../../../web/public/wasm"
@@ -114,16 +119,22 @@ add_subdirectory("${PROJECT_SOURCE_DIR}/UIFramework"
 add_subdirectory("${PROJECT_SOURCE_DIR}/Application"
                  "${CMAKE_CURRENT_BINARY_DIR}/core/Application")
 foreach(target application_model application_views)
-  target_compile_options(${target} PRIVATE
-    -include "${CMAKE_CURRENT_SOURCE_DIR}/platform/wasm_compat.h")
+  if(TARGET ${target})
+    target_compile_options(${target} PRIVATE
+      -include "${CMAKE_CURRENT_SOURCE_DIR}/platform/wasm_compat.h")
+  endif()
 endforeach()
 # Passing an ETL string object through a printf-style ellipsis compiles to a
 # runtime trap in Clang/WASM. Keep this fatal so a future call cannot silently
 # become `RuntimeError: unreachable` in the browser.
 target_compile_options(application_instruments PRIVATE -Werror=non-pod-varargs)
-target_compile_options(application_views PRIVATE -Wno-c++11-narrowing)
-target_compile_options(application_views_modaldialogs PRIVATE
-  -Wno-c++11-narrowing)
+if(TARGET application_views)
+  target_compile_options(application_views PRIVATE -Wno-c++11-narrowing)
+endif()
+if(TARGET application_views_modaldialogs)
+  target_compile_options(application_views_modaldialogs PRIVATE
+    -Wno-c++11-narrowing)
+endif()
 
 execute_process(
   COMMAND git rev-parse --short=12 HEAD
@@ -151,12 +162,8 @@ string(TIMESTAMP PICOTRACKER_WASM_BUILT_AT "%Y-%m-%dT%H:%M:%SZ" UTC)
 
 add_executable(picotracker_wasm
   input/InputMap.cpp
-  main/core_link_closure.cpp
   main/main.cpp
   platform/wasm_bridge.cpp)
-set_source_files_properties(main/core_link_closure.cpp PROPERTIES
-  COMPILE_OPTIONS
-    "-Wno-error;-Wno-unused-parameter;-Wno-deprecated-declarations;-Wno-inconsistent-missing-override")
 set_source_files_properties(main/main.cpp PROPERTIES
   COMPILE_OPTIONS
     "-Wno-error;-Wno-unused-parameter;-Wno-deprecated-declarations")
@@ -166,7 +173,7 @@ target_link_libraries(picotracker_wasm PRIVATE
   platform_system
   platform_display
   -Wl,--whole-archive
-  application
+  application_ui2
   -Wl,--no-whole-archive
   services_audio
   platform_filesystem
@@ -174,6 +181,8 @@ target_link_libraries(picotracker_wasm PRIVATE
   platform_timer
   platform
   system_timer
+  uiframework_simplebaseclasses
+  uiframework_basicdatas
   foundation)
 target_compile_definitions(picotracker_wasm PRIVATE
   PICOTRACKER_WASM_BUILD_COMMIT="${PICOTRACKER_WASM_COMMIT}"
@@ -203,7 +212,7 @@ target_link_options(picotracker_wasm PRIVATE
   -sEXPORT_NAME=createPicoTrackerModule
   -sINITIAL_MEMORY=268435456
   -sENVIRONMENT=web,worker,worklet
-  "-sEXPORTED_FUNCTIONS=['_main','_PicoTracker_Wasm_GetBuildMetadataJson','_PicoTracker_Wasm_GetState','_PicoTracker_Wasm_BootstrapAudio','_PicoTracker_Wasm_MarkAudioUnavailable','_PicoTracker_Wasm_ConfigureAudio','_PicoTracker_Wasm_RequestShutdown','_PicoTracker_Wasm_GetLastError','_PicoTracker_Wasm_DiagnosticFail','_PicoTracker_Wasm_SetAction','_PicoTracker_Wasm_ReleaseAllActions','_PicoTracker_Wasm_GetActionMask','_PicoTracker_Wasm_GetActionGeneration','_PicoTracker_Wasm_GetLastAction','_PicoTracker_Wasm_SetUi2Enabled','_PicoTracker_Wasm_GetUi2Enabled','_PicoTracker_Wasm_RequestDiagnosticView','_PicoTracker_Wasm_GetDiagnosticView','_PicoTracker_Wasm_GetDiagnosticViewGeneration','_PicoTracker_Wasm_GetDiagnosticInputGeneration','_PicoTracker_Wasm_RequestDiagnosticModal','_PicoTracker_Wasm_GetDiagnosticModal','_PicoTracker_Wasm_GetDiagnosticModalGeneration','_PicoTracker_Wasm_CaptureFrameRgba','_PicoTracker_Wasm_GetFrameSnapshotSequence','_PicoTracker_Wasm_UnlockAudio','_PicoTracker_Wasm_StopAudio','_PicoTracker_Wasm_GetAudioState','_PicoTracker_Wasm_GetAudioError','_PicoTracker_Wasm_GetAudioMetrics','_PicoTracker_Wasm_GetAudioMetricsSnapshot','_PicoTracker_Wasm_GetAudioErrorSnapshot','_PicoTracker_Wasm_GetBrowserSnapshots','_PicoTracker_Wasm_MidiInputBuffer','_PicoTracker_Wasm_MidiInputCapacity','_PicoTracker_Wasm_MidiInput','_PicoTracker_Wasm_MidiDrainOutput','_PicoTracker_Wasm_MidiDisconnect','_PicoTracker_Wasm_MidiSetOutputConnected','_PicoTracker_Wasm_MidiDiagnosticSnapshot','_PicoTracker_Wasm_MidiDiagnosticOutput','_PicoTracker_Wasm_LogDrain','_PicoTracker_Wasm_TraceStart','_PicoTracker_Wasm_TraceStop','_PicoTracker_Wasm_TraceDrain','_PicoTracker_Wasm_TraceStorageSync','_PicoTracker_Wasm_RunBenchmark','_PicoTracker_Wasm_CoreApplicationAnchor','_PicoTracker_Wasm_CoreAppWindowAnchor','_PicoTracker_Wasm_CorePlayerAnchor','_PicoTracker_Wasm_CoreViewAnchor']"
+  "-sEXPORTED_FUNCTIONS=['_main','_PicoTracker_Wasm_GetBuildMetadataJson','_PicoTracker_Wasm_GetState','_PicoTracker_Wasm_BootstrapAudio','_PicoTracker_Wasm_MarkAudioUnavailable','_PicoTracker_Wasm_ConfigureAudio','_PicoTracker_Wasm_RequestShutdown','_PicoTracker_Wasm_GetLastError','_PicoTracker_Wasm_DiagnosticFail','_PicoTracker_Wasm_SetAction','_PicoTracker_Wasm_ReleaseAllActions','_PicoTracker_Wasm_GetActionMask','_PicoTracker_Wasm_GetActionGeneration','_PicoTracker_Wasm_GetLastAction','_PicoTracker_Wasm_SetUi2Enabled','_PicoTracker_Wasm_GetUi2Enabled','_PicoTracker_Wasm_RequestDiagnosticView','_PicoTracker_Wasm_GetDiagnosticView','_PicoTracker_Wasm_GetDiagnosticViewGeneration','_PicoTracker_Wasm_GetDiagnosticInputGeneration','_PicoTracker_Wasm_RequestDiagnosticModal','_PicoTracker_Wasm_GetDiagnosticModal','_PicoTracker_Wasm_GetDiagnosticModalGeneration','_PicoTracker_Wasm_CaptureFrameRgba','_PicoTracker_Wasm_GetFrameSnapshotSequence','_PicoTracker_Wasm_UnlockAudio','_PicoTracker_Wasm_StopAudio','_PicoTracker_Wasm_GetAudioState','_PicoTracker_Wasm_GetAudioError','_PicoTracker_Wasm_GetAudioMetrics','_PicoTracker_Wasm_GetAudioMetricsSnapshot','_PicoTracker_Wasm_GetAudioErrorSnapshot','_PicoTracker_Wasm_GetBrowserSnapshots','_PicoTracker_Wasm_MidiInputBuffer','_PicoTracker_Wasm_MidiInputCapacity','_PicoTracker_Wasm_MidiInput','_PicoTracker_Wasm_MidiDrainOutput','_PicoTracker_Wasm_MidiDisconnect','_PicoTracker_Wasm_MidiSetOutputConnected','_PicoTracker_Wasm_MidiDiagnosticSnapshot','_PicoTracker_Wasm_MidiDiagnosticOutput','_PicoTracker_Wasm_LogDrain','_PicoTracker_Wasm_TraceStart','_PicoTracker_Wasm_TraceStop','_PicoTracker_Wasm_TraceDrain','_PicoTracker_Wasm_TraceStorageSync','_PicoTracker_Wasm_RunBenchmark']"
   "-sEXPORTED_RUNTIME_METHODS=['UTF8ToString','HEAPU8','HEAPU32','PThread','FS','IDBFS','addRunDependency','removeRunDependency']")
 
 set_target_properties(picotracker_wasm PROPERTIES
@@ -214,7 +223,6 @@ set_target_properties(picotracker_wasm PROPERTIES
 
 add_custom_command(TARGET picotracker_wasm POST_BUILD
   COMMAND "${CMAKE_COMMAND}"
-    "-DJS_GLUE=${PICOTRACKER_WEB_WASM_DIR}/picotracker.js"
     "-DWASM_BINARY=${PICOTRACKER_WEB_WASM_DIR}/picotracker.wasm"
     "-DLINK_MAP=${CMAKE_CURRENT_BINARY_DIR}/picotracker-core-link.map"
     -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyCoreSymbols.cmake"
