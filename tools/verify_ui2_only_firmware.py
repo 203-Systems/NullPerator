@@ -71,6 +71,11 @@ FORBIDDEN_COMPILE_RULES: tuple[Rule, ...] = (
         "mixed character renderer and RGB565 panel transport",
     ),
     _rule(
+        "legacy-remote-ui-protocol",
+        r"(?:^|/)(?:sources/)?System/RemoteUI/",
+        "legacy character Remote UI protocol",
+    ),
+    _rule(
         "legacy-wasm-gui-factory",
         r"(?:^|/)(?:sources/)?Adapters/wasm/gui/GUIFactory\.cpp$",
         "WASM legacy GUI factory",
@@ -160,6 +165,16 @@ FORBIDDEN_MAP_RULES: tuple[Rule, ...] = (
         "mixed-node-display-object",
         r"(?:^|[/\\(])display\.c\.(?:o|obj)(?:\)|\s|$)",
         "mixed Node character/display transport object",
+    ),
+    _rule(
+        "legacy-remote-ui-archive",
+        r"(?:^|[/\\])libremote_ui\.a(?:\(|\s|$)",
+        "legacy character Remote UI protocol archive",
+    ),
+    _rule(
+        "legacy-remote-ui-object",
+        r"(?:^|[/\\(])RemoteUIProtocol\.cpp\.(?:o|obj)(?:\)|\s|$)",
+        "legacy character Remote UI protocol object",
     ),
     _rule(
         "legacy-wasm-event-loop-object",

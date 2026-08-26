@@ -11,6 +11,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_executable(picoTracker_tests
   test_main.cpp
   foundation_types_tests.cpp
+  fourcc_persistency_tests.cpp
   wavheader_tests.cpp
   wasm_audio_tests.cpp
   wasm_application_snapshot_tests.cpp
@@ -18,9 +19,13 @@ add_executable(picoTracker_tests
   wasm_logging_tests.cpp
   wasm_trace_tests.cpp
   wasm_platform_tests.cpp
+  node_path_resolver_tests.cpp
+  sample_pool_loading_tests.cpp
   ui2_browser_legacy_snapshot_tests.cpp
   ui2_dialog_adapter_tests.cpp
   ui2_project_controller_tests.cpp
+  ui2_project_lifecycle_controller_tests.cpp
+  ui2_device_lifecycle_controller_tests.cpp
   ui2_rename_render_tests.cpp
   ui2_legacy_snapshot_tests.cpp
   ui2_core_tests.cpp
@@ -42,11 +47,37 @@ add_executable(picoTracker_tests
   ../sources/Services/Audio/AudioDriver.cpp
   ../sources/Adapters/wasm/input/InputMap.cpp
   ../sources/Application/Instruments/WavHeader.cpp
+  ../sources/Application/Instruments/I_Instrument.cpp
+  ../sources/Application/UI2/Ui2SampleWaveformBackend.cpp
+  ../sources/Application/Utils/HexBuffers.cpp
+  ../sources/Application/Utils/char.cpp
+  ../sources/Application/Persistency/PersistencyDocument.cpp
+  ../sources/Application/Persistency/PersistencyService.cpp
+  ../sources/Application/Persistency/Persistent.cpp
+  ../sources/Application/Persistency/InstrumentFileValidator.cpp
+  ../sources/Application/Model/Table.cpp
+  ../sources/Application/Model/Chain.cpp
+  ../sources/Application/Model/Groove.cpp
+  ../sources/Application/Model/Phrase.cpp
+  ../sources/Application/Model/ProjectParameterRestore.cpp
+  ../sources/Application/Model/Song.cpp
+  ../sources/Foundation/Services/Service.cpp
+  ../sources/Foundation/Services/ServiceRegistry.cpp
+  ../sources/Foundation/Services/SubService.cpp
+  ../sources/Foundation/Variables/Variable.cpp
+  ../sources/Foundation/Variables/VariableContainer.cpp
+  ../sources/System/io/Status.cpp
+  ../sources/Externals/TinyXML2/tinyxml2_printer_only.cpp
+  ../sources/Externals/TinyXML2/tinyxml2adapter.cpp
+  ../sources/Externals/yxml/yxml.c
+  nanoprintf_test.cpp
   ../sources/Adapters/wasm/system/WasmSystem.cpp
   ../sources/Adapters/wasm/timer/WasmTimer.cpp
   ../sources/Adapters/wasm/filesystem/WasmFile.cpp
   ../sources/Adapters/wasm/filesystem/WasmFileSystem.cpp
   ../sources/Adapters/wasm/filesystem/WasmStorageBridge.cpp
+  ../sources/Adapters/node/filesystem/PathResolver.cpp
+  ../sources/Application/Instruments/SamplePoolLoading.cpp
   ../sources/Adapters/wasm/gui/WasmUiPresenter.cpp
   ../sources/Application/UI2/Ui2ApplicationRuntime.cpp
   ../sources/Foundation/Observable.cpp
@@ -90,6 +121,83 @@ target_compile_definitions(picoTracker_tests PRIVATE
   HOST_TEST
 )
 
+add_executable(autosave_coordinator_tests
+  test_main.cpp
+  autosave_coordinator_tests.cpp
+  ../sources/Application/Session/AutoSaveCoordinator.cpp
+)
+
+target_include_directories(autosave_coordinator_tests PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/stubs
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals/SRC/include
+  ${CMAKE_CURRENT_LIST_DIR}/../sources
+)
+
+target_compile_definitions(autosave_coordinator_tests PRIVATE HOST_TEST)
+add_test(NAME autosave_coordinator COMMAND autosave_coordinator_tests)
+
+add_executable(ui2_status_bridge_tests
+  test_main.cpp
+  nanoprintf_test.cpp
+  ui2_status_bridge_tests.cpp
+  ../sources/Application/UI2/Ui2StatusBridge.cpp
+  ../sources/System/io/Status.cpp
+)
+
+target_include_directories(ui2_status_bridge_tests PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/stubs
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals/SRC/include
+  ${CMAKE_CURRENT_LIST_DIR}/../sources
+)
+
+target_compile_definitions(ui2_status_bridge_tests PRIVATE HOST_TEST)
+add_test(NAME ui2_status_bridge COMMAND ui2_status_bridge_tests)
+
+# Exercise the production grid model adapter against deterministic fixed-size
+# Song/Chain/Phrase/Table storage without pulling the legacy application graph
+# into this focused host test.
+add_executable(ui2_tracker_session_model_port_tests
+  test_main.cpp
+  ui2_tracker_session_model_port_tests.cpp
+  ../sources/Application/Model/Scale.cpp
+  ../sources/Application/UI2/Ui2TrackerSessionModelPort.cpp
+)
+
+target_include_directories(ui2_tracker_session_model_port_tests PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/grid_model_stubs
+  ${CMAKE_CURRENT_LIST_DIR}/stubs
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals/SRC/include
+  ${CMAKE_CURRENT_LIST_DIR}/../sources
+)
+
+target_compile_definitions(ui2_tracker_session_model_port_tests PRIVATE
+  HOST_TEST
+)
+add_test(NAME ui2_tracker_session_model_port
+         COMMAND ui2_tracker_session_model_port_tests)
+
+# The mailbox is deliberately FreeRTOS-free. Keep its ordering/repeat/release
+# invariants in a focused host binary so Node adapter headers do not leak into
+# the already large cross-platform application test target.
+add_executable(node_ui2_input_mailbox_tests
+  test_main.cpp
+  node_ui2_input_mailbox_tests.cpp
+  ../sources/Adapters/node/ui2/NodeUi2InputMailbox.cpp
+)
+
+target_include_directories(node_ui2_input_mailbox_tests PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/stubs
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals/SRC/include
+  ${CMAKE_CURRENT_LIST_DIR}/../sources
+)
+
+target_compile_definitions(node_ui2_input_mailbox_tests PRIVATE HOST_TEST)
+add_test(NAME node_ui2_input_mailbox COMMAND node_ui2_input_mailbox_tests)
+
 add_executable(ui2_rename_modal_tests
   test_main.cpp
   ui2_rename_modal_tests.cpp
@@ -123,10 +231,48 @@ endif()
 # UI2-native controller tests are registered append-only to avoid churn in the
 # legacy-heavy source list above while controller extraction is in progress.
 target_sources(picoTracker_tests PRIVATE
+  ui2_project_browser_controller_tests.cpp
+  ui2_sample_browser_controller_tests.cpp
+  ui2_sample_editor_controller_tests.cpp
   ui2_settings_controller_tests.cpp
   ui2_tracker_grid_controller_tests.cpp
   ui2_tracker_controller_hub_tests.cpp
+  ui2_instrument_import_transaction_tests.cpp
+  instrument_export_transaction_tests.cpp
+  ui2_instrument_parameter_tests.cpp
+  ui2_project_render_controller_tests.cpp
+  firmware_lifecycle_tests.cpp
+  ../sources/Application/Session/FirmwareLifecycleController.cpp
+  ../sources/Application/Session/FirmwareLifecycleService.cpp
 )
+
+# Config has a lightweight host stub used by several unrelated controller
+# tests. Keep the production Config theme transaction tests in a focused binary
+# so the two intentionally different class definitions never share a process.
+add_executable(theme_transaction_tests
+  test_main.cpp
+  nanoprintf_test.cpp
+  theme_transaction_tests.cpp
+  ../sources/Application/Model/Config.cpp
+  ../sources/Application/Persistency/PersistencyDocument.cpp
+  ../sources/Foundation/Observable.cpp
+  ../sources/Foundation/Variables/Variable.cpp
+  ../sources/Foundation/Variables/VariableContainer.cpp
+  ../sources/Foundation/Variables/WatchedVariable.cpp
+  ../sources/Externals/TinyXML2/tinyxml2_printer_only.cpp
+  ../sources/Externals/TinyXML2/tinyxml2adapter.cpp
+  ../sources/Externals/yxml/yxml.c
+)
+
+target_include_directories(theme_transaction_tests PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/stubs
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals/SRC/include
+  ${CMAKE_CURRENT_LIST_DIR}/../sources
+)
+
+target_compile_definitions(theme_transaction_tests PRIVATE HOST_TEST)
+add_test(NAME theme_transactions COMMAND theme_transaction_tests)
 
 add_executable(ui2_snapshot_tool
   ui2_snapshot_main.cpp

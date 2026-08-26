@@ -30,13 +30,36 @@ macro(adapter_node_setup)
     "${_node_root}/Adapters/node/managed_components/espressif__esp_codec_dev")
   message(STATUS "EXTRA_COMPONENT_DIRS: ${EXTRA_COMPONENT_DIRS}")
 
-  option(PICOTRACKER_UI2_DEFAULT
-         "Enable the shared UI2 renderer on supported firmware views" ON)
-  if(PICOTRACKER_UI2_DEFAULT)
-    add_compile_definitions(PICOTRACKER_UI2_DEFAULT=1)
-  else()
-    add_compile_definitions(PICOTRACKER_UI2_DEFAULT=0)
+  set(PICOTRACKER_UI "ui2" CACHE STRING
+      "Node UI product: ui2 (default) or legacy-reference")
+  set_property(CACHE PICOTRACKER_UI PROPERTY STRINGS ui2 legacy-reference)
+  if(NOT PICOTRACKER_UI STREQUAL "ui2" AND
+     NOT PICOTRACKER_UI STREQUAL "legacy-reference")
+    message(FATAL_ERROR
+      "PICOTRACKER_UI must be 'ui2' or 'legacy-reference' (got '${PICOTRACKER_UI}')")
   endif()
+
+  if(PICOTRACKER_UI STREQUAL "ui2")
+    add_compile_definitions(PICOTRACKER_UI2_PRODUCT=1
+                            PICOTRACKER_UI2_DEFAULT=1)
+    set(PICOTRACKER_UI2_LEGACY_STATE_SOURCE OFF CACHE BOOL
+        "Build legacy AppWindow state source" FORCE)
+  else()
+    add_compile_definitions(PICOTRACKER_UI2_PRODUCT=0
+                            PICOTRACKER_UI2_DEFAULT=0)
+    set(PICOTRACKER_UI2_LEGACY_STATE_SOURCE ON CACHE BOOL
+        "Build legacy AppWindow state source" FORCE)
+  endif()
+  message(STATUS "Node UI product: ${PICOTRACKER_UI}")
+
+  # ESP-IDF discovers project libraries while project() is configuring. Seed
+  # the vendored ETL version before that discovery starts so ETL does not run
+  # its CMake-incompatible optional git-describe probe.
+  file(STRINGS "${_node_root}/Externals/etl/version.txt"
+       _picotracker_etl_version LIMIT_COUNT 1)
+  set(ETL_VERSION "${_picotracker_etl_version}" CACHE STRING
+      "Vendored ETL version" FORCE)
+  set(GIT_DIR_LOOKUP_POLICY ALLOW_LOOKING_ABOVE_CMAKE_SOURCE_DIR)
 
   project(picoTracker)
 
@@ -49,7 +72,9 @@ macro(adapter_node_setup)
 
   add_definitions(-DNODE)
   add_definitions(-DESP_PLATFORM)
-  add_definitions(-DUSB_REMOTE_UI)
+  if(PICOTRACKER_UI STREQUAL "legacy-reference")
+    add_definitions(-DUSB_REMOTE_UI)
+  endif()
 
   add_compile_options(
     -g
@@ -57,12 +82,24 @@ macro(adapter_node_setup)
 
   add_subdirectory(Adapters/node)
   add_subdirectory(UI2)
-  add_subdirectory(UIFramework)
+  if(PICOTRACKER_UI STREQUAL "legacy-reference")
+    add_subdirectory(UIFramework)
+  endif()
   add_subdirectory(System)
   add_subdirectory(Application)
   add_subdirectory(Externals)
   add_subdirectory(Services)
   add_subdirectory(Foundation)
+
+  if(PICOTRACKER_UI STREQUAL "ui2")
+    include("${_node_root}/../cmake/Ui2OnlyFirmwareAcceptance.cmake")
+    pico_tracker_add_ui2_only_acceptance_check(
+      NAME ui2_only_firmware_acceptance
+      FIRMWARE_TARGET "${PROJECT_NAME}.elf"
+      COMPILE_COMMANDS "${CMAKE_BINARY_DIR}/compile_commands.json"
+      LINK_MAP "${CMAKE_BINARY_DIR}/${PROJECT_NAME}.map"
+      ELF "$<TARGET_FILE:${PROJECT_NAME}.elf>")
+  endif()
 
   # Enable ETL debug mode only for Debug builds
   if(CMAKE_BUILD_TYPE STREQUAL "Debug")

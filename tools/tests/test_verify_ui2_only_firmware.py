@@ -109,24 +109,33 @@ class Ui2OnlyFirmwareCheckerTest(unittest.TestCase):
                 "file": "/repo/sources/Adapters/wasm/gui/WasmEventManager.cpp",
                 "command": "c++ -c WasmEventManager.cpp",
             },
+            {
+                "directory": "/repo/build/node",
+                "file": "/repo/sources/System/RemoteUI/RemoteUIProtocol.cpp",
+                "command": "c++ -c RemoteUIProtocol.cpp",
+            },
         ]
         result = self.run_checker(compile_commands=commands)
         self.assertEqual(result.returncode, 1)
         self.assertIn("forbidden legacy-application-shell", result.stderr)
         self.assertIn("forbidden legacy-node-gui", result.stderr)
         self.assertIn("forbidden legacy-wasm-event-loop", result.stderr)
+        self.assertIn("forbidden legacy-remote-ui-protocol", result.stderr)
 
     def test_forbidden_archive_and_object_fail(self) -> None:
         link_map = GOOD_LINK_MAP + """
 LOAD /repo/build/node/libapplication_views.a(SongView.cpp.obj)
 LOAD /repo/build/node/libplatform_gui.a(GUIWindowImp.cpp.obj)
 LOAD /repo/build/node/libapplication_legacy_reference.a(Application.cpp.obj)
+LOAD /repo/build/node/libremote_ui.a(RemoteUIProtocol.cpp.obj)
 """
         result = self.run_checker(link_map=link_map)
         self.assertEqual(result.returncode, 1)
         self.assertIn("forbidden legacy-view-archive", result.stderr)
         self.assertIn("forbidden legacy-node-window-object", result.stderr)
         self.assertIn("forbidden legacy-application-archive", result.stderr)
+        self.assertIn("forbidden legacy-remote-ui-archive", result.stderr)
+        self.assertIn("forbidden legacy-remote-ui-object", result.stderr)
 
     def test_forbidden_defined_symbol_fails(self) -> None:
         nm_output = GOOD_NM + """

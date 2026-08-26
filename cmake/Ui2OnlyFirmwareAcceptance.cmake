@@ -2,9 +2,9 @@
 
 include_guard(GLOBAL)
 
-# Opt-in helper for the future UI2-only product target.  This file is not
-# included by the current hybrid Node build and the target is intentionally not
-# added to ALL.  The caller must pass final build artifacts from a clean build.
+# Release gate used by the default strict Node UI2 product. The target is
+# intentionally not part of ALL: CI/release automation requests it after the
+# firmware link and passes artifacts from the same clean build.
 set(_PICOTRACKER_UI2_ONLY_CHECKER
     "${CMAKE_CURRENT_LIST_DIR}/../tools/verify_ui2_only_firmware.py")
 

@@ -12,7 +12,6 @@ const requiredFiles = [
   'THIRD_PARTY_NOTICES.md',
   'wasm/picotracker.js',
   'wasm/picotracker.wasm',
-  'wasm/picotracker-oracle.js',
   'wasm/picotracker-oracle.wasm',
 ]
 
@@ -120,7 +119,10 @@ for (const relative of files) {
   }
 }
 
-for (const loader of ['wasm/picotracker.js', 'wasm/picotracker-oracle.js']) {
+// The product is emitted as an Emscripten JS loader plus WASM. The isolated
+// render oracle deliberately uses STANDALONE_WASM and is instantiated directly
+// by oracle.spec.js, so it has no generated JavaScript companion to verify.
+for (const loader of ['wasm/picotracker.js']) {
   const wasmName = loader.replace(/\.js$/, '.wasm').split('/').at(-1)
   if (!readFileSync(resolve(distRoot, loader), 'utf8').includes(wasmName)) {
     fail(`${loader} does not reference its local ${wasmName}`)
