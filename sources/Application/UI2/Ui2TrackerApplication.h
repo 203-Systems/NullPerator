@@ -132,6 +132,7 @@ private:
   void SynchronizeGridPage();
   void ResetControllersAfterProjectBoundary();
   void MarkProjectDirty();
+  void SynchronizeProjectMutationState();
   [[nodiscard]] bool FlushConfig();
   [[nodiscard]] bool AutosaveSafePage() const;
 

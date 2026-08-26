@@ -403,13 +403,8 @@ void Ui2TrackerApplication::DispatchPageAction(UiApplicationPage owner,
   case UiApplicationPage::Chain:
   case UiApplicationPage::Phrase:
   case UiApplicationPage::Table: {
-    const std::uint32_t before = modelPort_.ProjectMutationGeneration();
     tracker_.Handle(action, pressed);
-    const std::uint32_t after = modelPort_.ProjectMutationGeneration();
-    if (after != before) {
-      observedProjectMutationGeneration_ = after;
-      MarkProjectDirty();
-    }
+    SynchronizeProjectMutationState();
     SynchronizeGridPage();
     break;
   }
@@ -603,12 +598,7 @@ void Ui2TrackerApplication::Tick(std::uint32_t nowMs) {
   (void)firmwareLifecycle_.Execute(firmwareCommand);
   projectRender_.Tick();
   UpdateSamplePreview(nowMs);
-  const std::uint32_t mutationGeneration =
-      modelPort_.ProjectMutationGeneration();
-  if (mutationGeneration != observedProjectMutationGeneration_) {
-    observedProjectMutationGeneration_ = mutationGeneration;
-    autoSave_.MarkDirty(nowMs);
-  }
+  SynchronizeProjectMutationState();
   const AutoSaveCoordinator::Conditions conditions{
       .projectLoaded = session_.IsLoaded(),
       .playerRunning = Player::GetInstance()->IsRunning(),
@@ -2129,6 +2119,16 @@ void Ui2TrackerApplication::ResetControllersAfterProjectBoundary() {
 }
 
 void Ui2TrackerApplication::MarkProjectDirty() {
+  modelPort_.MarkProjectMutated();
+  SynchronizeProjectMutationState();
+}
+
+void Ui2TrackerApplication::SynchronizeProjectMutationState() {
+  const std::uint32_t mutationGeneration =
+      modelPort_.ProjectMutationGeneration();
+  if (mutationGeneration == observedProjectMutationGeneration_)
+    return;
+  observedProjectMutationGeneration_ = mutationGeneration;
   autoSave_.MarkDirty(System::GetInstance()->Millis());
 }
 

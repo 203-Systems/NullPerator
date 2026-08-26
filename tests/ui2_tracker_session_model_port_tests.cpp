@@ -32,6 +32,15 @@ Ui2TrackerCommand SelectionCommand(Ui2TrackerCommandType type,
 
 } // namespace
 
+TEST_CASE("UI2 model port exposes one mutation generation for all workflows") {
+  TrackerApplicationSession session;
+  Ui2TrackerSessionModelPort port(session);
+
+  CHECK(port.ProjectMutationGeneration() == 0U);
+  port.MarkProjectMutated();
+  CHECK(port.ProjectMutationGeneration() == 1U);
+}
+
 TEST_CASE("UI2 model port preserves raw Phrase clipboard data") {
   TrackerApplicationSession session;
   Ui2TrackerSessionModelPort port(session);

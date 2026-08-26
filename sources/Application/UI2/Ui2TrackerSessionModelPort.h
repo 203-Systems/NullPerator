@@ -33,6 +33,9 @@ public:
   [[nodiscard]] std::uint32_t ProjectMutationGeneration() const {
     return projectMutationGeneration_;
   }
+  // Non-grid workflows use the same monotonic mutation source as grid edits,
+  // so autosave never depends on page-specific dirty bookkeeping.
+  void MarkProjectMutated() { ++projectMutationGeneration_; }
   void ResetProjectBoundary();
 
 private:
