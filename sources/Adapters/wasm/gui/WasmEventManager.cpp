@@ -6,7 +6,6 @@
 #include "Adapters/wasm/gui/WasmViewDiagnostics.h"
 
 #include "Adapters/wasm/gui/WasmGUIWindowImp.h"
-#include "Adapters/wasm/gui/WasmUi2Control.h"
 #include "Adapters/wasm/audio/WasmAudio.h"
 #include "Adapters/wasm/audio/WasmAudioDriver.h"
 #include "Adapters/wasm/filesystem/WasmStorageBridge.h"
@@ -285,14 +284,6 @@ std::uint32_t WasmEventManager::DiagnosticInputGeneration() const {
   return diagnosticInputGeneration_.load(std::memory_order_acquire);
 }
 
-void WasmEventManager::SetUi2Enabled(bool enabled) {
-  (void)enabled;
-}
-
-bool WasmEventManager::Ui2Enabled() const {
-  return true;
-}
-
 void WasmEventManager::ConfigureNative(
     WasmGUIWindowImp &window, ui2::Ui2TrackerApplication &application) {
   nativeWindow_ = &window;
@@ -387,12 +378,4 @@ std::uint32_t WasmViewDiagnostics_CurrentModal() noexcept {
 
 std::uint32_t WasmViewDiagnostics_ModalGeneration() noexcept {
   return WasmEventManager::GetInstance()->DiagnosticModalGeneration();
-}
-
-void WasmUi2_SetEnabled(bool enabled) noexcept {
-  WasmEventManager::GetInstance()->SetUi2Enabled(enabled);
-}
-
-bool WasmUi2_IsEnabled() noexcept {
-  return WasmEventManager::GetInstance()->Ui2Enabled();
 }

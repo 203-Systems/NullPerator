@@ -29,8 +29,6 @@ public:
   std::uint32_t DiagnosticModal() const;
   std::uint32_t DiagnosticModalGeneration() const;
   std::uint32_t DiagnosticInputGeneration() const;
-  void SetUi2Enabled(bool enabled);
-  bool Ui2Enabled() const;
   void ConfigureNative(WasmGUIWindowImp &window,
                        ui2::Ui2TrackerApplication &application);
 

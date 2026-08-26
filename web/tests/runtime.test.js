@@ -423,29 +423,6 @@ describe('WASM runtime lifecycle', () => {
     expect(moduleOptions.canvas).toBe(canvas)
   })
 
-  it('enables the native UI2 renderer only for the explicit preview URL', async () => {
-    vi.stubGlobal('location', { search: '?ui2=1' })
-    const setUi2Enabled = vi.fn()
-    const module = {
-      _PicoTracker_Wasm_GetState: () => 1,
-      _PicoTracker_Wasm_SetUi2Enabled: setUi2Enabled,
-      _PicoTracker_Wasm_SetAction() {},
-      _PicoTracker_Wasm_ReleaseAllActions() {},
-      _PicoTracker_Wasm_GetActionMask() {},
-      _PicoTracker_Wasm_GetActionGeneration() {},
-      _PicoTracker_Wasm_GetLastAction() {},
-      PThread: { terminateAllThreads() {} },
-    }
-
-    const runtime = await createRuntimeWithoutMidi({ moduleFactory: async () => module })
-
-    expect(setUi2Enabled).toHaveBeenCalledWith(true)
-    expect(runtime.ui2.isEnabled()).toBe(true)
-    runtime.ui2.setEnabled(false)
-    expect(setUi2Enabled).toHaveBeenLastCalledWith(false)
-    vi.unstubAllGlobals()
-  })
-
   it('captures Emscripten stdout and stderr as structured browser logs', async () => {
     const module = {
       _PicoTracker_Wasm_GetState: () => 1,

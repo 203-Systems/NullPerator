@@ -3,7 +3,6 @@
 #include "Adapters/wasm/input/InputMap.h"
 #include "Adapters/wasm/audio/WasmAudioBridge.h"
 #include "Adapters/wasm/gui/WasmViewDiagnostics.h"
-#include "Adapters/wasm/gui/WasmUi2Control.h"
 #include "Adapters/wasm/platform/WasmBrowserSnapshots.h"
 
 #include <atomic>
@@ -90,14 +89,6 @@ extern "C" std::uint32_t PicoTracker_Wasm_GetActionGeneration() {
 
 extern "C" std::uint16_t PicoTracker_Wasm_GetLastAction() {
   return InputMap::GetLastDispatchedAction();
-}
-
-extern "C" void PicoTracker_Wasm_SetUi2Enabled(bool enabled) {
-  WasmUi2_SetEnabled(enabled);
-}
-
-extern "C" bool PicoTracker_Wasm_GetUi2Enabled() {
-  return WasmUi2_IsEnabled();
 }
 
 extern "C" void PicoTracker_Wasm_RequestDiagnosticView(std::uint32_t viewType) {

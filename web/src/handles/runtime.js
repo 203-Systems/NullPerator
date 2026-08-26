@@ -165,8 +165,6 @@ export async function createRuntime(options = {}) {
   if (!exposeMidiForTesting) delete globalThis.__picoTrackerMidiTest
   const exposeRuntimeForTesting = new URLSearchParams(globalThis.location?.search ?? '').get('runtime-test') === '1'
   if (!exposeRuntimeForTesting) delete globalThis.__picoTrackerRuntimeTest
-  const ui2Requested = options.ui2Enabled ??
-    new URLSearchParams(globalThis.location?.search ?? '').get('ui2') === '1'
   const audioParameter = new URLSearchParams(globalThis.location?.search ?? '').get('audio')
   const audioWorkletEnabled = options.audioWorkletEnabled ??
     (audioParameter === 'worklet' || (audioParameter === null && workbenchSettings.lowLatencyAudio))
@@ -268,19 +266,6 @@ export async function createRuntime(options = {}) {
     detachBeforeUnloadGuard()
     throw error
   }
-  let ui2Enabled = false
-  const setUi2Enabled = (enabled) => {
-    if (typeof module._PicoTracker_Wasm_SetUi2Enabled !== 'function') {
-      throw new Error('WASM module does not export the UI2 renderer switch')
-    }
-    ui2Enabled = Boolean(enabled)
-    module._PicoTracker_Wasm_SetUi2Enabled(ui2Enabled)
-  }
-  const synchronizeUi2Enabled = () => setUi2Enabled(ui2Enabled)
-  const getUi2Enabled = () => typeof module._PicoTracker_Wasm_GetUi2Enabled === 'function'
-    ? Boolean(module._PicoTracker_Wasm_GetUi2Enabled())
-    : ui2Enabled
-  if (ui2Requested) setUi2Enabled(true)
   let logsHandle = null
   let storageTestHandle = null
   let viewsTestHandle = null
@@ -432,11 +417,6 @@ export async function createRuntime(options = {}) {
     midi,
     logs,
     trace,
-    ui2: Object.freeze({
-      setEnabled: setUi2Enabled,
-      isEnabled: getUi2Enabled,
-      synchronize: synchronizeUi2Enabled,
-    }),
     viewDiagnostics: viewsTestHandle,
     getBuildMetadataJson() {
       return toMessage(module, module._PicoTracker_Wasm_GetBuildMetadataJson())
