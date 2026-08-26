@@ -74,8 +74,7 @@ NodeUi2Platform::NodeUi2Platform(void *applicationStorage,
       rgb565Presenter_(gUi2TransferPixels,
                        ui2::UiRgb565Presenter::kTransferPixels,
                        &NodeUi2Platform::WriteRgb565Chunk, this,
-                       ui2::UiRgb565ByteOrder::MostSignificantByteFirst,
-                       ui2::UiRgb565ToneCurve::St7789Contrast) {
+                       ui2::UiRgb565ByteOrder::MostSignificantByteFirst) {
   taskEvents_ = xEventGroupCreateStatic(&taskEventsStorage_);
 }
 
