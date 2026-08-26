@@ -8,24 +8,20 @@
 
 #include <cstdint>
 
-// Stable hardware/application action order. Platform adapters emit these
-// actions directly; neither UI2 controllers nor firmware input need a legacy
-// GUIEvent/View header to interpret them.
+// Stable M8-style UI2 action order. Platform adapters translate their raw
+// button labels (A/B/SELECT/START) into these semantic actions exactly once.
 enum class TrackerAction : std::uint8_t {
   Left = 0,
   Down,
   Right,
   Up,
-  Alt,
-  Edit,
-  Enter,
-  // One physical START button. Native UI2 resolves tap to logical PLAY and
-  // held/chorded input to navigation; adapters emit only this action.
-  Start,
-  Nav = Start, // Legacy UI/reference compatibility.
-  Play = 8,    // Logical action synthesized inside UI2.
-  Select,
-  Power,
+  Shift,  // Node SELECT; M8 page/navigation modifier.
+  Option, // Node B; M8 context/fast-action modifier.
+  Edit,   // Node A; M8 edit/confirm action.
+  Play,   // Node START; immediate context playback action.
+  Reserved8,
+  Reserved9,
+  Power = 10,
   Count,
 };
 
@@ -40,13 +36,20 @@ enum TrackerButtonMask : std::uint16_t {
   EPBM_DOWN = TrackerActionBit(TrackerAction::Down),
   EPBM_RIGHT = TrackerActionBit(TrackerAction::Right),
   EPBM_UP = TrackerActionBit(TrackerAction::Up),
-  EPBM_ALT = TrackerActionBit(TrackerAction::Alt),
-  EPBM_EDIT = TrackerActionBit(TrackerAction::Edit),
-  EPBM_ENTER = TrackerActionBit(TrackerAction::Enter),
-  EPBM_START = TrackerActionBit(TrackerAction::Start),
-  EPBM_NAV = EPBM_START,
+  EPBM_SHIFT = TrackerActionBit(TrackerAction::Shift),
+  EPBM_OPTION = TrackerActionBit(TrackerAction::Option),
+  EPBM_M8_EDIT = TrackerActionBit(TrackerAction::Edit),
+  EPBM_M8_PLAY = TrackerActionBit(TrackerAction::Play),
+
+  // Legacy masks remain available only while the old reference UI is still
+  // part of non-UI2 builds. Native UI2 code must use the semantic masks above.
+  EPBM_ALT = EPBM_SHIFT,
+  EPBM_EDIT = EPBM_OPTION,
+  EPBM_ENTER = EPBM_M8_EDIT,
+  EPBM_START = EPBM_M8_PLAY,
+  EPBM_NAV = EPBM_SHIFT,
   EPBM_PLAY = TrackerActionBit(TrackerAction::Play),
-  EPBM_SELECT = TrackerActionBit(TrackerAction::Select),
+  EPBM_SELECT = TrackerActionBit(TrackerAction::Reserved9),
   EPBM_POWER = TrackerActionBit(TrackerAction::Power),
 };
 

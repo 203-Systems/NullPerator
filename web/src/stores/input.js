@@ -3,11 +3,10 @@ export const ACTIONS = Object.freeze({
   down: 1,
   right: 2,
   up: 3,
-  alt: 4,
-  edit: 5,
-  enter: 6,
-  start: 7,
-  select: 9,
+  shift: 4,
+  option: 5,
+  edit: 6,
+  play: 7,
   power: 10,
 })
 
@@ -15,21 +14,16 @@ function entry(action, ...bindings) {
   return Object.freeze({ action, bindings: Object.freeze(bindings.map((binding) => Object.freeze(binding))) })
 }
 
-// Operator's primary eight-key layout keeps every common PicoTracker chord
-// under one hand pair: WASD navigation, J/K face buttons, and X/C modifiers.
-// Arrow keys remain aliases for users coming from the historical SDL build.
+// M8 semantic layout over the Node A/B/SELECT/START hardware positions.
 export const DEFAULT_KEY_MAP = Object.freeze({
   left: entry(ACTIONS.left, ['KeyA'], ['ArrowLeft']),
   down: entry(ACTIONS.down, ['KeyS'], ['ArrowDown']),
   right: entry(ACTIONS.right, ['KeyD'], ['ArrowRight']),
   up: entry(ACTIONS.up, ['KeyW'], ['ArrowUp']),
-  alt: entry(ACTIONS.alt, ['KeyX']),
-  edit: entry(ACTIONS.edit, ['KeyJ']),
-  enter: entry(ACTIONS.enter, ['KeyK']),
-  // START is one physical action. Firmware UI2 owns tap/hold/chord semantics;
-  // the browser must not synthesize separate NAV and PLAY actions.
-  start: entry(ACTIONS.start, ['KeyC']),
-  select: entry(ACTIONS.select),
+  shift: entry(ACTIONS.shift, ['KeyX']),
+  option: entry(ACTIONS.option, ['KeyJ']),
+  edit: entry(ACTIONS.edit, ['KeyK']),
+  play: entry(ACTIONS.play, ['KeyC']),
   power: entry(ACTIONS.power),
 })
 
@@ -90,14 +84,6 @@ export function createInputStore(bridge) {
     activeBindings.clear()
     bridge?.releaseAllActions?.()
     publish()
-  }
-
-  function pressStart(source = 'start') {
-    return press('start', source)
-  }
-
-  function releaseStart(source = 'start') {
-    return release('start', source)
   }
 
   function bindingsForCode(code) {
@@ -173,8 +159,6 @@ export function createInputStore(bridge) {
     subscribe(listener) { listeners.add(listener); listener(Object.freeze([...heldSources.keys()])); return () => listeners.delete(listener) },
     press,
     release,
-    pressStart,
-    releaseStart,
     releaseAll,
     handleKeyDown,
     handleKeyUp,

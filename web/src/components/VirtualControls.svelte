@@ -16,22 +16,6 @@
     input?.release(action, source(event))
   }
   function cancel(event) { event.preventDefault(); input?.releaseAll() }
-  function pressStart(event) {
-    event.preventDefault()
-    try { event.currentTarget.setPointerCapture?.(event.pointerId) } catch {}
-    input?.pressStart(source(event))
-  }
-  function releaseStart(event, suppressClick = false) {
-    if (suppressClick) pointerClickSuppression.add(event.currentTarget)
-    input?.releaseStart(source(event))
-  }
-  function activateStart(event) {
-    const keyboardActivation = event.detail === 0
-    if (!keyboardActivation && pointerClickSuppression.delete(event.currentTarget)) { event.preventDefault(); return }
-    if (keyboardActivation) pointerClickSuppression.delete(event.currentTarget)
-    event.preventDefault()
-    input?.pressStart('virtual-click:start'); input?.releaseStart('virtual-click:start')
-  }
   function activate(event, action) {
     const keyboardActivation = event.detail === 0
     if (!keyboardActivation && pointerClickSuppression.delete(event.currentTarget)) { event.preventDefault(); return }
@@ -55,24 +39,24 @@
   </div>
 
   <div class="face-buttons">
-    <button type="button" class="face enter" class:pressed={heldActions.includes('enter')} aria-label="ENTER" aria-pressed={heldActions.includes('enter')} data-action="enter" {disabled}
-      onpointerdown={(e)=>press(e,'enter')} onpointerup={(e)=>release(e,'enter',true)} onpointercancel={cancel} onlostpointercapture={(e)=>release(e,'enter')} onclick={(e)=>activate(e,'enter')}>
-      <span class="switch"><span>↵</span></span><kbd>K</kbd><em>ENTER</em>
-    </button>
-    <button type="button" class="face edit" class:pressed={heldActions.includes('edit')} aria-label="EDIT" aria-pressed={heldActions.includes('edit')} data-action="edit" {disabled}
+    <button type="button" class="face enter" class:pressed={heldActions.includes('edit')} aria-label="EDIT" aria-pressed={heldActions.includes('edit')} data-action="edit" {disabled}
       onpointerdown={(e)=>press(e,'edit')} onpointerup={(e)=>release(e,'edit',true)} onpointercancel={cancel} onlostpointercapture={(e)=>release(e,'edit')} onclick={(e)=>activate(e,'edit')}>
-      <span class="switch"><span>✦</span></span><kbd>J</kbd><em>EDIT</em>
+      <span class="switch"><span>↵</span></span><kbd>K</kbd><em>EDIT</em>
+    </button>
+    <button type="button" class="face edit" class:pressed={heldActions.includes('option')} aria-label="OPTION" aria-pressed={heldActions.includes('option')} data-action="option" {disabled}
+      onpointerdown={(e)=>press(e,'option')} onpointerup={(e)=>release(e,'option',true)} onpointercancel={cancel} onlostpointercapture={(e)=>release(e,'option')} onclick={(e)=>activate(e,'option')}>
+      <span class="switch"><span>✦</span></span><kbd>J</kbd><em>OPTION</em>
     </button>
   </div>
 
   <div class="bottom-buttons">
-    <button type="button" class:pressed={heldActions.includes('alt')} aria-label="ALT" aria-pressed={heldActions.includes('alt')} data-action="alt" {disabled}
-      onpointerdown={(e)=>press(e,'alt')} onpointerup={(e)=>release(e,'alt',true)} onpointercancel={cancel} onlostpointercapture={(e)=>release(e,'alt')} onclick={(e)=>activate(e,'alt')}>
-      <span class="switch"></span><kbd>X</kbd><em>ALT</em>
+    <button type="button" class:pressed={heldActions.includes('shift')} aria-label="SHIFT" aria-pressed={heldActions.includes('shift')} data-action="shift" {disabled}
+      onpointerdown={(e)=>press(e,'shift')} onpointerup={(e)=>release(e,'shift',true)} onpointercancel={cancel} onlostpointercapture={(e)=>release(e,'shift')} onclick={(e)=>activate(e,'shift')}>
+      <span class="switch"></span><kbd>X</kbd><em>SHIFT</em>
     </button>
-    <button type="button" class:pressed={heldActions.includes('start')} aria-label="START" aria-pressed={heldActions.includes('start')} data-action="start" title="Tap: PLAY · Hold: NAV · Hold ALT first: hold ALT+PLAY" {disabled}
-      onpointerdown={pressStart} onpointerup={(e)=>releaseStart(e,true)} onpointercancel={cancel} onlostpointercapture={releaseStart} onclick={activateStart}>
-      <span class="switch"><span>▶</span></span><kbd>C</kbd><em>START</em>
+    <button type="button" class:pressed={heldActions.includes('play')} aria-label="PLAY" aria-pressed={heldActions.includes('play')} data-action="play" {disabled}
+      onpointerdown={(e)=>press(e,'play')} onpointerup={(e)=>release(e,'play',true)} onpointercancel={cancel} onlostpointercapture={(e)=>release(e,'play')} onclick={(e)=>activate(e,'play')}>
+      <span class="switch"><span>▶</span></span><kbd>C</kbd><em>PLAY</em>
     </button>
   </div>
 </div>

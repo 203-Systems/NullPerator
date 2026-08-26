@@ -477,6 +477,10 @@ void WasmEventManager::PumpNativeFrame() {
 
   const double now = SDL_GetTicks64();
   if (now >= nextTick_) {
+    // Lifecycle work must continue even when presentation is a no-op. The
+    // application tick is shared with embedded UI2 hosts and deliberately
+    // remains outside Ui2ApplicationRuntime::Present().
+    application.Tick(static_cast<std::uint32_t>(now));
     if (application.Present() == ui2::PresentResult::Failed) {
       PicoTracker_Wasm_Fail("UI2 frame presentation failed");
       StopRuntime();
@@ -559,6 +563,13 @@ void WasmEventManager::StopRuntime() {
     return;
   }
   runtimeStopped_ = true;
+  if (nativeApplication_ != nullptr) {
+    // The native application is placement-new'd into static storage, so its
+    // destructor is not invoked when the browser pthread stops. Run the
+    // explicit idempotent teardown while MIDI/audio platform services still
+    // exist; this is the same ordering used by embedded UI2 product mains.
+    nativeApplication_->Shutdown();
+  }
   // Publish the terminal audio source atomics from the same rAF-owned writer
   // before stopping this loop. It is intentionally after the browser-main
   // teardown acknowledgement above.

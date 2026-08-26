@@ -3,18 +3,10 @@
 #include "Adapters/node/platform/platform.h"
 
 namespace {
-constexpr uint32_t START_TAP_TIME_MS = 500;
 constexpr uint16_t kUninitializedKeyCache = 0xFFFF;
-
-struct StartButtonState {
-  uint32_t pressed_since_ms = 0;
-  bool chord_triggered = false;
-  bool alt_play = false;
-};
 
 struct InputState {
   uint16_t last_key_mask = kUninitializedKeyCache;
-  StartButtonState start = {};
 };
 
 InputState g_input_state = {};
@@ -49,58 +41,14 @@ uint16_t build_base_key_mask(const NullperatorHAL::Input::ButtonState_t& buttons
   remapped |= (buttons.down ? KEY_DOWN : 0u);
   remapped |= (buttons.right ? KEY_RIGHT : 0u);
   remapped |= (buttons.up ? KEY_UP : 0u);
-  // TODO(node): Restore the physical EDIT mapping once the ENTER button
-  // hardware issue is resolved. Until then, EDIT acts as ENTER.
-  remapped |= (buttons.b ? KEY_ENTER : 0u);
+  // Raw Node labels are translated to the M8 semantic layout by the shared
+  // dispatcher: B=OPTION, A=EDIT, SELECT=SHIFT, START=PLAY.
+  remapped |= (buttons.b ? KEY_EDIT : 0u);
   remapped |= (buttons.a ? KEY_ENTER : 0u);
   remapped |= (buttons.select ? KEY_ALT : 0u);
+  remapped |= (buttons.start ? KEY_NAV : 0u);
   remapped |= (buttons.func ? KEY_POWER : 0u);
   return remapped;
-}
-
-// START has dual behavior: a short standalone tap emits PLAY, while a hold
-// behaves as NAV. NAV is published provisionally from button-down so a newly
-// pressed chord key can never reach the UI before its modifier. This is safe:
-// firmware views only assign behavior to NAV combinations, never NAV alone.
-// A pure standalone tap releases that inert NAV state and emits PLAY. ALT held
-// before START makes START hold PLAY instead, provided ALT is the only other
-// key. START held before ALT remains NAV+ALT. Releasing ALT or pressing a
-// third key cancels the latched PLAY until START is released.
-uint16_t resolve_start_key_mask(bool start_pressed, uint16_t other_keys,
-                                uint32_t now_ms) {
-  StartButtonState& state = g_input_state.start;
-  uint16_t result = 0;
-  const bool was_pressed = (state.pressed_since_ms != 0);
-
-  if (start_pressed) {
-    if (!was_pressed) {
-      state.pressed_since_ms = now_ms;
-      state.alt_play = other_keys == KEY_ALT;
-      state.chord_triggered = (other_keys != 0u) && !state.alt_play;
-    }
-
-    if (state.alt_play) {
-      if (!state.chord_triggered && other_keys == KEY_ALT) {
-        result |= KEY_PLAY;
-      } else {
-        state.chord_triggered = true;
-      }
-    } else {
-      if (other_keys != 0u) {
-        state.chord_triggered = true;
-      }
-      result |= KEY_NAV;
-    }
-  } else if (was_pressed) {
-    if (!state.alt_play && !state.chord_triggered &&
-        (now_ms - state.pressed_since_ms) < START_TAP_TIME_MS) {
-      result |= KEY_PLAY;
-    }
-    state.pressed_since_ms = 0;
-    state.chord_triggered = false;
-    state.alt_play = false;
-  }
-  return result;
 }
 
 // Large one-frame mask jumps usually come from unstable reads during transitions.
@@ -129,10 +77,5 @@ uint16_t scanKeys(bool *headphoneConnected) {
   }
 #endif
 
-  const uint32_t now_ms = millis();
-  uint16_t key_mask = build_base_key_mask(buttons);
-
-  key_mask |= resolve_start_key_mask(buttons.start, key_mask, now_ms);
-
-  return filter_unstable_changes(key_mask);
+  return filter_unstable_changes(build_base_key_mask(buttons));
 }

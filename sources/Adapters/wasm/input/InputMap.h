@@ -4,28 +4,18 @@
 
 #pragma once
 
-#include <cstdint>
+#include "Application/Input/TrackerInput.h"
 
-// These values deliberately match GUIEventPadButtonType. Keeping the browser
-// API independent of SDL key codes means all browser input follows the same
-// pad action path as the physical tracker controls.
-enum class WasmAction : std::uint16_t {
-  Left = 0,
-  Down,
-  Right,
-  Up,
-  Alt,
-  Edit,
-  Enter,
-  Nav,
-  Play,
-  Select,
-  Power,
-  Count,
-};
+#include <cstdint>
 
 class InputMap final {
 public:
+  // Browser action ids are the product's semantic TrackerAction ids. Keeping
+  // a second legacy GUIEvent-shaped enum here previously made ids 4..7 look
+  // like ALT/EDIT/ENTER/NAV even though the native application consumes
+  // SHIFT/OPTION/EDIT/PLAY.
+  static constexpr std::uint16_t ActionCount =
+      static_cast<std::uint16_t>(TrackerAction::Count);
   static constexpr int ActionEventCode = 2;
   using QueueActionFunction = bool (*)(std::uint16_t action, bool pressed);
 

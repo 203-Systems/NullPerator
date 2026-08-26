@@ -14,7 +14,7 @@
 
 namespace {
 constexpr std::uint16_t ActionCount =
-    static_cast<std::uint16_t>(WasmAction::Count);
+    InputMap::ActionCount;
 static_assert(ActionCount <= 16, "The application action mask is 16 bits");
 
 std::mutex actionMutex;
@@ -28,7 +28,13 @@ std::uint32_t dispatchGeneration = 0;
 std::uint16_t lastDispatchedAction = ActionCount;
 std::array<std::uint16_t, ActionCount> pendingTraceCorrelations{};
 
-bool IsValidAction(std::uint16_t action) { return action < ActionCount; }
+bool IsValidAction(std::uint16_t action) {
+  if (action >= ActionCount)
+    return false;
+  const TrackerAction semantic = static_cast<TrackerAction>(action);
+  return semantic != TrackerAction::Reserved8 &&
+         semantic != TrackerAction::Reserved9;
+}
 
 std::uintptr_t EncodeAction(std::uint16_t action, bool pressed) {
   return (static_cast<std::uintptr_t>(action) << 1u) | (pressed ? 1u : 0u);

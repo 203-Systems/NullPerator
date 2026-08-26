@@ -46,10 +46,10 @@ void EventDispatcher::Execute(FourCC id, float value) {
     TrackerAction mapping = TrackerAction::Count;
     switch (id) {
     case FourCC::TrigEventEnter:
-      mapping = TrackerAction::Enter;
+      mapping = TrackerAction::Edit;
       break;
     case FourCC::TrigEventEdit:
-      mapping = TrackerAction::Edit;
+      mapping = TrackerAction::Option;
       break;
     case FourCC::TrigEventLeft:
       mapping = TrackerAction::Left;
@@ -64,10 +64,10 @@ void EventDispatcher::Execute(FourCC id, float value) {
       mapping = TrackerAction::Down;
       break;
     case FourCC::TrigEventAlt:
-      mapping = TrackerAction::Alt;
+      mapping = TrackerAction::Shift;
       break;
     case FourCC::TrigEventNav:
-      mapping = TrackerAction::Start;
+      mapping = TrackerAction::Play;
       break;
     case FourCC::TrigEventPlay:
       mapping = TrackerAction::Play;

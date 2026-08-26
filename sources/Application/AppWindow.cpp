@@ -13,6 +13,7 @@
 #include "Application/Instruments/SamplePool.h"
 #include "Application/Mixer/MixerService.h"
 #include "Application/Model/Mixer.h"
+#include "Application/Model/ProjectVersion.h"
 #include "Application/Persistency/PersistencyService.h"
 #include "Application/Player/TablePlayback.h"
 #include "Application/Utils/char.h"
@@ -880,7 +881,7 @@ bool AppWindow::onEvent(GUIEvent &event) {
 
 void AppWindow::DispatchTrackerAction(TrackerAction action, bool pressed) {
   static_assert(static_cast<int>(TrackerAction::Left) == EPBT_LEFT);
-  static_assert(static_cast<int>(TrackerAction::Enter) == EPBT_A);
+  static_assert(static_cast<int>(TrackerAction::Edit) == EPBT_A);
   static_assert(static_cast<int>(TrackerAction::Power) == EPBT_POWER);
   GUIEvent event(static_cast<long>(action),
                  pressed ? ET_PADBUTTONDOWN : ET_PADBUTTONUP,
