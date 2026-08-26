@@ -9,7 +9,7 @@ The checker deliberately inspects three independent build products:
   when it arrived through a renamed or prebuilt archive.
 
 The product build is UI2-only by default.  This script is the release gate that
-proves an opt-in legacy-reference build did not leak into a product artifact.
+proves retired UI symbols did not leak into a product artifact.
 """
 
 from __future__ import annotations

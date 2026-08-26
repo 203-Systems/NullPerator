@@ -1,15 +1,10 @@
 #include "Adapters/node/platform/platform.h"
 
-#if PICOTRACKER_UI2_PRODUCT
 #include "Adapters/node/system/Ui2System.h"
 #include "Adapters/node/ui2/NodeUi2Platform.h"
 #include "esp_attr.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
-#else
-#include "Adapters/node/system/System.h"
-#include "Application/Application.h"
-#endif
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -20,7 +15,6 @@
 
 namespace {
 
-#if PICOTRACKER_UI2_PRODUCT
 constexpr char kLogTag[] = "NODE_UI2_MAIN";
 
 int RunUi2Product(int argc, char **argv) {
@@ -90,36 +84,10 @@ int RunUi2Product(int argc, char **argv) {
   NodeUi2System::Shutdown();
   return exitCode;
 }
-#endif
-
 } // namespace
 
 int main(int argc, char *argv[]) {
-#if PICOTRACKER_UI2_PRODUCT
   return RunUi2Product(argc, argv);
-#else
-  // Initialise microcontroller specific hardware
-  board_init();
-
-  // Initialise TinyUSB
-  tusb_init();
-
-  // Do remaining pT init, this needs to be done *after* above hardware and
-  // tinyusb subsystem init
-  platform_init();
-
-  NodeSystem::Boot(argc, argv);
-
-  GUICreateWindowParams params;
-  params.title = "picoTracker";
-
-  Application::GetInstance()->Init(params);
-
-  NodeSystem::MainLoop();
-
-  NodeSystem::Shutdown();
-  return 0;
-#endif
 }
 
 

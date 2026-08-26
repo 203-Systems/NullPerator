@@ -5,13 +5,9 @@ include_directories(
   "${PROJECT_SOURCE_DIR}/config"
   "${CMAKE_CURRENT_SOURCE_DIR}/platform")
 
-# The browser simulator models the 240x240 Node/Operator target.  Keep the
-# application-side 30-column layout identical to the firmware instead of
-# compiling the legacy 320x240 picoTracker layout and squeezing it later.
+# The browser simulator models the 240x240 Node target and uses the same UI2
+# application layout as the firmware.
 add_compile_definitions(NODE)
-set(PICOTRACKER_UI "ui2" CACHE STRING
-  "Browser UI product (UI2 only)" FORCE)
-add_compile_definitions(PICOTRACKER_UI2_PRODUCT=1)
 
 set(PICOTRACKER_WEB_WASM_DIR
   "${CMAKE_CURRENT_SOURCE_DIR}/../../../web/public/wasm"
@@ -111,11 +107,9 @@ add_subdirectory("${PROJECT_SOURCE_DIR}/Externals"
 target_compile_options(samplerate PRIVATE -include stddef.h)
 add_subdirectory("${PROJECT_SOURCE_DIR}/Services"
                  "${CMAKE_CURRENT_BINARY_DIR}/core/Services")
-add_subdirectory("${PROJECT_SOURCE_DIR}/UIFramework"
-                 "${CMAKE_CURRENT_BINARY_DIR}/core/UIFramework")
 add_subdirectory("${PROJECT_SOURCE_DIR}/Application"
                  "${CMAKE_CURRENT_BINARY_DIR}/core/Application")
-foreach(target application_model application_views)
+foreach(target application_model)
   if(TARGET ${target})
     target_compile_options(${target} PRIVATE
       -include "${CMAKE_CURRENT_SOURCE_DIR}/platform/wasm_compat.h")
@@ -125,14 +119,6 @@ endforeach()
 # runtime trap in Clang/WASM. Keep this fatal so a future call cannot silently
 # become `RuntimeError: unreachable` in the browser.
 target_compile_options(application_instruments PRIVATE -Werror=non-pod-varargs)
-if(TARGET application_views)
-  target_compile_options(application_views PRIVATE -Wno-c++11-narrowing)
-endif()
-if(TARGET application_views_modaldialogs)
-  target_compile_options(application_views_modaldialogs PRIVATE
-    -Wno-c++11-narrowing)
-endif()
-
 execute_process(
   COMMAND git rev-parse --short=12 HEAD
   WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../../.."
@@ -178,8 +164,6 @@ target_link_libraries(picotracker_wasm PRIVATE
   platform_timer
   platform
   system_timer
-  uiframework_simplebaseclasses
-  uiframework_basicdatas
   foundation)
 target_compile_definitions(picotracker_wasm PRIVATE
   PICOTRACKER_WASM_BUILD_COMMIT="${PICOTRACKER_WASM_COMMIT}"

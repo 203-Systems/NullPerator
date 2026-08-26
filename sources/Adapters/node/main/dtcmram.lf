@@ -1,6 +1,6 @@
 # Map `.DTCMRAM*` sections into internal DRAM BSS for ESP-IDF builds.
-# These sections are used by the ADV target (STM32 DTCM) for fast buffers, but on ESP32-S3
-# they must not end up in the flash-mapped DROM region.
+# Keep fast-buffer sections in ESP32-S3 internal DRAM rather than the
+# flash-mapped DROM region.
 
 [sections:dtcmram]
 entries:
@@ -24,4 +24,3 @@ entries:
 archive: libapplication_instruments.a
 entries:
     * (dtcmram_to_bss)
-

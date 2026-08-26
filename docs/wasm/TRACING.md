@@ -99,7 +99,7 @@ reject a different value as a behavioral change, not merely a timing change.
 
 Compare builds on the same browser, machine, power state, sample count, trace
 mask, and audio mode. Browser results reveal algorithmic hotspots and relative
-regressions, but do not reproduce ESP32/RP2040 cache, PSRAM, I2S, DMA, or RTOS
+regressions, but do not reproduce ESP32-S3 cache, PSRAM, I2S, DMA, or RTOS
 timing.
 
 With capture disabled, native scope entry performs a category-mask condition

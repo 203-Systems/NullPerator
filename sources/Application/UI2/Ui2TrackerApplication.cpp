@@ -255,16 +255,9 @@ bool Ui2TrackerApplication::Init(Ui2StartupOptions options) {
   device_.SetSelector(Ui2DeviceField::Brightness,
                       {101U, brightnessPercent, false});
   std::uint32_t visibleDeviceFields = Ui2DeviceController::AllFieldsMask;
-#if defined(ADV) || defined(NODE)
   visibleDeviceFields &=
       ~(std::uint32_t{1}
         << static_cast<std::uint8_t>(Ui2DeviceField::LineOut));
-#else
-  visibleDeviceFields &=
-      ~(std::uint32_t{1}
-        << static_cast<std::uint8_t>(Ui2DeviceField::Volume));
-#endif
-#if defined(NODE)
   // Strict Node UI2 presents indexed/RGB565 frames directly. Its former
   // character Remote UI transport is intentionally not linked, so exposing a
   // selector that cannot have an effect would be misleading. Node hardware
@@ -276,7 +269,6 @@ bool Ui2TrackerApplication::Init(Ui2StartupOptions options) {
   visibleDeviceFields &=
       ~(std::uint32_t{1}
         << static_cast<std::uint8_t>(Ui2DeviceField::UpdateFirmware));
-#endif
   device_.SetVisibleFields(visibleDeviceFields);
   record_.SetGainRanges(RecordingPlatform::kLineInGainMinDb,
                         RecordingPlatform::kLineInGainMaxDb,

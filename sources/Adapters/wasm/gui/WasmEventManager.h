@@ -5,8 +5,6 @@
 #pragma once
 
 #include "Foundation/T_Singleton.h"
-#include "UIFramework/SimpleBaseClasses/EventManager.h"
-
 #include <atomic>
 
 class WasmGUIWindowImp;
@@ -14,13 +12,12 @@ namespace ui2 {
 class Ui2TrackerApplication;
 }
 
-class WasmEventManager final : public T_Singleton<WasmEventManager>,
-                               public EventManager {
+class WasmEventManager final : public T_Singleton<WasmEventManager> {
 public:
-  bool Init() override;
-  int MainLoop() override;
-  void PostQuitMessage() override;
-  int GetKeyCode(const char *name) override;
+  bool Init();
+  int MainLoop();
+  void PostQuitMessage();
+  int GetKeyCode(const char *name);
 
   void RequestDiagnosticView(std::uint32_t viewType);
   void RequestDiagnosticModal(std::uint32_t modalType);

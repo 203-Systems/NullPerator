@@ -8,7 +8,6 @@
  */
 
 #include "MacroInstrument.h"
-#include "Adapters/picoTracker/utils/utils.h"
 #include "Application/Instruments/Filters.h"
 #include "Application/Model/Table.h"
 #include "Application/Player/PlayerMixer.h" // For MIX_BUFFER_SIZE.. kick out pls

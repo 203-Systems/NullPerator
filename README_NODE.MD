@@ -1,7 +1,6 @@
 # Node Build
 
-This repo has a separate `node` firmware target for ESP-IDF and ESP32-S3.
-It does not use the normal Pico or ADV build flow.
+The `node` firmware target uses ESP-IDF and ESP32-S3.
 
 ## Requirements
 

@@ -4,8 +4,6 @@
 #include "Adapters/wasm/gui/WasmGUIWindowImp.h"
 #include "Adapters/wasm/system/WasmSystem.h"
 #include "Application/UI2/Ui2TrackerApplication.h"
-#include "UIFramework/Interfaces/I_GUIWindowFactory.h"
-
 #include <emscripten/emscripten.h>
 #include <SDL.h>
 #include <new>

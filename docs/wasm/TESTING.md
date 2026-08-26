@@ -135,13 +135,12 @@ and Web MIDI may be shown as unsupported; that must remain a local subsystem
 state and must not prevent UI, files, or supported audio from running. Record
 the exact unsupported capability and browser version.
 
-## Existing-target regression
+## Node regression
 
-Host adapter tests and the Pico ST7789 compile gate run in the WASM workflow.
-The repository's existing Pico workflow remains authoritative for both LCD
-variants. No reproducible Node/ESP-IDF CI toolchain exists in this repository;
-before release, build and smoke-test the Node target using its documented ESP-IDF
-environment, including UI, storage, buttons/headphone detection, and audio.
+Host adapter tests and the full browser acceptance suite run in the WASM
+workflow. Before release, build and smoke-test Node using its documented
+ESP-IDF environment, including UI, storage, buttons/headphone detection, and
+audio.
 
 ## Completion evidence
 

@@ -33,5 +33,16 @@ void SetLineInGain(std::uint8_t gainDb);
 void SetMicGain(std::uint8_t gainDb);
 bool IsRecordingActive();
 bool IsSavingRecording();
+void Record(void *argument);
+bool StartRecording(const char *filename, std::uint8_t threshold,
+                    std::uint32_t milliseconds);
+void StopRecording();
+void RequestStopRecording();
+bool WaitForRecordingStop(std::uint32_t timeoutMs);
+void FinishStopRecording();
+void StartMonitoring();
+void StopMonitoring();
+std::uint8_t GetSavingProgressPercent();
+bool DidLastRecordingCaptureAudio();
 
 #endif

@@ -25,6 +25,8 @@
 #include <emscripten/emscripten.h>
 
 namespace {
+constexpr double kFrameIntervalMs = 33.0;
+
 void PublishApplicationSnapshot(
     ui2::Ui2TrackerApplication &application) noexcept {
   Project &project = application.Session().ProjectModel();
@@ -86,9 +88,6 @@ ui2::UiApplicationPage NativePageForDiagnostic(std::uint32_t view) {
 } // namespace
 
 bool WasmEventManager::Init() {
-  if (!EventManager::Init()) {
-    return false;
-  }
   finished_.store(false, std::memory_order_release);
   runtimeStopped_ = false;
   booting_ = true;
@@ -155,7 +154,7 @@ void WasmEventManager::PumpFrame() {
     WasmStorage_FlushMutationNotifications();
     PicoTracker_Wasm_MarkReady();
     booting_ = false;
-    nextTick_ = SDL_GetTicks64() + PICO_CLOCK_INTERVAL;
+    nextTick_ = SDL_GetTicks64() + kFrameIntervalMs;
     return;
   }
   if (runtimeState != static_cast<std::uint32_t>(WasmRuntimeState::Ready)) {
@@ -244,7 +243,7 @@ void WasmEventManager::PumpFrame() {
       diagnosticViewGeneration_.fetch_add(1, std::memory_order_acq_rel);
       diagnosticViewAwaitingDraw_ = NoDiagnosticView;
     }
-    nextTick_ = now + PICO_CLOCK_INTERVAL;
+    nextTick_ = now + kFrameIntervalMs;
   }
   PublishApplicationSnapshot(application);
   // DispatchEvent may perform a multi-step atomic file replacement. Only let

@@ -215,26 +215,6 @@ target_include_directories(node_ui2_input_mailbox_tests PRIVATE
 target_compile_definitions(node_ui2_input_mailbox_tests PRIVATE HOST_TEST)
 add_test(NAME node_ui2_input_mailbox COMMAND node_ui2_input_mailbox_tests)
 
-add_executable(ui2_rename_modal_tests
-  test_main.cpp
-  ui2_rename_modal_tests.cpp
-  ../sources/Foundation/Observable.cpp
-  ../sources/UIFramework/BasicDatas/GUIRect.cpp
-  ../sources/Application/Views/BaseClasses/ModalView.cpp
-  ../sources/Application/Views/ModalDialogs/RenameModalView.cpp
-)
-
-target_include_directories(ui2_rename_modal_tests PRIVATE
-  ${CMAKE_CURRENT_LIST_DIR}/rename_stubs
-  ${CMAKE_CURRENT_LIST_DIR}/stubs
-  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals
-  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals/SRC/include
-  ${CMAKE_CURRENT_LIST_DIR}/../sources
-)
-
-target_compile_definitions(ui2_rename_modal_tests PRIVATE HOST_TEST)
-add_test(NAME ui2_rename_modal_controller COMMAND ui2_rename_modal_tests)
-
 # The product UI2-only gate remains opt-in, but its artifact parser is a normal
 # host test so forbidden/required contract changes cannot silently weaken it.
 find_package(Python3 COMPONENTS Interpreter QUIET)

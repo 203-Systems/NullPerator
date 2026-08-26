@@ -31,8 +31,6 @@ cmake_pop_check_state()
 
 set(SRC_SOURCES
   common.h
-  fastest_coeffs.h
-  mid_qual_coeffs.h
   samplerate.c
   include/samplerate.h
   src_linear.c

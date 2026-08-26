@@ -30,22 +30,6 @@ macro(adapter_node_setup)
     "${_node_root}/Adapters/node/managed_components/espressif__esp_codec_dev")
   message(STATUS "EXTRA_COMPONENT_DIRS: ${EXTRA_COMPONENT_DIRS}")
 
-  set(PICOTRACKER_UI "ui2" CACHE STRING
-      "Node UI product: ui2 (default) or legacy-reference")
-  set_property(CACHE PICOTRACKER_UI PROPERTY STRINGS ui2 legacy-reference)
-  if(NOT PICOTRACKER_UI STREQUAL "ui2" AND
-     NOT PICOTRACKER_UI STREQUAL "legacy-reference")
-    message(FATAL_ERROR
-      "PICOTRACKER_UI must be 'ui2' or 'legacy-reference' (got '${PICOTRACKER_UI}')")
-  endif()
-
-  if(PICOTRACKER_UI STREQUAL "ui2")
-    add_compile_definitions(PICOTRACKER_UI2_PRODUCT=1)
-  else()
-    add_compile_definitions(PICOTRACKER_UI2_PRODUCT=0)
-  endif()
-  message(STATUS "Node UI product: ${PICOTRACKER_UI}")
-
   # ESP-IDF discovers project libraries while project() is configuring. Seed
   # the vendored ETL version before that discovery starts so ETL does not run
   # its CMake-incompatible optional git-describe probe.
@@ -66,34 +50,25 @@ macro(adapter_node_setup)
 
   add_definitions(-DNODE)
   add_definitions(-DESP_PLATFORM)
-  if(PICOTRACKER_UI STREQUAL "legacy-reference")
-    add_definitions(-DUSB_REMOTE_UI)
-  endif()
-
   add_compile_options(
     -g
   )
 
   add_subdirectory(Adapters/node)
   add_subdirectory(UI2)
-  if(PICOTRACKER_UI STREQUAL "legacy-reference")
-    add_subdirectory(UIFramework)
-  endif()
   add_subdirectory(System)
   add_subdirectory(Application)
   add_subdirectory(Externals)
   add_subdirectory(Services)
   add_subdirectory(Foundation)
 
-  if(PICOTRACKER_UI STREQUAL "ui2")
-    include("${_node_root}/../cmake/Ui2OnlyFirmwareAcceptance.cmake")
-    pico_tracker_add_ui2_only_acceptance_check(
-      NAME ui2_only_firmware_acceptance
-      FIRMWARE_TARGET "${PROJECT_NAME}.elf"
-      COMPILE_COMMANDS "${CMAKE_BINARY_DIR}/compile_commands.json"
-      LINK_MAP "${CMAKE_BINARY_DIR}/${PROJECT_NAME}.map"
-      ELF "$<TARGET_FILE:${PROJECT_NAME}.elf>")
-  endif()
+  include("${_node_root}/../cmake/Ui2OnlyFirmwareAcceptance.cmake")
+  pico_tracker_add_ui2_only_acceptance_check(
+    NAME ui2_only_firmware_acceptance
+    FIRMWARE_TARGET "${PROJECT_NAME}.elf"
+    COMPILE_COMMANDS "${CMAKE_BINARY_DIR}/compile_commands.json"
+    LINK_MAP "${CMAKE_BINARY_DIR}/${PROJECT_NAME}.map"
+    ELF "$<TARGET_FILE:${PROJECT_NAME}.elf>")
 
   # Enable ETL debug mode only for Debug builds
   if(CMAKE_BUILD_TYPE STREQUAL "Debug")

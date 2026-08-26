@@ -11,7 +11,7 @@
 #include "WasmAudioDriver.h"
 #include "Adapters/wasm/platform/WasmApplicationSnapshot.h"
 #include "Adapters/wasm/platform/WasmBrowserSnapshots.h"
-#include "Adapters/picoTracker/audio/record.h"
+#include "Application/Audio/RecordingPlatform.h"
 #include "Services/Audio/AudioOutDriver.h"
 
 #ifdef __EMSCRIPTEN__

@@ -21,7 +21,8 @@ Here are some guidelines for when you are ready to contribute code:
 * Always discuss what you plan to work on in the related issue before submitting a PR!
 * Issues where we would like contributions have the **help wanted** or **good first issue** labels attached to them
 * If a issue doesn't already exist, please create one first
-* Always test your changes on a actual picoTracker device and include a message about how it was tested. Or if you don't have access to picoTracker hardware, please make this very clear in the PR so that others can help test your changes.
+* Run the host and Web tests for shared changes. For Node-specific changes,
+  include the ESP32-S3 build or device validation performed.
 * Run through the minimal manual "smoke test" plan (see below)
 * Please use the clang linter and resist the urge to make *only* cosmetic/code style changes
 * Once you are ready submit your PR Or even if you just want to get some initial feedback submit a "Draft PR"

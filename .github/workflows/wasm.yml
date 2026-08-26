@@ -109,31 +109,3 @@ jobs:
             web/playwright-report
             web/test-results
           if-no-files-found: ignore
-
-  pico-regression:
-    name: Pico ST7789 compile regression
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - name: Check out repository and submodules
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Install Arm GNU Toolchain
-        uses: carlosperate/arm-none-eabi-gcc-action@v1
-        id: arm-toolchain
-        with:
-          release: 13.2.Rel1
-
-      - name: Configure Pico target
-        env:
-          PICO_SDK_PATH: ${{ github.workspace }}/sources/Externals/pico-sdk
-          PICO_TOOLCHAIN_PATH: ${{ steps.arm-toolchain.outputs.path }}
-        run: cmake -S sources -B build-pico-ci -DCMAKE_BUILD_TYPE=Release -DUSE_LCD=LCD_ST7789
-
-      - name: Apply existing Pico SDK mbedtls compatibility workaround
-        run: cmake -E remove_directory sources/Externals/pico-sdk/lib/mbedtls
-
-      - name: Build Pico target serially
-        run: cmake --build build-pico-ci --parallel 1

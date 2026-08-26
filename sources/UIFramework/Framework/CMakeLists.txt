@@ -1,3 +1,0 @@
-add_library(uiframework_framework INTERFACE)
-
-target_include_directories(uiframework_framework INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
