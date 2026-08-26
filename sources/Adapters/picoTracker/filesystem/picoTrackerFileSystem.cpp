@@ -10,6 +10,7 @@
 #include "Externals/etl/include/etl/pool.h"
 #include "System/FileSystem/CopyFileJournal.h"
 #include "pico/multicore.h"
+#include <cctype>
 #include <cstdio>
 #include <cstring>
 
@@ -19,6 +20,28 @@ Mutex mutex;
 constexpr uint32_t MAX_OPEN_FILES = 10;
 
 static etl::pool<picoTrackerFile, MAX_OPEN_FILES> filePool;
+
+namespace {
+bool ContainsCaseInsensitive(const char *text, const char *filter) {
+  if (filter == nullptr || filter[0] == '\0')
+    return true;
+  if (text == nullptr)
+    return false;
+  for (const char *start = text; *start != '\0'; ++start) {
+    const char *left = start;
+    const char *right = filter;
+    while (*left != '\0' && *right != '\0' &&
+           std::tolower(static_cast<unsigned char>(*left)) ==
+               std::tolower(static_cast<unsigned char>(*right))) {
+      ++left;
+      ++right;
+    }
+    if (*right == '\0')
+      return true;
+  }
+  return false;
+}
+} // namespace
 
 picoTrackerFileSystem::picoTrackerFileSystem() {
   // init out access mutex
@@ -133,6 +156,51 @@ bool picoTrackerFileSystem::listChecked(etl::ivector<int> *fileIndexes,
                                         bool includeHidden) {
   std::lock_guard<Mutex> lock(mutex);
   return List_(fileIndexes, filter, subDirOnly, includeHidden);
+}
+
+bool picoTrackerFileSystem::listPathChecked(
+    const char *path, FileSystemDirectorySnapshot &snapshot,
+    const char *filter, bool subDirOnly, bool includeHidden) {
+  std::lock_guard<Mutex> lock(mutex);
+  snapshot.Reset();
+  if (path == nullptr || path[0] != '/')
+    return false;
+
+  File directory;
+  if (!directory.open(path, O_RDONLY) || !directory.isDir()) {
+    directory.close();
+    return false;
+  }
+
+  bool scanned = true;
+  File entry;
+  char name[PFILENAME_SIZE]{};
+  while (entry.openNext(&directory, O_READ)) {
+    if (entry.getName(name, sizeof(name)) == 0U) {
+      scanned = false;
+      entry.close();
+      break;
+    }
+    const bool directoryEntry = entry.isDirectory();
+    const bool eligible = std::strcmp(name, ".") != 0 &&
+                          std::strcmp(name, "..") != 0 &&
+                          (includeHidden || !entry.isHidden()) &&
+                          (!subDirOnly || directoryEntry) &&
+                          ContainsCaseInsensitive(name, filter);
+    if (eligible &&
+        !snapshot.Add(name, directoryEntry ? PFT_DIR : PFT_FILE,
+                      directoryEntry ? 0U : entry.fileSize())) {
+      if (!entry.close())
+        scanned = false;
+      break;
+    }
+    if (!entry.close()) {
+      scanned = false;
+      break;
+    }
+  }
+  scanned = scanned && directory.getError() == 0;
+  return directory.close() && scanned;
 }
 
 bool picoTrackerFileSystem::List_(etl::ivector<int> *fileIndexes,

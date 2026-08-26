@@ -35,6 +35,9 @@ public:
   virtual bool listChecked(etl::ivector<int> *fileIndexes, const char *filter,
                            bool subDirOnly,
                            bool includeHidden = false) override;
+  bool listPathChecked(const char *path, FileSystemDirectorySnapshot &snapshot,
+                       const char *filter, bool subDirOnly,
+                       bool includeHidden = false) override;
   virtual void getFileName(int index, char *name, int length) override;
   virtual PicoFileType getFileType(int index) override;
   virtual bool isParentRoot() override;

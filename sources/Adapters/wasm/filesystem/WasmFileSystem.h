@@ -24,6 +24,9 @@ public:
             bool subDirOnly, bool includeHidden = false) override;
   bool listChecked(etl::ivector<int> *fileIndexes, const char *filter,
                    bool subDirOnly, bool includeHidden = false) override;
+  bool listPathChecked(const char *path, FileSystemDirectorySnapshot &snapshot,
+                       const char *filter, bool subDirOnly,
+                       bool includeHidden = false) override;
   void getFileName(int index, char *name, int length) override;
   PicoFileType getFileType(int index) override;
   bool isParentRoot() override;

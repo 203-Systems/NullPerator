@@ -39,17 +39,14 @@ Ui2ProjectBrowserProjectAction(bool optionHeld, std::uint8_t activeAction) {
              : Ui2ProjectBrowserCommandType::Load;
 }
 
-// Native fixed-capacity project browser. File-system indices are kept instead
-// of names so the controller remains small and allocation-free on firmware.
-class Ui2ProjectBrowserController {
+// Native fixed-capacity project browser. It owns copied names so another
+// filesystem client cannot invalidate the selection by replacing the legacy
+// adapter index cache.
+class Ui2ProjectBrowserController : private FileSystemDirectorySnapshot {
 public:
   bool Refresh(const char *currentProject = nullptr) {
     heldMask_ = 0U;
     SetCurrentProject(currentProject);
-    FileSystem *fileSystem = FileSystem::GetInstance();
-    if (fileSystem == nullptr || !fileSystem->chdir(PROJECTS_DIR))
-      return false;
-
     depth_ = 1U;
     for (auto &part : path_)
       part.fill('\0');
@@ -85,27 +82,14 @@ public:
     if (fileSystem == nullptr)
       return false;
 
-    etl::vector<int, MAX_FILE_INDEX_SIZE> listed;
     // Historical firmware allowed leading-dot project names. Real adapters
     // suppress hidden entries by default, so request them only at /projects
     // and then apply the persistence-owned internal-name filter explicitly.
-    if (!fileSystem->listChecked(&listed, "", true, InProjectDirectory()))
+    std::array<char, MAX_PROJECT_SAMPLE_PATH_LENGTH> absolutePath{};
+    if (!BuildAbsolutePath(absolutePath))
       return false;
-    for (const int fileIndex : listed) {
-      if (count_ >= indices_.size() ||
-          fileSystem->getFileType(fileIndex) != PFT_DIR)
-        continue;
-      char name[Ui2BrowserSnapshot::ItemTextCapacity]{};
-      fileSystem->getFileName(fileIndex, name, sizeof(name));
-      name[sizeof(name) - 1U] = '\0';
-      if (name[0] == '\0' || std::strcmp(name, ".") == 0 ||
-          std::strcmp(name, "..") == 0 ||
-          (InProjectDirectory() &&
-           PersistencyService::IsInternalProjectName(name)))
-        continue;
-      indices_[count_++] = fileIndex;
-    }
-    return true;
+    return fileSystem->listPathChecked(absolutePath.data(), *this, "", true,
+                                       InProjectDirectory());
   }
 
   Ui2ProjectBrowserCommand Handle(TrackerAction action, bool pressed) {
@@ -225,8 +209,7 @@ private:
   }
 
   [[nodiscard]] bool HasParent() const {
-    FileSystem *fileSystem = FileSystem::GetInstance();
-    return fileSystem != nullptr && !fileSystem->isCurrentRoot();
+    return depth_ != 0U;
   }
 
   [[nodiscard]] bool InProjectDirectory() const {
@@ -286,14 +269,10 @@ private:
   }
 
   void NavigateParent() {
-    FileSystem *fileSystem = FileSystem::GetInstance();
-    if (fileSystem == nullptr || fileSystem->isCurrentRoot() ||
-        !fileSystem->chdir(".."))
+    if (depth_ == 0U)
       return;
-    if (depth_ > 0U) {
-      --depth_;
-      path_[depth_].fill('\0');
-    }
+    --depth_;
+    path_[depth_].fill('\0');
     RefreshCurrentDirectory();
   }
 
@@ -302,8 +281,7 @@ private:
       return;
     char name[Ui2BrowserSnapshot::ItemTextCapacity]{};
     ReadName(directoryIndex, name, sizeof(name));
-    FileSystem *fileSystem = FileSystem::GetInstance();
-    if (name[0] == '\0' || fileSystem == nullptr || !fileSystem->chdir(name))
+    if (name[0] == '\0')
       return;
     CopyDirectoryName(path_[depth_], name);
     ++depth_;
@@ -317,15 +295,51 @@ private:
     destination[0] = '\0';
     if (listIndex >= count_)
       return;
-    FileSystem *fileSystem = FileSystem::GetInstance();
-    if (fileSystem == nullptr)
-      return;
-    fileSystem->getFileName(indices_[listIndex], destination,
-                            static_cast<int>(capacity));
+    std::snprintf(destination, capacity, "%s", entries_[listIndex].name.data());
     destination[capacity - 1U] = '\0';
   }
 
-  std::array<int, MAX_FILE_INDEX_SIZE> indices_{};
+  void Reset() override { count_ = 0U; }
+
+  bool Add(const char *name, PicoFileType type, std::uint64_t) override {
+    if (name == nullptr || name[0] == '\0' || type != PFT_DIR ||
+        std::strcmp(name, ".") == 0 || std::strcmp(name, "..") == 0 ||
+        (InProjectDirectory() &&
+         PersistencyService::IsInternalProjectName(name))) {
+      return true;
+    }
+    if (count_ >= entries_.size())
+      return false;
+    std::snprintf(entries_[count_].name.data(), entries_[count_].name.size(),
+                  "%s", name);
+    ++count_;
+    return count_ < entries_.size();
+  }
+
+  template <std::size_t Size>
+  [[nodiscard]] bool BuildAbsolutePath(std::array<char, Size> &destination) const {
+    std::size_t used = 0U;
+    destination.fill('\0');
+    destination[used++] = '/';
+    for (std::uint8_t index = 0U; index < depth_; ++index) {
+      const std::size_t length = std::strlen(path_[index].data());
+      if (length == 0U || used + length + (index + 1U < depth_ ? 1U : 0U) >=
+                              destination.size())
+        return false;
+      std::memcpy(destination.data() + used, path_[index].data(), length);
+      used += length;
+      if (index + 1U < depth_)
+        destination[used++] = '/';
+    }
+    destination[used] = '\0';
+    return true;
+  }
+
+  struct DirectoryEntry {
+    std::array<char, Ui2BrowserSnapshot::ItemTextCapacity> name{};
+  };
+
+  std::array<DirectoryEntry, MAX_FILE_INDEX_SIZE> entries_{};
   std::uint16_t count_ = 0U;
   std::uint16_t selected_ = 0U;
   std::uint16_t top_ = 0U;

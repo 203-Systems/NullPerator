@@ -21,6 +21,17 @@
 
 enum PicoFileType { PFT_UNKNOWN, PFT_FILE, PFT_DIR };
 
+// Caller-owned, allocation-free destination for an absolute-path directory
+// scan. Implementations must copy any names they need to keep: the name passed
+// to Add() is valid only for that call. Returning false stops a successful scan
+// early (for example after a fixed-capacity page has been filled).
+class FileSystemDirectorySnapshot {
+public:
+  virtual ~FileSystemDirectorySnapshot() = default;
+  virtual void Reset() = 0;
+  virtual bool Add(const char *name, PicoFileType type, uint64_t size) = 0;
+};
+
 // Forward declaration
 class I_File;
 
@@ -45,6 +56,22 @@ public:
                            bool subDirOnly, bool includeHidden = false) {
     list(fileIndexes, filter, subDirOnly, includeHidden);
     return true;
+  }
+  // Enumerates an absolute logical path without changing the process-global
+  // working directory or the legacy index cache used by list()/getFileName().
+  // Directory entries never synthesize "." or ".."; browser owners model
+  // parent navigation themselves. The default keeps legacy-only adapters
+  // source-compatible while making unsupported path scans fail explicitly.
+  virtual bool listPathChecked(const char *path,
+                               FileSystemDirectorySnapshot &snapshot,
+                               const char *filter, bool subDirOnly,
+                               bool includeHidden = false) {
+    (void)path;
+    (void)snapshot;
+    (void)filter;
+    (void)subDirOnly;
+    (void)includeHidden;
+    return false;
   }
   virtual void getFileName(int index, char *name, int length) = 0;
   virtual PicoFileType getFileType(int index) = 0;

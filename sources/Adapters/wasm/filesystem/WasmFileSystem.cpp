@@ -266,6 +266,60 @@ bool WasmFileSystem::listChecked(etl::ivector<int> *fileIndexes,
   return List_(fileIndexes, filter, subDirOnly, includeHidden);
 }
 
+bool WasmFileSystem::listPathChecked(
+    const char *path, FileSystemDirectorySnapshot &snapshot,
+    const char *filter, bool subDirOnly, bool includeHidden) {
+  std::lock_guard<std::recursive_mutex> lock(mutex_);
+  snapshot.Reset();
+  std::string resolved;
+  if (!Resolve(path, resolved))
+    return false;
+
+  std::string loweredFilter = filter == nullptr ? "" : filter;
+  std::transform(loweredFilter.begin(), loweredFilter.end(),
+                 loweredFilter.begin(), [](unsigned char character) {
+                   return static_cast<char>(std::tolower(character));
+                 });
+
+  std::error_code error;
+  if (!fs::is_directory(resolved, error) || error)
+    return false;
+  fs::directory_iterator iterator(resolved, error);
+  const fs::directory_iterator end;
+  while (!error && iterator != end) {
+    const fs::directory_entry &entry = *iterator;
+    const std::string name = entry.path().filename().string();
+    const bool hidden = !name.empty() && name.front() == '.';
+    const bool directory = entry.is_directory(error);
+    if (error)
+      break;
+    if ((subDirOnly && !directory) || (!includeHidden && hidden)) {
+      iterator.increment(error);
+      continue;
+    }
+    std::string loweredName = name;
+    std::transform(loweredName.begin(), loweredName.end(), loweredName.begin(),
+                   [](unsigned char character) {
+                     return static_cast<char>(std::tolower(character));
+                   });
+    if (!loweredFilter.empty() &&
+        loweredName.find(loweredFilter) == std::string::npos) {
+      iterator.increment(error);
+      continue;
+    }
+    std::uint64_t size = 0U;
+    if (!directory) {
+      size = entry.file_size(error);
+      if (error)
+        break;
+    }
+    if (!snapshot.Add(name.c_str(), directory ? PFT_DIR : PFT_FILE, size))
+      return true;
+    iterator.increment(error);
+  }
+  return !error;
+}
+
 bool WasmFileSystem::List_(etl::ivector<int> *fileIndexes, const char *filter,
                            bool subDirOnly, bool includeHidden) {
   const bool scanned = RefreshDirectory(filter, subDirOnly, includeHidden);

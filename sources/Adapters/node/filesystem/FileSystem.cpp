@@ -223,6 +223,61 @@ bool NodeFileSystem::listChecked(etl::ivector<int> *fileIndexes,
   return List_(fileIndexes, filter, subDirOnly, includeHidden);
 }
 
+bool NodeFileSystem::listPathChecked(
+    const char *path, FileSystemDirectorySnapshot &snapshot,
+    const char *filter, bool subDirOnly, bool includeHidden) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  snapshot.Reset();
+  if (!MountCard())
+    return false;
+  const auto resolved = NodePath::Resolve(kMountPoint, path);
+  if (!resolved || !IsSafeExistingPath(*resolved))
+    return false;
+  DIR *dir = opendir(resolved->c_str());
+  if (dir == nullptr)
+    return false;
+
+  std::string loweredFilter = filter == nullptr ? "" : filter;
+  for (char &character : loweredFilter)
+    character = static_cast<char>(tolower(static_cast<unsigned char>(character)));
+
+  bool scanned = true;
+  while (true) {
+    errno = 0;
+    dirent *entry = readdir(dir);
+    if (entry == nullptr) {
+      scanned = errno == 0;
+      break;
+    }
+    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+      continue;
+    const std::string name(entry->d_name);
+    if (!includeHidden && !name.empty() && name.front() == '.')
+      continue;
+    std::string loweredName = name;
+    for (char &character : loweredName)
+      character =
+          static_cast<char>(tolower(static_cast<unsigned char>(character)));
+    if (!loweredFilter.empty() &&
+        loweredName.find(loweredFilter) == std::string::npos)
+      continue;
+
+    const std::string full = *resolved + "/" + name;
+    struct stat state {};
+    if (NoFollowStat(full.c_str(), &state) != 0 || S_ISLNK(state.st_mode)) {
+      scanned = false;
+      break;
+    }
+    const bool directory = S_ISDIR(state.st_mode);
+    if (subDirOnly && !directory)
+      continue;
+    if (!snapshot.Add(name.c_str(), directory ? PFT_DIR : PFT_FILE,
+                      static_cast<std::uint64_t>(state.st_size)))
+      break;
+  }
+  return closedir(dir) == 0 && scanned;
+}
+
 bool NodeFileSystem::List_(etl::ivector<int> *fileIndexes, const char *filter,
                            bool subDirOnly, bool includeHidden) {
   if (fileIndexes != nullptr) {
