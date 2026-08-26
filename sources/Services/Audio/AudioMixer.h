@@ -25,6 +25,9 @@ public:
   virtual bool Render(fixed *buffer, int samplecount);
   void SetFileRenderer(const char *path);
   void EnableRendering(bool enable);
+  [[nodiscard]] bool IsRendering() const {
+    return enableRendering_ && writer_.IsOpen();
+  }
   void SetVolume(fixed volume);
   void SetName(etl::string<12> name) { name_ = name; };
 
