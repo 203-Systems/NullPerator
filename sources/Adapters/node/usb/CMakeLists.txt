@@ -2,7 +2,7 @@ if(NOT DEFINED PICOTRACKER_ROOT)
   message(FATAL_ERROR "PICOTRACKER_ROOT is not set; ensure esp32/idf.cmake was included.")
 endif()
 
-set(TINYUSB "${PICOTRACKER_ROOT}/Externals/TinyUSB")
+set(TINYUSB "${PICOTRACKER_ROOT}/Externals/tinyusb")
 
 add_library(platform_usb
   usb_utils.h

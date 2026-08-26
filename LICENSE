@@ -66,5 +66,10 @@ subject to its own license. Below is a summary of included external code:
    SPDX-License-Identifier: MIT
    License file: sources/Externals/yxml/COPYING
 
+7. TinyUSB
+   Path: sources/Externals/tinyusb
+   SPDX-License-Identifier: MIT
+   License file: sources/Externals/tinyusb/LICENSE
+
 The license texts for the above components are available in their respective
 folders. This project does not relicense or modify the terms of those licenses.

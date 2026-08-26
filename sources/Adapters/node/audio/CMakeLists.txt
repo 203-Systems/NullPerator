@@ -4,7 +4,6 @@ add_library(platform_audio
 )
 
 target_link_libraries(platform_audio PUBLIC
-  platform_utils
   platform
   idf::driver
   idf::freertos
