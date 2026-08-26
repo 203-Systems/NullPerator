@@ -18,7 +18,7 @@ void Status::Set(const char *fmt, ...) {
   if (!status)
     return;
 
-  char buffer[128];
+  char buffer[kTextCapacity];
   va_list args;
   va_start(args, fmt);
 
@@ -33,7 +33,7 @@ void Status::SetMultiLine(const char *fmt, ...) {
   if (!status)
     return;
 
-  char buffer[128];
+  char buffer[kTextCapacity];
   va_list args;
   va_start(args, fmt);
 

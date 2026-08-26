@@ -8,15 +8,13 @@
 #ifndef _RECORD_H_
 #define _RECORD_H_
 
-#include <cstdint>
+#include "Application/Audio/RecordingPlatform.h"
 
 // DUMMY values as no linein or mic on pico
-#define LINEIN_GAIN_MINDB 0
-#define LINEIN_GAIN_MAXDB 0
-#define MIC_GAIN_MINDB 0
-#define MIC_GAIN_MAXDB 0
-
-enum RecordSource { AllOff, LineIn, Mic, USBIn };
+#define LINEIN_GAIN_MINDB RecordingPlatform::kLineInGainMinDb
+#define LINEIN_GAIN_MAXDB RecordingPlatform::kLineInGainMaxDb
+#define MIC_GAIN_MINDB RecordingPlatform::kMicGainMinDb
+#define MIC_GAIN_MAXDB RecordingPlatform::kMicGainMaxDb
 
 void Record(void *);
 bool StartRecording(const char *filename, uint8_t threshold,
@@ -27,11 +25,6 @@ bool WaitForRecordingStop(uint32_t timeoutMs);
 void FinishStopRecording();
 void StartMonitoring();
 void StopMonitoring();
-void SetInputSource(RecordSource source);
-void SetLineInGain(uint8_t gainDb);
-void SetMicGain(uint8_t gainDb);
-bool IsRecordingActive();
-bool IsSavingRecording();
 uint8_t GetSavingProgressPercent();
 // True only if the last recording captured samples and was persisted to disk.
 bool DidLastRecordingCaptureAudio();

@@ -18,18 +18,29 @@
 class TrackerApplicationSession final : public I_Observer {
 public:
   enum class LoadResult : std::int8_t { Failed = -1, Loaded = 0 };
+  enum class SaveResult : std::int8_t {
+    Failed = -1,
+    Saved = 0,
+    Exists = 1,
+  };
 
   explicit TrackerApplicationSession(const char *projectName);
   ~TrackerApplicationSession() override;
 
   [[nodiscard]] LoadResult LoadProject(const char *projectName,
-                                       bool createProject = false);
+                                       bool createProject = false,
+                                       bool discardCurrentAutoSave = false,
+                                       bool recoverPreviousState = true);
+  [[nodiscard]] LoadResult NewProject();
+  [[nodiscard]] SaveResult SaveProject(const char *oldProjectName, bool saveAs,
+                                       bool overwrite = false);
+  [[nodiscard]] bool DeleteProject(const char *projectName);
+  void DiscardAutoSave();
   void CloseProject();
 
   // The UI host supplies whether its current controller/modal state permits an
   // autosave. Playback and recording remain session-level safety checks.
-  [[nodiscard]] bool AutoSave(bool controllerAllowsSave,
-                              bool recordingActive);
+  [[nodiscard]] bool AutoSave(bool controllerAllowsSave, bool recordingActive);
 
   [[nodiscard]] Project &ProjectModel() { return project_; }
   [[nodiscard]] const Project &ProjectModel() const { return project_; }
