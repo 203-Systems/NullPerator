@@ -33,6 +33,22 @@ enum QueueingMode {
 
 typedef uint32_t MixerStereoLevel;
 
+// Fixed-size, allocation-free transport state published by Player. UI and
+// diagnostics consume this instead of reconstructing playback state by
+// walking Song/Chain/Phrase storage every frame.
+struct PlayerTransportSnapshot final {
+  bool running = false;
+  PlayMode mode = PM_SONG;
+  int songRow[SONG_CHANNEL_COUNT]{};
+  unsigned char note[SONG_CHANNEL_COUNT]{};
+  QueueingMode queueMode[SONG_CHANNEL_COUNT]{};
+  unsigned char queueSongRow[SONG_CHANNEL_COUNT]{};
+  unsigned char queueChainRow[SONG_CHANNEL_COUNT]{};
+};
+
+static_assert(sizeof(PlayerTransportSnapshot) <= 128U,
+              "transport snapshot must remain embedded-friendly");
+
 class I_Instrument;
 
 class PlayerEvent : public I_ObservableData {
@@ -122,6 +138,8 @@ public:
 
   // master out, last avg level while playing
   stereosample GetMasterLevel();
+
+  [[nodiscard]] PlayerTransportSnapshot CaptureTransportSnapshot() const;
 
   etl::string<STRING_AUDIO_API_MAX> GetAudioAPI();
   etl::string<STRING_AUDIO_DEVICE_MAX> GetAudioDevice();

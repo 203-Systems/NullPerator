@@ -49,6 +49,9 @@ Player::Player() : mixer_() {
     instrumentOnChannel_[i][0] = ' ';
     instrumentOnChannel_[i][1] = ' ';
     instrumentOnChannel_[i][2] = '\0';
+    liveQueuePosition_[i] = 0U;
+    liveQueueingMode_[i] = QM_NONE;
+    liveQueueChainPosition_[i] = 0U;
   }
 };
 
@@ -443,6 +446,31 @@ void Player::OnSongStartButton(unsigned int from, unsigned int to,
 bool Player::IsRunning() { return isRunning_; };
 
 stereosample Player::GetMasterLevel() { return mixer_.GetMasterOutLevel(); }
+
+PlayerTransportSnapshot Player::CaptureTransportSnapshot() const {
+  PlayerTransportSnapshot snapshot{};
+  snapshot.running = isRunning_;
+  snapshot.mode = mode_;
+  for (int channel = 0; channel < SONG_CHANNEL_COUNT; ++channel) {
+    snapshot.note[channel] = NO_NOTE;
+    snapshot.queueMode[channel] = liveQueueingMode_[channel];
+    snapshot.queueSongRow[channel] = liveQueuePosition_[channel];
+    snapshot.queueChainRow[channel] = liveQueueChainPosition_[channel];
+    if (viewData_ == nullptr || viewData_->song_ == nullptr)
+      continue;
+
+    snapshot.songRow[channel] = viewData_->songPlayPos_[channel];
+    const unsigned char phrase = viewData_->currentPlayPhrase_[channel];
+    const int phraseRow = viewData_->phrasePlayPos_[channel];
+    if (phrase >= PHRASE_COUNT || phraseRow < 0 ||
+        phraseRow >= STEPS_PER_PHRASE) {
+      continue;
+    }
+    snapshot.note[channel] = viewData_->song_->phrase_.note_[
+        static_cast<int>(phrase) * STEPS_PER_PHRASE + phraseRow];
+  }
+  return snapshot;
+}
 
 bool Player::isPlayable(int row, int col, int chainPos) {
 
