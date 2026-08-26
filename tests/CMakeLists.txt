@@ -138,6 +138,22 @@ target_include_directories(autosave_coordinator_tests PRIVATE
 target_compile_definitions(autosave_coordinator_tests PRIVATE HOST_TEST)
 add_test(NAME autosave_coordinator COMMAND autosave_coordinator_tests)
 
+# Project payload journaling is deliberately independent of Service/XML/model
+# state. Keep its power-loss protocol in a focused allocation-free host test.
+add_executable(project_file_journal_tests
+  test_main.cpp
+  project_file_journal_tests.cpp
+)
+
+target_include_directories(project_file_journal_tests PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/stubs
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals
+  ${CMAKE_CURRENT_LIST_DIR}/../sources
+)
+
+target_compile_definitions(project_file_journal_tests PRIVATE HOST_TEST)
+add_test(NAME project_file_journal COMMAND project_file_journal_tests)
+
 add_executable(ui2_status_bridge_tests
   test_main.cpp
   nanoprintf_test.cpp
