@@ -18,6 +18,8 @@
 #include "System/Timer/Timer.h"
 #include "config/StringLimits.h"
 
+#include <atomic>
+
 enum PlayerEventType { PET_START, PET_UPDATE, PET_STOP };
 
 enum SequencerMode { SM_SONG, SM_LIVE };
@@ -181,7 +183,10 @@ private:
 
   SequencerMode sequencerMode_;
   PlayMode mode_;
-  bool isRunning_;
+  // Audio transport and UI presentation run on different cores on Node.
+  // Publishing this edge atomically guarantees the UI observes the final
+  // stopped frame and clears transport-dependent indicators such as VU meters.
+  std::atomic<bool> isRunning_{false};
   bool stopAtEnd_;
 
   unsigned long startClock_; // .Used to time display live queued chains

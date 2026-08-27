@@ -443,13 +443,13 @@ void Player::OnSongStartButton(unsigned int from, unsigned int to,
   }
 }
 
-bool Player::IsRunning() { return isRunning_; };
+bool Player::IsRunning() { return isRunning_.load(std::memory_order_acquire); };
 
 stereosample Player::GetMasterLevel() { return mixer_.GetMasterOutLevel(); }
 
 PlayerTransportSnapshot Player::CaptureTransportSnapshot() const {
   PlayerTransportSnapshot snapshot{};
-  snapshot.running = isRunning_;
+  snapshot.running = isRunning_.load(std::memory_order_acquire);
   snapshot.mode = mode_;
   for (int channel = 0; channel < SONG_CHANNEL_COUNT; ++channel) {
     snapshot.note[channel] = NO_NOTE;
