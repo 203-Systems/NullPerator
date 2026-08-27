@@ -85,7 +85,6 @@ private:
   WatchedVariable lineOut_;
   WatchedVariable midiDevice_;
   WatchedVariable midiSync_;
-  WatchedVariable remoteUI_;
   WatchedVariable importResampler_;
   WatchedVariable uiFont_;
   WatchedVariable uiTextCase_;

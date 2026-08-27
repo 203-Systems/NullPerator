@@ -136,7 +136,6 @@ TEST_CASE("UI2 Device cursor skips hidden rows and owns scroll position") {
   using namespace ui2;
   constexpr std::uint32_t visible =
       DeviceFieldBit(Ui2DeviceField::MidiDevice) |
-      DeviceFieldBit(Ui2DeviceField::RemoteUi) |
       DeviceFieldBit(Ui2DeviceField::Resampler) |
       DeviceFieldBit(Ui2DeviceField::Brightness) |
       DeviceFieldBit(Ui2DeviceField::Theme) |
@@ -145,16 +144,14 @@ TEST_CASE("UI2 Device cursor skips hidden rows and owns scroll position") {
 
   CHECK(controller.SelectedField() == Ui2DeviceField::MidiDevice);
   Tap(controller, TrackerAction::Down);
-  CHECK(controller.SelectedField() == Ui2DeviceField::RemoteUi);
-  Tap(controller, TrackerAction::Down);
   CHECK(controller.SelectedField() == Ui2DeviceField::Resampler);
   Tap(controller, TrackerAction::Down);
   CHECK(controller.SelectedField() == Ui2DeviceField::Brightness);
-  CHECK(controller.FirstVisibleOrdinal() == 1U);
+  CHECK(controller.FirstVisibleOrdinal() == 0U);
 
   Tap(controller, TrackerAction::Down);
   CHECK(controller.SelectedField() == Ui2DeviceField::Theme);
-  CHECK(controller.FirstVisibleOrdinal() == 2U);
+  CHECK(controller.FirstVisibleOrdinal() == 1U);
   const auto browse = Tap(controller, TrackerAction::Edit);
   CHECK(browse.type == Ui2DeviceCommandType::BrowseTheme);
   CHECK(browse.field == Ui2DeviceField::Theme);
@@ -168,7 +165,7 @@ TEST_CASE("UI2 Device selectors preserve each field's wrap contract") {
   using namespace ui2;
   Ui2DeviceController controller;
   controller.SetSelector(Ui2DeviceField::MidiDevice, {4U, 0U, false});
-  controller.SetSelector(Ui2DeviceField::RemoteUi, {2U, 0U, true});
+  controller.SetSelector(Ui2DeviceField::Resampler, {2U, 0U, true});
 
   CHECK(controller.Bottom().kind == Ui2DeviceBottomKind::Selector);
   CHECK(controller.Bottom().count == 4U);
@@ -186,8 +183,8 @@ TEST_CASE("UI2 Device selectors preserve each field's wrap contract") {
   CHECK(controller.Selector(Ui2DeviceField::MidiDevice).current == 3U);
 
   Tap(controller, TrackerAction::Down); // MIDI sync
-  Tap(controller, TrackerAction::Down); // Remote UI
-  CHECK(controller.SelectedField() == Ui2DeviceField::RemoteUi);
+  Tap(controller, TrackerAction::Down); // Resampler
+  CHECK(controller.SelectedField() == Ui2DeviceField::Resampler);
   controller.Handle(TrackerAction::Edit, true);
   const auto wrapped = Tap(controller, TrackerAction::Left);
   REQUIRE(wrapped.HasValue());

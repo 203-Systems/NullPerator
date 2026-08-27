@@ -21,9 +21,8 @@ struct DeviceLayout {
   std::int16_t connections = 42;
   std::int16_t midiDevice = 54;
   std::int16_t midiSync = 65;
-  std::int16_t remoteUi = 76;
-  std::int16_t audio = 93;
-  std::int16_t resampler = 105;
+  std::int16_t audio = 82;
+  std::int16_t resampler = 94;
   std::int16_t lineOut = -1;
   std::int16_t volume = -1;
   std::int16_t display = 122;
@@ -131,11 +130,6 @@ void DrawSelectedInk(UiSceneBuilder<256, 1024> &builder,
               UiColorToken::TextHighlighted,
               UiColorToken::TextHighlighted);
     break;
-  case UiDeviceCursor::RemoteUi:
-    DrawField(builder, "REMOTE UI", data.remoteUi, layout.remoteUi,
-              UiColorToken::TextHighlighted,
-              UiColorToken::TextHighlighted);
-    break;
   case UiDeviceCursor::Resampler:
     DrawField(builder, "RESAMPLER", data.resampler, layout.resampler,
               UiColorToken::TextHighlighted,
@@ -183,7 +177,6 @@ bool CursorUsesSelector(UiDeviceCursor cursor) {
   case UiDeviceCursor::MidiDevice:
   case UiDeviceCursor::MidiSync:
   case UiDeviceCursor::LineOut:
-  case UiDeviceCursor::RemoteUi:
   case UiDeviceCursor::Resampler:
   case UiDeviceCursor::Volume:
   case UiDeviceCursor::Brightness:
@@ -207,8 +200,6 @@ RectI16 UiDeviceView::CursorTargetRect(const UiDeviceViewData &data) {
     return RowRect(layout.midiSync);
   case UiDeviceCursor::LineOut:
     return RowRect(layout.lineOut);
-  case UiDeviceCursor::RemoteUi:
-    return RowRect(layout.remoteUi);
   case UiDeviceCursor::Resampler:
     return RowRect(layout.resampler);
   case UiDeviceCursor::Volume:
@@ -271,7 +262,6 @@ void UiDeviceView::RenderDelta(const UiDeviceViewData &previous,
   redrawField(previous.midiDevice != current.midiDevice, layout.midiDevice);
   redrawField(previous.midiSync != current.midiSync, layout.midiSync);
   redrawField(previous.lineOut != current.lineOut, layout.lineOut);
-  redrawField(previous.remoteUi != current.remoteUi, layout.remoteUi);
   redrawField(previous.resampler != current.resampler, layout.resampler);
   redrawField(previous.volume != current.volume, layout.volume);
   redrawField(previous.brightness != current.brightness, layout.brightness);
@@ -361,7 +351,6 @@ UiBuildStatus UiDeviceView::Build(const UiDeviceViewData &data, UiPalette &,
   DrawSection(builder, "CONNECTIONS", layout.connections);
   DrawField(builder, "MIDI DEVICE", data.midiDevice, layout.midiDevice);
   DrawField(builder, "MIDI SYNC", data.midiSync, layout.midiSync);
-  DrawField(builder, "REMOTE UI", data.remoteUi, layout.remoteUi);
   DrawSection(builder, "AUDIO", layout.audio);
   DrawField(builder, "RESAMPLER", data.resampler, layout.resampler);
   DrawField(builder, "LINE OUT", data.lineOut, layout.lineOut);

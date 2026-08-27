@@ -38,7 +38,6 @@ static const char *midiDeviceList[MIDI_DEVICE_LEN] = {"OFF", "TRS", "USB",
                                                       "TRS+USB"};
 static const char *midiSendSync[2] = {"Off", "Send"};
 static const char *midiClockSyncOptions[2] = {"Internal", "External"};
-static const char *remoteUIOnOff[2] = {"Off", "On"};
 static const char *importResamplerOptions[] = {"None", "Linear"};
 static constexpr int kImportResamplerOptionCount = 2;
 static const char *uiTextCaseOptions[] = {"Case", "CASE", "case"};
@@ -357,7 +356,6 @@ bool RecoverThemeExportJournal(FileSystem &fileSystem,
 constexpr int DEFAULT_LINEOUT = 0x2;
 constexpr int DEFAULT_MIDIDEVICE = 0x0;
 constexpr int DEFAULT_MIDISYNC = 0x0;
-constexpr int DEFAULT_REMOTEUI = 0x1;
 constexpr int DEFAULT_BACKLIGHT_LEVEL = 0xFF; // Default to max brightness (255)
 constexpr int DEFAULT_REC_SOURCE = 0x0;
 constexpr int DEFAULT_RECORD_LINE_GAIN_DB = 0;
@@ -475,12 +473,6 @@ static const ConfigParam configParams[] = {
      midiSendSync,
      2,
      false},
-    {"REMOTEUI",
-     {.intValue = DEFAULT_REMOTEUI},
-     FourCC::VarRemoteUI,
-     remoteUIOnOff,
-     2,
-     false},
     {"UIFONT",
      {.intValue = ThemeConstants::DEFAULT_UIFONT},
      FourCC::VarUIFont,
@@ -579,7 +571,6 @@ Config::Config()
       lineOut_(FourCC::VarLineOut, lineOutOptions, 3, DEFAULT_LINEOUT),
       midiDevice_(FourCC::VarMidiDevice, midiDeviceList, 4, DEFAULT_MIDIDEVICE),
       midiSync_(FourCC::VarMidiSync, midiSendSync, 2, DEFAULT_MIDISYNC),
-      remoteUI_(FourCC::VarRemoteUI, remoteUIOnOff, 2, DEFAULT_REMOTEUI),
       importResampler_(FourCC::VarImportResampler, importResamplerOptions,
                        kImportResamplerOptionCount, DEFAULT_IMPORT_RESAMPLER),
       uiFont_(FourCC::VarUIFont, ThemeConstants::FONT_NAMES,
@@ -608,7 +599,6 @@ Config::Config()
   variables_.push_back(&lineOut_);
   variables_.push_back(&midiDevice_);
   variables_.push_back(&midiSync_);
-  variables_.push_back(&remoteUI_);
   variables_.push_back(&importResampler_);
   variables_.push_back(&uiFont_);
   variables_.push_back(&uiTextCase_);

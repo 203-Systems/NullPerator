@@ -313,7 +313,6 @@ struct UiDeviceFrameState {
   std::array<char, 24> midiDevice{};
   std::array<char, 24> midiSync{};
   std::array<char, 24> lineOut{};
-  std::array<char, 24> remoteUi{};
   std::array<char, 24> resampler{};
   std::array<char, 8> volume{};
   std::array<char, 8> brightness{};

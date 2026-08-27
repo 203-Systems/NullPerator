@@ -201,7 +201,6 @@ bool Ui2TrackerApplication::Init(Ui2StartupOptions options) {
   std::uint16_t brightnessPercent = 100U;
   std::uint16_t midiDevice = 0U;
   std::uint16_t midiSync = 0U;
-  std::uint16_t remoteUi = 1U;
   std::uint16_t resampler = 0U;
   std::uint16_t lineOut = 2U;
   std::uint16_t volume = 40U;
@@ -215,8 +214,6 @@ bool Ui2TrackerApplication::Init(Ui2StartupOptions options) {
         static_cast<std::uint16_t>(configValue(FourCC::VarMidiDevice, 0, 3));
     midiSync =
         static_cast<std::uint16_t>(configValue(FourCC::VarMidiSync, 0, 1));
-    remoteUi =
-        static_cast<std::uint16_t>(configValue(FourCC::VarRemoteUI, 1, 1));
     resampler = static_cast<std::uint16_t>(
         configValue(FourCC::VarImportResampler, 0, 1));
     lineOut = static_cast<std::uint16_t>(configValue(FourCC::VarLineOut, 2, 2));
@@ -248,7 +245,6 @@ bool Ui2TrackerApplication::Init(Ui2StartupOptions options) {
   observedProjectMutationGeneration_ = modelPort_.ProjectMutationGeneration();
   device_.SetSelector(Ui2DeviceField::MidiDevice, {4U, midiDevice, true});
   device_.SetSelector(Ui2DeviceField::MidiSync, {2U, midiSync, false});
-  device_.SetSelector(Ui2DeviceField::RemoteUi, {2U, remoteUi, false});
   device_.SetSelector(Ui2DeviceField::Resampler, {2U, resampler, true});
   device_.SetSelector(Ui2DeviceField::LineOut, {3U, lineOut, true});
   device_.SetSelector(Ui2DeviceField::Volume, {101U, volume, false});
@@ -258,14 +254,8 @@ bool Ui2TrackerApplication::Init(Ui2StartupOptions options) {
   visibleDeviceFields &=
       ~(std::uint32_t{1}
         << static_cast<std::uint8_t>(Ui2DeviceField::LineOut));
-  // Strict Node UI2 presents indexed/RGB565 frames directly. Its former
-  // character Remote UI transport is intentionally not linked, so exposing a
-  // selector that cannot have an effect would be misleading. Node hardware
-  // also does not expose the bootloader action; other firmware targets retain
-  // the guarded UPDATE FIRMWARE row.
-  visibleDeviceFields &=
-      ~(std::uint32_t{1}
-        << static_cast<std::uint8_t>(Ui2DeviceField::RemoteUi));
+  // Node hardware does not expose the bootloader action; other firmware
+  // targets retain the guarded UPDATE FIRMWARE row.
   visibleDeviceFields &=
       ~(std::uint32_t{1}
         << static_cast<std::uint8_t>(Ui2DeviceField::UpdateFirmware));
@@ -1390,9 +1380,6 @@ void Ui2TrackerApplication::ExecuteDevice(Ui2DeviceCommand command) {
       break;
     case Ui2DeviceField::MidiSync:
       key = FourCC::VarMidiSync;
-      break;
-    case Ui2DeviceField::RemoteUi:
-      key = FourCC::VarRemoteUI;
       break;
     case Ui2DeviceField::Resampler:
       key = FourCC::VarImportResampler;

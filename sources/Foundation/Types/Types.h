@@ -171,7 +171,6 @@ struct FourCC {
     VarReserved4Color = 158,
     VarMidiSync = 112,
     VarMidiClockSync = 151,
-    VarRemoteUI = 140,
     VarUIFont = 141,
     // 142 is taken for SIDInstrumentOSCNumber
     // 143 is taken for InstrumentCommandMidiChord
@@ -306,7 +305,6 @@ struct FourCC {
   ETL_ENUM_TYPE(VarMidiDevice, "MIDIDEVICE")
   ETL_ENUM_TYPE(VarMidiSync, "MIDISYNC")
   ETL_ENUM_TYPE(VarMidiClockSync, "MIDICLOCKSYNC")
-  ETL_ENUM_TYPE(VarRemoteUI, "REMOTEUI")
   ETL_ENUM_TYPE(VarUIFont, "UIFONT")
   ETL_ENUM_TYPE(VarThemeName, "THEMENAME")
   ETL_ENUM_TYPE(VarScaleRoot, "scaleroot")

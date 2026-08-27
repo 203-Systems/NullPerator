@@ -41,13 +41,6 @@ public:
   static constexpr std::size_t kApplicationStorageAlignment =
       alignof(ui2::Ui2TrackerApplication);
 
-  // UI2 currently has no device-side Remote UI raster protocol. The old Node
-  // Remote UI streams character cells and cannot represent the indexed UI2
-  // surface, anti-aliased cursors, or page transitions. Product cutover must
-  // leave that option unavailable until a bounded RGB565/indexed transport is
-  // designed; it must not run the legacy renderer beside this presenter.
-  static constexpr bool kRemoteUiRasterSupported = false;
-
   // Application storage is caller-owned so the small cross-core task control
   // object can remain in internal DRAM while the large fixed UI/model block is
   // deliberately placed in PSRAM. It must stay alive until all tasks stop.

@@ -22,7 +22,6 @@ enum class UiDeviceCursor : std::uint8_t {
   MidiDevice,
   MidiSync,
   LineOut,
-  RemoteUi,
   Resampler,
   Volume,
   Brightness,
@@ -35,7 +34,6 @@ struct UiDeviceViewData {
   std::string_view midiDevice = "OFF";
   std::string_view midiSync = "OFF";
   std::string_view lineOut = "LINE LEVEL";
-  std::string_view remoteUi = "ON";
   std::string_view resampler = "NONE";
   std::string_view volume = "40%";
   std::string_view brightness = "100%";

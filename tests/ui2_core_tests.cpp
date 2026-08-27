@@ -2573,8 +2573,8 @@ TEST_CASE("UI2 Device represents all approved rows and reveals optional rows") {
   data.selectorCurrent = 2;
   constexpr std::array cursors{
       ui2::UiDeviceCursor::MidiDevice, ui2::UiDeviceCursor::MidiSync,
-      ui2::UiDeviceCursor::LineOut,    ui2::UiDeviceCursor::RemoteUi,
-      ui2::UiDeviceCursor::Resampler,  ui2::UiDeviceCursor::Volume,
+      ui2::UiDeviceCursor::LineOut,    ui2::UiDeviceCursor::Resampler,
+      ui2::UiDeviceCursor::Volume,
       ui2::UiDeviceCursor::Brightness, ui2::UiDeviceCursor::Theme,
       ui2::UiDeviceCursor::Font,       ui2::UiDeviceCursor::UpdateFirmware};
   for (const auto cursor : cursors) {

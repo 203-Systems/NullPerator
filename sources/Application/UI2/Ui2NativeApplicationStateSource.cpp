@@ -124,8 +124,6 @@ UiDeviceCursor DeviceCursorFor(Ui2DeviceField field) {
     return UiDeviceCursor::MidiDevice;
   case Ui2DeviceField::MidiSync:
     return UiDeviceCursor::MidiSync;
-  case Ui2DeviceField::RemoteUi:
-    return UiDeviceCursor::RemoteUi;
   case Ui2DeviceField::Resampler:
     return UiDeviceCursor::Resampler;
   case Ui2DeviceField::LineOut:
@@ -709,8 +707,6 @@ Ui2NativeApplicationStateSource::CaptureDevice(UiDeviceFrameState &state) {
            currentText(Ui2DeviceField::MidiDevice, midiDevices, 4U));
   CopyText(state.midiSync,
            currentText(Ui2DeviceField::MidiSync, boolean, 2U));
-  CopyText(state.remoteUi,
-           currentText(Ui2DeviceField::RemoteUi, boolean, 2U));
   CopyText(state.resampler,
            currentText(Ui2DeviceField::Resampler, resamplers, 2U));
   CopyText(state.lineOut,

@@ -482,6 +482,7 @@ TEST_CASE("complete current device config loads without migration") {
   }
 
   const std::string saved = fixture.fileSystem_.Get("/.config.xml");
+  CHECK(saved.find("REMOTEUI") == std::string::npos);
   Config loaded;
   CHECK(loaded.FindVariable(FourCC::VarOutputVolume)->GetInt() == 77);
   CHECK(loaded.GetSemanticThemeColors() == expected);

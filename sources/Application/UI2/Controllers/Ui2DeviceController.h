@@ -19,7 +19,6 @@ namespace ui2 {
 enum class Ui2DeviceField : std::uint8_t {
   MidiDevice = 0,
   MidiSync,
-  RemoteUi,
   Resampler,
   LineOut,
   Volume,
@@ -198,7 +197,6 @@ private:
     switch (field) {
     case Ui2DeviceField::MidiDevice:
     case Ui2DeviceField::MidiSync:
-    case Ui2DeviceField::RemoteUi:
     case Ui2DeviceField::Resampler:
     case Ui2DeviceField::LineOut:
     case Ui2DeviceField::Volume:
@@ -230,7 +228,6 @@ private:
       return Ui2DeviceCommandType::UpdateFirmware;
     case Ui2DeviceField::MidiDevice:
     case Ui2DeviceField::MidiSync:
-    case Ui2DeviceField::RemoteUi:
     case Ui2DeviceField::Resampler:
     case Ui2DeviceField::LineOut:
     case Ui2DeviceField::Volume:

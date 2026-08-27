@@ -1064,7 +1064,6 @@ UiApplicationRuntime::ViewDataFor(const DeviceFrameState &state) {
   data.midiDevice = state.midiDevice.data();
   data.midiSync = state.midiSync.data();
   data.lineOut = state.lineOut.data();
-  data.remoteUi = state.remoteUi.data();
   data.resampler = state.resampler.data();
   data.volume = state.volume.data();
   data.brightness = state.brightness.data();
