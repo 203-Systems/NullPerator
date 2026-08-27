@@ -107,6 +107,18 @@ namespace NullperatorHAL::Display {
             esp_lcd_panel_set_gap(panel, 0, 0);
             esp_lcd_panel_disp_on_off(panel, true);
 
+            // The Node production 1.54-inch ST7789 module was calibrated on
+            // physical hardware against the UI2 reference rendering. Of the
+            // controller's four documented GAMSET curves, G2.5 preserves the
+            // intended neutral ramp and dark-text contrast most closely.
+            constexpr uint8_t kNodeGamma = 0x04; // ST7789V Gamma 2.5
+            ret = SetGammaCurve(kNodeGamma);
+            if (ret != ESP_OK) {
+                ESP_LOGE(TAG, "Failed to set calibrated gamma: %s",
+                         esp_err_to_name(ret));
+                return ret;
+            }
+
         }
 
         SetBrightness(0); // Display turn on by app when it is ready

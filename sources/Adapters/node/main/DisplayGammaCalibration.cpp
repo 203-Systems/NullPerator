@@ -168,8 +168,8 @@ void RunDisplayGammaCalibrationIfRequested() {
   display_rgb565_transport_init();
   (void)NullperatorHAL::Display::SetBrightness(255);
 
-  // GAMSET defaults to 2.2 after panel reset.
-  std::size_t selected = 1;
+  // Display::Init applies the hardware-calibrated Node default (Gamma 2.5).
+  std::size_t selected = 2;
   (void)NullperatorHAL::Display::SetGammaCurve(
       kGammaChoices[selected].commandValue);
   DrawTestCard(kGammaChoices[selected]);
