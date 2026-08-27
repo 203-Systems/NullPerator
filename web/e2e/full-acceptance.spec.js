@@ -23,6 +23,10 @@ test('verified static bundle exposes the complete isolated workbench and persist
   expect(response?.headers()['cross-origin-opener-policy']).toBe('same-origin')
   expect(response?.headers()['cross-origin-embedder-policy']).toBe('require-corp')
   await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByRole('button', { name: 'Developer mode' })).toHaveAttribute('aria-pressed', 'true')
+  await page.getByRole('button', { name: 'Developer mode' }).click()
+  await expect(page.getByRole('navigation', { name: 'Workbench sections' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Developer mode' }).click()
   await expect(page.locator('[data-storage-state="ready"]')).toBeVisible()
 
   const canvas = page.locator('#picotracker-canvas')

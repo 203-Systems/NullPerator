@@ -17,8 +17,14 @@
   import { settingsStore } from './stores/settings.js'
 
   const sections = ['Device', 'Files', 'MIDI', 'Logs', 'Trace', 'Settings', 'About']
+  const query = new URLSearchParams(window.location.search)
+  const forceDeveloperMode = query.get('dev') === '1' || query.get('views-test') === '1' || query.get('inputDiagnostics') === '1'
+  const resolveDeveloperMode = (preference) => forceDeveloperMode || (preference === 'auto'
+    ? !window.matchMedia('(max-width: 720px)').matches
+    : Boolean(preference))
   let activeSection = 'Device'
   let openTools = []
+  let developerMode = resolveDeveloperMode(settingsStore.snapshot().developerMode)
   let runtime = runtimeStore.getSnapshot()
   let audio = runtime.audio?.snapshot?.() ?? { state:'unavailable', metrics:null, capability:null }
   let midi = runtime.midi?.snapshot?.() ?? { state:'unavailable' }
@@ -31,6 +37,11 @@
   async function applySettingsRestart(){ const enabled=settingsStore.snapshot().lowLatencyAudio; const url=new URL(location.href); const active=url.searchParams.get('audio')==='worklet'; if(active!==enabled){enabled?url.searchParams.set('audio','worklet'):url.searchParams.delete('audio');location.assign(url);return} await restart() }
   function selectSection(section){ activeSection=section }
   function toggleDock(tool){ openTools=toggleTool(openTools,tool) }
+  function setDeveloperMode(enabled){
+    developerMode = Boolean(enabled)
+    settingsStore.update({ developerMode })
+    if (!developerMode) { activeSection='Device'; openTools=[] }
+  }
 
   onMount(()=>{
     const workbenchHandle = Object.freeze({ restart, stop: stopRuntime })
@@ -42,7 +53,10 @@
       if(snapshot.storage)detachStorage=snapshot.storage.subscribe((next)=>(storage=next));else storage={state:'unavailable'}
       if(snapshot.trace&&snapshot.trace.snapshot().state!=='capturing')snapshot.trace.setMask(settingsStore.snapshot().traceMask)
     })
-    detachSettings=settingsStore.subscribe((next)=>{if(runtime.trace?.snapshot?.().state!=='capturing')runtime.trace?.setMask?.(next.traceMask)})
+    detachSettings=settingsStore.subscribe((next)=>{
+      developerMode=resolveDeveloperMode(next.developerMode)
+      if(runtime.trace?.snapshot?.().state!=='capturing')runtime.trace?.setMask?.(next.traceMask)
+    })
     runtimeStore.start().catch(()=>{})
     return()=>{if(globalThis.__picoTrackerWorkbench===workbenchHandle)delete globalThis.__picoTrackerWorkbench;unsubscribe();detachAudio();detachMidi();detachStorage();detachSettings();runtimeStore.stop().catch(()=>{})}
   })
@@ -50,10 +64,10 @@
 
 <svelte:head><title>NullPerator</title><link rel="icon" href="data:,"/><meta name="description" content="PicoTracker WebAssembly development and performance workbench"/></svelte:head>
 
-<div class="dashboard">
-  <TopBar {runtime} {audio} {storage} {midi}/>
+<div class="dashboard" data-developer-mode={developerMode ? 'true' : 'false'}>
+  <TopBar {runtime} {audio} {storage} {midi} {developerMode} onDeveloperModeChange={setDeveloperMode}/>
   <div class="dashboard-body">
-    <LeftNav {sections} active={activeSection} onSelect={selectSection}/>
+    {#if developerMode}<LeftNav {sections} active={activeSection} onSelect={selectSection}/>{/if}
     <main class="workspace">
       {#if runtime.state==='failed'}
         <section class="recovery-card" role="alert" data-recovery-kind={runtime.error?.includes('Cross-origin isolation')?'isolation':'runtime'}>
@@ -62,18 +76,18 @@
         </section>
       {/if}
       <ErrorBoundary label={`${activeSection} panel`}>
-        <section class="device-stage" aria-label="Operator simulator" hidden={activeSection!=='Device'}>
-          {#key canvasGeneration}<DevicePanel {runtime} {audio} settings={settingsStore}/>{/key}
+        <section class="device-stage" aria-label="Operator simulator" hidden={developerMode && activeSection!=='Device'}>
+          {#key canvasGeneration}<DevicePanel {runtime} {audio} settings={settingsStore} compact={!developerMode}/>{/key}
         </section>
-        {#if activeSection==='Files'}<div class="page-panel"><FilesPanel files={runtime.files} storage={runtime.storage} hostFolder={runtime.hostFolder} disabled={runtime.state!=='ready'}/></div>
-        {:else if activeSection==='MIDI'}<div class="page-panel"><MidiPanel midi={runtime.midi} disabled={runtime.state!=='ready'}/></div>
-        {:else if activeSection==='Logs'}<div class="page-panel"><LogsPanel logs={runtime.logs}/></div>
-        {:else if activeSection==='Trace'}<div class="page-panel"><TracePanel trace={runtime.trace}/></div>
-        {:else if activeSection==='Settings'}<div class="page-panel"><SettingsPanel settings={settingsStore} trace={runtime.trace} audio={runtime.audio} runtimeState={runtime.state} onRestart={()=>applySettingsRestart().catch(()=>{})}/></div>
-        {:else if activeSection==='About'}<div class="page-panel"><AboutPanel buildMetadata={runtime.buildMetadata}/></div>{/if}
+        {#if developerMode && activeSection==='Files'}<div class="page-panel"><FilesPanel files={runtime.files} storage={runtime.storage} hostFolder={runtime.hostFolder} disabled={runtime.state!=='ready'}/></div>
+        {:else if developerMode && activeSection==='MIDI'}<div class="page-panel"><MidiPanel midi={runtime.midi} disabled={runtime.state!=='ready'}/></div>
+        {:else if developerMode && activeSection==='Logs'}<div class="page-panel"><LogsPanel logs={runtime.logs}/></div>
+        {:else if developerMode && activeSection==='Trace'}<div class="page-panel"><TracePanel trace={runtime.trace}/></div>
+        {:else if developerMode && activeSection==='Settings'}<div class="page-panel"><SettingsPanel settings={settingsStore} trace={runtime.trace} audio={runtime.audio} runtimeState={runtime.state} onRestart={()=>applySettingsRestart().catch(()=>{})}/></div>
+        {:else if developerMode && activeSection==='About'}<div class="page-panel"><AboutPanel buildMetadata={runtime.buildMetadata}/></div>{/if}
       </ErrorBoundary>
     </main>
-    {#if activeSection==='Device'}
+    {#if developerMode && activeSection==='Device'}
       <ToolPanelStack {openTools} {runtime} onClose={(tool)=>toggleDock(tool)}/>
       <ToolTray {openTools} onToggle={toggleDock} onRestart={()=>restart().catch(()=>{})} disabled={runtime.state!=='ready'}/>
     {/if}

@@ -1,8 +1,9 @@
 import { TRACE_ALL_MASK } from '../trace/registry.js'
 
-export const SETTINGS_VERSION = 3
-export const SETTINGS_STORAGE_KEY = 'picotracker.wasm.settings.v3'
+export const SETTINGS_VERSION = 4
+export const SETTINGS_STORAGE_KEY = 'picotracker.wasm.settings.v4'
 export const LEGACY_SETTINGS_STORAGE_KEYS = Object.freeze([
+  'picotracker.wasm.settings.v3',
   'picotracker.wasm.settings.v2',
   'picotracker.wasm.settings.v1',
 ])
@@ -19,6 +20,10 @@ export const DEFAULT_SETTINGS = Object.freeze({
   outputVolume: 100,
   traceMask: TRACE_ALL_MASK,
   lowLatencyAudio: true,
+  // Auto keeps the desktop workbench available while opening directly into
+  // the touch-first player on narrow screens. The first toggle stores an
+  // explicit boolean preference.
+  developerMode: 'auto',
 })
 
 export function migrateSettings(candidate) {
@@ -36,9 +41,12 @@ export function migrateSettings(candidate) {
     audioBufferFrames,
     outputVolume,
     traceMask,
-    lowLatencyAudio: source.version >= SETTINGS_VERSION
+    lowLatencyAudio: source.version >= 3
       ? Boolean(source.lowLatencyAudio)
       : DEFAULT_SETTINGS.lowLatencyAudio,
+    developerMode: source.version >= SETTINGS_VERSION && typeof source.developerMode === 'boolean'
+      ? source.developerMode
+      : DEFAULT_SETTINGS.developerMode,
   }
 }
 

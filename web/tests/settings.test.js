@@ -10,17 +10,17 @@ import {
 describe('versioned workbench settings', () => {
   it('drops legacy remappable key maps while retaining audio settings', () => {
     const migrated = migrateSettings({ version: 1, keyMap: { enter: { bindings: [['Enter']] } }, audioBufferFrames: 1024 })
-    expect(migrated).toMatchObject({ version: 3, audioBufferFrames: 1024, lowLatencyAudio: true })
+    expect(migrated).toMatchObject({ version: 4, audioBufferFrames: 1024, lowLatencyAudio: true, developerMode: 'auto' })
     expect(migrated).not.toHaveProperty('keyMap')
   })
 
   it('normalizes unsafe values while retaining explicit disabled trace and mute', () => {
     expect(migrateSettings({
       displayScale: '99', audioBufferFrames: 99999, outputVolume: -4,
-      version: 3, traceMask: 0, lowLatencyAudio: 1,
+      version: 4, traceMask: 0, lowLatencyAudio: 1, developerMode: true,
     })).toMatchObject({
       displayScale: 'fit', audioBufferFrames: 8192, outputVolume: 0,
-      traceMask: 0, lowLatencyAudio: true,
+      traceMask: 0, lowLatencyAudio: true, developerMode: true,
     })
   })
 
@@ -33,10 +33,10 @@ describe('versioned workbench settings', () => {
     const settings = createSettingsStore({ localStorage: storage })
     const seen = []
     const unsubscribe = settings.subscribe((snapshot) => seen.push(snapshot.outputVolume))
-    const updated = settings.update({ outputVolume: 42, displayScale: '2' })
+    const updated = settings.update({ outputVolume: 42, displayScale: '2', developerMode: true })
     expect(() => { updated.outputVolume = 1 }).toThrow()
-    expect(settings.snapshot()).toMatchObject({ outputVolume: 42, displayScale: '2' })
-    expect(JSON.parse(written.get(SETTINGS_STORAGE_KEY))).toMatchObject({ version: 3, outputVolume: 42 })
+    expect(settings.snapshot()).toMatchObject({ outputVolume: 42, displayScale: '2', developerMode: true })
+    expect(JSON.parse(written.get(SETTINGS_STORAGE_KEY))).toMatchObject({ version: 4, outputVolume: 42, developerMode: true })
     settings.reset()
     expect(settings.snapshot()).toMatchObject({
       outputVolume: DEFAULT_SETTINGS.outputVolume,

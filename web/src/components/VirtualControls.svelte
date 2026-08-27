@@ -2,6 +2,7 @@
   export let input
   export let disabled = false
   export let heldActions = []
+  export let compact = false
 
   const pointerClickSuppression = new WeakSet()
   const source = (event) => `pointer:${event.pointerId}`
@@ -27,7 +28,7 @@
 
 </script>
 
-<div class="operator-controls" aria-label="PicoTracker virtual controls">
+<div class="operator-controls" class:compact aria-label="PicoTracker virtual controls">
   <div class="d-pad" aria-label="Directional controls">
     {#each [['up','Up','W','▲'],['left','Left','A','◀'],['down','Down','S','▼'],['right','Right','D','▶']] as [action,label,key,glyph]}
       <button type="button" class={action} class:pressed={heldActions.includes(action)} aria-label={label} aria-pressed={heldActions.includes(action)} data-action={action} {disabled}
@@ -84,4 +85,10 @@
   .bottom-buttons .switch { display:none; }
   .bottom-buttons button:active,.bottom-buttons button.pressed { transform:translateY(1px); border-color:#4cc9f0; background:#0d0f12; box-shadow:inset 0 0 0 1px rgba(76,201,240,.18); }
   .bottom-buttons button:first-child{left:0}.bottom-buttons button:last-child{right:0}
+  .operator-controls.compact kbd { display:none; }
+  .compact .d-pad .switch { top:17px; }
+  .compact .d-pad .switch > span { font-size:12px; }
+  .compact .face .switch { display:grid; top:13px; }
+  .compact .face .switch > span { font-size:13px; }
+  .compact .bottom-buttons em { top:20px; bottom:auto; }
 </style>

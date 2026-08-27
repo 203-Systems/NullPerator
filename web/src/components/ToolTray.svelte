@@ -28,4 +28,5 @@
   button:hover{color:var(--text);background:rgba(255,255,255,.03)} button.tray-active{color:var(--accent);border-right-color:var(--accent);background:rgba(76,201,240,.06)}
   button span{display:inline-block;max-width:0;overflow:hidden;opacity:0;transform:translateX(-6px);transition:opacity .14s,max-width .24s,transform .22s}.expanded button span{max-width:100px;opacity:1;transform:none;transition-delay:.05s}
   .tray-footer{display:flex;flex-direction:column;margin-top:auto;padding-top:8px;border-top:1px solid rgba(255,255,255,.05)} .reset{color:#ffb48a}.reset:disabled{opacity:.35;cursor:not-allowed}
+  @media(max-width:720px){.tool-tray{display:none}}
 </style>
