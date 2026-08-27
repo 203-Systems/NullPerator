@@ -17,6 +17,7 @@
   const scaleFor = (value) => value === 'fit' ? 1.4 : Number(value) || 1
   const input = createInputStore({
     pressAction: (action) => runtime.input?.pressAction(action),
+    repeatAction: (action) => runtime.input?.repeatAction(action),
     releaseAction: (action) => runtime.input?.releaseAction(action),
     releaseAllActions: () => runtime.input?.releaseAllActions(),
   })

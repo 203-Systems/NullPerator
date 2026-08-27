@@ -176,3 +176,35 @@ test('Operator fixed WASD, JK, and XC controls reach C++ and preserve Node START
   await page.keyboard.up('c')
   await expect.poll(() => actionMask(canvas)).toBe('0')
 })
+
+test('held WASD directions keep scrolling UI2 list pages', async ({ page }) => {
+  const pageErrors = []
+  page.on('pageerror', (error) => pageErrors.push(error.message))
+  for (const view of ['project', 'device', 'instrument']) {
+    await page.goto(`/?ui2=1&audio=disabled&views-test=1&view=${view}&inputDiagnostics=1`)
+    await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible()
+    const canvas = page.locator('#picotracker-canvas')
+    const initialGeneration = Number(await actionGeneration(canvas))
+    const beforeHold = await canvas.screenshot()
+
+    await page.keyboard.down('s')
+    await expect.poll(() => actionMask(canvas)).toBe(String(1 << 1))
+    await page.waitForTimeout(760)
+    expect(pageErrors).toEqual([])
+    await expect.poll(async () => Number(await actionGeneration(canvas))).toBeGreaterThanOrEqual(initialGeneration + 4)
+    expect((await canvas.screenshot()).equals(beforeHold)).toBe(false)
+    await page.keyboard.up('s')
+    await expect.poll(() => actionMask(canvas)).toBe('0')
+  }
+
+  await page.goto('/?ui2=1&audio=disabled&views-test=1&view=instrument&inputDiagnostics=1')
+  await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible()
+  const canvas = page.locator('#picotracker-canvas')
+  const initialGeneration = Number(await actionGeneration(canvas))
+  const down = page.getByRole('button', { name: 'Down', exact: true })
+  await down.dispatchEvent('pointerdown', { pointerId: 901, pointerType: 'touch' })
+  await page.waitForTimeout(760)
+  await expect.poll(async () => Number(await actionGeneration(canvas))).toBeGreaterThanOrEqual(initialGeneration + 4)
+  await down.dispatchEvent('pointerup', { pointerId: 901, pointerType: 'touch' })
+  await expect.poll(() => actionMask(canvas)).toBe('0')
+})
