@@ -463,7 +463,7 @@ TEST_CASE("UI2 screen background covers the full 240 by 240 surface") {
   CHECK(surface.Pixel(239, 239) == background);
 }
 
-TEST_CASE("UI2 tracker pages share one ten-pixel vertical rhythm") {
+TEST_CASE("UI2 tracker pages share one origin and vertical rhythm") {
   ui2::UiPhraseViewData phrase;
   ui2::UiTableViewData table;
   for (std::uint8_t row = 0; row < 15; ++row) {
@@ -480,8 +480,13 @@ TEST_CASE("UI2 tracker pages share one ten-pixel vertical rhythm") {
         ui2::UiTrackerGridMetrics::kChainColumnX[0]);
   CHECK(ui2::UiTrackerGridMetrics::kSongTrackX[1] ==
         ui2::UiTrackerGridMetrics::kChainColumnX[1]);
-  CHECK(ui2::UiTrackerGridMetrics::kPhraseColumnX ==
-        ui2::UiTrackerGridMetrics::kTableColumnX);
+  CHECK(ui2::UiTrackerGridMetrics::kColumnGap == 12);
+  CHECK(ui2::UiTrackerGridMetrics::kPhraseColumnX.back() +
+            ui2::UiFont5x7::TextWidth(4) <=
+        240);
+  CHECK(ui2::UiTrackerGridMetrics::kTableColumnX.back() +
+            ui2::UiFont5x7::TextWidth(4) <=
+        240);
   CHECK(ui2::UiTrackerGridMetrics::RowHighlightY(0) == 46);
   CHECK(ui2::UiTrackerGridMetrics::RowBoundsY(0) == 47);
 }
@@ -507,7 +512,7 @@ TEST_CASE("UI2 tracker row band has rounded corners and crisp straight edges") {
   CHECK(surface.Pixel(217, 46) == corner);
 }
 
-TEST_CASE("UI2 tracker headers omit Table VAL and share approved columns") {
+TEST_CASE("UI2 tracker headers omit Table VAL and use packed Table columns") {
   ui2::UiPalette palette;
   ui2::UiFrameScene scene;
   REQUIRE(ui2::UiTableView::Build(ui2::test::ApprovedTableFixture("instrument"),
@@ -519,23 +524,23 @@ TEST_CASE("UI2 tracker headers omit Table VAL and share approved columns") {
   REQUIRE(fx1 != nullptr);
   REQUIRE(fx2 != nullptr);
   REQUIRE(fx3 != nullptr);
-  CHECK(fx1->bounds.x == ui2::UiTrackerGridMetrics::kPhraseColumnX[0]);
-  CHECK(fx2->bounds.x == ui2::UiTrackerGridMetrics::kPhraseColumnX[2]);
-  CHECK(fx3->bounds.x == ui2::UiTrackerGridMetrics::kPhraseColumnX[4]);
+  CHECK(fx1->bounds.x == ui2::UiTrackerGridMetrics::kTableColumnX[0]);
+  CHECK(fx2->bounds.x == ui2::UiTrackerGridMetrics::kTableColumnX[2]);
+  CHECK(fx3->bounds.x == ui2::UiTrackerGridMetrics::kTableColumnX[4]);
 }
 
 TEST_CASE("UI2 tracker selections resolve to one clipped rounded region") {
   CHECK(ui2::UiSongView::SelectionTargetRect(1, 18, 3, 21, 16) ==
-        ui2::RectI16{47, 67, 57, 39});
+        ui2::RectI16{49, 67, 61, 39});
   CHECK(ui2::UiSongView::SelectionTargetRect(0, 0, 7, 15, 16).Empty());
   CHECK(ui2::UiChainView::SelectionTargetRect(0, 2, 1, 4) ==
-        ui2::RectI16{26, 67, 42, 29});
+        ui2::RectI16{26, 67, 44, 29});
   CHECK(ui2::UiPhraseView::SelectionTargetRect(1, 1, 4, 3) ==
-        ui2::RectI16{59, 57, 108, 29});
+        ui2::RectI16{61, 57, 114, 29});
   // Legacy Table selection may transiently report column 6. UI2 clips that
   // endpoint to the sixth visible value column without escaping the screen.
   CHECK(ui2::UiTableView::SelectionTargetRect(2, 0, 6, 15) ==
-        ui2::RectI16{86, 47, 114, 159});
+        ui2::RectI16{90, 47, 120, 159});
 }
 
 TEST_CASE("UI2 tracker selection deltas match complete redraws") {

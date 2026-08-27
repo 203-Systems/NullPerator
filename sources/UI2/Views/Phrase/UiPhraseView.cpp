@@ -17,7 +17,8 @@ namespace ui2 {
 namespace {
 
 constexpr const auto &kColumnX = UiTrackerGridMetrics::kPhraseColumnX;
-constexpr std::array<std::uint8_t, 6> kColumnCharacters{4, 3, 3, 4, 3, 4};
+constexpr const auto &kColumnCharacters =
+    UiTrackerGridMetrics::kPhraseColumnCharacters;
 
 bool IsParameterColumn(std::uint8_t column) {
   return column == 3U || column == 5U;

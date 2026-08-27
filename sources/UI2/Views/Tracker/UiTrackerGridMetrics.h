@@ -7,11 +7,31 @@
 #pragma once
 
 #include "UI2/Core/UiTypes.h"
+#include "UI2/Text/UiFont5x7.h"
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 
 namespace ui2 {
+
+namespace tracker_grid_detail {
+
+template <std::size_t Count>
+[[nodiscard]] constexpr std::array<std::int16_t, Count>
+PackColumns(const std::array<std::uint8_t, Count> &characters,
+            std::int16_t startX, std::int16_t gap) {
+  std::array<std::int16_t, Count> result{};
+  std::int16_t x = startX;
+  for (std::size_t column = 0; column < Count; ++column) {
+    result[column] = x;
+    x = static_cast<std::int16_t>(
+        x + UiFont5x7::TextWidth(characters[column]) + gap);
+  }
+  return result;
+}
+
+} // namespace tracker_grid_detail
 
 // Song, Phrase and Table deliberately share one vertical rhythm. Keeping the
 // metrics here prevents one tracker page from silently packing its 16 rows
@@ -25,16 +45,37 @@ struct UiTrackerGridMetrics {
   static constexpr std::int16_t kRowPitch = 10;
   static constexpr std::int16_t kRowHeight = 10;
 
-  // Horizontal anchors are shared here for the same reason as the vertical
-  // rhythm above. Phrase defines the approved six-column cadence; Table uses
-  // it verbatim so FX1/FX2/FX3 never drift from the corresponding Phrase
-  // groups. Chain shares Song's first two track anchors.
-  static constexpr std::array<std::int16_t, 8> kSongTrackX{
-      28, 49, 70, 91, 112, 133, 154, 175};
-  static constexpr std::array<std::int16_t, 2> kChainColumnX{28, 49};
-  static constexpr std::array<std::int16_t, 6> kPhraseColumnX{
-      28, 61, 88, 115, 148, 175};
-  static constexpr const auto &kTableColumnX = kPhraseColumnX;
+  // Tracker pages share the same content origin and clear space between
+  // cells. Coordinates are derived from each page's real character widths:
+  // Phrase and Table have opposite 4/3-character cadences, so reusing one
+  // page's absolute anchors makes the other page alternate between cramped
+  // and oversized gaps.
+  static constexpr std::int16_t kContentStartX = 28;
+  static constexpr std::int16_t kColumnGap = 12;
+
+  static constexpr std::array<std::uint8_t, 8> kSongColumnCharacters{
+      2, 2, 2, 2, 2, 2, 2, 2};
+  static constexpr std::array<std::uint8_t, 6> kPhraseColumnCharacters{
+      4, 3, 3, 4, 3, 4};
+  static constexpr std::array<std::uint8_t, 6> kTableColumnCharacters{
+      3, 4, 3, 4, 3, 4};
+
+  static constexpr auto kSongTrackX = tracker_grid_detail::PackColumns(
+      kSongColumnCharacters, kContentStartX, kColumnGap);
+  static constexpr std::array<std::int16_t, 2> kChainColumnX{
+      kSongTrackX[0], kSongTrackX[1]};
+  static constexpr auto kPhraseColumnX =
+      tracker_grid_detail::PackColumns(kPhraseColumnCharacters, kContentStartX,
+                                       kColumnGap);
+  static constexpr auto kTableColumnX = tracker_grid_detail::PackColumns(
+      kTableColumnCharacters, kContentStartX, kColumnGap);
+
+  static_assert(kSongTrackX.back() + UiFont5x7::TextWidth(2) < 219,
+                "Song tracks must leave room for the dual VU meter");
+  static_assert(kPhraseColumnX.back() + UiFont5x7::TextWidth(4) + 2 <= 240,
+                "Phrase cursor must remain on screen");
+  static_assert(kTableColumnX.back() + UiFont5x7::TextWidth(4) + 2 <= 240,
+                "Table cursor must remain on screen");
 
   [[nodiscard]] static constexpr std::int16_t
   RowTextY(std::uint8_t row) {
