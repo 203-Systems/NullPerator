@@ -209,7 +209,10 @@ private:
   }
 
   [[nodiscard]] bool HasParent() const {
-    return depth_ != 0U;
+    // /projects is the product root, not merely the initial filesystem
+    // location. Exposing its parent leaks unrelated /data content and makes
+    // the synthetic ".." row look like a way to leave the browser.
+    return depth_ > 1U;
   }
 
   [[nodiscard]] bool InProjectDirectory() const {
@@ -269,7 +272,7 @@ private:
   }
 
   void NavigateParent() {
-    if (depth_ == 0U)
+    if (depth_ <= 1U)
       return;
     --depth_;
     path_[depth_].fill('\0');

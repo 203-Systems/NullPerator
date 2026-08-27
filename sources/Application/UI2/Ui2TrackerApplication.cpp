@@ -892,6 +892,11 @@ void Ui2TrackerApplication::CloseSampleBrowser() {
 
 void Ui2TrackerApplication::ExecuteSampleBrowser(
     Ui2SampleBrowserCommand command) {
+  if (command.type == Ui2SampleBrowserCommandType::Back) {
+    CloseSampleBrowser();
+    ActivatePage(UiApplicationPage::Project);
+    return;
+  }
   if (!command.HasValue())
     return;
   Player *player = Player::GetInstance();

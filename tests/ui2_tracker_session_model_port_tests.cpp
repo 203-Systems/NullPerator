@@ -74,6 +74,32 @@ TEST_CASE("UI2 model port preserves raw Phrase clipboard data") {
   CHECK(port.ProjectMutationGeneration() == 2U);
 }
 
+TEST_CASE("UI2 model port rejects semantically incompatible Phrase paste") {
+  TrackerApplicationSession session;
+  Ui2TrackerSessionModelPort port(session);
+  Phrase &phrase = session.ProjectModel().song_.phrase_;
+  phrase.note_[0] = 60U;
+  phrase.instr_[0] = 7U;
+  phrase.cmd1_[1] = FourCC::InstrumentCommandArpeggiator;
+  phrase.param1_[1] = 0x1234U;
+
+  port.ApplyGridCommand(SelectionCommand(Ui2TrackerCommandType::CopySelection,
+                                         Ui2TrackerPage::Phrase, 0, 0, 1, 0));
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::PasteSelection,
+                                    Ui2TrackerPage::Phrase, 1, 1));
+  CHECK(phrase.instr_[1] == 0xFFU);
+  CHECK(phrase.cmd1_[1] == FourCC::InstrumentCommandArpeggiator);
+  CHECK(port.ProjectMutationGeneration() == 0U);
+
+  port.ApplyGridCommand(SelectionCommand(Ui2TrackerCommandType::CopySelection,
+                                         Ui2TrackerPage::Phrase, 2, 1, 3, 1));
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::PasteSelection,
+                                    Ui2TrackerPage::Phrase, 2, 4));
+  CHECK(phrase.cmd2_[2] == FourCC::InstrumentCommandArpeggiator);
+  CHECK(phrase.param2_[2] == 0x1234U);
+  CHECK(port.ProjectMutationGeneration() == 1U);
+}
+
 TEST_CASE("UI2 model port rejects empty and malformed selections") {
   TrackerApplicationSession session;
   Ui2TrackerSessionModelPort port(session);

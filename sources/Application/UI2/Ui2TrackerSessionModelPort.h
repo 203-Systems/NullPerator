@@ -83,6 +83,7 @@ private:
   std::uint16_t lastParameter_ = 0;
   std::array<std::uint32_t, 8U * 16U> selectionClipboard_{};
   Ui2TrackerPage selectionClipboardPage_ = Ui2TrackerPage::None;
+  std::uint8_t selectionClipboardStartColumn_ = 0;
   std::uint8_t selectionClipboardWidth_ = 0;
   std::uint8_t selectionClipboardHeight_ = 0;
   std::array<bool, SONG_CHANNEL_COUNT> soloMuteMask_{};

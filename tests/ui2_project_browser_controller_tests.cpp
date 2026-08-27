@@ -118,17 +118,12 @@ TEST_CASE("UI2 Project Browser reserves Option for M8-style chords") {
   REQUIRE(controller.Refresh("ACTIVE"));
   CHECK(fileSystem.IncludedHidden());
   const Ui2BrowserSnapshot snapshot = controller.Snapshot();
-  CHECK(snapshot.totalItemCount == 5U); // .. + four user projects
-  CHECK(std::strcmp(snapshot.items[4].data(), ".FOO") == 0);
+  CHECK(snapshot.totalItemCount == 4U);
+  CHECK(std::strcmp(snapshot.items[3].data(), ".FOO") == 0);
 
   CHECK(controller.Handle(TrackerAction::Option, true).type ==
         Ui2ProjectBrowserCommandType::None);
-  CHECK(controller.Snapshot().selectedRow == 0U); // parent row
-
-  // Option+Down follows legacy warp semantics: exactly one ordinary item.
-  CHECK(Tap(controller, TrackerAction::Down).type ==
-        Ui2ProjectBrowserCommandType::None);
-  CHECK(controller.Snapshot().selectedRow == 1U);
+  CHECK(controller.Snapshot().selectedRow == 0U);
 
   const Ui2ProjectBrowserCommand remove = Tap(controller, TrackerAction::Edit);
   CHECK(remove.type == Ui2ProjectBrowserCommandType::Delete);
@@ -153,27 +148,29 @@ TEST_CASE("UI2 Project Browser owns names without changing filesystem cwd") {
   // A different legacy caller may replace its adapter's cached index table.
   // Project Browser must continue to render and emit its owned path snapshot.
   const Ui2BrowserSnapshot snapshot = controller.Snapshot();
-  CHECK(std::strcmp(snapshot.items[1].data(), "OLD") == 0);
-  Tap(controller, TrackerAction::Down);
+  CHECK(std::strcmp(snapshot.items[0].data(), "OLD") == 0);
   const Ui2ProjectBrowserCommand command =
       Tap(controller, TrackerAction::Edit);
   CHECK(command.type == Ui2ProjectBrowserCommandType::Load);
   CHECK(std::strcmp(command.project.data(), "OLD") == 0);
 }
 
-TEST_CASE("UI2 Project Browser navigates parents by absolute path") {
+TEST_CASE("UI2 Project Browser keeps projects as its product root") {
   using namespace ui2;
   ProjectBrowserFileSystem fileSystem;
   Ui2ProjectBrowserController controller;
   REQUIRE(controller.Refresh("ACTIVE"));
 
-  Tap(controller, TrackerAction::Edit); // synthetic parent row
+  const Ui2ProjectBrowserCommand command =
+      Tap(controller, TrackerAction::Edit);
   CHECK(fileSystem.ChdirCalls() == 0);
-  CHECK(fileSystem.LastPath() == "/");
+  CHECK(fileSystem.LastPath() == PROJECTS_DIR);
+  CHECK(command.type == Ui2ProjectBrowserCommandType::Load);
+  CHECK(std::strcmp(command.project.data(), "OLD") == 0);
   const Ui2BrowserSnapshot snapshot = controller.Snapshot();
-  CHECK(std::strcmp(snapshot.meta.data(), "/") == 0);
-  CHECK(snapshot.totalItemCount == 1U);
-  CHECK(std::strcmp(snapshot.items[0].data(), "projects") == 0);
+  CHECK(std::strcmp(snapshot.meta.data(), "project") == 0);
+  CHECK(snapshot.totalItemCount == 4U);
+  CHECK(std::strcmp(snapshot.items[0].data(), "OLD") == 0);
 }
 
 TEST_CASE("UI2 Project Browser keeps Load explicit and protects active Delete") {
@@ -182,7 +179,6 @@ TEST_CASE("UI2 Project Browser keeps Load explicit and protects active Delete") 
   Ui2ProjectBrowserController controller;
   REQUIRE(controller.Refresh("ACTIVE"));
 
-  Tap(controller, TrackerAction::Down); // OLD
   const Ui2ProjectBrowserCommand load = Tap(controller, TrackerAction::Edit);
   CHECK(load.type == Ui2ProjectBrowserCommandType::Load);
   CHECK(std::strcmp(load.project.data(), "OLD") == 0);
@@ -201,9 +197,9 @@ TEST_CASE("UI2 Project Browser restores a failed load selection after refresh") 
 
   REQUIRE(controller.RefreshAndSelect("ACTIVE", "OLD"));
   const Ui2BrowserSnapshot snapshot = controller.Snapshot();
-  CHECK(snapshot.selectedRow == 1U); // parent row occupies row zero
-  CHECK(std::strcmp(snapshot.items[1].data(), "OLD") == 0);
-  CHECK(std::strcmp(snapshot.items[2].data(), "*ACTIVE") == 0);
+  CHECK(snapshot.selectedRow == 0U);
+  CHECK(std::strcmp(snapshot.items[0].data(), "OLD") == 0);
+  CHECK(std::strcmp(snapshot.items[1].data(), "*ACTIVE") == 0);
 }
 
 TEST_CASE("UI2 Project Browser owner releases clear a modal-opening chord") {
@@ -211,7 +207,6 @@ TEST_CASE("UI2 Project Browser owner releases clear a modal-opening chord") {
   ProjectBrowserFileSystem fileSystem;
   Ui2ProjectBrowserController controller;
   REQUIRE(controller.Refresh("ACTIVE"));
-  Tap(controller, TrackerAction::Down); // OLD
 
   controller.Handle(TrackerAction::Option, true);
   const Ui2ProjectBrowserCommand remove =

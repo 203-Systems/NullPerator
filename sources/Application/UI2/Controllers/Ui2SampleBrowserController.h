@@ -26,6 +26,7 @@ enum class Ui2SampleBrowserMode : std::uint8_t { ProjectPool, Library };
 
 enum class Ui2SampleBrowserCommandType : std::uint8_t {
   None,
+  Back,
   PreviewStart,
   PreviewStop,
   Import,
@@ -251,6 +252,12 @@ public:
       name[sizeof(name) - 1U] = '\0';
       if (name[0] == '\0' || std::strcmp(name, ".") == 0)
         continue;
+      // The configured sample library is the browser root. Some filesystem
+      // adapters synthesize ".." even there; accepting it would expose all
+      // of /data and can leave Import on an unrelated empty directory.
+      if (mode_ == Ui2SampleBrowserMode::Library && depth_ == 0U &&
+          std::strcmp(name, "..") == 0)
+        continue;
       // SamplePool::Load() has a flat, files-only contract. Directory entries
       // must never become selectable in ProjectPool: after entering one, the
       // old leaf-only command packet could resolve against the pool root and
@@ -309,11 +316,24 @@ public:
       std::snprintf(snapshot.footer.data(), snapshot.footer.size(), "0 ITEMS");
     }
 
-    if (!snapshot.hasSelection || fileSystem == nullptr)
+    if (!snapshot.hasSelection || fileSystem == nullptr) {
+      Ui2BrowserSnapshot::CopyText(
+          snapshot.actions[0], mode_ == Ui2SampleBrowserMode::ProjectPool
+                                   ? "IMPORT"
+                                   : "BACK");
+      snapshot.actionCount = 1U;
       return snapshot;
+    }
     if (IsSelectedDirectory()) {
       Ui2BrowserSnapshot::CopyText(snapshot.actions[0], "OPEN");
-      snapshot.actionCount = 1U;
+      if (mode_ == Ui2SampleBrowserMode::Library) {
+        Ui2BrowserSnapshot::CopyText(snapshot.actions[1], "BACK");
+        snapshot.actionCount = 2U;
+        snapshot.activeAction =
+            std::min<std::uint8_t>(selectedAction_, 1U);
+      } else {
+        snapshot.actionCount = 1U;
+      }
       return snapshot;
     }
     if (mode_ == Ui2SampleBrowserMode::ProjectPool) {
@@ -325,7 +345,8 @@ public:
     } else {
       Ui2BrowserSnapshot::CopyText(snapshot.actions[0], "IMPORT");
       Ui2BrowserSnapshot::CopyText(snapshot.actions[1], "EDIT");
-      snapshot.actionCount = 2U;
+      Ui2BrowserSnapshot::CopyText(snapshot.actions[2], "BACK");
+      snapshot.actionCount = 3U;
     }
     snapshot.activeAction = std::min<std::uint8_t>(
         selectedAction_, static_cast<std::uint8_t>(snapshot.actionCount - 1U));
@@ -392,8 +413,17 @@ private:
   }
 
   Ui2SampleBrowserCommand ActivateSelection() {
-    if (!HasSelection())
-      return {};
+    if (!HasSelection()) {
+      if (mode_ == Ui2SampleBrowserMode::Library)
+        return {.type = Ui2SampleBrowserCommandType::Back};
+      mode_ = Ui2SampleBrowserMode::Library;
+      if (!JumpToModeRoot()) {
+        mode_ = Ui2SampleBrowserMode::ProjectPool;
+        JumpToModeRoot();
+        SetError("SAMPLE LIB UNAVAILABLE");
+      }
+      return {.type = Ui2SampleBrowserCommandType::ModeChanged};
+    }
     ClearError();
     if (IsSelectedDirectory()) {
       // RefreshCurrentDirectory filters these in ProjectPool. Keep this guard
@@ -402,6 +432,8 @@ private:
         SetError("INVALID SAMPLE");
         return {};
       }
+      if (selectedAction_ == 1U)
+        return {.type = Ui2SampleBrowserCommandType::Back};
       char name[PFILENAME_SIZE]{};
       ReadName(selected_, name, sizeof(name));
       if (std::strcmp(name, "..") == 0)
@@ -424,6 +456,8 @@ private:
       }
       return MakeSelected(Ui2SampleBrowserCommandType::RequestDelete);
     }
+    if (selectedAction_ == 2U)
+      return {.type = Ui2SampleBrowserCommandType::Back};
     return MakeSelected(selectedAction_ == 0U
                             ? Ui2SampleBrowserCommandType::Import
                             : Ui2SampleBrowserCommandType::Edit);
@@ -434,8 +468,9 @@ private:
       selectedAction_ = 0U;
       return;
     }
-    const int count =
-        mode_ == Ui2SampleBrowserMode::ProjectPool ? 3 : 2;
+    const int count = mode_ == Ui2SampleBrowserMode::ProjectPool
+                          ? 3
+                          : IsSelectedDirectory() ? 2 : 3;
     selectedAction_ = static_cast<std::uint8_t>(
         (count + static_cast<int>(selectedAction_) + delta) % count);
     ClearError();

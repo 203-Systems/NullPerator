@@ -9,7 +9,7 @@ namespace {
 
 class SampleBrowserFileSystem final : public FileSystem {
 public:
-  SampleBrowserFileSystem() {
+  explicit SampleBrowserFileSystem(bool empty = false) : empty_(empty) {
     previous_ = FileSystem::GetInstance();
     FileSystem::Install(this);
   }
@@ -62,6 +62,8 @@ public:
   void list(etl::ivector<int> *indices, const char *, bool,
             bool = false) override {
     indices->clear();
+    if (empty_)
+      return;
     if (directory_ == Directory::Pool) {
       indices->push_back(10);
       indices->push_back(20); // .. must not be exposed by ProjectPool.
@@ -132,6 +134,7 @@ private:
   FileSystem *previous_ = nullptr;
   Directory directory_ = Directory::Root;
   std::uint8_t nestedDirectoryEnterAttempts_ = 0U;
+  bool empty_ = false;
 };
 
 template <typename Controller>
@@ -201,12 +204,16 @@ TEST_CASE("UI2 Sample Browser library retains directories and parent chord") {
   REQUIRE(controller.Mode() == Ui2SampleBrowserMode::Library);
 
   Ui2BrowserSnapshot snapshot = controller.Snapshot(60);
-  REQUIRE(snapshot.visibleItemCount == 3U);
-  CHECK(std::strcmp(snapshot.items[0].data(), "..") == 0);
-  CHECK(std::strcmp(snapshot.items[2].data(), "/DRUMS") == 0);
+  REQUIRE(snapshot.visibleItemCount == 2U);
+  CHECK(std::strcmp(snapshot.items[0].data(), "~KICK.WAV") == 0);
+  CHECK(std::strcmp(snapshot.items[1].data(), "/DRUMS") == 0);
+  REQUIRE(snapshot.actionCount == 3U);
+  CHECK(std::strcmp(snapshot.actions[2].data(), "BACK") == 0);
 
   Tap(controller, TrackerAction::Down);
-  Tap(controller, TrackerAction::Down);
+  snapshot = controller.Snapshot(60);
+  REQUIRE(snapshot.actionCount == 2U);
+  CHECK(std::strcmp(snapshot.actions[1].data(), "BACK") == 0);
   CHECK_FALSE(Tap(controller, TrackerAction::Edit).HasValue());
   snapshot = controller.Snapshot(60);
   REQUIRE(snapshot.visibleItemCount == 2U);
@@ -218,8 +225,8 @@ TEST_CASE("UI2 Sample Browser library retains directories and parent chord") {
   controller.Handle(TrackerAction::Left, false);
   controller.Handle(TrackerAction::Option, false);
   snapshot = controller.Snapshot(60);
-  REQUIRE(snapshot.visibleItemCount == 3U);
-  CHECK(std::strcmp(snapshot.items[2].data(), "/DRUMS") == 0);
+  REQUIRE(snapshot.visibleItemCount == 2U);
+  CHECK(std::strcmp(snapshot.items[1].data(), "/DRUMS") == 0);
 }
 
 TEST_CASE("UI2 Sample Browser previews, imports, and restores pool mode") {
@@ -240,9 +247,8 @@ TEST_CASE("UI2 Sample Browser previews, imports, and restores pool mode") {
         Ui2SampleBrowserCommandType::ModeChanged);
   CHECK(controller.Mode() == Ui2SampleBrowserMode::Library);
   CHECK(std::strcmp(controller.Snapshot(40).items[0].data(),
-                    "..") == 0);
+                    "~KICK.WAV") == 0);
 
-  Tap(controller, TrackerAction::Down); // KICK.WAV
   const Ui2SampleBrowserCommand import =
       Tap(controller, TrackerAction::Edit);
   CHECK(import.type == Ui2SampleBrowserCommandType::Import);
@@ -254,6 +260,27 @@ TEST_CASE("UI2 Sample Browser previews, imports, and restores pool mode") {
   CHECK(controller.Mode() == Ui2SampleBrowserMode::ProjectPool);
   controller.Handle(TrackerAction::Option, false);
   controller.Handle(TrackerAction::Shift, false);
+}
+
+TEST_CASE("UI2 Sample Browser exposes actions for empty states") {
+  using namespace ui2;
+  SampleBrowserFileSystem fileSystem(true);
+  Ui2SampleBrowserController controller;
+  REQUIRE(controller.Open("DEMO", 1U));
+
+  Ui2BrowserSnapshot snapshot = controller.Snapshot(60);
+  CHECK_FALSE(snapshot.hasSelection);
+  REQUIRE(snapshot.actionCount == 1U);
+  CHECK(std::strcmp(snapshot.actions[0].data(), "IMPORT") == 0);
+  REQUIRE(Tap(controller, TrackerAction::Edit).type ==
+          Ui2SampleBrowserCommandType::ModeChanged);
+
+  snapshot = controller.Snapshot(60);
+  CHECK_FALSE(snapshot.hasSelection);
+  REQUIRE(snapshot.actionCount == 1U);
+  CHECK(std::strcmp(snapshot.actions[0].data(), "BACK") == 0);
+  CHECK(Tap(controller, TrackerAction::Edit).type ==
+        Ui2SampleBrowserCommandType::Back);
 }
 
 TEST_CASE("UI2 Sample Browser delete confirmation defaults to NO") {
