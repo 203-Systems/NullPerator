@@ -873,6 +873,11 @@ Ui2NativeApplicationStateSource::CaptureMixer(UiMixerFrameState &state) {
   Player *player = Player::GetInstance();
   if (player == nullptr)
     return {.active = false};
+  // PlayerMixer retains its last peak values after transport stops.  The
+  // mixer view represents current activity, so leave every meter at the
+  // empty baseline initialized above while playback is inactive.
+  if (!player->IsRunning())
+    return {.active = false};
   const auto captureStereoLevel = [&](std::uint8_t channel,
                                       std::uint32_t level) {
     state.vuLevelTop[channel][0] =
@@ -890,7 +895,7 @@ Ui2NativeApplicationStateSource::CaptureMixer(UiMixerFrameState &state) {
   }
   captureStereoLevel(SONG_CHANNEL_COUNT,
                      static_cast<std::uint32_t>(player->GetMasterLevel()));
-  return {.active = player->IsRunning()};
+  return {.active = true};
 }
 
 UiApplicationActivityState Ui2NativeApplicationStateSource::CaptureSampleEditor(
