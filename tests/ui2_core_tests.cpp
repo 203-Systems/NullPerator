@@ -2028,13 +2028,47 @@ TEST_CASE("UI2 Instrument reveals the fixed-capacity Sample tail") {
   sample.fieldCount = 20U;
   sample.cursor = ui2::UiInstrumentCursor::Field;
   sample.selectedField = 19U;
+  sample.fieldBottom = ui2::UiInstrumentFieldBottom::BooleanSelector;
   sample.scrollOffset = ui2::UiInstrumentView::RevealCursor(0, sample);
-  CHECK(sample.scrollOffset == 24);
+  CHECK(sample.scrollOffset == 56);
   ui2::UiPalette palette;
   ui2::UiFrameScene scene;
   REQUIRE(ui2::UiInstrumentView::Build(sample, palette, scene) ==
           ui2::UiBuildStatus::Built);
-  CHECK(scene.contentOffsetY == 24);
+  CHECK(scene.contentOffsetY == 56);
+}
+
+TEST_CASE("UI2 Sample Instrument supplies contextual bars for every field kind") {
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  ui2::UiInstrumentViewData data =
+      ui2::test::ApprovedInstrumentFixture("sample");
+  data.cursor = ui2::UiInstrumentCursor::Field;
+
+  data.fieldBottom = ui2::UiInstrumentFieldBottom::Open;
+  REQUIRE(ui2::UiInstrumentView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK(FindTextCommand(scene.bottom.Stream(), "OPEN") != nullptr);
+
+  data.fieldBottom = ui2::UiInstrumentFieldBottom::Adjustment;
+  data.adjustmentFineStep = 1U;
+  data.adjustmentCoarseStep = 16U;
+  REQUIRE(ui2::UiInstrumentView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK(FindTextCommand(scene.bottom.Stream(), "1") != nullptr);
+  CHECK(FindTextCommand(scene.bottom.Stream(), "16") != nullptr);
+
+  data.fieldBottom = ui2::UiInstrumentFieldBottom::LoopSelector;
+  data.fieldOptionCurrent = 2U;
+  REQUIRE(ui2::UiInstrumentView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK(FindTextCommand(scene.bottom.Stream(), "PINGPONG") != nullptr);
+
+  data.fieldBottom = ui2::UiInstrumentFieldBottom::BooleanSelector;
+  data.fieldOptionCurrent = 1U;
+  REQUIRE(ui2::UiInstrumentView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK(FindTextCommand(scene.bottom.Stream(), "ON") != nullptr);
 }
 
 TEST_CASE(

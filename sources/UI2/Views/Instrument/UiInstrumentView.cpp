@@ -17,6 +17,10 @@ namespace {
 
 constexpr std::array<std::string_view, 5> kTypeOptions{"NONE", "SAMPLE", "MIDI",
                                                        "SID", "OPAL"};
+constexpr std::array<std::string_view, 2> kBooleanOptions{"OFF", "ON"};
+constexpr std::array<std::string_view, 2> kInterpolationOptions{"LINEAR", "NONE"};
+constexpr std::array<std::string_view, 5> kLoopOptions{
+    "NONE", "LOOP", "PINGPONG", "OSCILLATOR", "LOOPSYNC"};
 
 std::string_view TypeName(UiInstrumentKind kind) {
   return kTypeOptions[static_cast<std::size_t>(kind)];
@@ -107,7 +111,8 @@ bool SelectedSubfield(const UiInstrumentViewData &data,
 bool BottomVisible(const UiInstrumentViewData &data) {
   return data.numberFocus || data.adjustmentFocus ||
          data.cursor == UiInstrumentCursor::Name ||
-         data.cursor == UiInstrumentCursor::Type;
+         data.cursor == UiInstrumentCursor::Type ||
+         data.fieldBottom != UiInstrumentFieldBottom::Hidden;
 }
 
 } // namespace
@@ -179,6 +184,7 @@ bool UiInstrumentView::RequiresFullInvalidation(
     const UiInstrumentViewData &previous, const UiInstrumentViewData &current) {
   return previous.kind != current.kind ||
          previous.numberFocus != current.numberFocus ||
+         BottomVisible(previous) != BottomVisible(current) ||
          previous.fieldCount != current.fieldCount ||
          previous.operatorCount != current.operatorCount;
 }
@@ -248,6 +254,8 @@ void UiInstrumentView::RenderDelta(const UiInstrumentViewData &previous,
       previous.adjustmentNote != current.adjustmentNote ||
       previous.adjustmentFineStep != current.adjustmentFineStep ||
       previous.adjustmentCoarseStep != current.adjustmentCoarseStep ||
+      previous.fieldBottom != current.fieldBottom ||
+      previous.fieldOptionCurrent != current.fieldOptionCurrent ||
       previous.trackNotes != current.trackNotes ||
       previous.selectedTrack != current.selectedTrack ||
       previous.bottomTrackVisualRect != current.bottomTrackVisualRect ||
@@ -300,6 +308,40 @@ UiBuildStatus UiInstrumentView::Build(const UiInstrumentViewData &data,
     bottom.kind = UiBottomBarKind::Selector;
     bottom.selector.options = kTypeOptions;
     bottom.selector.current = static_cast<std::uint8_t>(data.kind);
+    bottom.selector.wrap = true;
+  } else if (data.fieldBottom == UiInstrumentFieldBottom::Open) {
+    bottom.kind = UiBottomBarKind::Actions;
+    bottom.actions.actions = {"OPEN", {}, {}, {}};
+    bottom.actions.count = 1;
+  } else if (data.fieldBottom == UiInstrumentFieldBottom::Adjustment) {
+    bottom.kind = UiBottomBarKind::AdjustmentLegend;
+    bottom.adjustment = {.fineStep = data.adjustmentFineStep,
+                         .coarseStep = data.adjustmentCoarseStep,
+                         .coarseOctave = data.adjustmentNote,
+                         .fineLabel = data.adjustmentNote
+                                          ? std::string_view("NOTE")
+                                          : std::string_view{},
+                         .coarseLabel = data.adjustmentNote
+                                            ? std::string_view("OCT")
+                                            : std::string_view{}};
+  } else if (data.fieldBottom == UiInstrumentFieldBottom::BooleanSelector) {
+    bottom.kind = UiBottomBarKind::Selector;
+    bottom.selector.options = kBooleanOptions;
+    bottom.selector.current =
+        std::min<std::uint8_t>(data.fieldOptionCurrent, 1U);
+    bottom.selector.wrap = true;
+  } else if (data.fieldBottom ==
+             UiInstrumentFieldBottom::InterpolationSelector) {
+    bottom.kind = UiBottomBarKind::Selector;
+    bottom.selector.options = kInterpolationOptions;
+    bottom.selector.current =
+        std::min<std::uint8_t>(data.fieldOptionCurrent, 1U);
+    bottom.selector.wrap = true;
+  } else if (data.fieldBottom == UiInstrumentFieldBottom::LoopSelector) {
+    bottom.kind = UiBottomBarKind::Selector;
+    bottom.selector.options = kLoopOptions;
+    bottom.selector.current =
+        std::min<std::uint8_t>(data.fieldOptionCurrent, 4U);
     bottom.selector.wrap = true;
   }
   UiTrackNotesModel tracks;

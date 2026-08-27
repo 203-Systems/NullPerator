@@ -29,6 +29,15 @@ enum class UiInstrumentCursor : std::uint8_t {
   Operator2,
 };
 
+enum class UiInstrumentFieldBottom : std::uint8_t {
+  Hidden,
+  Open,
+  Adjustment,
+  BooleanSelector,
+  InterpolationSelector,
+  LoopSelector,
+};
+
 struct UiInstrumentField {
   std::string_view label;
   std::string_view value;
@@ -72,6 +81,8 @@ struct UiInstrumentViewData {
   bool enterSubfieldFocus = false;
   bool adjustmentFocus = false;
   bool adjustmentNote = false;
+  UiInstrumentFieldBottom fieldBottom = UiInstrumentFieldBottom::Hidden;
+  std::uint8_t fieldOptionCurrent = 0;
   std::uint8_t adjustmentFineStep = 1;
   std::uint8_t adjustmentCoarseStep = 10;
   std::uint8_t selectedSubfield = 0;

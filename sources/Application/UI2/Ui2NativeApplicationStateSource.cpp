@@ -592,6 +592,32 @@ UiApplicationActivityState Ui2NativeApplicationStateSource::CaptureInstrument(
   state.adjustmentNote = activeAdjustment.note;
   state.adjustmentFineStep = activeAdjustment.fineStep;
   state.adjustmentCoarseStep = activeAdjustment.coarseStep;
+  if (type == IT_SAMPLE && cursor.kind == Ui2InstrumentCursorKind::Field &&
+      cursor.index < state.fieldCount) {
+    if (cursor.index <= 1U) {
+      state.fieldBottom = UiInstrumentFieldBottom::Open;
+    } else if (activeAdjustment.visible ||
+               activeDescriptor.format == Ui2InstrumentValueFormat::SampleFilter ||
+               activeDescriptor.subfieldMode != Ui2InstrumentSubfieldMode::None) {
+      state.fieldBottom = UiInstrumentFieldBottom::Adjustment;
+      state.adjustmentFineStep = static_cast<std::uint8_t>(
+          std::min<std::uint16_t>(activeDescriptor.fineStep, 0xFFU));
+      state.adjustmentCoarseStep = static_cast<std::uint8_t>(
+          std::min<std::uint16_t>(activeDescriptor.coarseStep, 0xFFU));
+    } else if (activeDescriptor.format == Ui2InstrumentValueFormat::Boolean) {
+      state.fieldBottom = UiInstrumentFieldBottom::BooleanSelector;
+      state.fieldOptionCurrent = static_cast<std::uint8_t>(
+          std::clamp(valueFor(activeDescriptor.primary), 0, 1));
+    } else if (activeDescriptor.format == Ui2InstrumentValueFormat::Choice) {
+      state.fieldBottom = UiInstrumentFieldBottom::InterpolationSelector;
+      state.fieldOptionCurrent = static_cast<std::uint8_t>(
+          std::clamp(valueFor(activeDescriptor.primary), 0, 1));
+    } else if (activeDescriptor.format == Ui2InstrumentValueFormat::SampleLoop) {
+      state.fieldBottom = UiInstrumentFieldBottom::LoopSelector;
+      state.fieldOptionCurrent = static_cast<std::uint8_t>(
+          std::clamp(valueFor(activeDescriptor.primary), 0, 4));
+    }
+  }
   state.selectedSubfield = instrument_.Subfield();
   state.subfieldTextOffset = activeSubfields.textOffset;
   FormatElapsed(state.elapsed);

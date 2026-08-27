@@ -261,6 +261,8 @@ struct UiInstrumentFrameState {
   bool enterSubfieldFocus = false;
   bool adjustmentFocus = false;
   bool adjustmentNote = false;
+  UiInstrumentFieldBottom fieldBottom = UiInstrumentFieldBottom::Hidden;
+  std::uint8_t fieldOptionCurrent = 0;
   std::uint8_t adjustmentFineStep = 1;
   std::uint8_t adjustmentCoarseStep = 10;
   std::uint8_t selectedSubfield = 0;

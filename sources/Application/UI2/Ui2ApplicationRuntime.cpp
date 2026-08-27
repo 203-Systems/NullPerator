@@ -856,6 +856,8 @@ UiApplicationRuntime::ViewDataFor(const InstrumentFrameState &state) {
   data.enterSubfieldFocus = state.enterSubfieldFocus;
   data.adjustmentFocus = state.adjustmentFocus;
   data.adjustmentNote = state.adjustmentNote;
+  data.fieldBottom = state.fieldBottom;
+  data.fieldOptionCurrent = state.fieldOptionCurrent;
   data.adjustmentFineStep = state.adjustmentFineStep;
   data.adjustmentCoarseStep = state.adjustmentCoarseStep;
   data.selectedSubfield = state.selectedSubfield;
