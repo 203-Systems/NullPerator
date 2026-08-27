@@ -2,6 +2,7 @@
   import { onMount, tick } from 'svelte'
   import DevicePanel from './components/DevicePanel.svelte'
   import TopBar from './components/TopBar.svelte'
+  import MobilePlayBar from './components/MobilePlayBar.svelte'
   import LeftNav from './components/LeftNav.svelte'
   import ToolTray from './components/ToolTray.svelte'
   import ToolPanelStack from './components/ToolPanelStack.svelte'
@@ -25,6 +26,7 @@
   let activeSection = 'Device'
   let openTools = []
   let developerMode = resolveDeveloperMode(settingsStore.snapshot().developerMode)
+  let mobileSettingsOpen = false
   let runtime = runtimeStore.getSnapshot()
   let audio = runtime.audio?.snapshot?.() ?? { state:'unavailable', metrics:null, capability:null }
   let midi = runtime.midi?.snapshot?.() ?? { state:'unavailable' }
@@ -39,6 +41,7 @@
   function toggleDock(tool){ openTools=toggleTool(openTools,tool) }
   function setDeveloperMode(enabled){
     developerMode = Boolean(enabled)
+    mobileSettingsOpen = false
     settingsStore.update({ developerMode })
     if (!developerMode) { activeSection='Device'; openTools=[] }
   }
@@ -65,10 +68,14 @@
 <svelte:head><title>NullPerator</title><link rel="icon" href="data:,"/><meta name="description" content="PicoTracker WebAssembly development and performance workbench"/></svelte:head>
 
 <div class="dashboard" data-developer-mode={developerMode ? 'true' : 'false'}>
-  <TopBar {runtime} {audio} {storage} {midi} {developerMode} onDeveloperModeChange={setDeveloperMode}/>
+  {#if developerMode}
+    <TopBar {runtime} {audio} {storage} {midi} {developerMode} onDeveloperModeChange={setDeveloperMode}/>
+  {:else}
+    <MobilePlayBar onDeveloperModeChange={setDeveloperMode} onOpenChange={(open)=>(mobileSettingsOpen=open)}/>
+  {/if}
   <div class="dashboard-body">
     {#if developerMode}<LeftNav {sections} active={activeSection} onSelect={selectSection}/>{/if}
-    <main class="workspace">
+    <main class="workspace" inert={mobileSettingsOpen}>
       {#if runtime.state==='failed'}
         <section class="recovery-card" role="alert" data-recovery-kind={runtime.error?.includes('Cross-origin isolation')?'isolation':'runtime'}>
           <p class="eyebrow">Runtime recovery</p><h1>{runtime.error?.includes('Cross-origin isolation')?'Cross-origin isolation is missing':'PicoTracker runtime stopped'}</h1><p>{runtime.error}</p>

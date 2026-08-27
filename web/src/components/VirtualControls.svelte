@@ -16,7 +16,7 @@
     if (suppressClick) pointerClickSuppression.add(event.currentTarget)
     input?.release(action, source(event))
   }
-  function cancel(event) { event.preventDefault(); input?.releaseAll() }
+  function cancel(event, action) { event.preventDefault(); input?.release(action, source(event)) }
   function activate(event, action) {
     const keyboardActivation = event.detail === 0
     if (!keyboardActivation && pointerClickSuppression.delete(event.currentTarget)) { event.preventDefault(); return }
@@ -33,7 +33,7 @@
     {#each [['up','Up','W','▲'],['left','Left','A','◀'],['down','Down','S','▼'],['right','Right','D','▶']] as [action,label,key,glyph]}
       <button type="button" class={action} class:pressed={heldActions.includes(action)} aria-label={label} aria-pressed={heldActions.includes(action)} data-action={action} {disabled}
         onpointerdown={(event) => press(event, action)} onpointerup={(event) => release(event, action, true)}
-        onpointercancel={cancel} onlostpointercapture={(event) => release(event, action)} onclick={(event) => activate(event, action)}>
+        onpointercancel={(event) => cancel(event, action)} onlostpointercapture={(event) => release(event, action)} onclick={(event) => activate(event, action)}>
         <span class="switch"><span>{glyph}</span></span><kbd>{key}</kbd>
       </button>
     {/each}
@@ -41,22 +41,22 @@
 
   <div class="face-buttons">
     <button type="button" class="face enter" class:pressed={heldActions.includes('edit')} aria-label="EDIT" aria-pressed={heldActions.includes('edit')} data-action="edit" {disabled}
-      onpointerdown={(e)=>press(e,'edit')} onpointerup={(e)=>release(e,'edit',true)} onpointercancel={cancel} onlostpointercapture={(e)=>release(e,'edit')} onclick={(e)=>activate(e,'edit')}>
+      onpointerdown={(e)=>press(e,'edit')} onpointerup={(e)=>release(e,'edit',true)} onpointercancel={(e)=>cancel(e,'edit')} onlostpointercapture={(e)=>release(e,'edit')} onclick={(e)=>activate(e,'edit')}>
       <span class="switch"><span>↵</span></span><kbd>K</kbd><em>EDIT</em>
     </button>
     <button type="button" class="face edit" class:pressed={heldActions.includes('option')} aria-label="OPTION" aria-pressed={heldActions.includes('option')} data-action="option" {disabled}
-      onpointerdown={(e)=>press(e,'option')} onpointerup={(e)=>release(e,'option',true)} onpointercancel={cancel} onlostpointercapture={(e)=>release(e,'option')} onclick={(e)=>activate(e,'option')}>
+      onpointerdown={(e)=>press(e,'option')} onpointerup={(e)=>release(e,'option',true)} onpointercancel={(e)=>cancel(e,'option')} onlostpointercapture={(e)=>release(e,'option')} onclick={(e)=>activate(e,'option')}>
       <span class="switch"><span>✦</span></span><kbd>J</kbd><em>OPTION</em>
     </button>
   </div>
 
   <div class="bottom-buttons">
     <button type="button" class:pressed={heldActions.includes('shift')} aria-label="SHIFT" aria-pressed={heldActions.includes('shift')} data-action="shift" {disabled}
-      onpointerdown={(e)=>press(e,'shift')} onpointerup={(e)=>release(e,'shift',true)} onpointercancel={cancel} onlostpointercapture={(e)=>release(e,'shift')} onclick={(e)=>activate(e,'shift')}>
+      onpointerdown={(e)=>press(e,'shift')} onpointerup={(e)=>release(e,'shift',true)} onpointercancel={(e)=>cancel(e,'shift')} onlostpointercapture={(e)=>release(e,'shift')} onclick={(e)=>activate(e,'shift')}>
       <span class="switch"></span><kbd>X</kbd><em>SHIFT</em>
     </button>
     <button type="button" class:pressed={heldActions.includes('play')} aria-label="PLAY" aria-pressed={heldActions.includes('play')} data-action="play" {disabled}
-      onpointerdown={(e)=>press(e,'play')} onpointerup={(e)=>release(e,'play',true)} onpointercancel={cancel} onlostpointercapture={(e)=>release(e,'play')} onclick={(e)=>activate(e,'play')}>
+      onpointerdown={(e)=>press(e,'play')} onpointerup={(e)=>release(e,'play',true)} onpointercancel={(e)=>cancel(e,'play')} onlostpointercapture={(e)=>release(e,'play')} onclick={(e)=>activate(e,'play')}>
       <span class="switch"><span>▶</span></span><kbd>C</kbd><em>PLAY</em>
     </button>
   </div>
@@ -86,9 +86,21 @@
   .bottom-buttons button:active,.bottom-buttons button.pressed { transform:translateY(1px); border-color:#4cc9f0; background:#0d0f12; box-shadow:inset 0 0 0 1px rgba(76,201,240,.18); }
   .bottom-buttons button:first-child{left:0}.bottom-buttons button:last-child{right:0}
   .operator-controls.compact kbd { display:none; }
-  .compact .d-pad .switch { top:17px; }
-  .compact .d-pad .switch > span { font-size:12px; }
-  .compact .face .switch { display:grid; top:13px; }
-  .compact .face .switch > span { font-size:13px; }
-  .compact .bottom-buttons em { top:20px; bottom:auto; }
+  .operator-controls.compact { height:166px; margin-top:10px; }
+  .operator-controls.compact::before { display:none; }
+  .compact button,.compact .d-pad button,.compact .face { width:52px; height:52px; border-radius:14px; transform:none; }
+  .compact button:active,.compact button.pressed,.compact .d-pad button:active,.compact .d-pad button.pressed,.compact .face:active,.compact .face.pressed { transform:translateY(1px); }
+  .compact .d-pad { left:0; top:4px; width:174px; height:156px; }
+  .compact .d-pad .up{left:61px;top:0}.compact .d-pad .left{left:7px;top:52px}.compact .d-pad .down{left:61px;top:104px}.compact .d-pad .right{left:115px;top:52px}
+  .compact .d-pad .switch { top:18px; }
+  .compact .d-pad .switch,.compact .d-pad kbd,.compact .face kbd,.compact .face em { rotate:0deg; }
+  .compact .d-pad .switch > span { font-size:13px; }
+  .compact .face-buttons { right:0; top:4px; width:120px; height:120px; }
+  .compact .face.enter{left:64px;top:0}.compact .face.edit{left:4px;top:0}
+  .compact .face .switch { display:grid; top:11px; }
+  .compact .face .switch > span { font-size:12px; }
+  .compact .bottom-buttons { left:auto; right:0; top:64px; bottom:auto; width:120px; height:52px; }
+  .compact .bottom-buttons button:first-child{left:4px}.compact .bottom-buttons button:last-child{right:4px}
+  .compact .bottom-buttons em { top:21px; bottom:auto; }
+  .compact .face.enter,.compact .bottom-buttons button:last-child { border-color:rgba(76,201,240,.3); }
 </style>

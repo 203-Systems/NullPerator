@@ -15,7 +15,7 @@
   let heldActions = []
   let displayScale = settings?.snapshot?.().displayScale ?? 'fit'
   let detachSettings = () => {}
-  const scaleFor = (value) => compact ? 1.08 : (value === 'fit' ? 1.4 : Number(value) || 1)
+  const scaleFor = (value) => compact ? 1 : (value === 'fit' ? 1.4 : Number(value) || 1)
   const input = createInputStore({
     pressAction: (action) => runtime.input?.pressAction(action),
     repeatAction: (action) => runtime.input?.repeatAction(action),
@@ -97,7 +97,7 @@
 <style>
   .device-input-host { display:flex; flex-direction:column; width:100%; height:100%; min-height:0; overflow:hidden; }
   .device-scene { position:relative; display:flex; flex:1; min-height:0; align-items:safe center; justify-content:safe center; overflow:auto; padding:24px; background:#0e0f12; }
-  .compact .device-scene { padding:clamp(8px,3vw,20px); background:var(--bg-0); }
+  .compact .device-scene { overflow:hidden; padding:clamp(6px,2vw,14px); background:var(--bg-0); }
   .operator-device { position:relative; width:320px; flex:0 0 auto; zoom:var(--device-scale,1); }
   .operator-screen-housing { position:relative; padding:0; }
   .screen-bezel { position:relative; width:264px; height:264px; margin:auto; padding:11px; border:1px solid #343841; background:#050608; }
@@ -117,6 +117,12 @@
   kbd { display:grid; min-width:22px; height:22px; padding:0 4px; place-items:center; border:1px solid rgba(255,255,255,.17); border-bottom-color:rgba(255,255,255,.3); border-radius:4px; color:#e7e9ec; background:linear-gradient(#292b31,#191a1e); box-shadow:0 2px 0 #070708; font:600 10px/1 var(--mono); }
   @media(max-height:760px){ .device-scene{align-items:flex-start}.keyboard-helper{gap:14px;padding-inline:10px} }
   @media(max-width:720px){ .device-scene{padding:12px}.device-input-host:not(.compact) .operator-device{zoom:.86!important}.keyboard-helper{justify-content:flex-start}.keyboard-helper>div>span:last-child{display:none} }
-  @media(max-width:360px){ .compact .operator-device{zoom:.9!important} }
-  @media(max-height:620px){ .compact .device-scene{align-items:flex-start}.compact .operator-device{zoom:.92!important} }
+  @media(max-width:360px){
+    .compact .device-scene{padding-inline:0}
+    .device-input-host:not(.compact) .operator-device{zoom:.72!important}
+  }
+  @media(min-height:540px){
+    .compact .operator-device{height:min(720px,calc(100dvh - 72px - env(safe-area-inset-bottom)))}
+    .compact :global(.operator-controls){position:absolute;left:0;bottom:0;margin:0}
+  }
 </style>

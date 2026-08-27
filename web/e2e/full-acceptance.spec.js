@@ -26,7 +26,8 @@ test('verified static bundle exposes the complete isolated workbench and persist
   await expect(page.getByRole('button', { name: 'Developer mode' })).toHaveAttribute('aria-pressed', 'true')
   await page.getByRole('button', { name: 'Developer mode' }).click()
   await expect(page.getByRole('navigation', { name: 'Workbench sections' })).toHaveCount(0)
-  await page.getByRole('button', { name: 'Developer mode' }).click()
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await page.getByRole('dialog', { name: 'Settings' }).getByRole('button', { name: 'Developer mode' }).click()
   await expect(page.locator('[data-storage-state="ready"]')).toBeVisible()
 
   const canvas = page.locator('#picotracker-canvas')
