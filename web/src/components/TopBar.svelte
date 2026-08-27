@@ -4,6 +4,12 @@
   export let storage
   export let midi
   const status = (value, fallback = 'unavailable') => value?.state ?? fallback
+  $: audioDisplayState = audio?.capability?.mode === 'disabled'
+    ? 'disabled'
+    : status(audio)
+  $: audioTitle = audioDisplayState === 'disabled'
+    ? audio?.capability?.reason
+    : audio?.error
 </script>
 
 <header class="top-bar">
@@ -21,8 +27,8 @@
     <span class="top-status compact" data-midi-state={status(midi)} title={midi?.error ?? undefined}>
       <span class="status-dot"></span><span>MIDI {status(midi)}</span>
     </span>
-    <span class="top-status audio" data-audio-state={audio.state} aria-label={`Audio ${audio.state}`} title={audio.error ?? undefined}>
-      <span class="status-dot"></span><span>Audio {audio.state}</span>
+    <span class="top-status audio" data-audio-state={audioDisplayState} aria-label={`Audio ${audioDisplayState}`} title={audioTitle ?? undefined}>
+      <span class="status-dot"></span><span>Audio {audioDisplayState}</span>
     </span>
   </div>
 </header>
@@ -38,6 +44,7 @@
   .status-dot { width:8px; height:8px; flex-shrink:0; border-radius:50%; background:#f7c266; box-shadow:0 0 6px rgba(247,194,102,.4); }
   [data-runtime-state='ready'] .status-dot,[data-storage-state='ready'] .status-dot,[data-midi-state='ready'] .status-dot,[data-audio-state='running'] .status-dot { background:#3dd68c; box-shadow:0 0 6px rgba(61,214,140,.5); }
   [data-storage-dirty='true'] .status-dot { background:#f7c266; box-shadow:0 0 6px rgba(247,194,102,.4); }
+  [data-audio-state='disabled'] .status-dot { background:#737984; box-shadow:none; }
   [data-runtime-state='failed'] .status-dot,[data-storage-state='failed'] .status-dot,[data-midi-state='failed'] .status-dot,[data-midi-state='denied'] .status-dot,[data-audio-state='failed'] .status-dot { background:#ff6b6b; box-shadow:0 0 6px rgba(255,107,107,.5); }
   @media(max-width:1000px){ .compact { display:none; } }
   @media(max-width:720px){ .top-status:not(.audio) { display:none; } .top-bar { padding:0 10px; } }
