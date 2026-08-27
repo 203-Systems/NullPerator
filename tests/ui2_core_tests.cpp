@@ -2028,7 +2028,8 @@ TEST_CASE("UI2 Instrument reveals the fixed-capacity Sample tail") {
   sample.fieldCount = 20U;
   sample.cursor = ui2::UiInstrumentCursor::Field;
   sample.selectedField = 19U;
-  sample.fieldBottom = ui2::UiInstrumentFieldBottom::BooleanSelector;
+  sample.fieldBottom = ui2::UiInstrumentFieldBottom::Selector;
+  sample.fieldOptions = ui2::UiInstrumentFieldOptions::Boolean;
   sample.scrollOffset = ui2::UiInstrumentView::RevealCursor(0, sample);
   CHECK(sample.scrollOffset == 56);
   ui2::UiPalette palette;
@@ -2058,17 +2059,19 @@ TEST_CASE("UI2 Sample Instrument supplies contextual bars for every field kind")
   CHECK(FindTextCommand(scene.bottom.Stream(), "1") != nullptr);
   CHECK(FindTextCommand(scene.bottom.Stream(), "16") != nullptr);
 
-  data.fieldBottom = ui2::UiInstrumentFieldBottom::LoopSelector;
+  data.fieldBottom = ui2::UiInstrumentFieldBottom::Selector;
+  data.fieldOptions = ui2::UiInstrumentFieldOptions::SampleLoop;
+  data.fieldOptionWrap = true;
   data.fieldOptionCurrent = 2U;
   REQUIRE(ui2::UiInstrumentView::Build(data, palette, scene) ==
           ui2::UiBuildStatus::Built);
-  CHECK(FindTextCommand(scene.bottom.Stream(), "PINGPONG") != nullptr);
+  CHECK(FindTextCommand(scene.bottom.Stream(), "PING PONG") != nullptr);
 
-  data.fieldBottom = ui2::UiInstrumentFieldBottom::BooleanSelector;
+  data.fieldOptions = ui2::UiInstrumentFieldOptions::Boolean;
   data.fieldOptionCurrent = 1U;
   REQUIRE(ui2::UiInstrumentView::Build(data, palette, scene) ==
           ui2::UiBuildStatus::Built);
-  CHECK(FindTextCommand(scene.bottom.Stream(), "ON") != nullptr);
+  CHECK(FindTextCommand(scene.bottom.Stream(), "YES") != nullptr);
 }
 
 TEST_CASE(

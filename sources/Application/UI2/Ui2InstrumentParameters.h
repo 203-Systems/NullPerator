@@ -479,7 +479,15 @@ Ui2ResolveSamplePositionMaximum(Ui2InstrumentParameterDescriptor descriptor,
       static_cast<std::int64_t>(current) + (positive ? step : -step);
   if (descriptor.offValue && adjusted < descriptor.minimum)
     return -1;
-  if (descriptor.wrap) {
+  const bool selectorWrap =
+      descriptor.format == Ui2InstrumentValueFormat::Boolean ||
+      descriptor.format == Ui2InstrumentValueFormat::Choice ||
+      descriptor.format == Ui2InstrumentValueFormat::SampleLoop ||
+      descriptor.format == Ui2InstrumentValueFormat::SidWaveform ||
+      descriptor.format == Ui2InstrumentValueFormat::OpalAlgorithm ||
+      descriptor.format == Ui2InstrumentValueFormat::OpalWave ||
+      descriptor.format == Ui2InstrumentValueFormat::OpalKeyscale;
+  if (descriptor.wrap || selectorWrap) {
     const std::int64_t count =
         descriptor.maximum - descriptor.minimum + std::int64_t{1};
     return count <= 0
@@ -589,7 +597,7 @@ inline void Ui2FormatInstrumentParameter(
     break;
   }
   case Ui2InstrumentValueFormat::Boolean:
-    detail::CopyText(destination, capacity, current != 0 ? "TRUE" : "FALSE");
+    detail::CopyText(destination, capacity, current != 0 ? "YES" : "NO");
     break;
   case Ui2InstrumentValueFormat::Choice:
     detail::CopyText(destination, capacity,

@@ -110,6 +110,18 @@ public:
 
 } // namespace
 
+TEST_CASE("UI2 Instrument booleans use NO and YES labels") {
+  constexpr auto descriptor = ui2::detail::Parameter(
+      "AUTOMATION", FourCC::SampleInstrumentTableAutomation, 0, 1, 1, 1,
+      0, 0, ui2::Ui2InstrumentValueFormat::Boolean);
+  CHECK(Format(descriptor, 0) == "NO");
+  CHECK(Format(descriptor, 1) == "YES");
+  CHECK(ui2::Ui2AdjustInstrumentParameter(
+            descriptor, 0, ui2::Ui2InstrumentValueDirection::Left) == 1);
+  CHECK(ui2::Ui2AdjustInstrumentParameter(
+            descriptor, 1, ui2::Ui2InstrumentValueDirection::Right) == 0);
+}
+
 TEST_CASE("UI2 Instrument descriptors preserve approved field layout") {
   using namespace ui2;
   CHECK(Ui2InstrumentFieldCount(IT_SAMPLE) == 17U);

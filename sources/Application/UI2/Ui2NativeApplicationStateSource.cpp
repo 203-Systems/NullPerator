@@ -590,10 +590,58 @@ UiApplicationActivityState Ui2NativeApplicationStateSource::CaptureInstrument(
   state.adjustmentNote = activeAdjustment.note;
   state.adjustmentFineStep = activeAdjustment.fineStep;
   state.adjustmentCoarseStep = activeAdjustment.coarseStep;
-  if (type == IT_SAMPLE && cursor.kind == Ui2InstrumentCursorKind::Field &&
-      cursor.index < state.fieldCount) {
-    if (cursor.index <= 1U) {
+  const bool parameterCursor =
+      cursor.kind == Ui2InstrumentCursorKind::Field ||
+      cursor.kind == Ui2InstrumentCursorKind::Operator1 ||
+      cursor.kind == Ui2InstrumentCursorKind::Operator2;
+  Variable *activeValue =
+      activeDescriptor.primary == FourCC::Default || instrument == nullptr
+          ? nullptr
+          : instrument->FindVariable(activeDescriptor.primary);
+  if (parameterCursor && activeDescriptor.Valid()) {
+    if (type == IT_SAMPLE && cursor.kind == Ui2InstrumentCursorKind::Field &&
+        cursor.index <= 1U) {
       state.fieldBottom = UiInstrumentFieldBottom::Open;
+    } else if (activeValue != nullptr &&
+               activeValue->GetType() == Variable::BOOL) {
+      state.fieldBottom = UiInstrumentFieldBottom::Selector;
+      state.fieldOptions = UiInstrumentFieldOptions::Boolean;
+      state.fieldOptionCurrent =
+          static_cast<std::uint8_t>(activeValue->GetBool() ? 1U : 0U);
+      state.fieldOptionWrap = true;
+    } else if (activeValue != nullptr &&
+               activeValue->GetType() == Variable::CHAR_LIST) {
+      state.fieldBottom = UiInstrumentFieldBottom::Selector;
+      switch (activeDescriptor.format) {
+      case Ui2InstrumentValueFormat::SampleLoop:
+        state.fieldOptions = UiInstrumentFieldOptions::SampleLoop;
+        break;
+      case Ui2InstrumentValueFormat::SidWaveform:
+        state.fieldOptions = UiInstrumentFieldOptions::SidWaveform;
+        break;
+      case Ui2InstrumentValueFormat::OpalAlgorithm:
+        state.fieldOptions = UiInstrumentFieldOptions::OpalAlgorithm;
+        break;
+      case Ui2InstrumentValueFormat::OpalWave:
+        state.fieldOptions = UiInstrumentFieldOptions::OpalWave;
+        break;
+      case Ui2InstrumentValueFormat::OpalKeyscale:
+        state.fieldOptions = UiInstrumentFieldOptions::OpalKeyscale;
+        break;
+      case Ui2InstrumentValueFormat::Choice:
+        state.fieldOptions =
+            activeDescriptor.primary == FourCC::SampleInstrumentInterpolation
+                ? UiInstrumentFieldOptions::SampleInterpolation
+                : UiInstrumentFieldOptions::SidFilter;
+        break;
+      default:
+        state.fieldOptions = UiInstrumentFieldOptions::None;
+        break;
+      }
+      state.fieldOptionCurrent = static_cast<std::uint8_t>(std::clamp(
+          activeValue->GetInt(), 0,
+          std::max(0, static_cast<int>(activeValue->GetListSize()) - 1)));
+      state.fieldOptionWrap = true;
     } else if (activeAdjustment.visible ||
                activeDescriptor.format == Ui2InstrumentValueFormat::SampleFilter ||
                activeDescriptor.subfieldMode != Ui2InstrumentSubfieldMode::None) {
@@ -602,18 +650,6 @@ UiApplicationActivityState Ui2NativeApplicationStateSource::CaptureInstrument(
           std::min<std::uint16_t>(activeDescriptor.fineStep, 0xFFU));
       state.adjustmentCoarseStep = static_cast<std::uint8_t>(
           std::min<std::uint16_t>(activeDescriptor.coarseStep, 0xFFU));
-    } else if (activeDescriptor.format == Ui2InstrumentValueFormat::Boolean) {
-      state.fieldBottom = UiInstrumentFieldBottom::BooleanSelector;
-      state.fieldOptionCurrent = static_cast<std::uint8_t>(
-          std::clamp(valueFor(activeDescriptor.primary), 0, 1));
-    } else if (activeDescriptor.format == Ui2InstrumentValueFormat::Choice) {
-      state.fieldBottom = UiInstrumentFieldBottom::InterpolationSelector;
-      state.fieldOptionCurrent = static_cast<std::uint8_t>(
-          std::clamp(valueFor(activeDescriptor.primary), 0, 1));
-    } else if (activeDescriptor.format == Ui2InstrumentValueFormat::SampleLoop) {
-      state.fieldBottom = UiInstrumentFieldBottom::LoopSelector;
-      state.fieldOptionCurrent = static_cast<std::uint8_t>(
-          std::clamp(valueFor(activeDescriptor.primary), 0, 4));
     }
   }
   state.selectedSubfield = instrument_.Subfield();

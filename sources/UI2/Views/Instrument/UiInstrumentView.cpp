@@ -11,16 +11,53 @@
 
 #include <algorithm>
 #include <array>
+#include <span>
 
 namespace ui2 {
 namespace {
 
 constexpr std::array<std::string_view, 5> kTypeOptions{"NONE", "SAMPLE", "MIDI",
                                                        "SID", "OPAL"};
-constexpr std::array<std::string_view, 2> kBooleanOptions{"OFF", "ON"};
-constexpr std::array<std::string_view, 2> kInterpolationOptions{"LINEAR", "NONE"};
-constexpr std::array<std::string_view, 5> kLoopOptions{
-    "NONE", "LOOP", "PINGPONG", "OSCILLATOR", "LOOPSYNC"};
+constexpr std::array<std::string_view, 2> kBooleanOptions{"NO", "YES"};
+constexpr std::array<std::string_view, 5> kSampleLoopOptions{
+    "ONE SHOT", "FORWARD", "PING PONG", "OSCILLATOR", "LOOP SYNC"};
+constexpr std::array<std::string_view, 2> kSampleInterpolationOptions{"LINEAR",
+                                                                      "NONE"};
+constexpr std::array<std::string_view, 9> kSidWaveformOptions{
+    "--", "A", "/", "A/", "PULSE", "A PULSE", "/ PULSE",
+    "A/ PULSE", "NOISE"};
+constexpr std::array<std::string_view, 4> kSidFilterOptions{"LP", "BP", "HP",
+                                                            "NOTCH"};
+constexpr std::array<std::string_view, 2> kOpalAlgorithmOptions{"1*2", "1+2"};
+constexpr std::array<std::string_view, 8> kOpalWaveOptions{
+    "SINE", "HALF", "ABS", "PULS", "EVEN", "AB-E", "SQR", "DSQR"};
+constexpr std::array<std::string_view, 4> kOpalKeyscaleOptions{"0", "1.5", "3",
+                                                               "6"};
+
+std::span<const std::string_view>
+OptionsFor(UiInstrumentFieldOptions options) {
+  switch (options) {
+  case UiInstrumentFieldOptions::Boolean:
+    return kBooleanOptions;
+  case UiInstrumentFieldOptions::SampleLoop:
+    return kSampleLoopOptions;
+  case UiInstrumentFieldOptions::SampleInterpolation:
+    return kSampleInterpolationOptions;
+  case UiInstrumentFieldOptions::SidWaveform:
+    return kSidWaveformOptions;
+  case UiInstrumentFieldOptions::SidFilter:
+    return kSidFilterOptions;
+  case UiInstrumentFieldOptions::OpalAlgorithm:
+    return kOpalAlgorithmOptions;
+  case UiInstrumentFieldOptions::OpalWave:
+    return kOpalWaveOptions;
+  case UiInstrumentFieldOptions::OpalKeyscale:
+    return kOpalKeyscaleOptions;
+  case UiInstrumentFieldOptions::None:
+    return {};
+  }
+  return {};
+}
 
 std::string_view TypeName(UiInstrumentKind kind) {
   return kTypeOptions[static_cast<std::size_t>(kind)];
@@ -256,6 +293,8 @@ void UiInstrumentView::RenderDelta(const UiInstrumentViewData &previous,
       previous.adjustmentCoarseStep != current.adjustmentCoarseStep ||
       previous.fieldBottom != current.fieldBottom ||
       previous.fieldOptionCurrent != current.fieldOptionCurrent ||
+      previous.fieldOptions != current.fieldOptions ||
+      previous.fieldOptionWrap != current.fieldOptionWrap ||
       previous.trackNotes != current.trackNotes ||
       previous.selectedTrack != current.selectedTrack ||
       previous.bottomTrackVisualRect != current.bottomTrackVisualRect ||
@@ -324,25 +363,16 @@ UiBuildStatus UiInstrumentView::Build(const UiInstrumentViewData &data,
                          .coarseLabel = data.adjustmentNote
                                             ? std::string_view("OCT")
                                             : std::string_view{}};
-  } else if (data.fieldBottom == UiInstrumentFieldBottom::BooleanSelector) {
+  } else if (data.fieldBottom == UiInstrumentFieldBottom::Selector) {
+    const std::span<const std::string_view> options =
+        OptionsFor(data.fieldOptions);
+    if (options.empty())
+      return UiBuildStatus::DesignRequired;
     bottom.kind = UiBottomBarKind::Selector;
-    bottom.selector.options = kBooleanOptions;
-    bottom.selector.current =
-        std::min<std::uint8_t>(data.fieldOptionCurrent, 1U);
-    bottom.selector.wrap = true;
-  } else if (data.fieldBottom ==
-             UiInstrumentFieldBottom::InterpolationSelector) {
-    bottom.kind = UiBottomBarKind::Selector;
-    bottom.selector.options = kInterpolationOptions;
-    bottom.selector.current =
-        std::min<std::uint8_t>(data.fieldOptionCurrent, 1U);
-    bottom.selector.wrap = true;
-  } else if (data.fieldBottom == UiInstrumentFieldBottom::LoopSelector) {
-    bottom.kind = UiBottomBarKind::Selector;
-    bottom.selector.options = kLoopOptions;
-    bottom.selector.current =
-        std::min<std::uint8_t>(data.fieldOptionCurrent, 4U);
-    bottom.selector.wrap = true;
+    bottom.selector.options = options;
+    bottom.selector.current = std::min<std::uint8_t>(
+        data.fieldOptionCurrent, static_cast<std::uint8_t>(options.size() - 1U));
+    bottom.selector.wrap = data.fieldOptionWrap;
   }
   UiTrackNotesModel tracks;
   tracks.notes = data.trackNotes;

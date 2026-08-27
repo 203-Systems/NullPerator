@@ -263,6 +263,8 @@ struct UiInstrumentFrameState {
   bool adjustmentNote = false;
   UiInstrumentFieldBottom fieldBottom = UiInstrumentFieldBottom::Hidden;
   std::uint8_t fieldOptionCurrent = 0;
+  UiInstrumentFieldOptions fieldOptions = UiInstrumentFieldOptions::None;
+  bool fieldOptionWrap = false;
   std::uint8_t adjustmentFineStep = 1;
   std::uint8_t adjustmentCoarseStep = 10;
   std::uint8_t selectedSubfield = 0;

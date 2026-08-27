@@ -33,9 +33,19 @@ enum class UiInstrumentFieldBottom : std::uint8_t {
   Hidden,
   Open,
   Adjustment,
-  BooleanSelector,
-  InterpolationSelector,
-  LoopSelector,
+  Selector,
+};
+
+enum class UiInstrumentFieldOptions : std::uint8_t {
+  None,
+  Boolean,
+  SampleLoop,
+  SampleInterpolation,
+  SidWaveform,
+  SidFilter,
+  OpalAlgorithm,
+  OpalWave,
+  OpalKeyscale,
 };
 
 struct UiInstrumentField {
@@ -83,6 +93,8 @@ struct UiInstrumentViewData {
   bool adjustmentNote = false;
   UiInstrumentFieldBottom fieldBottom = UiInstrumentFieldBottom::Hidden;
   std::uint8_t fieldOptionCurrent = 0;
+  UiInstrumentFieldOptions fieldOptions = UiInstrumentFieldOptions::None;
+  bool fieldOptionWrap = false;
   std::uint8_t adjustmentFineStep = 1;
   std::uint8_t adjustmentCoarseStep = 10;
   std::uint8_t selectedSubfield = 0;
