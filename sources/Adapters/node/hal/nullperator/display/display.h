@@ -15,4 +15,5 @@ namespace NullperatorHAL::Display {
 
     esp_err_t SetBrightness(uint8_t brightness);
     uint8_t GetBrightness();
+    esp_err_t SetGammaCurve(uint8_t gammaSetValue);
 }

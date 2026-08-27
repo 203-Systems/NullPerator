@@ -1,5 +1,5 @@
 idf_component_register(
-  SRCS Main.cpp
+  SRCS Main.cpp DisplayGammaCalibration.cpp
   INCLUDE_DIRS
     "."
     "${CMAKE_SOURCE_DIR}"

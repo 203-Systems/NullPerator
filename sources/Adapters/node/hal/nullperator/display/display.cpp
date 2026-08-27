@@ -144,4 +144,25 @@ namespace NullperatorHAL::Display {
     uint8_t GetBrightness() {
         return currentBrightness;
     }
+
+    esp_err_t SetGammaCurve(uint8_t gammaSetValue) {
+        if (!panelIO) {
+            return ESP_ERR_INVALID_STATE;
+        }
+
+        // ST7789V GAMSET (0x26): 0x01=2.2, 0x02=1.8, 0x04=2.5,
+        // 0x08=1.0. This deliberately avoids module-specific analog voltage
+        // gamma registers (E0/E1), which require measurements for the exact
+        // LCD glass and should not be copied from an unrelated panel profile.
+        switch (gammaSetValue) {
+        case 0x01:
+        case 0x02:
+        case 0x04:
+        case 0x08:
+            return esp_lcd_panel_io_tx_param(panelIO, 0x26,
+                                             &gammaSetValue, 1);
+        default:
+            return ESP_ERR_INVALID_ARG;
+        }
+    }
 }
