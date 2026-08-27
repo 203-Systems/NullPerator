@@ -111,6 +111,21 @@ bool InputMap::SetAction(std::uint16_t action, bool pressed) {
   return ((heldActions & bit) != 0) == pressed;
 }
 
+bool InputMap::RepeatAction(std::uint16_t action) {
+  if (!IsValidAction(action))
+    return false;
+  const TrackerAction semantic = static_cast<TrackerAction>(action);
+  if (semantic != TrackerAction::Left && semantic != TrackerAction::Down &&
+      semantic != TrackerAction::Right && semantic != TrackerAction::Up)
+    return false;
+
+  const std::uint16_t bit = static_cast<std::uint16_t>(1u << action);
+  std::lock_guard<std::mutex> lock(actionMutex);
+  if ((desiredActions & bit) == 0U || (heldActions & bit) == 0U)
+    return false;
+  return queueAction(action, true);
+}
+
 void InputMap::ReleaseAllActions() {
   std::lock_guard<std::mutex> lock(actionMutex);
   desiredActions = 0;

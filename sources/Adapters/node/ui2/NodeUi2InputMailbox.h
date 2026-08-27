@@ -24,7 +24,7 @@ class InputMailbox final {
 public:
   static constexpr std::uint32_t kPressKillMs = 5U;
   static constexpr std::uint32_t kRepeatDelayMs = 500U;
-  static constexpr std::uint32_t kRepeatPeriodMs = 25U;
+  static constexpr std::uint32_t kRepeatPeriodMs = 75U;
   // Catch-up repeats are intentionally bounded: replaying seconds of stale
   // cursor movement after a blocked storage/LCD operation is worse than
   // dropping excess repeat pulses. Physical release edges remain independent.

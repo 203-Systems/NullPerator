@@ -20,6 +20,9 @@ public:
   using QueueActionFunction = bool (*)(std::uint16_t action, bool pressed);
 
   static bool SetAction(std::uint16_t action, bool pressed);
+  // Queues another DOWN edge for an already-held direction without changing
+  // physical hold state. This mirrors the Node mailbox repeat contract.
+  static bool RepeatAction(std::uint16_t action);
   static void ReleaseAllActions();
   // Retries action transitions that SDL could not accept on an earlier frame.
   // WasmEventManager calls this from its frame pump while the runtime is ready.

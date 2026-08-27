@@ -154,7 +154,7 @@ TEST_CASE("Node UI2 mailbox defers killed press but never release") {
   CheckEvent(batch, 0U, TrackerAction::Edit, false);
 }
 
-TEST_CASE("Node UI2 direction repeat uses 500 ms delay and 25 ms period") {
+TEST_CASE("Node UI2 direction repeat uses 500 ms delay and 75 ms period") {
   InputMailbox mailbox;
   const std::uint16_t down = Mask({TrackerAction::Down});
   mailbox.PublishSample(down, false, 100U);
@@ -163,7 +163,7 @@ TEST_CASE("Node UI2 direction repeat uses 500 ms delay and 25 ms period") {
   mailbox.PublishSample(down, false, 599U);
   CHECK(mailbox.Drain().size == 0U);
 
-  mailbox.PublishSample(down, false, 650U);
+  mailbox.PublishSample(down, false, 750U);
   const InputMailbox::Batch batch = mailbox.Drain();
   REQUIRE(batch.size == 1U);
   CheckEvent(batch, 0U, TrackerAction::Down, true, 3U, true);

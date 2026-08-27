@@ -8,6 +8,9 @@ function requireExport(module, name) {
 
 export function createInputBridge(module) {
   const setAction = requireExport(module, '_PicoTracker_Wasm_SetAction')
+  // Keep booting with an older cached WASM pair; it simply lacks held-key
+  // repeat until the matching artifact is refreshed.
+  const repeatActionExport = module?._PicoTracker_Wasm_RepeatAction
   const releaseAll = requireExport(module, '_PicoTracker_Wasm_ReleaseAllActions')
   const getActionMask = requireExport(module, '_PicoTracker_Wasm_GetActionMask')
   const getActionGeneration = requireExport(module, '_PicoTracker_Wasm_GetActionGeneration')
@@ -19,6 +22,9 @@ export function createInputBridge(module) {
     },
     releaseAction(action) {
       setAction(action, false)
+    },
+    repeatAction(action) {
+      repeatActionExport?.(action)
     },
     releaseAllActions() {
       releaseAll()

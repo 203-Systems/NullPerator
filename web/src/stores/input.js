@@ -29,6 +29,9 @@ export const DEFAULT_KEY_MAP = Object.freeze({
 
 // Node's fixed browser layout. It deliberately is not user-remappable.
 export const KeyMap = DEFAULT_KEY_MAP
+const REPEAT_ACTIONS = new Set(['left', 'down', 'right', 'up'])
+const REPEAT_DELAY_MS = 500
+const REPEAT_PERIOD_MS = 75
 
 function actionName(action) {
   if (typeof action === 'string' && Object.hasOwn(ACTIONS, action)) return action
@@ -41,6 +44,7 @@ export function createInputStore(bridge) {
   const heldSources = new Map()
   const heldKeys = new Set()
   const activeBindings = new Set()
+  const repeatTimers = new Map()
   let detach = null
   const publish = () => {
     const snapshot = Object.freeze([...heldSources.keys()])
@@ -52,6 +56,28 @@ export function createInputStore(bridge) {
     return name === null ? null : keyMap[name].action
   }
 
+  function stopRepeat(name) {
+    const timers = repeatTimers.get(name)
+    if (!timers) return
+    clearTimeout(timers.delay)
+    if (timers.period !== null) clearInterval(timers.period)
+    repeatTimers.delete(name)
+  }
+
+  function startRepeat(name) {
+    if (!REPEAT_ACTIONS.has(name) || repeatTimers.has(name)) return
+    const timers = { delay: null, period: null }
+    timers.delay = setTimeout(() => {
+      if (!heldSources.has(name)) return stopRepeat(name)
+      bridge?.repeatAction?.(actionId(name))
+      timers.period = setInterval(() => {
+        if (!heldSources.has(name)) return stopRepeat(name)
+        bridge?.repeatAction?.(actionId(name))
+      }, REPEAT_PERIOD_MS)
+    }, REPEAT_DELAY_MS)
+    repeatTimers.set(name, timers)
+  }
+
   function press(action, source = 'direct') {
     const name = actionName(action)
     if (name === null) return false
@@ -60,7 +86,11 @@ export function createInputStore(bridge) {
     const wasHeld = sources.size > 0
     sources.add(source)
     heldSources.set(name, sources)
-    if (!wasHeld) { bridge?.pressAction?.(actionId(name)); publish() }
+    if (!wasHeld) {
+      bridge?.pressAction?.(actionId(name))
+      startRepeat(name)
+      publish()
+    }
     return true
   }
 
@@ -72,6 +102,7 @@ export function createInputStore(bridge) {
     sources.delete(source)
     if (sources.size === 0) {
       heldSources.delete(name)
+      stopRepeat(name)
       bridge?.releaseAction?.(actionId(name))
       publish()
     }
@@ -79,6 +110,7 @@ export function createInputStore(bridge) {
   }
 
   function releaseAll() {
+    for (const name of repeatTimers.keys()) stopRepeat(name)
     heldSources.clear()
     heldKeys.clear()
     activeBindings.clear()

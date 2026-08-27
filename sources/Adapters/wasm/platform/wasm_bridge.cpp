@@ -75,6 +75,10 @@ extern "C" void PicoTracker_Wasm_SetAction(std::uint16_t action, bool pressed) {
   InputMap::SetAction(action, pressed);
 }
 
+extern "C" void PicoTracker_Wasm_RepeatAction(std::uint16_t action) {
+  InputMap::RepeatAction(action);
+}
+
 extern "C" void PicoTracker_Wasm_ReleaseAllActions() {
   InputMap::ReleaseAllActions();
 }

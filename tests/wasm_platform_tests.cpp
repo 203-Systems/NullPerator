@@ -429,6 +429,26 @@ TEST_CASE("WASM semantic action edges are idempotent and reserved ids reject") {
   InputMap::ResetQueueForTesting();
 }
 
+TEST_CASE("WASM held directions accept repeat down edges without changing hold state") {
+  InputQueueFixture::Reset();
+  InputMap::SetQueueForTesting(&InputQueueFixture::Queue);
+  InputMap::ReleaseAllActions();
+
+  constexpr std::uint16_t down =
+      static_cast<std::uint16_t>(TrackerAction::Down);
+  REQUIRE(InputMap::SetAction(down, true));
+  REQUIRE(InputMap::RepeatAction(down));
+  CHECK(InputMap::GetHeldActionMask() == (1U << down));
+  REQUIRE(InputQueueFixture::events.size() == 2U);
+  CHECK(InputQueueFixture::events[1] == std::pair{down, true});
+  CHECK_FALSE(InputMap::RepeatAction(
+      static_cast<std::uint16_t>(TrackerAction::Edit)));
+
+  REQUIRE(InputMap::SetAction(down, false));
+  CHECK_FALSE(InputMap::RepeatAction(down));
+  InputMap::ResetQueueForTesting();
+}
+
 TEST_CASE("WASM action queue retains failed releases until they can be queued") {
   InputQueueFixture::Reset();
   InputMap::SetQueueForTesting(&InputQueueFixture::Queue);

@@ -6,6 +6,7 @@ function createBridge() {
   return {
     pressAction: vi.fn(),
     releaseAction: vi.fn(),
+    repeatAction: vi.fn(),
     releaseAllActions: vi.fn(),
   }
 }
@@ -133,6 +134,24 @@ describe('tracker input state', () => {
     expect(editDown.preventDefault).toHaveBeenCalledOnce()
     expect(repeatedEdit.preventDefault).toHaveBeenCalledOnce()
     expect(unrelated.preventDefault).not.toHaveBeenCalled()
+  })
+
+  it('repeats held directions after the Node delay and stops on release', () => {
+    vi.useFakeTimers()
+    const bridge = createBridge()
+    const input = createInputStore(bridge)
+
+    input.press('down', 'test')
+    vi.advanceTimersByTime(499)
+    expect(bridge.repeatAction).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1 + 75 * 2)
+    expect(bridge.repeatAction).toHaveBeenCalledTimes(3)
+    expect(bridge.repeatAction).toHaveBeenLastCalledWith(DEFAULT_KEY_MAP.down.action)
+
+    input.release('down', 'test')
+    vi.advanceTimersByTime(300)
+    expect(bridge.repeatAction).toHaveBeenCalledTimes(3)
+    vi.useRealTimers()
   })
 
 })
