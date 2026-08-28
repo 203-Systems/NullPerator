@@ -997,42 +997,40 @@ bool SampleInstrument::Render(int channel, fixed *buffer, int size,
 
         // See if time to process k-rate change
 
-        if (rpKrateCount-- == 0) {
+        if (hasUpdaters && rpKrateCount-- == 0) {
           rpKrateCount = KRATE_SAMPLE_COUNT;
 
-          if (hasUpdaters) {
-            doKRateUpdate(channel);
-            struct RUParams rup;
-            rup.cutOffset_ = rup.resOffset_ = rup.volumeOffset_ =
-                rup.panOffset_ = rup.fbMixOffset_ = rup.fbTunOffset_ = 0;
-            rup.speedOffset_ = FP_ONE;
+          doKRateUpdate(channel);
+          struct RUParams rup;
+          rup.cutOffset_ = rup.resOffset_ = rup.volumeOffset_ =
+              rup.panOffset_ = rup.fbMixOffset_ = rup.fbTunOffset_ = 0;
+          rup.speedOffset_ = FP_ONE;
 
-            for (auto it = rp->activeUpdaters_.begin();
-                 it != rp->activeUpdaters_.end(); it++) {
-              I_SRPUpdater *current = *it;
-              current->UpdateSRP(rup);
-            }
+          for (auto it = rp->activeUpdaters_.begin();
+               it != rp->activeUpdaters_.end(); it++) {
+            I_SRPUpdater *current = *it;
+            current->UpdateSRP(rup);
+          }
 
-            rp->volume_ = rp->baseVolume_ + rup.volumeOffset_;
-            rp->pan_ = rp->basePan_ + rup.panOffset_;
-            rp->speed_ = fp_mul(rp->baseSpeed_, rup.speedOffset_);
-            rp->cutoff_ = rp->baseFCut_ + rup.cutOffset_;
-            rp->reso_ = rp->baseFRes_ + rup.resOffset_;
-            rp->fbMix_ = rp->baseFbMix_ + rup.fbMixOffset_;
-            rp->fbTun_ = rp->baseFbTun_ + rup.fbTunOffset_;
+          rp->volume_ = rp->baseVolume_ + rup.volumeOffset_;
+          rp->pan_ = rp->basePan_ + rup.panOffset_;
+          rp->speed_ = fp_mul(rp->baseSpeed_, rup.speedOffset_);
+          rp->cutoff_ = rp->baseFCut_ + rup.cutOffset_;
+          rp->reso_ = rp->baseFRes_ + rup.resOffset_;
+          rp->fbMix_ = rp->baseFbMix_ + rup.fbMixOffset_;
+          rp->fbTun_ = rp->baseFbTun_ + rup.fbTunOffset_;
 
-            set_filter(channel, FLT_LOWPASS, rp->cutoff_, rp->reso_, filterMix,
-                       bassyFilter);
-            filtering = (rp->cutoff_ < i2fp(1)) || (rp->reso_ > i2fp(0));
+          set_filter(channel, FLT_LOWPASS, rp->cutoff_, rp->reso_, filterMix,
+                     bassyFilter);
+          filtering = (rp->cutoff_ < i2fp(1)) || (rp->reso_ > i2fp(0));
 
-            volfactor = fp_mul(rp->volume_, volscale);
-            pan = fp2i(rp->pan_);
+          volfactor = fp_mul(rp->volume_, volscale);
+          pan = fp2i(rp->pan_);
 
-            if (rpReverse) {
-              fpSpeed = -rp->speed_;
-            } else {
-              fpSpeed = rp->speed_;
-            }
+          if (rpReverse) {
+            fpSpeed = -rp->speed_;
+          } else {
+            fpSpeed = rp->speed_;
           }
         }
 
