@@ -50,6 +50,22 @@ macro(adapter_node_setup)
 
   add_definitions(-DNODE)
   add_definitions(-DESP_PLATFORM)
+
+  # PicoTracker's shared libraries are regular CMake targets rather than
+  # idf_component_register() components, so ESP-IDF does not propagate its
+  # selected optimization level to them. Mirror the configured application
+  # optimization here; otherwise the audio/render hot paths are built without
+  # any -O level even when CONFIG_COMPILER_OPTIMIZATION_PERF is selected.
+  if(CONFIG_COMPILER_OPTIMIZATION_SIZE)
+    add_compile_options(-Os)
+  elseif(CONFIG_COMPILER_OPTIMIZATION_DEBUG)
+    add_compile_options(-Og)
+  elseif(CONFIG_COMPILER_OPTIMIZATION_NONE)
+    add_compile_options(-O0)
+  elseif(CONFIG_COMPILER_OPTIMIZATION_PERF)
+    add_compile_options(-O2)
+  endif()
+
   add_compile_options(
     -g
   )
