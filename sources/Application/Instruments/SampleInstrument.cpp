@@ -40,19 +40,19 @@ namespace {
 void renderMonoUnityPitch(short *input, fixed *output, int frameCount,
                           fixed volume, fixed panLeft, fixed panRight) {
   for (int frame = 0; frame < frameCount; ++frame) {
-    fixed sample = fp_mul(i2fp(*input++), volume);
-    *output++ = fp_mul(sample, panLeft);
-    *output++ = fp_mul(sample, panRight);
+    fixed sample = fp_mul_coef(i2fp(*input++), volume);
+    *output++ = fp_mul_coef(sample, panLeft);
+    *output++ = fp_mul_coef(sample, panRight);
   }
 }
 
 void renderStereoUnityPitch(short *input, fixed *output, int frameCount,
                             fixed volume, fixed panLeft, fixed panRight) {
   for (int frame = 0; frame < frameCount; ++frame) {
-    fixed left = fp_mul(i2fp(*input++), volume);
-    fixed right = fp_mul(i2fp(*input++), volume);
-    *output++ = fp_mul(left, panLeft);
-    *output++ = fp_mul(right, panRight);
+    fixed left = fp_mul_coef(i2fp(*input++), volume);
+    fixed right = fp_mul_coef(i2fp(*input++), volume);
+    *output++ = fp_mul_coef(left, panLeft);
+    *output++ = fp_mul_coef(right, panRight);
   }
 }
 
@@ -1105,7 +1105,7 @@ bool SampleInstrument::Render(int channel, fixed *buffer, int size,
 
           // apply volume
 
-          s2 = fp_mul(s2, volfactor);
+          s2 = fp_mul_coef(s2, volfactor);
 
           // apply filtering if needed
 
