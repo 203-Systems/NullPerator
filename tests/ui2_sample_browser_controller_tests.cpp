@@ -247,6 +247,25 @@ TEST_CASE("UI2 Sample Browser library retains directories and parent chord") {
   CHECK(std::strcmp(snapshot.items[1].data(), "/DRUMS") == 0);
 }
 
+TEST_CASE("UI2 Sample Browser directory BACK action is reachable") {
+  using namespace ui2;
+  SampleBrowserFileSystem fileSystem;
+  Ui2SampleBrowserController controller;
+  REQUIRE(controller.OpenLibrary("DEMO"));
+
+  Tap(controller, TrackerAction::Down); // DRUMS directory
+  Ui2BrowserSnapshot snapshot = controller.Snapshot(60);
+  REQUIRE(snapshot.actionCount == 2U);
+  CHECK(std::strcmp(snapshot.actions[0].data(), "OPEN") == 0);
+  CHECK(std::strcmp(snapshot.actions[1].data(), "BACK") == 0);
+
+  Tap(controller, TrackerAction::Right);
+  snapshot = controller.Snapshot(60);
+  CHECK(snapshot.activeAction == 1U);
+  CHECK(Tap(controller, TrackerAction::Edit).type ==
+        Ui2SampleBrowserCommandType::Back);
+}
+
 TEST_CASE("UI2 Sample Browser parent chord cannot escape the library root") {
   using namespace ui2;
   SampleBrowserFileSystem fileSystem;

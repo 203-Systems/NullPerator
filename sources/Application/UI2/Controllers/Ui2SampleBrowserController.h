@@ -471,7 +471,7 @@ private:
   }
 
   void MoveAction(int delta) {
-    if (!HasFileSelection()) {
+    if (!HasSelection()) {
       selectedAction_ = 0U;
       return;
     }
