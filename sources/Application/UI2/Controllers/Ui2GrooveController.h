@@ -20,6 +20,8 @@ enum class Ui2GrooveCommandType : std::uint8_t {
   AdjustStep,
   SelectNumber,
   StartPlayback,
+  ToggleSolo,
+  UnmuteAll,
 };
 
 enum class Ui2GrooveDirection : std::uint8_t {
@@ -96,6 +98,13 @@ public:
     if (action == TrackerAction::Option &&
         input_.Held(TrackerAction::Edit))
       return MakeCommand(Ui2GrooveCommandType::ClearStep);
+    if (action == TrackerAction::Play &&
+        input_.Held(TrackerAction::Option) &&
+        !input_.Held(TrackerAction::Edit)) {
+      return MakeCommand(input_.Held(TrackerAction::Shift)
+                             ? Ui2GrooveCommandType::UnmuteAll
+                             : Ui2GrooveCommandType::ToggleSolo);
+    }
     if (action == TrackerAction::Play &&
         input_.Held(TrackerAction::Shift) &&
         !input_.Held(TrackerAction::Option) &&

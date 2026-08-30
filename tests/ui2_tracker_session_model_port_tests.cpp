@@ -769,6 +769,50 @@ TEST_CASE("UI2 Groove playback routes from controller through the model port") {
   }
 }
 
+TEST_CASE("UI2 Groove performance chords route through the model port") {
+  struct PerformanceCase {
+    bool shift;
+    Ui2TrackerCommandType type;
+  };
+  constexpr PerformanceCase cases[] = {
+      {false, Ui2TrackerCommandType::ToggleSolo},
+      {true, Ui2TrackerCommandType::UnmuteAll},
+  };
+
+  for (const PerformanceCase &performanceCase : cases) {
+    CAPTURE(performanceCase.shift);
+    TrackerApplicationSession session;
+    Ui2TrackerSessionModelPort port(session);
+    Player *player = Player::GetInstance();
+    player->Reset();
+    session.EditorState().songX_ = 5;
+    for (int track = 0; track < SONG_CHANNEL_COUNT; ++track)
+      player->SetChannelMute(track, (track & 1) == 0);
+
+    ui2::Ui2GrooveController controller;
+    if (performanceCase.shift)
+      controller.Handle(TrackerAction::Shift, true);
+    controller.Handle(TrackerAction::Option, true);
+    const ui2::Ui2GrooveCommand grooveCommand =
+        controller.Handle(TrackerAction::Play, true);
+    const Ui2TrackerCommand trackerCommand =
+        ui2::Ui2GrooveTrackerCommand(grooveCommand,
+                                     session.EditorState().songX_);
+    CHECK(trackerCommand.type == performanceCase.type);
+    port.ApplyGridCommand(trackerCommand);
+
+    for (int track = 0; track < SONG_CHANNEL_COUNT; ++track) {
+      const bool expectedMuted =
+          performanceCase.shift ? false : track != 5;
+      CHECK(player->IsChannelMuted(track) == expectedMuted);
+    }
+    CHECK(player->startCalls == 0);
+    CHECK(player->songStartCalls == 0);
+    CHECK(player->stopCalls == 0);
+    CHECK_FALSE(player->IsRunning());
+  }
+}
+
 TEST_CASE("UI2 model port preserves playback and solo command semantics") {
   TrackerApplicationSession session;
   Ui2TrackerSessionModelPort port(session);

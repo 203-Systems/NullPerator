@@ -688,6 +688,29 @@ TEST_CASE("UI2 Groove accepts both local and global playback chords") {
   }
 }
 
+TEST_CASE("UI2 Groove accepts M8 solo and clear-all playback chords") {
+  using namespace ui2;
+  struct PerformanceCase {
+    bool shift;
+    Ui2GrooveCommandType type;
+  };
+  constexpr PerformanceCase cases[] = {
+      {false, Ui2GrooveCommandType::ToggleSolo},
+      {true, Ui2GrooveCommandType::UnmuteAll},
+  };
+
+  for (const PerformanceCase &performanceCase : cases) {
+    CAPTURE(performanceCase.shift);
+    Ui2GrooveController controller;
+    if (performanceCase.shift)
+      controller.Handle(TrackerAction::Shift, true);
+    controller.Handle(TrackerAction::Option, true);
+    const Ui2GrooveCommand command = Tap(controller, TrackerAction::Play);
+    CHECK(command.type == performanceCase.type);
+    CHECK_FALSE(command.songTransport);
+  }
+}
+
 TEST_CASE("UI2 Groove step policy initializes only empty cells and clamps") {
   using namespace ui2;
   CHECK(Ui2GrooveStepPolicy::Initialize(0xFFU) == 6U);
@@ -723,6 +746,12 @@ TEST_CASE("UI2 Groove workflow reports only effective mutations") {
   CHECK(result.selectNumber);
   result = Ui2GrooveWorkflow::Execute(
       {.type = Ui2GrooveCommandType::StartPlayback}, steps);
+  CHECK(result.dispatchPerformance);
+  result = Ui2GrooveWorkflow::Execute(
+      {.type = Ui2GrooveCommandType::ToggleSolo}, steps);
+  CHECK(result.dispatchPerformance);
+  result = Ui2GrooveWorkflow::Execute(
+      {.type = Ui2GrooveCommandType::UnmuteAll}, steps);
   CHECK(result.dispatchPerformance);
 }
 
