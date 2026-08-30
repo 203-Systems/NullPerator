@@ -219,6 +219,7 @@ struct UiGrooveFrameState {
   std::array<char, 3> number{};
   std::array<std::uint8_t, 16> steps{};
   std::uint8_t editRow = 0;
+  std::int8_t playbackRow = -1;
   RectI16 cursorVisualRect{};
   bool cursorVisualOverride = false;
   bool cursorInkVisible = true;

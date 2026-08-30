@@ -969,10 +969,24 @@ Ui2NativeApplicationStateSource::CaptureGroove(UiGrooveFrameState &state) {
   state = {};
   hex2char(groove_.Number(), state.number.data());
   state.editRow = groove_.Row();
-  const unsigned char *steps =
-      Groove::GetInstance()->GetGrooveData(groove_.Number());
+  Groove *groove = Groove::GetInstance();
+  const unsigned char *steps = groove->GetGrooveData(groove_.Number());
   std::copy_n(steps, 16, state.steps.begin());
-  return {.active = PlayerRunning()};
+  Player *player = Player::GetInstance();
+  if (player == nullptr)
+    return {.active = false};
+  const PlayerTransportSnapshot transport = player->CaptureTransportSnapshot();
+  const int track = session_.EditorState().songX_;
+  if (transport.running && transport.mode != PM_AUDITION && track >= 0 &&
+      track < SONG_CHANNEL_COUNT && player->IsChannelPlaying(track)) {
+    int playingGroove = 0;
+    int playingRow = 0;
+    groove->GetChannelData(track, &playingGroove, &playingRow);
+    if (playingGroove == groove_.Number() && playingRow >= 0 &&
+        playingRow < 16)
+      state.playbackRow = static_cast<std::int8_t>(playingRow);
+  }
+  return {.active = transport.running};
 }
 
 UiApplicationActivityState

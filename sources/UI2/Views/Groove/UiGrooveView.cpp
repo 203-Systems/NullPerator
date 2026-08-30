@@ -49,6 +49,12 @@ RectI16 UiGrooveView::RowDamageRect(std::uint8_t row) {
   return {5, static_cast<std::int16_t>(47 + row * 9), 40, 11};
 }
 
+RectI16 UiGrooveView::PlaybackTickRect(std::uint8_t row) {
+  if (row >= 16U)
+    return {};
+  return {26, static_cast<std::int16_t>(50 + row * 9), 2, 5};
+}
+
 void UiGrooveView::RenderDelta(const UiGrooveViewData &previous,
                                const UiGrooveViewData &current,
                                const UiFrameScene &currentScene,
@@ -71,6 +77,12 @@ void UiGrooveView::RenderDelta(const UiGrooveViewData &previous,
     render(ExpandedCursorDamage(newCursor));
     render(RowDamageRect(previous.editRow));
     render(RowDamageRect(current.editRow));
+  }
+  if (previous.playbackRow != current.playbackRow) {
+    if (previous.playbackRow >= 0 && previous.playbackRow < 16)
+      render(RowDamageRect(static_cast<std::uint8_t>(previous.playbackRow)));
+    if (current.playbackRow >= 0 && current.playbackRow < 16)
+      render(RowDamageRect(static_cast<std::uint8_t>(current.playbackRow)));
   }
   for (std::uint8_t row = 0; row < 16U; ++row) {
     if (previous.steps[row] != current.steps[row])
@@ -110,7 +122,15 @@ UiBuildStatus UiGrooveView::Build(const UiGrooveViewData &data, UiPalette &,
                  data.steps[row] == 0xFFU ? UiColorToken::DerivedTextFaint
                                           : UiColorToken::TextNormal);
   }
-  builder.Selection(cursor);
+  if (data.playbackRow >= 0 && data.playbackRow < 16)
+    builder.Fill(PlaybackTickRect(static_cast<std::uint8_t>(data.playbackRow)),
+                 UiColorToken::PlaybackActive);
+  const bool cursorOverPlayback =
+      data.playbackRow >= 0 && data.playbackRow < 16 &&
+      !Intersect(cursor,
+                 PlaybackTickRect(static_cast<std::uint8_t>(data.playbackRow)))
+           .Empty();
+  builder.Selection(cursor, cursorOverPlayback);
   if (data.cursorInkVisible && data.editRow < 16U) {
     const auto value = HexByte(data.steps[data.editRow]);
     const char *display =

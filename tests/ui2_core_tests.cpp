@@ -621,6 +621,36 @@ TEST_CASE("UI2 tracker detail pages retain every playback source") {
   }
 }
 
+TEST_CASE("UI2 Groove renders and delta-updates its playback tick") {
+  ui2::UiPalette palette;
+  ui2::UiGrooveViewData previous = ui2::test::ApprovedGrooveFixture();
+  ui2::UiFrameScene previousScene;
+  REQUIRE(ui2::UiGrooveView::Build(previous, palette, previousScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(previousScene, surface, palette);
+  surface.ClearDirty();
+
+  ui2::UiGrooveViewData current = previous;
+  current.playbackRow = 6;
+  ui2::UiFrameScene currentScene;
+  REQUIRE(ui2::UiGrooveView::Build(current, palette, currentScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiGrooveView::RenderDelta(previous, current, currentScene, surface,
+                                 palette);
+
+  const ui2::RectI16 tick = ui2::UiGrooveView::PlaybackTickRect(6);
+  CHECK(surface.Pixel(tick.x, tick.y) ==
+        palette.Index(ui2::UiColorToken::PlaybackActive));
+
+  ui2::UiSurfaceStorage expectedStorage;
+  ui2::UiIndexedSurface expected(expectedStorage);
+  ui2::UiFrameRenderer::RenderStatic(currentScene, expected, palette);
+  CHECK(std::equal(surface.Pixels().begin(), surface.Pixels().end(),
+                   expected.Pixels().begin(), expected.Pixels().end()));
+}
+
 TEST_CASE("UI2 tracker headers omit Table VAL and use packed Table columns") {
   ui2::UiPalette palette;
   ui2::UiFrameScene scene;

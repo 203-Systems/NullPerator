@@ -1403,6 +1403,7 @@ UiApplicationRuntime::ViewDataFor(const GrooveFrameState &state) {
   data.number = state.number.data();
   data.steps = state.steps;
   data.editRow = state.editRow;
+  data.playbackRow = state.playbackRow;
   data.cursorVisualRect = state.cursorVisualRect;
   data.cursorVisualOverride = state.cursorVisualOverride;
   data.cursorInkVisible = state.cursorInkVisible;
