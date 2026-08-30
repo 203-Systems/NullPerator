@@ -95,14 +95,6 @@ void NodeSamplePool::freeSampleBuffer(WavFile &wave) {
 }
 
 std::optional<void *> NodeSamplePool::allocSampleBuffer(size_t bytes) {
-  if (canUseInternalSampleStorage(bytes)) {
-    void *ptr =
-        heap_caps_malloc(bytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-    if (ptr != nullptr) {
-      return ptr;
-    }
-  }
-
   if (sampleStore_ != nullptr) {
     uint32_t alignedOffset = (writeOffset_ + 3U) & ~3U;
     if ((alignedOffset + bytes) > storeLimit_) {
@@ -112,16 +104,24 @@ std::optional<void *> NodeSamplePool::allocSampleBuffer(size_t bytes) {
     return sampleStore_ + alignedOffset;
   }
 
-  // Prefer PSRAM if available, fall back to internal heap.
+  // A board with PSRAM must never spill sample audio into the internal heap.
+  // Keeping that heap available is essential for DMA, task stacks and the
+  // real-time audio path when external memory is fragmented or exhausted.
   if (has_psram()) {
     void *ptr = heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (ptr != nullptr) {
       return ptr;
     }
+    return std::nullopt;
   }
-  void *ptr = heap_caps_malloc(bytes, MALLOC_CAP_8BIT);
-  if (ptr != nullptr) {
-    return ptr;
+
+  // PSRAM-less boards retain a tightly bounded compatibility path.
+  if (canUseInternalSampleStorage(bytes)) {
+    void *ptr =
+        heap_caps_malloc(bytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    if (ptr != nullptr) {
+      return ptr;
+    }
   }
   return std::nullopt;
 }
@@ -142,18 +142,23 @@ void NodeSamplePool::Reset() {
 }
 
 bool NodeSamplePool::CheckSampleFits(int sampleSize) {
-  if (canUseInternalSampleStorage(static_cast<size_t>(sampleSize))) {
-    return true;
+  if (sampleSize <= 0)
+    return false;
+
+  if (has_psram()) {
+    if (ensureDedicatedPsramStore()) {
+      uint32_t alignedOffset = (writeOffset_ + 3U) & ~3U;
+      return (alignedOffset + static_cast<uint32_t>(sampleSize)) <=
+             storeLimit_;
+    }
+
+    // A failed arena reservation may still leave a smaller external block,
+    // but internal SRAM is deliberately excluded from this calculation.
+    return heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM) >
+           static_cast<size_t>(sampleSize) + 8192U;
   }
 
-  if (ensureDedicatedPsramStore()) {
-    uint32_t alignedOffset = (writeOffset_ + 3U) & ~3U;
-    return (alignedOffset + static_cast<uint32_t>(sampleSize)) <= storeLimit_;
-  }
-  // Use a conservative estimate of available heap (PSRAM preferred).
-  size_t freeBytes = has_psram() ? heap_caps_get_free_size(MALLOC_CAP_SPIRAM)
-                                 : heap_caps_get_free_size(MALLOC_CAP_8BIT);
-  return freeBytes > static_cast<size_t>(sampleSize + 8192);
+  return canUseInternalSampleStorage(static_cast<size_t>(sampleSize));
 }
 
 uint32_t NodeSamplePool::GetAvailableSampleStorageSpace() {
@@ -173,7 +178,13 @@ uint32_t NodeSamplePool::GetAvailableSampleStorageSpace() {
                     ? kDedicatedSampleStoreSize
                     : largestBlock;
   } else {
-    freeBytes = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+    const size_t freeInternal =
+        heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    if (freeInternal > kInternalSampleReserveBytes) {
+      freeBytes = freeInternal - kInternalSampleReserveBytes;
+      if (freeBytes > kInternalSampleMaxBytes)
+        freeBytes = kInternalSampleMaxBytes;
+    }
   }
   return static_cast<uint32_t>(freeBytes);
 }
