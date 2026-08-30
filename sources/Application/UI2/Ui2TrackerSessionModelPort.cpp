@@ -738,7 +738,12 @@ void Ui2TrackerSessionModelPort::ApplyPasteLast(
         phrase.instr_[index] = lastInstrument_;
       } else {
         lastNote_ = phrase.note_[index];
-        lastInstrument_ = phrase.instr_[index];
+        // I-- inherits the previous instrument at playback time. Treat it as
+        // absence here too: visiting such a note must not replace the last
+        // explicit instrument with the empty sentinel, or the next new note
+        // would be created without the instrument UI2 promises to carry.
+        if (phrase.instr_[index] != 0xFFU)
+          lastInstrument_ = phrase.instr_[index];
       }
     } else if (command.column == 1U) {
       if (phrase.instr_[index] == 0xFFU)

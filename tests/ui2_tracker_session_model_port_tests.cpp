@@ -496,6 +496,28 @@ TEST_CASE("UI2 model port registers a pasted Phrase before allocating another") 
   CHECK(song.phrase_.IsUsed(1U));
 }
 
+TEST_CASE("UI2 inherited Phrase instruments do not poison new Note entry") {
+  TrackerApplicationSession session;
+  Ui2TrackerSessionModelPort port(session);
+  Phrase &phrase = session.ProjectModel().song_.phrase_;
+  session.EditorState().currentPhrase_ = 0;
+
+  phrase.note_[0] = 60U;
+  phrase.instr_[0] = 7U;
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::PasteLast,
+                                    Ui2TrackerPage::Phrase, 0, 0));
+
+  phrase.note_[1] = 64U;
+  phrase.instr_[1] = 0xFFU;
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::PasteLast,
+                                    Ui2TrackerPage::Phrase, 1, 0));
+
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::PasteLast,
+                                    Ui2TrackerPage::Phrase, 2, 0));
+  CHECK(phrase.note_[2] == 64U);
+  CHECK(phrase.instr_[2] == 7U);
+}
+
 TEST_CASE("UI2 model port synchronizes Phrase audition row and adjacent phrases") {
   TrackerApplicationSession session;
   Ui2TrackerSessionModelPort port(session);
