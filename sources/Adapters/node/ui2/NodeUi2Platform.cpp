@@ -56,9 +56,6 @@ DMA_ATTR std::uint16_t
   set(TrackerAction::Up, buttons.up);
   set(TrackerAction::Play, buttons.select);
   set(TrackerAction::Option, buttons.b);
-  // The current HAL deliberately reports A=false for a board-level stuck-key
-  // workaround. Keep the semantic mapping here; restoring the physical EDIT
-  // source belongs in HAL and must not be hidden by a platform remap.
   set(TrackerAction::Edit, buttons.a);
   set(TrackerAction::Shift, buttons.start);
   set(TrackerAction::Power, buttons.func);
