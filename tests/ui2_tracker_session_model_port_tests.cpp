@@ -297,6 +297,23 @@ TEST_CASE("UI2 model port reports clone allocation exhaustion as a no-op") {
   CHECK(port.ProjectMutationGeneration() == 0U);
 }
 
+TEST_CASE("UI2 model port allocates phrase FE before reporting exhaustion") {
+  TrackerApplicationSession session;
+  Ui2TrackerSessionModelPort port(session);
+  Song &song = session.ProjectModel().song_;
+  for (unsigned index = 0; index < PHRASE_COUNT - 1U; ++index)
+    song.phrase_.SetUsed(static_cast<std::uint8_t>(index));
+
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::AllocateNext,
+                                    Ui2TrackerPage::Chain, 0, 0));
+  CHECK(song.chain_.data_[0] == 0xFEU);
+  CHECK(song.phrase_.IsUsed(0xFEU));
+
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::AllocateNext,
+                                    Ui2TrackerPage::Chain, 1, 0));
+  CHECK(song.chain_.data_[1] == 0xFFU);
+}
+
 TEST_CASE("UI2 model port registers pasted Chains and allocates Phrase entries") {
   TableHolder::GetInstance()->Reset();
   TrackerApplicationSession session;

@@ -64,8 +64,8 @@ void Song::RestoreContent(PersistencyDocument *doc) {
     if (!strcmp("CHAINS", doc->ElemName())) {
       if (!restoreHexBuffer(doc, chain_.data_, sizeof(chain_.data_)))
         return;
-      // 0xFF is the only empty sentinel. Phrase storage has 0x80 entries, so
-      // 0x80..0xFE would index past Phrase::isUsed_ during allocation restore.
+      // 0xFF is the only empty sentinel. Every other byte is a valid phrase
+      // ID, so legacy and imported projects can use the full 00..FE range.
       for (const unsigned char phrase : chain_.data_) {
         if (phrase != 0xFF && phrase >= PHRASE_COUNT) {
           doc->MarkError();

@@ -41,7 +41,10 @@ unsigned short Phrase::GetNext() {
   return NO_MORE_PHRASE;
 };
 
-void Phrase::SetUsed(unsigned char c) { isUsed_[c] = true; }
+void Phrase::SetUsed(unsigned char c) {
+  if (c < PHRASE_COUNT)
+    isUsed_[c] = true;
+}
 
 void Phrase::ClearAllocation() {
 

@@ -369,6 +369,12 @@ TEST_CASE("UI2 Chain separates its grid cursor from Edit-held dual focus") {
   CHECK(controller.Column() == 1U);
 }
 
+TEST_CASE("UI2 Phrase accepts the full persisted phrase ID range") {
+  CHECK(Ui2PhraseController(0x80U).Number() == 0x80U);
+  CHECK(Ui2PhraseController(0xFEU).Number() == 0xFEU);
+  CHECK(Ui2PhraseController(0xFFU).Number() == 0xFEU);
+}
+
 TEST_CASE(
     "UI2 Chain Enter-held edits emit typed deltas and commit on release") {
   Ui2ChainController phraseColumn(3, 0, 5, 0);

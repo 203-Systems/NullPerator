@@ -16,7 +16,7 @@ public:
                                 std::uint8_t selectedTrack = 0,
                                 std::uint8_t row = 0, std::uint8_t column = 0,
                                 std::uint8_t parameterDigit = 3)
-      : grid_(row, column), number_(number < 0x80U ? number : 0x7FU),
+      : grid_(row, column), number_(number == 0xFFU ? 0xFEU : number),
         selectedTrack_(Ui2ClampTrack(selectedTrack)),
         parameterDigit_(parameterDigit < 4U ? parameterDigit : 3U) {}
 

@@ -878,6 +878,10 @@ TEST_CASE("Song and Groove semantic restore rejects unsafe indexes and rolls "
   groove->Clear();
   song.chain_.data_[0] = 0x01U;
   song.phrase_.instr_[0] = 0x00U;
+  constexpr std::size_t highPhrase = 0xFEU * STEPS_PER_PHRASE;
+  song.phrase_.note_[highPhrase] = NOTE_C3;
+  song.phrase_.cmd1_[highPhrase] = FourCC::InstrumentCommandKill;
+  song.phrase_.param1_[highPhrase] = 0x0007U;
   REQUIRE(service.SaveLoadRollback() == PERSIST_SAVED);
 
   const auto rejectSong = [&](const char *project, const char *field,
@@ -894,11 +898,20 @@ TEST_CASE("Song and Groove semantic restore rejects unsafe indexes and rolls "
     REQUIRE(service.RestoreLoadRollback() == PERSIST_LOADED);
     CHECK(song.chain_.data_[0] == 0x01U);
     CHECK(song.phrase_.instr_[0] == 0x00U);
+    CHECK(song.phrase_.note_[highPhrase] == NOTE_C3);
+    CHECK(song.phrase_.cmd1_[highPhrase] == FourCC::InstrumentCommandKill);
+    CHECK(song.phrase_.param1_[highPhrase] == 0x0007U);
   };
 
-  rejectSong("CHAIN80", "CHAINS", 0x80U);
-  rejectSong("CHAINFE", "CHAINS", 0xFEU);
   rejectSong("BADINST", "INSTRUMENTS", MAX_INSTRUMENT_COUNT);
+
+  fixture.Write("projects/CHAINFE/lgptsav.dat",
+                "<PICOTRACKER><SONG><CHAINS><DATA VALUE=\"254\" "
+                "LENGTH=\"1\"/></CHAINS></SONG></PICOTRACKER>");
+  CHECK(service.Load("CHAINFE") == PERSIST_LOADED);
+  CHECK(song.chain_.data_[0] == 0xFEU);
+  CHECK(song.phrase_.IsUsed(0xFEU));
+  REQUIRE(service.RestoreLoadRollback() == PERSIST_LOADED);
 
   fixture.Write("projects/SONGFE/lgptsav.dat",
                 "<PICOTRACKER><SONG><SONG><DATA VALUE=\"254\" "

@@ -61,8 +61,8 @@ inline FourCC DecodeCommand(std::uint8_t value) {
 // Streaming decoder used by XML persistence. It stages at most the raw
 // canonical prefix in the caller-owned destination and then compacts it in
 // place when the input grows past the 1-byte or 2-byte ABI boundary. This is
-// deliberately allocation-free: the largest Song command buffer is 2048
-// commands (8192 legacy LE32 bytes), but decoder stack state stays constant.
+// deliberately allocation-free: the largest Song command buffer is 4080
+// commands (16320 legacy LE32 bytes), but decoder stack state stays constant.
 class CommandStreamDecoder {
 public:
   CommandStreamDecoder(FourCC *output, std::size_t count)

@@ -12,8 +12,8 @@
 
 #include "Foundation/Types/Types.h"
 
-#define PHRASE_COUNT 0x80
-#define NO_MORE_PHRASE 0x81
+#define PHRASE_COUNT 0xFF
+#define NO_MORE_PHRASE 0x100
 #define STEPS_PER_PHRASE 16
 
 class Phrase {
@@ -22,7 +22,7 @@ public:
   ~Phrase();
   void Reset();
   unsigned short GetNext();
-  bool IsUsed(uchar i) { return isUsed_[i]; };
+  bool IsUsed(uchar i) { return i < PHRASE_COUNT && isUsed_[i]; };
   void SetUsed(uchar c);
   void ClearAllocation();
 

@@ -13,8 +13,8 @@
 #define CHAIN_COUNT 0xFF
 #define NO_MORE_CHAIN 0x100
 #define PHRASES_PER_CHAIN 0x10
-#define PHRASE_COUNT 0x80
-#define NO_MORE_PHRASE 0x81
+#define PHRASE_COUNT 0xFF
+#define NO_MORE_PHRASE 0x100
 #define STEPS_PER_PHRASE 16
 #define MAX_INSTRUMENT_COUNT 0x27
 #define HIGHEST_NOTE 119
@@ -172,8 +172,13 @@ public:
     return NO_MORE_PHRASE;
   }
 
-  bool IsUsed(unsigned char index) const { return used_[index]; }
-  void SetUsed(unsigned char index) { used_[index] = true; }
+  bool IsUsed(unsigned char index) const {
+    return index < PHRASE_COUNT && used_[index];
+  }
+  void SetUsed(unsigned char index) {
+    if (index < PHRASE_COUNT)
+      used_[index] = true;
+  }
   void ClearAllocation() { used_.fill(false); }
 
   unsigned char note_[PHRASE_COUNT * STEPS_PER_PHRASE]{};

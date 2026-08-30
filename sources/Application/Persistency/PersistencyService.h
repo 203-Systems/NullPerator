@@ -86,7 +86,7 @@ public:
   PersistencyResult AutoSaveProjectData(const char *projectName);
   bool ClearAutosave(const char *projectName);
   // A load transaction snapshots only the serialized model, not a second
-  // 169-KiB Project object. The file lives outside individual project
+  // 185-KiB Project object. The file lives outside individual project
   // directories so switching projects cannot delete the rollback source.
   [[nodiscard]] PersistencyResult SaveLoadRollback();
   [[nodiscard]] PersistencyResult RestoreLoadRollback();

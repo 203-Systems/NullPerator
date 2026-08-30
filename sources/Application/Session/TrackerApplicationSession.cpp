@@ -72,7 +72,7 @@ TrackerApplicationSession::LoadResult TrackerApplicationSession::LoadProject(
     npf_snprintf(previousProjectName, sizeof(previousProjectName), "%s",
                  projectName_);
     // Serialize the current model to a bounded on-disk transaction record.
-    // This avoids a second ~169 KiB Project allocation on ESP32 while making
+    // This avoids a second ~185 KiB Project allocation on ESP32 while making
     // semantic restore errors and validate/load TOCTOU failures recoverable.
     if (persist->SaveLoadRollback() != PERSIST_SAVED) {
       persist->ClearLoadRollback();
