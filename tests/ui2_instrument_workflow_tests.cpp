@@ -253,6 +253,17 @@ TEST_CASE("UI2 Instrument workflow validates and maps exports") {
             }) == Ui2InstrumentExportOutcome::Failed);
 }
 
+TEST_CASE("UI2 Instrument workflow rejects rename on the shared empty slot") {
+  using namespace ui2;
+  FakeInstrument instrument;
+
+  CHECK_FALSE(Ui2InstrumentWorkflow::CanRename<FakeInstrument>(nullptr));
+  instrument.type = IT_NONE;
+  CHECK_FALSE(Ui2InstrumentWorkflow::CanRename(&instrument));
+  instrument.type = IT_SAMPLE;
+  CHECK(Ui2InstrumentWorkflow::CanRename(&instrument));
+}
+
 TEST_CASE("UI2 Instrument export outcomes define visible feedback") {
   using namespace ui2;
 

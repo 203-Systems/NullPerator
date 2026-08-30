@@ -60,6 +60,14 @@ struct Ui2InstrumentExportFeedback {
 // deliberately remains at the application boundary.
 class Ui2InstrumentWorkflow final {
 public:
+  template <typename Instrument>
+  [[nodiscard]] static bool CanRename(Instrument *instrument) {
+    // InstrumentBank represents every unused slot with one shared
+    // NoneInstrument. Renaming that sentinel would mutate all empty slots and
+    // still serialize nothing, so it must never enter the rename workflow.
+    return instrument != nullptr && instrument->GetType() != IT_NONE;
+  }
+
   template <typename Bank, typename Detector, typename Loader>
   [[nodiscard]] static Ui2InstrumentImportOutcome
   Import(Bank *bank, unsigned short slot, const char *filename,

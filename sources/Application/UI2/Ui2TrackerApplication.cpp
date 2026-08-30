@@ -1687,12 +1687,16 @@ void Ui2TrackerApplication::ExecuteInstrument(Ui2InstrumentCommand command) {
     return;
   }
   if (command.type == Ui2InstrumentCommandType::RenameInstrument) {
-    if (instrument != nullptr) {
-      const auto name = instrument->GetUserSetName();
-      renameTarget_ = RenameTarget::Instrument;
-      renameInstrumentNumber_ = number;
-      rename_.Begin(name.c_str(), MAX_INSTRUMENT_NAME_LENGTH);
+    if (!Ui2InstrumentWorkflow::CanRename(instrument)) {
+      constexpr const char *message = "NO INSTRUMENT TO RENAME";
+      Status::Set("%s", message);
+      ShowFeedbackError(message);
+      return;
     }
+    const auto name = instrument->GetUserSetName();
+    renameTarget_ = RenameTarget::Instrument;
+    renameInstrumentNumber_ = number;
+    rename_.Begin(name.c_str(), MAX_INSTRUMENT_NAME_LENGTH);
     return;
   }
   if (command.type == Ui2InstrumentCommandType::ActivateField) {
