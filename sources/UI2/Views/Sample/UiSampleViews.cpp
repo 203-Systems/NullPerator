@@ -64,10 +64,10 @@ void DrawField(UiSceneBuilder<256, 1024> &builder, std::string_view label,
   builder.Text(value, 92, y, UiColorToken::TextNormal);
 }
 
-void DrawSection(UiSceneBuilder<256, 1024> &builder, std::string_view label,
-                 std::int16_t y) {
+void DrawUserSection(UiSceneBuilder<256, 1024> &builder,
+                     std::string_view label, std::int16_t y) {
   const std::int16_t width = UiFont5x7::TextWidth(label.size());
-  builder.Text(label, 9, y, UiColorToken::TextColored);
+  builder.UserText(label, 9, y, UiColorToken::TextColored);
   builder.Fill({static_cast<std::int16_t>(9 + width + 7),
                 static_cast<std::int16_t>(y + 3),
                 static_cast<std::int16_t>(222 - width), 1},
@@ -163,7 +163,7 @@ UiBuildStatus UiSampleEditorView::Build(const UiSampleEditorViewData &data,
       data.cursor == UiSampleEditorCursor::Waveform && data.cursorInkVisible;
   if (waveformFocused)
     builder.Selection(cursor);
-  DrawSection(builder, data.name, 42);
+  DrawUserSection(builder, data.name, 42);
   if (!waveformFocused)
     builder.Fill({9, 60, 222, 72}, UiColorToken::DerivedVuTrack);
   builder.SparseCoverageMask({9, 60, 222, 72}, data.waveformMask,

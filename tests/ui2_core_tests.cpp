@@ -2519,6 +2519,19 @@ TEST_CASE("UI2 Sample Instrument preserves sample filename case while unfocused"
         nullptr);
 }
 
+TEST_CASE("UI2 Sample Editor preserves sample filename case while unfocused") {
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  ui2::UiSampleEditorViewData data;
+  data.name = "Kick_One.wav";
+  data.cursor = ui2::UiSampleEditorCursor::Start;
+
+  REQUIRE(ui2::UiSampleEditorView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK(FindLiteralTextCommand(scene.content.Stream(), "Kick_One.wav") !=
+        nullptr);
+}
+
 TEST_CASE(
     "UI2 Instrument field focus delta is pixel-identical to a full redraw") {
   ui2::UiPalette palette;
