@@ -2237,4 +2237,21 @@ private:
 #pragma warning(pop)
 #endif
 
+#if !defined(TINYXML2_KEEP_STDIO_REMAP)
+#undef FILE
+#undef fopen
+#undef fclose
+#undef fseeko
+#undef ftello
+#undef fseek
+#undef ftell
+#undef fputs
+#undef fputc
+#undef fread
+#undef fwrite
+#undef fgetc
+#undef ferror
+#undef vfprintf
+#endif
+
 #endif // TINYXML2_INCLUDED

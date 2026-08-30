@@ -21,7 +21,9 @@ must not be misrepresented as being the original software.
 distribution.
 */
 
+#define TINYXML2_KEEP_STDIO_REMAP
 #include "tinyxml2.h"
+#undef TINYXML2_KEEP_STDIO_REMAP
 
 #include <new> // yes, this one new style header, is in the Android SDK.
 #if defined(ANDROID_NDK) || defined(__BORLANDC__) || defined(__QNXNTO__)
