@@ -42,6 +42,9 @@ struct SampleEditorViewUi2Snapshot {
   bool playing = false;
   bool singleCycle = false;
   bool projectPool = false;
+  // This remains fail-closed until the complete file mutation transaction is
+  // implemented and connected through the application command handlers.
+  bool fileMutationAvailable = false;
 };
 
 enum class SampleSlicesViewUi2Focus : std::uint8_t {

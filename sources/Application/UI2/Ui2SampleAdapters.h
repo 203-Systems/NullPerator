@@ -81,7 +81,8 @@ inline bool EqualEditorCapture(const SampleEditorViewUi2Snapshot &left,
          left.waveformReady == right.waveformReady &&
          left.playing == right.playing &&
          left.singleCycle == right.singleCycle &&
-         left.projectPool == right.projectPool;
+         left.projectPool == right.projectPool &&
+         left.fileMutationAvailable == right.fileMutationAvailable;
 }
 
 inline bool EqualSlicesCapture(const SampleSlicesViewUi2Snapshot &left,
@@ -123,7 +124,8 @@ struct UiSampleEditorControllerState {
     data.end = detail::SampleCStringView(capture.end);
     data.field3Label = "OP";
     data.field3Value = detail::SampleCStringView(capture.operation);
-    data.field4Label = "APPLY";
+    data.field4Label =
+        capture.fileMutationAvailable ? "APPLY" : std::string_view{};
     data.field4Value = {};
     data.help = detail::SampleCStringView(help);
     data.waveformMask = capture.waveformReady ? capture.waveform.Mask()
@@ -143,7 +145,10 @@ struct UiSampleEditorControllerState {
     data.projectPool = capture.projectPool;
     data.power = power;
     data.bottomActive = bottomActive;
-    if (capture.projectPool) {
+    if (!capture.fileMutationAvailable) {
+      data.bottomActions = {"DISCARD", {}, {}, {}};
+      data.bottomActionCount = 1;
+    } else if (capture.projectPool) {
       data.bottomActions = {"SAVE", "DISCARD", {}, {}};
       data.bottomActionCount = 2;
     } else {
@@ -182,44 +187,67 @@ inline UiSampleEditorControllerState MakeUiSampleEditorControllerState(
   std::string_view help;
   switch (snapshot.focus) {
   case SampleEditorViewUi2Focus::Name:
-    state.cursor = UiSampleEditorCursor::Name;
-    help = "EDIT MOVE  OPTION DELETE";
+    if (!snapshot.fileMutationAvailable) {
+      help = "NAME READ ONLY";
+    } else {
+      state.cursor = UiSampleEditorCursor::Name;
+      help = "EDIT RENAME";
+    }
     break;
   case SampleEditorViewUi2Focus::Start:
     state.cursor = UiSampleEditorCursor::Start;
-    help = "EDIT+ARROWS ADJUST START";
+    help = !snapshot.fileMutationAvailable ? "EDIT+ARROWS PREVIEW START"
+                                           : "EDIT+ARROWS ADJUST START";
     break;
   case SampleEditorViewUi2Focus::End:
     state.cursor = UiSampleEditorCursor::End;
-    help = "EDIT+ARROWS ADJUST END";
+    help = !snapshot.fileMutationAvailable ? "EDIT+ARROWS PREVIEW END"
+                                           : "EDIT+ARROWS ADJUST END";
     break;
   case SampleEditorViewUi2Focus::Operation:
     state.cursor = UiSampleEditorCursor::Field3;
-    help = "EDIT+UP/DOWN SELECT OP";
+    help = !snapshot.fileMutationAvailable
+               ? "LEFT/RIGHT BROWSE (NO APPLY)"
+               : "EDIT+UP/DOWN SELECT OP";
     break;
   case SampleEditorViewUi2Focus::Apply:
-    state.cursor = UiSampleEditorCursor::Field4;
-    help = "EDIT APPLY OPERATION";
+    if (!snapshot.fileMutationAvailable) {
+      help = "APPLY UNAVAILABLE";
+    } else {
+      state.cursor = UiSampleEditorCursor::Field4;
+      help = "EDIT APPLY OPERATION";
+    }
     break;
   case SampleEditorViewUi2Focus::Save:
-    state.cursor = UiSampleEditorCursor::Save;
-    state.bottomActive = 0;
-    help = "EDIT SAVE";
+    if (!snapshot.fileMutationAvailable) {
+      help = "SAVE UNAVAILABLE";
+    } else {
+      state.cursor = UiSampleEditorCursor::Save;
+      state.bottomActive = 0;
+      help = "EDIT SAVE";
+    }
     break;
   case SampleEditorViewUi2Focus::SaveAndLoad:
-    state.cursor = UiSampleEditorCursor::SaveAndLoad;
-    state.bottomActive = snapshot.projectPool ? 0xFFU : 1U;
-    help = "EDIT SAVE AND LOAD";
+    if (!snapshot.fileMutationAvailable) {
+      help = "SAVE AND LOAD UNAVAILABLE";
+    } else {
+      state.cursor = UiSampleEditorCursor::SaveAndLoad;
+      state.bottomActive = snapshot.projectPool ? 0xFFU : 1U;
+      help = "EDIT SAVE AND LOAD";
+    }
     break;
   case SampleEditorViewUi2Focus::Discard:
     state.cursor = UiSampleEditorCursor::Discard;
-    state.bottomActive = snapshot.projectPool ? 1U : 2U;
+    state.bottomActive =
+        !snapshot.fileMutationAvailable ? 0U
+                                        : (snapshot.projectPool ? 1U : 2U);
     help = "EDIT DISCARD";
     break;
   case SampleEditorViewUi2Focus::Waveform:
     state.cursor = UiSampleEditorCursor::Waveform;
     if (modifiers.enterHeld)
-      help = "ARROWS MOVE MARKER";
+      help = !snapshot.fileMutationAvailable ? "ARROWS PREVIEW MARKER"
+                                             : "ARROWS MOVE MARKER";
     else if (modifiers.editHeld)
       help = "LEFT/RIGHT MARKER  UP/DOWN ZOOM";
     else

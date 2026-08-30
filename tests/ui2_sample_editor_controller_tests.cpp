@@ -3,6 +3,7 @@
 #include "Application/Model/Config.h"
 #include "Application/UI2/Controllers/Ui2SampleEditorController.h"
 #include "Application/UI2/Controllers/Ui2SampleSlicesController.h"
+#include "Application/UI2/Ui2SampleAdapters.h"
 
 #include <algorithm>
 #include <array>
@@ -335,7 +336,7 @@ TEST_CASE("UI2 single-cycle preview capacity counts interleaved channels") {
   CHECK_FALSE(slices.Handle(TrackerAction::Play, true).singleCycle);
 }
 
-TEST_CASE("UI2 Sample Editor keeps destructive operations typed") {
+TEST_CASE("UI2 Sample Editor keeps operation browsing read-only") {
   using namespace ui2;
   Config::SetImportResampler(0);
   SampleWaveFileSystem fileSystem;
@@ -348,32 +349,42 @@ TEST_CASE("UI2 Sample Editor keeps destructive operations typed") {
   controller.SetFocus(SampleEditorViewUi2Focus::Operation);
   Tap(controller, TrackerAction::Right);
   CHECK(controller.Operation() == Ui2SampleEditorOperation::Normalize);
-  controller.SetFocus(SampleEditorViewUi2Focus::Apply);
-  const Ui2SampleEditorCommand apply = Tap(controller, TrackerAction::Edit);
-  CHECK(apply.type ==
-        Ui2SampleEditorCommandType::RequestApplyOperation);
-  CHECK(apply.operation == Ui2SampleEditorOperation::Normalize);
-
-  REQUIRE(controller.SetFocus(SampleEditorViewUi2Focus::Discard));
+  CHECK_FALSE(controller.SetFocus(SampleEditorViewUi2Focus::Name));
+  CHECK_FALSE(controller.SetFocus(SampleEditorViewUi2Focus::Apply));
   CHECK_FALSE(controller.SetFocus(SampleEditorViewUi2Focus::Save));
   CHECK_FALSE(controller.SetFocus(SampleEditorViewUi2Focus::SaveAndLoad));
+  CHECK(controller.Focus() == SampleEditorViewUi2Focus::Operation);
+  CHECK_FALSE(Tap(controller, TrackerAction::Edit).HasValue());
+
+  Tap(controller, TrackerAction::Down);
   CHECK(controller.Focus() == SampleEditorViewUi2Focus::Discard);
   CHECK(Tap(controller, TrackerAction::Edit).type ==
         Ui2SampleEditorCommandType::RequestDiscard);
 }
 
-TEST_CASE("UI2 Sample Editor skips save actions without a rewrite backend") {
+TEST_CASE("UI2 Sample Editor exposes a read-only runtime model") {
   using namespace ui2;
   Config::SetImportResampler(0);
   SampleWaveFileSystem fileSystem;
   fileSystem.BuildPcm(1024U);
   Ui2SampleWaveformBackend waveform;
-  CHECK_FALSE(waveform.SupportsTransactionalRewrite());
+  CHECK_FALSE(waveform.SupportsEditorTransactions());
   Ui2SampleEditorController controller(waveform);
   REQUIRE(controller.OpenLibrary(fileSystem, "VOICE.WAV") ==
           Ui2SampleWaveformLoadResult::Loaded);
+  CHECK(controller.Focus() == SampleEditorViewUi2Focus::Waveform);
+  CHECK_FALSE(controller.Snapshot().fileMutationAvailable);
 
-  REQUIRE(controller.SetFocus(SampleEditorViewUi2Focus::Apply));
+  REQUIRE(controller.SetFocus(SampleEditorViewUi2Focus::Operation));
+  const UiSampleEditorControllerState operationState =
+      MakeUiSampleEditorControllerState(controller.Snapshot());
+  const UiSampleEditorViewData operationData = operationState.ToViewData();
+  CHECK(operationData.field3Label == "OP");
+  CHECK(operationData.field4Label.empty());
+  CHECK(operationData.help == "LEFT/RIGHT BROWSE (NO APPLY)");
+  CHECK(operationData.bottomActionCount == 1U);
+  CHECK(operationData.bottomActions[0] == "DISCARD");
+
   Tap(controller, TrackerAction::Down);
   CHECK(controller.Focus() == SampleEditorViewUi2Focus::Discard);
   Tap(controller, TrackerAction::Left);
@@ -384,11 +395,15 @@ TEST_CASE("UI2 Sample Editor skips save actions without a rewrite backend") {
   const SampleEditorViewUi2Snapshot snapshot = controller.Snapshot();
   CHECK(snapshot.focus == SampleEditorViewUi2Focus::Discard);
   CHECK_FALSE(snapshot.projectPool);
+  const UiSampleEditorViewData discardData =
+      MakeUiSampleEditorControllerState(snapshot).ToViewData();
+  CHECK(discardData.bottomActive == 0U);
+  CHECK(discardData.help == "EDIT DISCARD");
 
   controller.Close();
   REQUIRE(controller.OpenProjectPool(fileSystem, "DEMO", "VOICE.WAV") ==
           Ui2SampleWaveformLoadResult::Loaded);
-  REQUIRE(controller.SetFocus(SampleEditorViewUi2Focus::Apply));
+  REQUIRE(controller.SetFocus(SampleEditorViewUi2Focus::Operation));
   Tap(controller, TrackerAction::Down);
   CHECK(controller.Focus() == SampleEditorViewUi2Focus::Discard);
   CHECK_FALSE(controller.SetFocus(SampleEditorViewUi2Focus::Save));

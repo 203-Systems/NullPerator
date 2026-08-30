@@ -234,8 +234,12 @@ public:
 
     switch (focus_) {
     case SampleEditorViewUi2Focus::Name:
-      return MakeCommand(Ui2SampleEditorCommandType::RequestRename);
+      return FocusAvailable(focus_)
+                 ? MakeCommand(Ui2SampleEditorCommandType::RequestRename)
+                 : Ui2SampleEditorCommand{};
     case SampleEditorViewUi2Focus::Apply: {
+      if (!FocusAvailable(focus_))
+        return {};
       Ui2SampleEditorCommand command =
           MakeCommand(Ui2SampleEditorCommandType::RequestApplyOperation);
       command.operation = operation_;
@@ -281,6 +285,7 @@ public:
     snapshot.playing = playing_;
     snapshot.singleCycle = IsSingleCycle();
     snapshot.projectPool = projectPool_;
+    snapshot.fileMutationAvailable = waveform_.SupportsEditorTransactions();
 
     PushMarker(snapshot, start_, Ui2WaveformMarkerKind::Start,
                selectedMarker_ == 0U);
@@ -311,10 +316,12 @@ private:
   }
 
   [[nodiscard]] bool FocusAvailable(SampleEditorViewUi2Focus focus) const {
-    if (focus == SampleEditorViewUi2Focus::Save)
-      return waveform_.SupportsTransactionalRewrite();
+    if (focus == SampleEditorViewUi2Focus::Name ||
+        focus == SampleEditorViewUi2Focus::Apply ||
+        focus == SampleEditorViewUi2Focus::Save)
+      return waveform_.SupportsEditorTransactions();
     if (focus == SampleEditorViewUi2Focus::SaveAndLoad)
-      return waveform_.SupportsTransactionalRewrite() && !projectPool_;
+      return waveform_.SupportsEditorTransactions() && !projectPool_;
     return focus != SampleEditorViewUi2Focus::Unknown;
   }
 
@@ -332,7 +339,7 @@ private:
     name_.fill('\0');
     waveformPacket_ = {};
     start_ = end_ = previewPlayhead_ = 0U;
-    focus_ = SampleEditorViewUi2Focus::Name;
+    focus_ = SampleEditorViewUi2Focus::Waveform;
     operation_ = Ui2SampleEditorOperation::Trim;
     selectedMarker_ = 0U;
     focusDigit_ = 0U;
@@ -474,7 +481,7 @@ private:
   }
 
   void MoveBottomFocus(int delta) {
-    if (!waveform_.SupportsTransactionalRewrite()) {
+    if (!waveform_.SupportsEditorTransactions()) {
       focus_ = SampleEditorViewUi2Focus::Discard;
       return;
     }
@@ -526,7 +533,7 @@ private:
   std::uint32_t start_ = 0U;
   std::uint32_t end_ = 0U;
   std::uint32_t previewPlayhead_ = 0U;
-  SampleEditorViewUi2Focus focus_ = SampleEditorViewUi2Focus::Name;
+  SampleEditorViewUi2Focus focus_ = SampleEditorViewUi2Focus::Waveform;
   Ui2SampleEditorOperation operation_ = Ui2SampleEditorOperation::Trim;
   Ui2SampleWaveformBuildResult lastBuild_ =
       Ui2SampleWaveformBuildResult::NotLoaded;

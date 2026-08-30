@@ -3468,6 +3468,7 @@ TEST_CASE("UI2 Sample Editor adapter owns controller text waveform and modes") {
   snapshot.focus = SampleEditorViewUi2Focus::End;
   snapshot.focusDigit = 5U;
   snapshot.playing = true;
+  snapshot.fileMutationAvailable = true;
 
   const ui2::UiSampleEditorControllerState state =
       ui2::MakeUiSampleEditorControllerState(
@@ -3522,6 +3523,26 @@ TEST_CASE("UI2 Sample Editor adapter owns controller text waveform and modes") {
   CHECK(poolData.bottomActionCount == 2U);
   CHECK(poolData.bottomActions[1] == "DISCARD");
   CHECK(poolData.bottomActive == 1U);
+
+  SampleEditorViewUi2Snapshot noMutation = snapshot;
+  noMutation.fileMutationAvailable = false;
+  noMutation.focus = SampleEditorViewUi2Focus::Operation;
+  const auto noMutationState =
+      ui2::MakeUiSampleEditorControllerState(noMutation);
+  const auto noMutationData = noMutationState.ToViewData();
+  CHECK(noMutationData.field4Label.empty());
+  CHECK(noMutationData.help == "LEFT/RIGHT BROWSE (NO APPLY)");
+  CHECK(noMutationData.cursor == ui2::UiSampleEditorCursor::Field3);
+  CHECK(noMutationData.bottomActionCount == 1U);
+  CHECK(noMutationData.bottomActions[0] == "DISCARD");
+  ui2::UiFrameScene noMutationScene;
+  REQUIRE(ui2::UiSampleEditorView::Build(noMutationData, palette,
+                                         noMutationScene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK(FindTextCommand(noMutationScene.content.Stream(), "APPLY") == nullptr);
+  CHECK(FindTextCommand(noMutationScene.bottom.Stream(), "SAVE") == nullptr);
+  CHECK(FindTextCommand(noMutationScene.bottom.Stream(), "DISCARD") !=
+        nullptr);
 }
 
 TEST_CASE("UI2 Sample Slices adapter maps real markers focus and help") {
