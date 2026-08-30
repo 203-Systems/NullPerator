@@ -19,6 +19,7 @@
 #include "Application/Session/FirmwareLifecycleService.h"
 #include "Application/Session/TrackerApplicationSession.h"
 #include "Application/UI2/Ui2InstrumentParameters.h"
+#include "Application/UI2/Ui2ProjectNamePresentation.h"
 #include "Application/UI2/Ui2VuMapping.h"
 #include "Application/Utils/HelpLegend.h"
 #include "Application/Utils/char.h"
@@ -255,7 +256,9 @@ Ui2NativeApplicationStateSource::CaptureSong(UiSongFrameState &state) {
   const Ui2SongController &controller = tracker_.Hub().Song();
   Project &project = session_.ProjectModel();
   TrackerSessionState &editor = session_.EditorState();
-  project.GetProjectName(state.name.data());
+  std::array<char, MAX_PROJECT_NAME_LENGTH + 1U> storageName{};
+  project.GetProjectName(storageName.data());
+  Ui2ProjectNamePresentation(storageName.data()).CopyHeaderTo(state.name);
   state.editTrack = controller.Track();
   state.editRow = controller.VisibleRow();
   state.rowOffset = controller.RowOffset();
@@ -707,7 +710,9 @@ UiApplicationActivityState
 Ui2NativeApplicationStateSource::CaptureProject(UiProjectFrameState &state) {
   state = {};
   Project &model = session_.ProjectModel();
-  model.GetProjectName(state.name.data());
+  std::array<char, MAX_PROJECT_NAME_LENGTH + 1U> storageName{};
+  model.GetProjectName(storageName.data());
+  Ui2ProjectNamePresentation(storageName.data()).CopyHeaderTo(state.name);
   std::snprintf(state.tempo.data(), state.tempo.size(), "%d",
                 model.GetTempo());
   std::snprintf(state.transpose.data(), state.transpose.size(), "%02d",

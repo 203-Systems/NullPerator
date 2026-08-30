@@ -1,9 +1,13 @@
 #include "Application/UI2/Controllers/Ui2ProjectController.h"
+#include "Application/UI2/Controllers/Ui2RenameController.h"
+#include "Application/UI2/Ui2ApplicationStateSource.h"
+#include "Application/UI2/Ui2ProjectNamePresentation.h"
 #include "Application/UI2/Workflows/Ui2ProjectWorkflow.h"
 
 #include "doctest/doctest.h"
 
 #include <array>
+#include <cstring>
 #include <type_traits>
 
 namespace {
@@ -42,6 +46,39 @@ TEST_CASE("UI2 Project controller keeps content and name actions independent") {
   controller.MoveUp();
   CHECK(controller.ContentCursor() == Ui2ProjectContentCursor::Name);
   CHECK(controller.NameAction() == Ui2ProjectNameAction::Rename);
+}
+
+TEST_CASE("UI2 Project presentation hides the internal untitled identity") {
+  const ui2::Ui2ProjectNamePresentation presentation(UNNAMED_PROJECT_NAME);
+  ui2::UiSongFrameState song{};
+  ui2::UiProjectFrameState project{};
+  presentation.CopyHeaderTo(song.name);
+  presentation.CopyHeaderTo(project.name);
+
+  CHECK(std::strcmp(song.name.data(), "UNTITLED") == 0);
+  CHECK(std::strcmp(project.name.data(), "UNTITLED") == 0);
+
+  ui2::Ui2RenameController rename;
+  rename.Begin(presentation.RenameDraft());
+  CHECK(std::strcmp(rename.Value(), "") == 0);
+  CHECK_FALSE(rename.Snapshot().saveEnabled);
+}
+
+TEST_CASE("UI2 Project presentation preserves user project name casing") {
+  constexpr const char *name = "MiXeD-Case";
+  const ui2::Ui2ProjectNamePresentation presentation(name);
+  ui2::UiSongFrameState song{};
+  ui2::UiProjectFrameState project{};
+  presentation.CopyHeaderTo(song.name);
+  presentation.CopyHeaderTo(project.name);
+
+  CHECK(std::strcmp(song.name.data(), name) == 0);
+  CHECK(std::strcmp(project.name.data(), name) == 0);
+
+  ui2::Ui2RenameController rename;
+  rename.Begin(presentation.RenameDraft());
+  CHECK(std::strcmp(rename.Value(), name) == 0);
+  CHECK(rename.Snapshot().saveEnabled);
 }
 
 TEST_CASE("UI2 Project controller traverses only conceptual content rows") {

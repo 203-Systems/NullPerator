@@ -9,6 +9,7 @@
 #include "Application/UI2/Ui2DeviceLifecycleService.h"
 #include "Application/UI2/Ui2InstrumentParameters.h"
 #include "Application/UI2/Ui2InstrumentTableAllocation.h"
+#include "Application/UI2/Ui2ProjectNamePresentation.h"
 #include "Application/UI2/Ui2SampleFileOperations.h"
 #include "Application/UI2/Ui2TransportPolicy.h"
 #include "Application/UI2/Workflows/Ui2InstrumentWorkflow.h"
@@ -2204,7 +2205,9 @@ void Ui2TrackerApplication::ExecuteProject(Ui2ProjectCommand command) {
     break;
   case Ui2ProjectCommandType::RenameProject:
     renameTarget_ = RenameTarget::Project;
-    rename_.Begin(session_.ProjectName(), MAX_PROJECT_NAME_LENGTH);
+    rename_.Begin(
+        Ui2ProjectNamePresentation(session_.ProjectName()).RenameDraft(),
+        MAX_PROJECT_NAME_LENGTH);
     break;
   case Ui2ProjectCommandType::LoadProject:
     if (projectSaveAsPending_) {
