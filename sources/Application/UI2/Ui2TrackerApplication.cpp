@@ -2297,7 +2297,7 @@ void Ui2TrackerApplication::ExecuteProject(Ui2ProjectCommand command) {
     renameTarget_ = RenameTarget::Project;
     rename_.Begin(
         Ui2ProjectNamePresentation(session_.ProjectName()).RenameDraft(),
-        MAX_PROJECT_NAME_LENGTH);
+        MAX_PROJECT_NAME_LENGTH, &PersistencyService::IsValidProjectName);
     break;
   case Ui2ProjectCommandType::LoadProject:
     if (projectSaveAsPending_) {

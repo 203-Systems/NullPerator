@@ -1,5 +1,6 @@
 #include "Application/UI2/Controllers/Ui2ProjectController.h"
 #include "Application/UI2/Controllers/Ui2RenameController.h"
+#include "Application/Persistency/PersistencyService.h"
 #include "Application/UI2/Ui2ApplicationStateSource.h"
 #include "Application/UI2/Ui2ProjectNamePresentation.h"
 #include "Application/UI2/Workflows/Ui2ProjectWorkflow.h"
@@ -78,6 +79,22 @@ TEST_CASE("UI2 Project presentation preserves user project name casing") {
   ui2::Ui2RenameController rename;
   rename.Begin(presentation.RenameDraft());
   CHECK(std::strcmp(rename.Value(), name) == 0);
+  CHECK(rename.Snapshot().saveEnabled);
+}
+
+TEST_CASE("UI2 Project rename disables names rejected by persistence") {
+  ui2::Ui2RenameController rename;
+  constexpr auto validator = &PersistencyService::IsValidProjectName;
+
+  rename.Begin(".", MAX_PROJECT_NAME_LENGTH, validator);
+  CHECK_FALSE(rename.Snapshot().saveEnabled);
+  rename.Begin("..", MAX_PROJECT_NAME_LENGTH, validator);
+  CHECK_FALSE(rename.Snapshot().saveEnabled);
+  rename.Begin(UNNAMED_PROJECT_NAME, MAX_PROJECT_NAME_LENGTH, validator);
+  CHECK_FALSE(rename.Snapshot().saveEnabled);
+
+  // Leading-dot names remain valid unless they are persistence internals.
+  rename.Begin(".live-set", MAX_PROJECT_NAME_LENGTH, validator);
   CHECK(rename.Snapshot().saveEnabled);
 }
 

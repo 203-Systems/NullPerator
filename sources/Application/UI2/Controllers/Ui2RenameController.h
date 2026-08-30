@@ -19,9 +19,12 @@ enum class Ui2RenameCommand : std::uint8_t { None, Cancel, Randomize, Save };
 class Ui2RenameController {
 public:
   static constexpr std::uint8_t DraftCapacity = 20U;
+  using SaveValidator = bool (*)(const char *value);
 
-  void Begin(const char *value, std::uint8_t maximumLength = 16U) {
+  void Begin(const char *value, std::uint8_t maximumLength = 16U,
+             SaveValidator saveValidator = nullptr) {
     maximumLength_ = std::min(maximumLength, DraftCapacity);
+    saveValidator_ = saveValidator;
     draft_.fill('\0');
     const char *source = value == nullptr ? "" : value;
     length_ = static_cast<std::uint8_t>(
@@ -237,8 +240,11 @@ private:
   [[nodiscard]] bool CanSave() const {
     // A visually empty name (spaces only) must behave exactly like an empty
     // draft: SAVE stays disabled and action navigation skips it.
-    return std::any_of(draft_.begin(), draft_.begin() + length_,
-                       [](char character) { return character != ' '; });
+    const bool visible =
+        std::any_of(draft_.begin(), draft_.begin() + length_,
+                    [](char character) { return character != ' '; });
+    return visible &&
+           (saveValidator_ == nullptr || saveValidator_(draft_.data()));
   }
   [[nodiscard]] std::uint8_t SelectedKeyIndex() const {
     std::uint8_t index = 0U;
@@ -255,6 +261,7 @@ private:
   std::uint8_t keyboardRow_ = 0U;
   std::uint8_t keyboardColumn_ = 0U;
   std::uint8_t selectedAction_ = 2U;
+  SaveValidator saveValidator_ = nullptr;
   Focus focus_ = Focus::Input;
   bool uppercase_ = true;
   bool active_ = false;
