@@ -82,9 +82,9 @@ Ui2TrackerPage TrackerPageFor(UiApplicationPage page) {
 }
 
 void StartSongTransport(TrackerApplicationSession &session) {
-  const auto track = static_cast<unsigned char>(
-      std::clamp(session.EditorState().songX_, 0, SONG_CHANNEL_COUNT - 1));
-  Player::GetInstance()->OnStartButton(PM_SONG, track, false, track);
+  Ui2ToggleSongTransportAtCursor(
+      *Player::GetInstance(), PM_SONG, session.EditorState().songX_,
+      static_cast<std::uint8_t>(SONG_CHANNEL_COUNT));
 }
 
 SampleInstrument *CurrentSampleInstrument(TrackerApplicationSession &session) {
@@ -723,8 +723,7 @@ void Ui2TrackerApplication::HandleProject(TrackerAction action, bool pressed) {
     project_.MoveRight();
     break;
   case TrackerAction::Play:
-    Player::GetInstance()->OnStartButton(PM_SONG, session_.EditorState().songX_,
-                                         false, session_.EditorState().songX_);
+    StartSongTransport(session_);
     break;
   case TrackerAction::Shift:
   case TrackerAction::Option:
@@ -1545,9 +1544,7 @@ void Ui2TrackerApplication::HandleMixer(TrackerAction action, bool pressed) {
     return;
   }
   if (command.type == Ui2MixerCommandType::StartPlayback) {
-    Player::GetInstance()->OnStartButton(
-        PM_CHAIN, session_.EditorState().songX_, true,
-        static_cast<unsigned char>(session_.EditorState().chainRow_));
+    StartSongTransport(session_);
     return;
   }
   if (command.type != Ui2MixerCommandType::AdjustVolume)

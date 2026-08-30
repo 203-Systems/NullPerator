@@ -8,6 +8,7 @@
 
 #include "Application/Input/TrackerInput.h"
 
+#include <algorithm>
 #include <cstdint>
 
 namespace ui2 {
@@ -19,6 +20,20 @@ namespace ui2 {
                                             std::uint16_t heldMask) {
   return pressed && action == TrackerAction::Play &&
          heldMask == TrackerActionBit(TrackerAction::Play);
+}
+
+// Global transport always delegates the toggle to Player::OnStartButton. The
+// false startFromPrevious flag is the important part of the contract: PM_SONG
+// starts every track at the visible Song cursor instead of lastSongPos_.
+template <typename Transport, typename PlayMode>
+void Ui2ToggleSongTransportAtCursor(Transport &transport, PlayMode songMode,
+                                    int cursorTrack,
+                                    std::uint8_t channelCount) {
+  if (channelCount == 0U)
+    return;
+  const auto track = static_cast<unsigned char>(
+      std::clamp(cursorTrack, 0, static_cast<int>(channelCount) - 1));
+  transport.OnStartButton(songMode, track, false, track);
 }
 
 } // namespace ui2

@@ -54,6 +54,8 @@ public:
     if (input_.Held(TrackerAction::Shift)) {
       if (action == TrackerAction::Up)
         return {Ui2MixerCommandType::ReturnToSong, selected_};
+      if (action == TrackerAction::Play)
+        return {Ui2MixerCommandType::StartPlayback, selected_};
       return {};
     }
     if (input_.Held(TrackerAction::Option)) {

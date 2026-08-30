@@ -18,6 +18,7 @@
 #include "Application/UI2/Controllers/Ui2SettingsBrowserController.h"
 #include "Application/UI2/Ui2BrightnessMapping.h"
 #include "Application/UI2/Ui2ConfigSaveState.h"
+#include "Application/UI2/Ui2TransportPolicy.h"
 #include "Application/UI2/Workflows/Ui2GrooveWorkflow.h"
 
 namespace {
@@ -28,6 +29,38 @@ auto Tap(Controller &controller, TrackerAction action) {
   controller.Handle(action, false);
   return command;
 }
+
+enum class FakePlayMode : std::uint8_t { Song, Chain };
+
+struct FakeSongTransport {
+  void OnStartButton(FakePlayMode origin, unsigned int from,
+                     bool startFromPrevious, unsigned char chainPosition) {
+    ++buttonCalls;
+    lastOrigin = origin;
+    lastFrom = from;
+    lastStartFromPrevious = startFromPrevious;
+    lastChainPosition = chainPosition;
+    if (running) {
+      ++stopCalls;
+      running = false;
+    } else {
+      ++startCalls;
+      running = true;
+    }
+  }
+
+  FakePlayMode lastOrigin = FakePlayMode::Chain;
+  unsigned int lastFrom = 0U;
+  unsigned char lastChainPosition = 0U;
+  int buttonCalls = 0;
+  int startCalls = 0;
+  int stopCalls = 0;
+  std::uint8_t muteMask = 0xA5U;
+  std::uint8_t soloMask = 0x24U;
+  std::uint32_t vuGeneration = 73U;
+  bool lastStartFromPrevious = true;
+  bool running = false;
+};
 
 constexpr std::uint32_t DeviceFieldBit(ui2::Ui2DeviceField field) {
   return std::uint32_t{1} << static_cast<std::uint8_t>(field);
@@ -305,6 +338,61 @@ TEST_CASE("UI2 Mixer selects nine strips and edits volume with Enter") {
   CHECK(adjust.channel == 8U);
   CHECK(adjust.delta == 1);
   controller.Handle(TrackerAction::Edit, false);
+}
+
+TEST_CASE("UI2 Mixer plain and Shift PLAY share global song transport") {
+  using namespace ui2;
+  Ui2MixerController controller;
+  controller.Synchronize(4U);
+
+  const auto plain = Tap(controller, TrackerAction::Play);
+  REQUIRE(plain.type != Ui2MixerCommandType::None);
+  CHECK(plain.type == Ui2MixerCommandType::StartPlayback);
+  CHECK(plain.channel == 4U);
+  CHECK(controller.SelectedChannel() == 4U);
+
+  controller.Handle(TrackerAction::Shift, true);
+  const auto shifted = Tap(controller, TrackerAction::Play);
+  REQUIRE(shifted.type != Ui2MixerCommandType::None);
+  CHECK(shifted.type == Ui2MixerCommandType::StartPlayback);
+  CHECK(shifted.channel == 4U);
+  CHECK(controller.SelectedChannel() == 4U);
+  controller.Handle(TrackerAction::Shift, false);
+
+  controller.Handle(TrackerAction::Option, true);
+  const auto solo = Tap(controller, TrackerAction::Play);
+  CHECK(solo.type == Ui2MixerCommandType::ToggleSolo);
+  CHECK(solo.channel == 4U);
+  controller.Handle(TrackerAction::Option, false);
+}
+
+TEST_CASE("UI2 global song transport toggles at the current Song cursor") {
+  using namespace ui2;
+  FakeSongTransport transport;
+
+  Ui2ToggleSongTransportAtCursor(transport, FakePlayMode::Song, 5, 8U);
+  CHECK(transport.buttonCalls == 1);
+  CHECK(transport.startCalls == 1);
+  CHECK(transport.stopCalls == 0);
+  CHECK(transport.running);
+  CHECK(transport.lastOrigin == FakePlayMode::Song);
+  CHECK(transport.lastFrom == 5U);
+  CHECK_FALSE(transport.lastStartFromPrevious);
+  CHECK(transport.lastChainPosition == 5U);
+
+  Ui2ToggleSongTransportAtCursor(transport, FakePlayMode::Song, 2, 8U);
+  CHECK(transport.buttonCalls == 2);
+  CHECK(transport.startCalls == 1);
+  CHECK(transport.stopCalls == 1);
+  CHECK_FALSE(transport.running);
+  CHECK(transport.lastOrigin == FakePlayMode::Song);
+  CHECK(transport.lastFrom == 2U);
+  CHECK_FALSE(transport.lastStartFromPrevious);
+  CHECK(transport.lastChainPosition == 2U);
+
+  CHECK(transport.muteMask == 0xA5U);
+  CHECK(transport.soloMask == 0x24U);
+  CHECK(transport.vuGeneration == 73U);
 }
 
 TEST_CASE("UI2 Mixer synchronizes the shared track and never aliases Master mute") {
