@@ -425,6 +425,9 @@ TEST_CASE("UI2 Instrument type dialog ignores the held trigger until release") {
   // not move the conservative default to YES.
   CHECK_FALSE(controller.Handle(TrackerAction::Right, true).HasValue());
   CHECK(controller.Snapshot().selectedAction == 1U);
+  CHECK_FALSE(controller.Handle(TrackerAction::Left, true).HasValue());
+  CHECK_FALSE(controller.Handle(TrackerAction::Left, false).HasValue());
+  CHECK(controller.Snapshot().selectedAction == 1U);
   CHECK_FALSE(controller.Handle(TrackerAction::Right, false).HasValue());
 
   // Once released, a deliberate direction press still changes the choice.
@@ -447,6 +450,9 @@ TEST_CASE("UI2 Instrument export overwrite requires explicit YES") {
   controller.RequestExportOverwrite(TrackerAction::Edit);
   CHECK_FALSE(controller.Handle(TrackerAction::Edit, true).HasValue());
   REQUIRE(controller.Active());
+  CHECK(controller.Snapshot().selectedAction == 1U);
+  CHECK_FALSE(controller.Handle(TrackerAction::Left, true).HasValue());
+  CHECK_FALSE(controller.Handle(TrackerAction::Left, false).HasValue());
   CHECK(controller.Snapshot().selectedAction == 1U);
   CHECK_FALSE(controller.Handle(TrackerAction::Edit, false).HasValue());
   Tap(controller, TrackerAction::Left);
