@@ -1714,7 +1714,7 @@ void Ui2TrackerApplication::ExecuteInstrument(Ui2InstrumentCommand command) {
           return;
         }
         Status::Set("NO FREE TABLE");
-        runtime_.Invalidate();
+        ShowFeedbackError("NO FREE TABLE");
         return;
       }
 
@@ -2247,7 +2247,7 @@ bool Ui2TrackerApplication::FlushConfig() {
       [config]() { return config != nullptr && config->Save(); });
   if (!saved) {
     Status::Set("CONFIG SAVE FAILED");
-    runtime_.Invalidate();
+    ShowFeedbackError("CONFIG SAVE FAILED");
   }
   return saved;
 }
