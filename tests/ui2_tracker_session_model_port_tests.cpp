@@ -321,6 +321,51 @@ TEST_CASE("UI2 model port clones loaded Chain phrase references safely") {
   CHECK(port.ProjectMutationGeneration() == 1U);
 }
 
+TEST_CASE("UI2 model port clones the Phrase instrument into a free slot") {
+  TrackerApplicationSession session;
+  Ui2TrackerSessionModelPort port(session);
+  InstrumentBank *bank = session.ProjectModel().GetInstrumentBank();
+  REQUIRE(bank != nullptr);
+  constexpr std::uint8_t sourceInstrument = 4U;
+  REQUIRE(bank->GetNextAndAssignID(IT_SAMPLE, sourceInstrument) ==
+          sourceInstrument);
+  bank->SetInstrumentTable(sourceInstrument, 9);
+
+  session.EditorState().currentPhrase_ = 2;
+  constexpr std::uint8_t row = 5U;
+  const int index = 2 * STEPS_PER_PHRASE + row;
+  session.ProjectModel().song_.phrase_.instr_[index] = sourceInstrument;
+
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::CloneCell,
+                                    Ui2TrackerPage::Phrase, row, 1));
+
+  constexpr std::uint8_t clonedInstrument = 0U;
+  CHECK(session.ProjectModel().song_.phrase_.instr_[index] == clonedInstrument);
+  I_Instrument *clone = bank->GetInstrument(clonedInstrument);
+  REQUIRE(clone != nullptr);
+  CHECK(clone->GetType() == IT_SAMPLE);
+  CHECK(clone->GetTable() == 9);
+  CHECK(port.ProjectMutationGeneration() == 1U);
+}
+
+TEST_CASE("UI2 Phrase instrument clone is a no-op when the bank is full") {
+  TrackerApplicationSession session;
+  Ui2TrackerSessionModelPort port(session);
+  InstrumentBank *bank = session.ProjectModel().GetInstrumentBank();
+  REQUIRE(bank != nullptr);
+  for (std::uint8_t id = 0U; id < MAX_INSTRUMENT_COUNT; ++id) {
+    REQUIRE(bank->GetNextAndAssignID(IT_SAMPLE, id) == id);
+  }
+
+  constexpr std::uint8_t sourceInstrument = 4U;
+  session.ProjectModel().song_.phrase_.instr_[0] = sourceInstrument;
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::CloneCell,
+                                    Ui2TrackerPage::Phrase, 0, 1));
+
+  CHECK(session.ProjectModel().song_.phrase_.instr_[0] == sourceInstrument);
+  CHECK(port.ProjectMutationGeneration() == 0U);
+}
+
 TEST_CASE("UI2 model port reports clone allocation exhaustion as a no-op") {
   TrackerApplicationSession session;
   Ui2TrackerSessionModelPort port(session);

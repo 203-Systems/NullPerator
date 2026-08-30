@@ -89,6 +89,17 @@ public:
     return id;
   }
 
+  unsigned short Clone(unsigned short source) {
+    if (source >= instruments_.size() || !used_[source])
+      return NO_MORE_INSTRUMENT;
+    const unsigned short next = GetNextFreeInstrumentSlotId();
+    if (next == NO_MORE_INSTRUMENT)
+      return NO_MORE_INSTRUMENT;
+    used_[next] = true;
+    instruments_[next] = instruments_[source];
+    return next;
+  }
+
   I_Instrument *GetInstrument(int id) {
     return id >= 0 && id < static_cast<int>(instruments_.size()) && used_[id]
                ? &instruments_[id]

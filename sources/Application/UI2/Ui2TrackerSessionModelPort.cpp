@@ -868,6 +868,26 @@ bool Ui2TrackerSessionModelPort::ApplyCloneCell(
     cell = next;
     lastPhrase_ = static_cast<std::uint8_t>(next);
     return true;
+  } else if (command.sourcePage == Ui2TrackerPage::Phrase &&
+             command.column == 1U) {
+    InstrumentBank *bank = session_.ProjectModel().GetInstrumentBank();
+    if (bank == nullptr)
+      return false;
+    const int index = editor.currentPhrase_ * STEPS_PER_PHRASE + command.row;
+    std::uint8_t &cell = song.phrase_.instr_[index];
+    if (cell >= MAX_INSTRUMENT_COUNT)
+      return false;
+    I_Instrument *source = bank->GetInstrument(cell);
+    if (source == nullptr || source->GetType() == IT_NONE ||
+        bank->GetNextFreeInstrumentSlotId() == NO_MORE_INSTRUMENT) {
+      return false;
+    }
+    const unsigned short next = bank->Clone(cell);
+    if (next == NO_MORE_INSTRUMENT || next >= MAX_INSTRUMENT_COUNT)
+      return false;
+    cell = static_cast<std::uint8_t>(next);
+    lastInstrument_ = cell;
+    return true;
   }
   return false;
 }

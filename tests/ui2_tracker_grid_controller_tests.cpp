@@ -223,6 +223,29 @@ TEST_CASE("UI2 Song and Chain clone only after SHIFT OPTION release EDIT") {
   CHECK(transpose.Handle(TrackerAction::Edit, true).Empty());
 }
 
+TEST_CASE("UI2 Phrase clones an instrument after SHIFT OPTION release EDIT") {
+  Ui2PhraseController instrument(2, 1, 3, 1);
+  instrument.Handle(TrackerAction::Shift, true);
+  instrument.Handle(TrackerAction::Option, true);
+  REQUIRE(instrument.Selection().active);
+  CHECK(instrument.ClonePending());
+  instrument.Handle(TrackerAction::Option, false);
+  const auto clone = instrument.Handle(TrackerAction::Edit, true);
+  REQUIRE(clone.count == 1U);
+  CHECK(clone[0].type == Ui2TrackerCommandType::CloneCell);
+  CHECK_FALSE(instrument.ClonePending());
+  CHECK_FALSE(instrument.Selection().active);
+
+  Ui2PhraseController note(2, 1, 3, 0);
+  note.Handle(TrackerAction::Shift, true);
+  note.Handle(TrackerAction::Option, true);
+  CHECK(note.Selection().active);
+  CHECK_FALSE(note.ClonePending());
+  note.Handle(TrackerAction::Option, false);
+  CHECK(note.Handle(TrackerAction::Edit, true).Empty());
+  CHECK(note.Selection().active);
+}
+
 TEST_CASE("UI2 clone gesture cancels when SHIFT is released") {
   Ui2SongController controller(2, 3, 4);
   controller.Handle(TrackerAction::Shift, true);

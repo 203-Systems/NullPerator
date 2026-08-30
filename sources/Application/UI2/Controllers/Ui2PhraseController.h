@@ -58,6 +58,8 @@ public:
       return output;
 
     if (!pressed) {
+      if (action == TrackerAction::Shift)
+        clonePending_ = false;
       if (action == TrackerAction::Edit && valueEditDirty_) {
         output.Push(Command(Ui2TrackerCommandType::CommitValueEdits));
         valueEditDirty_ = false;
@@ -79,6 +81,14 @@ public:
                               : Ui2TrackerCommandType::ToggleSolo));
       return output;
     }
+    if (clonePending_ && action == TrackerAction::Edit &&
+        input_.Held(TrackerAction::Shift) &&
+        !input_.Held(TrackerAction::Option)) {
+      clonePending_ = false;
+      selection_.Clear();
+      output.Push(Command(Ui2TrackerCommandType::CloneCell));
+      return output;
+    }
     if (selection_.active) {
       HandleSelection(action, output);
       return output;
@@ -87,6 +97,7 @@ public:
     const Ui2TrackerEditDirection direction = Ui2TrackerDirectionFor(action);
     if (action == TrackerAction::Option && input_.Held(TrackerAction::Shift)) {
       selection_.Begin(grid_.Column(), grid_.Row());
+      clonePending_ = grid_.Column() == 1U;
       return output;
     }
     if (action == TrackerAction::Shift && input_.Held(TrackerAction::Option)) {
@@ -175,6 +186,7 @@ private:
 
   constexpr void HandleSelection(TrackerAction action,
                                  Ui2TrackerCommandBatch<> &output) {
+    clonePending_ = false;
     const Ui2TrackerEditDirection direction = Ui2TrackerDirectionFor(action);
     if (action == TrackerAction::Play) {
       if (input_.Held(TrackerAction::Edit))
