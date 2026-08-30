@@ -13,7 +13,6 @@ add_library(application_instruments
   SamplePoolLoading.cpp
   SampleVariable.cpp
   SIDInstrument.cpp
-  SoundSource.cpp
   WavFile.cpp
   WavFileWriter.cpp
   WavHeader.cpp
