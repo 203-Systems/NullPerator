@@ -75,6 +75,7 @@ public:
     active_ = false;
     previewHeld_ = false;
     toggleChordLatched_ = false;
+    openFailed_ = false;
     input_ = {};
     dialogInput_ = {};
     dialogActive_ = false;
@@ -315,9 +316,9 @@ public:
 
     if (!snapshot.hasSelection || fileSystem == nullptr) {
       Ui2BrowserSnapshot::CopyText(
-          snapshot.actions[0], mode_ == Ui2SampleBrowserMode::ProjectPool
-                                   ? "IMPORT"
-                                   : "BACK");
+          snapshot.actions[0],
+          openFailed_ || mode_ == Ui2SampleBrowserMode::Library ? "BACK"
+                                                                 : "IMPORT");
       snapshot.actionCount = 1U;
       return snapshot;
     }
@@ -359,8 +360,15 @@ private:
     active_ = true;
     mode_ = mode;
     if (!JumpToModeRoot()) {
-      Close();
-      return false;
+      // Opening a browser is a UI operation even when its storage root is
+      // temporarily unavailable. Keep an explicit, exit-capable empty state
+      // visible instead of making the Project/Instrument action appear to do
+      // nothing. Invalid caller input above still fails closed.
+      openFailed_ = true;
+      if (error_[0] == '\0')
+        SetError(mode == Ui2SampleBrowserMode::ProjectPool
+                     ? "SAMPLE POOL UNAVAILABLE"
+                     : "SAMPLE LIB UNAVAILABLE");
     }
     return true;
   }
@@ -425,7 +433,7 @@ private:
 
   Ui2SampleBrowserCommand ActivateSelection() {
     if (!HasSelection()) {
-      if (mode_ == Ui2SampleBrowserMode::Library)
+      if (openFailed_ || mode_ == Ui2SampleBrowserMode::Library)
         return {.type = Ui2SampleBrowserCommandType::Back};
       mode_ = Ui2SampleBrowserMode::Library;
       if (!JumpToModeRoot()) {
@@ -509,7 +517,10 @@ private:
       return false;
     depth_ = 0U;
     selectedStack_.fill(0U);
-    return RefreshCurrentDirectory();
+    const bool refreshed = RefreshCurrentDirectory();
+    if (refreshed)
+      openFailed_ = false;
+    return refreshed;
   }
 
   void NavigateInto(const char *name) {
@@ -563,6 +574,7 @@ private:
   bool previewHeld_ = false;
   bool toggleChordLatched_ = false;
   bool dialogActive_ = false;
+  bool openFailed_ = false;
 };
 
 static_assert(std::is_trivially_copyable_v<Ui2SampleBrowserCommand>);

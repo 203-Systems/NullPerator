@@ -10,7 +10,9 @@ namespace {
 
 class SampleBrowserFileSystem final : public FileSystem {
 public:
-  explicit SampleBrowserFileSystem(bool empty = false) : empty_(empty) {
+  explicit SampleBrowserFileSystem(bool empty = false,
+                                   bool rootsUnavailable = false)
+      : empty_(empty), rootsUnavailable_(rootsUnavailable) {
     previous_ = FileSystem::GetInstance();
     FileSystem::Install(this);
   }
@@ -19,6 +21,10 @@ public:
   FileHandle Open(const char *, const char *) override { return {}; }
 
   bool chdir(const char *path) override {
+    if (rootsUnavailable_ &&
+        (std::strcmp(path, PROJECTS_DIR) == 0 ||
+         std::strcmp(path, SAMPLES_LIB_DIR) == 0))
+      return false;
     if (std::strcmp(path, PROJECTS_DIR) == 0) {
       directory_ = Directory::Projects;
       return true;
@@ -167,6 +173,7 @@ private:
   Directory directory_ = Directory::Root;
   std::uint8_t nestedDirectoryEnterAttempts_ = 0U;
   bool empty_ = false;
+  bool rootsUnavailable_ = false;
 };
 
 template <typename Controller>
@@ -383,6 +390,37 @@ TEST_CASE("UI2 Sample Browser exposes actions for empty states") {
   CHECK(std::strcmp(snapshot.actions[0].data(), "BACK") == 0);
   CHECK(Tap(controller, TrackerAction::Edit).type ==
         Ui2SampleBrowserCommandType::Back);
+}
+
+TEST_CASE("UI2 Sample Browser exposes root failures as exit-capable states") {
+  using namespace ui2;
+  SampleBrowserFileSystem fileSystem(false, true);
+
+  Ui2SampleBrowserController pool;
+  REQUIRE(pool.Open("DEMO"));
+  CHECK(pool.Active());
+  Ui2BrowserSnapshot snapshot = pool.Snapshot(60);
+  CHECK_FALSE(snapshot.hasSelection);
+  CHECK(std::strcmp(snapshot.footer.data(), "SAMPLE POOL UNAVAILABLE") == 0);
+  REQUIRE(snapshot.actionCount == 1U);
+  CHECK(std::strcmp(snapshot.actions[0].data(), "BACK") == 0);
+  CHECK(Tap(pool, TrackerAction::Edit).type ==
+        Ui2SampleBrowserCommandType::Back);
+
+  Ui2SampleBrowserController library;
+  REQUIRE(library.OpenLibrary("DEMO"));
+  CHECK(library.Active());
+  snapshot = library.Snapshot(60);
+  CHECK_FALSE(snapshot.hasSelection);
+  CHECK(std::strcmp(snapshot.footer.data(), "SAMPLE LIB UNAVAILABLE") == 0);
+  REQUIRE(snapshot.actionCount == 1U);
+  CHECK(std::strcmp(snapshot.actions[0].data(), "BACK") == 0);
+  CHECK(Tap(library, TrackerAction::Edit).type ==
+        Ui2SampleBrowserCommandType::Back);
+
+  Ui2SampleBrowserController invalid;
+  CHECK_FALSE(invalid.Open(""));
+  CHECK_FALSE(invalid.Active());
 }
 
 TEST_CASE("UI2 Sample Browser delete confirmation defaults to NO") {
