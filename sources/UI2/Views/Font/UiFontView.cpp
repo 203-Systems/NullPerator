@@ -19,6 +19,16 @@ RectI16 ResolvedCursorRect(const UiFontViewData &data) {
   return UiFontView::CursorTargetRect(data.cursor);
 }
 
+RectI16 ExpandedCursorDamage(RectI16 rect) {
+  if (rect.Empty())
+    return {};
+  return Intersect({static_cast<std::int16_t>(rect.x - 1),
+                    static_cast<std::int16_t>(rect.y - 1),
+                    static_cast<std::int16_t>(rect.width + 2),
+                    static_cast<std::int16_t>(rect.height + 2)},
+                   RectI16::Screen());
+}
+
 void DrawSection(UiSceneBuilder<256, 1024> &builder, std::string_view label,
                  std::int16_t y) {
   const std::int16_t width = UiFont5x7::TextWidth(label.size());
@@ -59,9 +69,12 @@ void UiFontView::RenderDelta(const UiFontViewData &previous,
       previous.feedback != current.feedback ||
       previous.cursor != current.cursor)
     render({0, 52, 240, 62});
-  if (ResolvedCursorRect(previous) != ResolvedCursorRect(current) ||
+  const RectI16 previousCursor = ResolvedCursorRect(previous);
+  const RectI16 currentCursor = ResolvedCursorRect(current);
+  if (previousCursor != currentCursor ||
       previous.cursorInkVisible != current.cursorInkVisible) {
-    render({5, 52, 230, 18});
+    render(ExpandedCursorDamage(previousCursor));
+    render(ExpandedCursorDamage(currentCursor));
   }
   if (previous.action != current.action)
     render({0, 208, 240, 32});

@@ -140,6 +140,11 @@ public:
     return {};
   }
   ui2::UiApplicationActivityState
+  CaptureFont(ui2::UiFontFrameState &state) override {
+    state = font;
+    return {};
+  }
+  ui2::UiApplicationActivityState
   CaptureBrowser(ui2::UiBrowserFrameState &state) override {
     state = {};
     return {};
@@ -171,6 +176,7 @@ public:
   }
 
   ui2::UiApplicationPage page = ui2::UiApplicationPage::Song;
+  ui2::UiFontFrameState font{};
   std::uint32_t nowMs = 0;
   bool persistenceSaving = false;
   bool navigationHeld = false;
@@ -1481,6 +1487,73 @@ TEST_CASE("UI2 runtime repaints stable feedback after live base deltas") {
   source.nowMs = 1U;
   REQUIRE(runtime.Present(source) == ui2::PresentResult::Presented);
   CHECK(hashDamage() == before);
+}
+
+TEST_CASE("UI2 Font runtime animates the cursor between CASE and FONT") {
+  RecordingPresenter presenter;
+  ui2::UiApplicationRuntime runtime(presenter);
+  TestApplicationStateSource source;
+  source.page = ui2::UiApplicationPage::Font;
+
+  const ui2::RectI16 caseTarget =
+      ui2::UiFontView::CursorTargetRect(ui2::UiFontCursor::TextCase);
+  const ui2::RectI16 fontTarget =
+      ui2::UiFontView::CursorTargetRect(ui2::UiFontCursor::Browse);
+  CHECK(caseTarget == ui2::RectI16{7, 53, 226, 9});
+  CHECK(fontTarget == ui2::RectI16{7, 85, 226, 9});
+
+  const auto checkCursorPixel = [&](ui2::RectI16 rect) {
+    REQUIRE(presenter.pixels != nullptr);
+    constexpr std::int16_t sampleX = 70;
+    CHECK(presenter.pixels[static_cast<std::size_t>(rect.y + rect.height / 2) *
+                               ui2::kScreenWidth +
+                           sampleX] ==
+          static_cast<ui2::PaletteIndex>(ui2::UiColorToken::CursorPrimary));
+  };
+
+  source.font.cursor = ui2::UiFontCursor::TextCase;
+  source.nowMs = 0U;
+  REQUIRE(runtime.Present(source) == ui2::PresentResult::Presented);
+  checkCursorPixel(caseTarget);
+
+  ui2::UiAnimatedRect expected;
+  expected.Snap(caseTarget, 0U);
+  expected.Retarget(fontTarget, 1U, 120U);
+  source.font.cursor = ui2::UiFontCursor::Browse;
+  source.nowMs = 1U;
+  REQUIRE(runtime.Present(source) == ui2::PresentResult::Presented);
+  checkCursorPixel(expected.Sample(source.nowMs));
+
+  source.nowMs = 61U;
+  const ui2::RectI16 fontMidpoint = expected.Sample(source.nowMs);
+  CHECK(fontMidpoint == ui2::RectI16{7, 80, 226, 9});
+  REQUIRE(runtime.Present(source) == ui2::PresentResult::Presented);
+  checkCursorPixel(fontMidpoint);
+
+  source.nowMs = 121U;
+  REQUIRE(runtime.Present(source) == ui2::PresentResult::Presented);
+  checkCursorPixel(fontTarget);
+  source.nowMs = 122U;
+  CHECK(runtime.Present(source) == ui2::PresentResult::Deferred);
+
+  expected.Retarget(caseTarget, 123U, 120U);
+  source.font.cursor = ui2::UiFontCursor::TextCase;
+  source.nowMs = 123U;
+  REQUIRE(runtime.Present(source) == ui2::PresentResult::Presented);
+  checkCursorPixel(expected.Sample(source.nowMs));
+
+  source.nowMs = 183U;
+  const ui2::RectI16 caseMidpoint = expected.Sample(source.nowMs);
+  CHECK(caseMidpoint.y > caseTarget.y);
+  CHECK(caseMidpoint.y < fontTarget.y);
+  REQUIRE(runtime.Present(source) == ui2::PresentResult::Presented);
+  checkCursorPixel(caseMidpoint);
+
+  source.nowMs = 243U;
+  REQUIRE(runtime.Present(source) == ui2::PresentResult::Presented);
+  checkCursorPixel(caseTarget);
+  source.nowMs = 244U;
+  CHECK(runtime.Present(source) == ui2::PresentResult::Deferred);
 }
 
 TEST_CASE("UI2 persistence status overrides navigation and battery chrome") {
@@ -3226,6 +3299,61 @@ TEST_CASE("UI2 Font delta rendering is pixel-identical to a full redraw") {
   ui2::UiFrameRenderer::RenderStatic(currentScene, expected, palette);
   CHECK(std::equal(surface.Pixels().begin(), surface.Pixels().end(),
                    expected.Pixels().begin(), expected.Pixels().end()));
+}
+
+TEST_CASE("UI2 Font cursor delta matches every CASE to FONT animation frame") {
+  const ui2::RectI16 caseTarget =
+      ui2::UiFontView::CursorTargetRect(ui2::UiFontCursor::TextCase);
+  const ui2::RectI16 fontTarget =
+      ui2::UiFontView::CursorTargetRect(ui2::UiFontCursor::Browse);
+  const auto checkDelta = [](const ui2::UiFontViewData &previous,
+                             const ui2::UiFontViewData &current) {
+    CheckDeltaMatchesFullFrame(previous, current, ui2::UiFontView::Build,
+                               ui2::UiFontView::RenderDelta);
+  };
+
+  ui2::UiFontViewData previous;
+  previous.cursor = ui2::UiFontCursor::TextCase;
+  previous.cursorVisualOverride = true;
+  previous.cursorVisualRect = caseTarget;
+  previous.cursorInkVisible = true;
+
+  ui2::UiFontViewData current = previous;
+  current.cursor = ui2::UiFontCursor::Browse;
+  current.cursorInkVisible = false;
+  checkDelta(previous, current);
+
+  ui2::UiAnimatedRect motion;
+  motion.Snap(caseTarget, 0U);
+  motion.Retarget(fontTarget, 1U, 120U);
+  previous = current;
+  current.cursorVisualRect = motion.Sample(61U);
+  CHECK(current.cursorVisualRect == ui2::RectI16{7, 80, 226, 9});
+  checkDelta(previous, current);
+
+  previous = current;
+  current.cursorVisualRect = motion.Sample(121U);
+  current.cursorInkVisible = true;
+  CHECK(current.cursorVisualRect == fontTarget);
+  checkDelta(previous, current);
+
+  previous = current;
+  current.cursor = ui2::UiFontCursor::TextCase;
+  current.cursorInkVisible = false;
+  checkDelta(previous, current);
+
+  motion.Retarget(caseTarget, 122U, 120U);
+  previous = current;
+  current.cursorVisualRect = motion.Sample(182U);
+  CHECK(current.cursorVisualRect.y > caseTarget.y);
+  CHECK(current.cursorVisualRect.y < fontTarget.y);
+  checkDelta(previous, current);
+
+  previous = current;
+  current.cursorVisualRect = motion.Sample(242U);
+  current.cursorInkVisible = true;
+  CHECK(current.cursorVisualRect == caseTarget);
+  checkDelta(previous, current);
 }
 
 TEST_CASE("UI2 shared browser delta is pixel-identical across page variants") {

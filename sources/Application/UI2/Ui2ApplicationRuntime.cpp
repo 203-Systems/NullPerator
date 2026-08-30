@@ -1285,6 +1285,10 @@ UiApplicationRuntime::PresentFont(IUiApplicationStateSource &source,
     cursors_.Snap(UiCursorRole::Content, target, nowMs);
     cursorTarget_ = target;
     cursorTargetValid_ = true;
+  } else if (target != cursorTarget_) {
+    cursors_.Retarget(UiCursorRole::Content, target, nowMs,
+                      kListCursorDurationMs);
+    cursorTarget_ = target;
   }
   current.cursorVisualRect = cursors_.Sample(UiCursorRole::Content, nowMs);
   current.cursorVisualOverride = true;
