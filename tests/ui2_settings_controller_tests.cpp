@@ -669,6 +669,25 @@ TEST_CASE("UI2 Groove Edit clears cells and wraps the groove number") {
   controller.Handle(TrackerAction::Option, false);
 }
 
+TEST_CASE("UI2 Groove accepts both local and global playback chords") {
+  using namespace ui2;
+  struct PlaybackCase {
+    bool shift;
+    bool songTransport;
+  };
+  constexpr PlaybackCase cases[] = {{false, false}, {true, true}};
+
+  for (const PlaybackCase &playbackCase : cases) {
+    CAPTURE(playbackCase.shift);
+    Ui2GrooveController controller;
+    if (playbackCase.shift)
+      controller.Handle(TrackerAction::Shift, true);
+    const Ui2GrooveCommand command = Tap(controller, TrackerAction::Play);
+    CHECK(command.type == Ui2GrooveCommandType::StartPlayback);
+    CHECK(command.songTransport == playbackCase.songTransport);
+  }
+}
+
 TEST_CASE("UI2 Groove step policy initializes only empty cells and clamps") {
   using namespace ui2;
   CHECK(Ui2GrooveStepPolicy::Initialize(0xFFU) == 6U);
@@ -704,7 +723,7 @@ TEST_CASE("UI2 Groove workflow reports only effective mutations") {
   CHECK(result.selectNumber);
   result = Ui2GrooveWorkflow::Execute(
       {.type = Ui2GrooveCommandType::StartPlayback}, steps);
-  CHECK(result.startPlayback);
+  CHECK(result.dispatchPerformance);
 }
 
 TEST_CASE("UI2 settings controllers keep fixed-capacity trivial state") {

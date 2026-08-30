@@ -1,5 +1,6 @@
 #include "Application/Model/Table.h"
 #include "Application/Player/Player.h"
+#include "Application/UI2/Ui2GrooveCommandAdapter.h"
 #include "Application/UI2/Ui2TrackerSessionModelPort.h"
 
 #include "doctest/doctest.h"
@@ -721,6 +722,48 @@ TEST_CASE("UI2 context grids distinguish local PLAY from global SHIFT PLAY") {
     // Player::Start reads songY_ + songOffset_ only when this is false.
     CHECK_FALSE(player->lastStartFromPrevious);
     CHECK(player->lastChainPosition == 6U);
+    CHECK(session.EditorState().songY_ == 9);
+    CHECK(session.EditorState().songOffset_ == 32);
+  }
+}
+
+TEST_CASE("UI2 Groove playback routes from controller through the model port") {
+  struct PlaybackCase {
+    bool shift;
+    PlayMode origin;
+    std::uint8_t chainPosition;
+  };
+  constexpr PlaybackCase cases[] = {
+      {false, PM_PHRASE, 11U},
+      {true, PM_SONG, 5U},
+  };
+
+  for (const PlaybackCase &playbackCase : cases) {
+    CAPTURE(playbackCase.shift);
+    TrackerApplicationSession session;
+    Ui2TrackerSessionModelPort port(session);
+    Player *player = Player::GetInstance();
+    player->Reset();
+    session.EditorState().songX_ = 5;
+    session.EditorState().songY_ = 9;
+    session.EditorState().songOffset_ = 32;
+    session.EditorState().chainRow_ = 11;
+
+    ui2::Ui2GrooveController controller;
+    if (playbackCase.shift)
+      controller.Handle(TrackerAction::Shift, true);
+    const ui2::Ui2GrooveCommand grooveCommand =
+        controller.Handle(TrackerAction::Play, true);
+    const Ui2TrackerCommand trackerCommand =
+        ui2::Ui2GrooveTrackerCommand(grooveCommand,
+                                     session.EditorState().songX_);
+    port.ApplyGridCommand(trackerCommand);
+
+    CHECK(player->startCalls == 1);
+    CHECK(player->lastOrigin == playbackCase.origin);
+    CHECK(player->lastFrom == 5U);
+    CHECK_FALSE(player->lastStartFromPrevious);
+    CHECK(player->lastChainPosition == playbackCase.chainPosition);
     CHECK(session.EditorState().songY_ == 9);
     CHECK(session.EditorState().songOffset_ == 32);
   }

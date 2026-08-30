@@ -13,7 +13,7 @@ namespace ui2 {
 struct Ui2GrooveWorkflowResult final {
   bool projectMutated = false;
   bool selectNumber = false;
-  bool startPlayback = false;
+  bool dispatchPerformance = false;
 };
 
 // Executes the data-only part of the Groove workflow. Transport and editor
@@ -48,7 +48,7 @@ public:
     case Ui2GrooveCommandType::SelectNumber:
       return {.selectNumber = true};
     case Ui2GrooveCommandType::StartPlayback:
-      return {.startPlayback = true};
+      return {.dispatchPerformance = true};
     case Ui2GrooveCommandType::None:
       return {};
     }

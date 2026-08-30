@@ -7,6 +7,7 @@
 #include "Application/UI2/Ui2TrackerApplication.h"
 #include "Application/UI2/Ui2BrightnessMapping.h"
 #include "Application/UI2/Ui2DeviceLifecycleService.h"
+#include "Application/UI2/Ui2GrooveCommandAdapter.h"
 #include "Application/UI2/Ui2InstrumentParameters.h"
 #include "Application/UI2/Ui2InstrumentTableAllocation.h"
 #include "Application/UI2/Ui2ProjectNamePresentation.h"
@@ -2261,10 +2262,11 @@ void Ui2TrackerApplication::ExecuteGroove(Ui2GrooveCommand command) {
     MarkProjectDirty();
   if (result.selectNumber)
     session_.EditorState().currentGroove_ = groove_.Number();
-  if (result.startPlayback)
-    Player::GetInstance()->OnStartButton(
-        PM_PHRASE, session_.EditorState().songX_, false,
-        static_cast<unsigned char>(session_.EditorState().chainRow_));
+  if (result.dispatchPerformance) {
+    const Ui2TrackerCommand trackerCommand = Ui2GrooveTrackerCommand(
+        command, session_.EditorState().songX_);
+    modelPort_.ApplyGridCommand(trackerCommand);
+  }
 }
 
 void Ui2TrackerApplication::SynchronizeGridPage() {

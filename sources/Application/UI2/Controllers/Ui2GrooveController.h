@@ -36,6 +36,7 @@ struct Ui2GrooveCommand {
   std::int16_t value = 0;
   std::uint8_t row = 0;
   bool synchronized = false;
+  bool songTransport = false;
 
   [[nodiscard]] constexpr bool HasValue() const {
     return type != Ui2GrooveCommandType::None;
@@ -95,6 +96,15 @@ public:
     if (action == TrackerAction::Option &&
         input_.Held(TrackerAction::Edit))
       return MakeCommand(Ui2GrooveCommandType::ClearStep);
+    if (action == TrackerAction::Play &&
+        input_.Held(TrackerAction::Shift) &&
+        !input_.Held(TrackerAction::Option) &&
+        !input_.Held(TrackerAction::Edit)) {
+      Ui2GrooveCommand command =
+          MakeCommand(Ui2GrooveCommandType::StartPlayback);
+      command.songTransport = true;
+      return command;
+    }
     if (input_.Held(TrackerAction::Option)) {
       if (direction != Ui2GrooveDirection::None)
         return SelectNumber(direction);
