@@ -93,14 +93,15 @@ public:
   }
   bool PersistenceSaving() const override { return persistenceSaving; }
   bool NavigationHeld() const override { return navigationHeld; }
-  bool HasDialog() const override { return false; }
-  Ui2DialogSnapshot DialogSnapshot() const override { return {}; }
-  std::uint32_t DialogInstanceId() const override { return 0; }
+  bool HasDialog() const override { return dialogActive; }
+  Ui2DialogSnapshot DialogSnapshot() const override { return dialog; }
+  std::uint32_t DialogInstanceId() const override { return dialogInstanceId; }
 
   ui2::UiApplicationActivityState
   CaptureSong(ui2::UiSongFrameState &state) override {
     state = {};
     state.name = {'T', 'E', 'S', 'T'};
+    state.rows[4][3] = songCell;
     return {};
   }
   ui2::UiApplicationActivityState
@@ -173,6 +174,10 @@ public:
   std::uint32_t nowMs = 0;
   bool persistenceSaving = false;
   bool navigationHeld = false;
+  bool dialogActive = false;
+  std::uint8_t songCell = 0;
+  std::uint32_t dialogInstanceId = 1U;
+  Ui2DialogSnapshot dialog{};
 };
 
 } // namespace
@@ -1389,6 +1394,41 @@ TEST_CASE("UI2 application runtime consumes the pure state-source boundary") {
   CHECK_FALSE(runtime.Supports(source));
   CHECK(runtime.Present(source) == ui2::PresentResult::Deferred);
   CHECK(presenter.calls == 1);
+}
+
+TEST_CASE("UI2 runtime repaints a stable modal after live base deltas") {
+  RecordingPresenter presenter;
+  ui2::UiApplicationRuntime runtime(presenter);
+  TestApplicationStateSource source;
+  source.dialogActive = true;
+  source.dialog.kind = ui2::UiDialogKind::Message;
+  source.dialog.SetTitle("LIVE ERROR");
+  source.dialog.PushAction(ui2::UiDialogAction::Ok);
+
+  REQUIRE(runtime.Present(source) == ui2::PresentResult::Presented);
+  REQUIRE(presenter.pixels != nullptr);
+  const ui2::RectI16 damage =
+      ui2::UiDialogView::DamageRect(ui2::UiDialogKind::Message);
+  const auto hashDamage = [&]() {
+    std::uint64_t hash = 14695981039346656037ULL;
+    for (std::int16_t y = damage.y; y < damage.Bottom(); ++y) {
+      for (std::int16_t x = damage.x; x < damage.Right(); ++x) {
+        hash ^= presenter.pixels[static_cast<std::size_t>(y) *
+                                     ui2::kScreenWidth +
+                                 static_cast<std::size_t>(x)];
+        hash *= 1099511628211ULL;
+      }
+    }
+    return hash;
+  };
+  const std::uint64_t before = hashDamage();
+
+  // Row 04 / track 4 lies under the modal. Live playback or model changes can
+  // still invalidate it while the modal is open.
+  source.songCell = 1U;
+  source.nowMs = 1U;
+  REQUIRE(runtime.Present(source) == ui2::PresentResult::Presented);
+  CHECK(hashDamage() == before);
 }
 
 TEST_CASE("UI2 persistence status overrides navigation and battery chrome") {

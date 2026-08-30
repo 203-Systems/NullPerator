@@ -230,8 +230,17 @@ UiBuildStatus UiApplicationRuntime::ApplyDialog() {
 }
 
 void UiApplicationRuntime::RenderDialogDelta() {
-  if (!currentDialog_.active || !DialogChanged())
+  if (!currentDialog_.active)
     return;
+  if (!DialogChanged()) {
+    // A non-fullscreen dialog can remain unchanged while playback or input
+    // redraws the base page underneath it. Repaint its bounded damage region
+    // after the base delta so the overlay cannot be partially erased.
+    UiFrameRenderer::RenderRegion(
+        scene_, engine_.Surface(), engine_.Palette(),
+        UiDialogView::DamageRect(currentDialog_.snapshot.kind));
+    return;
+  }
   UiDialogView::RenderDelta(previousDialog_.snapshot.ToViewData(),
                             currentDialog_.snapshot.ToViewData(), scene_,
                             engine_.Surface(), engine_.Palette());
