@@ -48,7 +48,7 @@ jobs:
         run: cmake --build build-host --parallel 1
 
       - name: Run host adapter tests
-        run: ./build-host/picoTracker_tests
+        run: ctest --test-dir build-host --output-on-failure
 
       - name: Install pinned Node
         uses: actions/setup-node@v4
