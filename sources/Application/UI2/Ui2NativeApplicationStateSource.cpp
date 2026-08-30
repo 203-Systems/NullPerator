@@ -315,6 +315,12 @@ Ui2NativeApplicationStateSource::CaptureSong(UiSongFrameState &state) {
         visible >= 0 && visible < 16;
     state.playbackRows[track] =
         visiblePlayback ? static_cast<std::int8_t>(visible) : -1;
+    state.mutedTracks[track] = player->IsChannelMuted(track);
+    const int queued = transport.queueSongRow[track] - controller.RowOffset();
+    if (state.liveMode && state.playing &&
+        transport.queueMode[track] != QM_NONE && queued >= 0 && queued < 16) {
+      state.queuedRows[track] = static_cast<std::int8_t>(queued);
+    }
   }
   state.vuLevelTop = MasterVu();
   return {.active = state.playing};
@@ -348,14 +354,15 @@ Ui2NativeApplicationStateSource::CaptureChain(UiChainFrameState &state) {
   CaptureTrackNotes(state.trackNotes);
   Player *player = Player::GetInstance();
   const PlayerTransportSnapshot transport = player->CaptureTransportSnapshot();
-  const int selectedTrack = controller.SelectedTrack();
-  if (transport.running && selectedTrack >= 0 &&
-      selectedTrack < SONG_CHANNEL_COUNT && transport.mode != PM_AUDITION &&
-      player->IsChannelPlaying(selectedTrack) &&
-      transport.chain[selectedTrack] == controller.Number()) {
-    const int playbackRow = transport.chainRow[selectedTrack];
-    if (playbackRow >= 0 && playbackRow < PHRASES_PER_CHAIN)
-      state.playbackRow = static_cast<std::int8_t>(playbackRow);
+  if (transport.running && transport.mode != PM_AUDITION) {
+    for (std::uint8_t track = 0; track < SONG_CHANNEL_COUNT; ++track) {
+      if (!player->IsChannelPlaying(track) ||
+          transport.chain[track] != controller.Number())
+        continue;
+      const int playbackRow = transport.chainRow[track];
+      if (playbackRow >= 0 && playbackRow < PHRASES_PER_CHAIN)
+        state.playbackRows[track] = static_cast<std::int8_t>(playbackRow);
+    }
   }
   state.vuLevelTop = MasterVu(UiChainView::kMeterHeight);
   return {.active = PlayerRunning()};
@@ -409,14 +416,15 @@ Ui2NativeApplicationStateSource::CapturePhrase(UiPhraseFrameState &state) {
   CaptureTrackNotes(state.trackNotes);
   Player *player = Player::GetInstance();
   const PlayerTransportSnapshot transport = player->CaptureTransportSnapshot();
-  const int selectedTrack = controller.SelectedTrack();
-  if (transport.running && selectedTrack >= 0 &&
-      selectedTrack < SONG_CHANNEL_COUNT && transport.mode != PM_AUDITION &&
-      player->IsChannelPlaying(selectedTrack) &&
-      transport.phrase[selectedTrack] == controller.Number()) {
-    const int playbackRow = transport.phraseRow[selectedTrack];
-    if (playbackRow >= 0 && playbackRow < STEPS_PER_PHRASE)
-      state.playbackRow = static_cast<std::int8_t>(playbackRow);
+  if (transport.running && transport.mode != PM_AUDITION) {
+    for (std::uint8_t track = 0; track < SONG_CHANNEL_COUNT; ++track) {
+      if (!player->IsChannelPlaying(track) ||
+          transport.phrase[track] != controller.Number())
+        continue;
+      const int playbackRow = transport.phraseRow[track];
+      if (playbackRow >= 0 && playbackRow < STEPS_PER_PHRASE)
+        state.playbackRows[track] = static_cast<std::int8_t>(playbackRow);
+    }
   }
   const int selected = base + controller.Row();
   if (controller.Column() <= 1U) {
@@ -499,20 +507,20 @@ Ui2NativeApplicationStateSource::CaptureTable(UiTableFrameState &state) {
       selectedTrack >= 0 && selectedTrack < SONG_CHANNEL_COUNT) {
     Table &visibleTable =
         TableHolder::GetInstance()->GetTable(controller.Number());
-    TablePlayback *playback =
-        &TablePlayback::GetTablePlayback(selectedTrack);
-    if (playback->GetTable() != &visibleTable) {
-      playback = &TablePlayback::GetAutomationPlayback(selectedTrack);
-    }
-    if (playback->GetTable() == &visibleTable) {
-      for (std::uint8_t group = 0U; group < state.playbackRows.size();
-           ++group) {
-        const int playbackRow = playback->GetPlaybackPosition(group);
+    const auto capturePlayback = [&](TablePlayback &playback,
+                                     auto &playbackRows) {
+      if (playback.GetTable() != &visibleTable)
+        return;
+      for (std::uint8_t group = 0U; group < playbackRows.size(); ++group) {
+        const int playbackRow = playback.GetPlaybackPosition(group);
         if (playbackRow >= 0 && playbackRow < TABLE_STEPS)
-          state.playbackRows[group] =
-              static_cast<std::int8_t>(playbackRow);
+          playbackRows[group] = static_cast<std::int8_t>(playbackRow);
       }
-    }
+    };
+    capturePlayback(TablePlayback::GetTablePlayback(selectedTrack),
+                    state.playbackRows);
+    capturePlayback(TablePlayback::GetAutomationPlayback(selectedTrack),
+                    state.automationPlaybackRows);
   }
   const std::uint8_t group = controller.Column() / 2U;
   const FourCC command = group == 0U   ? table.cmd1_[controller.Row()]

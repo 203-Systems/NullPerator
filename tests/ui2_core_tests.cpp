@@ -55,6 +55,7 @@
 #include <array>
 #include <cstdint>
 #include <span>
+#include <utility>
 
 namespace {
 
@@ -510,6 +511,81 @@ TEST_CASE("UI2 tracker row band has rounded corners and crisp straight edges") {
   CHECK(surface.Pixel(6, 46) == fill);
   CHECK(surface.Pixel(5, 47) == fill);
   CHECK(surface.Pixel(217, 46) == corner);
+}
+
+TEST_CASE("UI2 Song distinguishes queued and muted playback ticks") {
+  ui2::UiSongViewData data = ui2::test::ApprovedSongFixture();
+  data.playbackRows.fill(-1);
+  data.queuedRows[0] = 2;
+  data.playbackRows[1] = 3;
+  data.mutedTracks[1] = true;
+  data.editRow = 8;
+  data.editTrack = 0;
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiSongView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+
+  const ui2::RectI16 queued = ui2::UiSongView::PlaybackTickRect(0, 2);
+  const ui2::RectI16 muted = ui2::UiSongView::PlaybackTickRect(1, 3);
+  CHECK(surface.Pixel(queued.x, queued.y) ==
+        palette.Index(ui2::UiColorToken::TextColored));
+  CHECK(surface.Pixel(muted.x, muted.y) ==
+        palette.Index(ui2::UiColorToken::DerivedPlaybackMuted));
+}
+
+TEST_CASE("UI2 tracker detail pages retain every playback source") {
+  ui2::UiPalette palette;
+
+  ui2::UiChainViewData chain = ui2::test::ApprovedChainFixture();
+  chain.playbackRows[0] = 2;
+  chain.playbackRows[3] = 11;
+  ui2::UiFrameScene chainScene;
+  REQUIRE(ui2::UiChainView::Build(chain, palette, chainScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage chainStorage;
+  ui2::UiIndexedSurface chainSurface(chainStorage);
+  ui2::UiFrameRenderer::RenderStatic(chainScene, chainSurface, palette);
+  for (const std::uint8_t row : {2U, 11U}) {
+    const ui2::RectI16 tick = ui2::UiChainView::PlaybackTickRect(row);
+    CHECK(chainSurface.Pixel(tick.x, tick.y) ==
+          palette.Index(ui2::UiColorToken::PlaybackActive));
+  }
+
+  ui2::UiPhraseViewData phrase = ui2::test::ApprovedPhraseFixture("note");
+  phrase.playbackRows[1] = 3;
+  phrase.playbackRows[6] = 12;
+  ui2::UiFrameScene phraseScene;
+  REQUIRE(ui2::UiPhraseView::Build(phrase, palette, phraseScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage phraseStorage;
+  ui2::UiIndexedSurface phraseSurface(phraseStorage);
+  ui2::UiFrameRenderer::RenderStatic(phraseScene, phraseSurface, palette);
+  for (const std::uint8_t row : {3U, 12U}) {
+    const ui2::RectI16 tick = ui2::UiPhraseView::PlaybackTickRect(row);
+    CHECK(phraseSurface.Pixel(tick.x, tick.y) ==
+          palette.Index(ui2::UiColorToken::PlaybackActive));
+  }
+
+  ui2::UiTableViewData table = ui2::test::ApprovedTableFixture("phrase");
+  table.playbackRows[0] = 2;
+  table.automationPlaybackRows[0] = 8;
+  table.automationPlaybackRows[2] = 6;
+  ui2::UiFrameScene tableScene;
+  REQUIRE(ui2::UiTableView::Build(table, palette, tableScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage tableStorage;
+  ui2::UiIndexedSurface tableSurface(tableStorage);
+  ui2::UiFrameRenderer::RenderStatic(tableScene, tableSurface, palette);
+  for (const auto [group, row] :
+       {std::pair<std::uint8_t, std::uint8_t>{0U, 2U}, {0U, 8U}, {2U, 6U}}) {
+    const ui2::RectI16 tick = ui2::UiTableView::PlaybackTickRect(group, row);
+    CHECK(tableSurface.Pixel(tick.x, tick.y) ==
+          palette.Index(ui2::UiColorToken::PlaybackActive));
+  }
 }
 
 TEST_CASE("UI2 tracker headers omit Table VAL and use packed Table columns") {
@@ -1539,6 +1615,8 @@ TEST_CASE("UI2 Song delta rendering is pixel-identical to a full redraw") {
   current.rows[4][2] = 0x7A;
   current.notes[5] = "A#4";
   current.playbackRows[1] = 12;
+  current.queuedRows[4] = 11;
+  current.mutedTracks[1] = true;
   current.vuLevelTop = {41, 9};
   ui2::UiFrameScene currentScene;
   REQUIRE(ui2::UiSongView::Build(current, deltaPalette, currentScene) ==
@@ -1647,6 +1725,8 @@ TEST_CASE("UI2 Phrase delta rendering is pixel-identical to a full redraw") {
   current.editColumn = 2;
   current.activeHeader = ui2::UiPhraseHeader::Fx1;
   current.rows[7][3] = "BEEF";
+  current.playbackRows[1] = 7;
+  current.playbackRows[4] = 12;
   current.cursorBottom = ui2::test::ApprovedPhraseFixture("fx").cursorBottom;
   current.cursorVisualOverride = true;
   current.cursorVisualRect = {75, 76, 20, 9};
@@ -1812,6 +1892,9 @@ TEST_CASE("UI2 Table delta rendering is pixel-identical to a full redraw") {
   current.activeHeader = ui2::UiTableHeader::Fx3;
   current.rows[3][4] = "ARP";
   current.rows[3][5] = "00F4";
+  current.playbackRows[0] = 2;
+  current.automationPlaybackRows[0] = 8;
+  current.automationPlaybackRows[2] = 6;
   current.cursorBottom =
       ui2::test::ApprovedTableFixture("instrument").cursorBottom;
   current.cursorVisualOverride = true;
@@ -2400,6 +2483,8 @@ TEST_CASE("UI2 Chain delta rendering is pixel-identical to a full redraw") {
   ui2::UiChainViewData current = previous;
   current.editRow = 6;
   current.phrases[6] = 0x4C;
+  current.playbackRows[1] = 2;
+  current.playbackRows[4] = 11;
   current.trackNotes[4] = "C#4";
   current.vuLevelTop[1] = 80;
   current.cursorVisualOverride = true;

@@ -23,6 +23,8 @@ struct UiSongViewData {
   std::array<std::array<std::uint8_t, 8>, 16> rows{};
   std::array<std::string_view, 8> notes{};
   std::array<std::int8_t, 8> playbackRows{-1, -1, -1, -1, -1, -1, -1, -1};
+  std::array<std::int8_t, 8> queuedRows{-1, -1, -1, -1, -1, -1, -1, -1};
+  std::array<bool, 8> mutedTracks{};
   std::array<std::uint8_t, 2> vuLevelTop{14, 34};
   std::uint8_t rowOffset = 0;
   std::uint8_t editRow = 8;

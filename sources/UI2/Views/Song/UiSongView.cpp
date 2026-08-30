@@ -212,6 +212,26 @@ void UiSongView::RenderDelta(const UiSongViewData &previous,
         render(CellDamageRect(track, static_cast<std::uint8_t>(currentRow)));
       }
     }
+    if (previous.queuedRows[track] != current.queuedRows[track]) {
+      const std::int8_t previousRow = previous.queuedRows[track];
+      const std::int8_t currentRow = current.queuedRows[track];
+      if (previousRow >= 0 && previousRow < 16 && !rowRendered[previousRow]) {
+        render(CellDamageRect(track, static_cast<std::uint8_t>(previousRow)));
+      }
+      if (currentRow >= 0 && currentRow < 16 && !rowRendered[currentRow]) {
+        render(CellDamageRect(track, static_cast<std::uint8_t>(currentRow)));
+      }
+    }
+    if (previous.mutedTracks[track] != current.mutedTracks[track]) {
+      const std::int8_t previousRow = previous.playbackRows[track];
+      const std::int8_t currentRow = current.playbackRows[track];
+      if (previousRow >= 0 && previousRow < 16 && !rowRendered[previousRow]) {
+        render(CellDamageRect(track, static_cast<std::uint8_t>(previousRow)));
+      }
+      if (currentRow >= 0 && currentRow < 16 && !rowRendered[currentRow]) {
+        render(CellDamageRect(track, static_cast<std::uint8_t>(currentRow)));
+      }
+    }
     if (previous.notes[track] != current.notes[track]) {
       render(BottomTrackDamageRect(track));
     }
@@ -320,7 +340,12 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data, UiPalette &palette,
                        : UiColorToken::TextNormal);
       if (playback && !(target && cursorRect == targetRect)) {
         builder.Fill(PlaybackTickRect(track, row),
-                     UiColorToken::PlaybackActive);
+                     data.mutedTracks[track]
+                         ? UiColorToken::DerivedPlaybackMuted
+                         : UiColorToken::PlaybackActive);
+      }
+      if (data.queuedRows[track] == static_cast<std::int8_t>(row)) {
+        builder.Fill(PlaybackTickRect(track, row), UiColorToken::TextColored);
       }
     }
   }

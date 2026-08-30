@@ -43,6 +43,7 @@ enum class UiColorToken : PaletteIndex {
   DerivedVuTrack,
   DerivedVuSafeLow,
   DerivedCursorRowCorner,
+  DerivedPlaybackMuted,
   Count,
 };
 

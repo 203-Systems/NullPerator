@@ -173,16 +173,21 @@ void UiTableView::RenderDelta(const UiTableViewData &previous,
     render(RowDamageRect(previous.editRow));
     render(RowDamageRect(current.editRow));
   }
-  for (std::uint8_t group = 0U; group < current.playbackRows.size(); ++group) {
-    if (previous.playbackRows[group] == current.playbackRows[group])
-      continue;
-    if (previous.playbackRows[group] >= 0 && previous.playbackRows[group] < 16)
-      render(RowDamageRect(
-          static_cast<std::uint8_t>(previous.playbackRows[group])));
-    if (current.playbackRows[group] >= 0 && current.playbackRows[group] < 16)
-      render(RowDamageRect(
-          static_cast<std::uint8_t>(current.playbackRows[group])));
-  }
+  const auto renderPlaybackChanges = [&](const auto &previousRows,
+                                         const auto &currentRows) {
+    for (std::uint8_t group = 0U; group < currentRows.size(); ++group) {
+      if (previousRows[group] == currentRows[group])
+        continue;
+      if (previousRows[group] >= 0 && previousRows[group] < 16)
+        render(RowDamageRect(
+            static_cast<std::uint8_t>(previousRows[group])));
+      if (currentRows[group] >= 0 && currentRows[group] < 16)
+        render(RowDamageRect(static_cast<std::uint8_t>(currentRows[group])));
+    }
+  };
+  renderPlaybackChanges(previous.playbackRows, current.playbackRows);
+  renderPlaybackChanges(previous.automationPlaybackRows,
+                        current.automationPlaybackRows);
   if (oldCursor != newCursor ||
       previous.cursorInkVisible != current.cursorInkVisible) {
     render(ExpandedCursorDamage(oldCursor));
@@ -305,25 +310,35 @@ UiBuildStatus UiTableView::Build(const UiTableViewData &data, UiPalette &,
       }
       builder.Text(value, kColumnX[column], y, color);
     }
-    for (std::uint8_t group = 0U; group < data.playbackRows.size(); ++group) {
-      if (data.playbackRows[group] == static_cast<std::int8_t>(row))
-        builder.Fill(PlaybackTickRect(group, row),
-                     UiColorToken::PlaybackActive);
+  }
+  for (std::uint8_t group = 0U; group < data.playbackRows.size(); ++group) {
+    const std::array<std::int8_t, 2> playbackRows{
+        data.playbackRows[group], data.automationPlaybackRows[group]};
+    for (const std::int8_t playbackRow : playbackRows) {
+      if (playbackRow >= 0 && playbackRow < 16)
+        builder.Fill(
+            PlaybackTickRect(group, static_cast<std::uint8_t>(playbackRow)),
+            UiColorToken::PlaybackActive);
     }
   }
   if (!data.numberFocus) {
     const RectI16 cursor = ResolvedCursorRect(data);
     bool cursorOverPlayback = false;
     for (std::uint8_t group = 0U; group < data.playbackRows.size(); ++group) {
-      const std::int8_t playbackRow = data.playbackRows[group];
-      if (playbackRow >= 0 && playbackRow < 16 &&
-          !Intersect(cursor,
-                     PlaybackTickRect(group,
-                                      static_cast<std::uint8_t>(playbackRow)))
-               .Empty()) {
-        cursorOverPlayback = true;
-        break;
+      const std::array<std::int8_t, 2> playbackRows{
+          data.playbackRows[group], data.automationPlaybackRows[group]};
+      for (const std::int8_t playbackRow : playbackRows) {
+        if (playbackRow >= 0 && playbackRow < 16 &&
+            !Intersect(cursor,
+                       PlaybackTickRect(
+                           group, static_cast<std::uint8_t>(playbackRow)))
+                 .Empty()) {
+          cursorOverPlayback = true;
+          break;
+        }
       }
+      if (cursorOverPlayback)
+        break;
     }
     builder.Selection(cursor, cursorOverPlayback);
     if (data.cursorInkVisible && data.editRow < 16U &&

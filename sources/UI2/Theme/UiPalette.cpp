@@ -98,6 +98,10 @@ void UiPalette::RebuildDerivedColors() {
          Composite(Get(Index(UiColorToken::CursorRow)),
                    UiCursorElement::kCornerAlpha,
                    Get(Index(UiColorToken::SurfaceBackground))));
+  SetRaw(Index(UiColorToken::DerivedPlaybackMuted),
+         Composite(Get(Index(UiColorToken::PlaybackActive)),
+                   UiCursorElement::kCornerAlpha,
+                   Get(Index(UiColorToken::SurfaceBackground))));
 
   // The cursor corner coverage belongs to the cursor element. It is generated
   // once after a theme edit and cached as indexed colors for the ESP32 path.

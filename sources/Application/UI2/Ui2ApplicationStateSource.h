@@ -67,6 +67,8 @@ struct UiSongFrameState {
   std::array<std::array<std::uint8_t, 8>, 16> rows{};
   std::array<std::array<char, 5>, 8> notes{};
   std::array<std::int8_t, 8> playbackRows{-1, -1, -1, -1, -1, -1, -1, -1};
+  std::array<std::int8_t, 8> queuedRows{-1, -1, -1, -1, -1, -1, -1, -1};
+  std::array<bool, 8> mutedTracks{};
   std::array<std::uint8_t, 2> vuLevelTop{153, 153};
   std::uint8_t rowOffset = 0;
   std::uint8_t editRow = 0;
@@ -121,7 +123,7 @@ struct UiChainFrameState {
   bool adjustmentFocus = false;
   bool selectionActive = false;
   bool navHeld = false;
-  std::int8_t playbackRow = -1;
+  std::array<std::int8_t, 8> playbackRows{-1, -1, -1, -1, -1, -1, -1, -1};
   UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
 
@@ -159,7 +161,7 @@ struct UiPhraseFrameState {
   bool adjustmentFocus = false;
   bool selectionActive = false;
   bool navHeld = false;
-  std::int8_t playbackRow = -1;
+  std::array<std::int8_t, 8> playbackRows{-1, -1, -1, -1, -1, -1, -1, -1};
   UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
 
@@ -206,6 +208,7 @@ struct UiTableFrameState {
   bool selectionActive = false;
   bool navHeld = false;
   std::array<std::int8_t, 3> playbackRows{-1, -1, -1};
+  std::array<std::int8_t, 3> automationPlaybackRows{-1, -1, -1};
   UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
 

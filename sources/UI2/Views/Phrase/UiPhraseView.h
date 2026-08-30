@@ -51,7 +51,7 @@ struct UiPhraseViewData {
   bool numberFocus = false;
   bool adjustmentFocus = false;
   bool selectionActive = false;
-  std::int8_t playbackRow = -1;
+  std::array<std::int8_t, 8> playbackRows{-1, -1, -1, -1, -1, -1, -1, -1};
   UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
 };

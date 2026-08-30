@@ -188,11 +188,15 @@ void UiPhraseView::RenderDelta(const UiPhraseViewData &previous,
     render(RowDamageRect(previous.editRow));
     render(RowDamageRect(current.editRow));
   }
-  if (previous.playbackRow != current.playbackRow) {
-    if (previous.playbackRow >= 0 && previous.playbackRow < 16)
-      render(RowDamageRect(static_cast<std::uint8_t>(previous.playbackRow)));
-    if (current.playbackRow >= 0 && current.playbackRow < 16)
-      render(RowDamageRect(static_cast<std::uint8_t>(current.playbackRow)));
+  for (std::uint8_t track = 0U; track < current.playbackRows.size(); ++track) {
+    if (previous.playbackRows[track] == current.playbackRows[track])
+      continue;
+    if (previous.playbackRows[track] >= 0 && previous.playbackRows[track] < 16)
+      render(RowDamageRect(
+          static_cast<std::uint8_t>(previous.playbackRows[track])));
+    if (current.playbackRows[track] >= 0 && current.playbackRows[track] < 16)
+      render(RowDamageRect(
+          static_cast<std::uint8_t>(current.playbackRows[track])));
   }
   if (previousCursor != currentCursor ||
       previous.cursorInkVisible != current.cursorInkVisible) {
@@ -332,18 +336,25 @@ UiBuildStatus UiPhraseView::Build(const UiPhraseViewData &data, UiPalette &,
                    IsDimValue(value) ? UiColorToken::DerivedTextFaint
                                      : UiColorToken::TextNormal);
     }
-    if (data.playbackRow == static_cast<std::int8_t>(row))
-      builder.Fill(PlaybackTickRect(row), UiColorToken::PlaybackActive);
+  }
+  for (const std::int8_t playbackRow : data.playbackRows) {
+    if (playbackRow >= 0 && playbackRow < 16)
+      builder.Fill(PlaybackTickRect(static_cast<std::uint8_t>(playbackRow)),
+                   UiColorToken::PlaybackActive);
   }
 
   if (!data.numberFocus) {
     const RectI16 cursor = ResolvedCursorRect(data);
-    const bool cursorOverPlayback =
-        data.playbackRow >= 0 && data.playbackRow < 16 &&
-        !Intersect(cursor,
-                   PlaybackTickRect(
-                       static_cast<std::uint8_t>(data.playbackRow)))
-             .Empty();
+    bool cursorOverPlayback = false;
+    for (const std::int8_t playbackRow : data.playbackRows) {
+      if (playbackRow >= 0 && playbackRow < 16 &&
+          !Intersect(cursor,
+                     PlaybackTickRect(static_cast<std::uint8_t>(playbackRow)))
+               .Empty()) {
+        cursorOverPlayback = true;
+        break;
+      }
+    }
     builder.Selection(cursor, cursorOverPlayback);
     if (data.cursorInkVisible && data.editRow < 16U &&
         data.editColumn < kColumnX.size()) {
