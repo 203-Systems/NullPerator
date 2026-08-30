@@ -30,7 +30,6 @@ public:
     enum class Direction : uint8_t { Out, In };
 
     static constexpr uint8_t kBaseAddress = 0x20;
-    static constexpr uint16_t kAllLow = 0x0000;
     static constexpr uint16_t kAllHigh = 0xFFFF;
 
     void Attach(i2c_master_dev_handle_t deviceHandle);

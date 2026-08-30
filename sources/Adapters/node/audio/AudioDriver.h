@@ -30,12 +30,9 @@ public:
   void SetVolume(int v);
   int GetVolume();
   virtual double GetStreamTime();
-  static void IRQHandler();
   static void BufferNeeded();
 
 private:
-  static bool i2s_tx_done_callback(i2s_chan_handle_t handle, i2s_event_data_t *event, void *user_ctx);
-  static bool i2s_tx_overflow_callback(i2s_chan_handle_t handle, i2s_event_data_t *event, void *user_ctx);
   static void AudioThread(void* arg);
   static void I2SThread(void* arg);
   static NodeAudioDriver *instance_;
