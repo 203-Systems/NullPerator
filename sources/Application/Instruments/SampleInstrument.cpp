@@ -32,7 +32,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "Application/Player/SyncMaster.h"
 #include "SampleInstrumentDatas.h"
 #include "SampleInstrumentParameterLimits.h"
 
