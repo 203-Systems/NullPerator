@@ -101,7 +101,7 @@ public:
   CaptureSong(ui2::UiSongFrameState &state) override {
     state = {};
     state.name = {'T', 'E', 'S', 'T'};
-    state.rows[4][3] = songCell;
+    state.rows[songCellRow][3] = songCell;
     return {};
   }
   ui2::UiApplicationActivityState
@@ -176,6 +176,7 @@ public:
   bool navigationHeld = false;
   bool dialogActive = false;
   std::uint8_t songCell = 0;
+  std::uint8_t songCellRow = 4U;
   std::uint32_t dialogInstanceId = 1U;
   Ui2DialogSnapshot dialog{};
 };
@@ -1425,6 +1426,40 @@ TEST_CASE("UI2 runtime repaints a stable modal after live base deltas") {
 
   // Row 04 / track 4 lies under the modal. Live playback or model changes can
   // still invalidate it while the modal is open.
+  source.songCell = 1U;
+  source.nowMs = 1U;
+  REQUIRE(runtime.Present(source) == ui2::PresentResult::Presented);
+  CHECK(hashDamage() == before);
+}
+
+TEST_CASE("UI2 runtime repaints stable feedback after live base deltas") {
+  RecordingPresenter presenter;
+  ui2::UiApplicationRuntime runtime(presenter);
+  TestApplicationStateSource source;
+  source.dialogActive = true;
+  source.dialog.kind = ui2::UiDialogKind::Feedback;
+  source.dialog.tone = ui2::UiDialogTone::Error;
+  source.dialog.SetTitle("NO FREE TABLE");
+  source.songCellRow = 14U;
+
+  REQUIRE(runtime.Present(source) == ui2::PresentResult::Presented);
+  REQUIRE(presenter.pixels != nullptr);
+  const ui2::RectI16 damage =
+      ui2::UiDialogView::DamageRect(ui2::UiDialogKind::Feedback);
+  const auto hashDamage = [&]() {
+    std::uint64_t hash = 14695981039346656037ULL;
+    for (std::int16_t y = damage.y; y < damage.Bottom(); ++y) {
+      for (std::int16_t x = damage.x; x < damage.Right(); ++x) {
+        hash ^= presenter.pixels[static_cast<std::size_t>(y) *
+                                     ui2::kScreenWidth +
+                                 static_cast<std::size_t>(x)];
+        hash *= 1099511628211ULL;
+      }
+    }
+    return hash;
+  };
+  const std::uint64_t before = hashDamage();
+
   source.songCell = 1U;
   source.nowMs = 1U;
   REQUIRE(runtime.Present(source) == ui2::PresentResult::Presented);

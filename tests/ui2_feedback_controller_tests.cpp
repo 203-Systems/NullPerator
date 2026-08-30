@@ -37,6 +37,11 @@ TEST_CASE("UI2 feedback replacement refreshes identity and wrap-safe timing") {
   feedback.ShowError("FAILED", 0x00000020U);
   CHECK(feedback.InstanceId() == first + 1U);
   CHECK(std::strcmp(feedback.Snapshot().title.data(), "FAILED") == 0);
+
+  feedback.ShowMessage("WRAP", 0xFFFFFF00U);
+  CHECK_FALSE(feedback.Tick(0x00000607U));
+  CHECK(feedback.Tick(0x00000608U));
+  CHECK_FALSE(feedback.Active());
 }
 
 TEST_CASE("UI2 feedback truncates owned text and ignores empty publishes") {
