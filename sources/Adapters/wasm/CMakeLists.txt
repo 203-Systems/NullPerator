@@ -42,14 +42,12 @@ add_library(platform_audio
   audio/AudioRenderOracle.cpp
   audio/AudioWorklet.cpp
   audio/OutputResampler.cpp
-  audio/PcmRingBuffer.cpp
   audio/WasmAudio.cpp
   audio/WasmAudioDriver.cpp)
 target_include_directories(platform_audio PUBLIC "${PROJECT_SOURCE_DIR}")
 target_link_libraries(platform_audio PUBLIC platform_snapshot)
 
 add_library(platform_midi
-  midi/MidiByteQueue.cpp
   midi/MidiLatencyTrace.cpp
   midi/WasmMidiInDevice.cpp
   midi/WasmMidiOutDevice.cpp
@@ -61,7 +59,6 @@ target_include_directories(platform_logging PUBLIC "${PROJECT_SOURCE_DIR}")
 
 add_library(platform_tracing
   tracing/InputFrameLatencyTracker.cpp
-  tracing/TraceRingBuffer.cpp
   tracing/WasmProfiler.cpp
   tracing/Benchmark.cpp)
 target_include_directories(platform_tracing PUBLIC "${PROJECT_SOURCE_DIR}")
