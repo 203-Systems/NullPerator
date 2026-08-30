@@ -7,6 +7,7 @@ enable_testing()
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+include_directories(${CMAKE_CURRENT_LIST_DIR}/../sources/Externals/etl/include)
 
 add_executable(picoTracker_tests
   test_main.cpp
