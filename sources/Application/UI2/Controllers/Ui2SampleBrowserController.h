@@ -61,18 +61,15 @@ public:
   using SampleUseQuery = bool (*)(void *context, const char *filename);
 
   bool Open(const char *projectName, std::uint8_t instrument) {
-    Close();
-    if (projectName == nullptr || projectName[0] == '\0')
-      return false;
-    std::snprintf(projectName_.data(), projectName_.size(), "%s", projectName);
-    instrument_ = instrument;
-    active_ = true;
-    mode_ = Ui2SampleBrowserMode::ProjectPool;
-    if (!JumpToModeRoot()) {
-      Close();
-      return false;
-    }
-    return true;
+    return OpenAtMode(projectName, instrument,
+                      Ui2SampleBrowserMode::ProjectPool);
+  }
+
+  // Diagnostic and host preview surfaces may need to enter the same import
+  // controller state that the product reaches after selecting IMPORT. Keep
+  // that entry typed so callers do not have to synthesize a held-key chord.
+  bool OpenLibrary(const char *projectName, std::uint8_t instrument) {
+    return OpenAtMode(projectName, instrument, Ui2SampleBrowserMode::Library);
   }
 
   void Close() {
@@ -357,6 +354,22 @@ public:
   }
 
 private:
+  bool OpenAtMode(const char *projectName, std::uint8_t instrument,
+                  Ui2SampleBrowserMode mode) {
+    Close();
+    if (projectName == nullptr || projectName[0] == '\0')
+      return false;
+    std::snprintf(projectName_.data(), projectName_.size(), "%s", projectName);
+    instrument_ = instrument;
+    active_ = true;
+    mode_ = mode;
+    if (!JumpToModeRoot()) {
+      Close();
+      return false;
+    }
+    return true;
+  }
+
   [[nodiscard]] static constexpr std::uint16_t ToggleChordMask() {
     return TrackerActionBit(TrackerAction::Shift) |
            TrackerActionBit(TrackerAction::Option);

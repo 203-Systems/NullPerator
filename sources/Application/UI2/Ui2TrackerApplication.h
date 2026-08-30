@@ -51,6 +51,13 @@ struct Ui2StartupOptions final {
   bool forceUntitledProject = false;
 };
 
+enum class Ui2DiagnosticBrowser : std::uint8_t {
+  Project,
+  Instrument,
+  SampleImport,
+  Theme,
+};
+
 static_assert(std::is_trivially_copyable_v<Ui2StartupOptions>);
 static_assert(sizeof(Ui2StartupOptions) == 1U,
               "startup options must remain an embedded-friendly value type");
@@ -85,6 +92,10 @@ public:
   }
   [[nodiscard]] UiApplicationPage ActivePage() const { return activePage_; }
   bool ActivatePage(UiApplicationPage page);
+  // Acceptance diagnostics enter real controller states through these typed
+  // boundaries. Normal product navigation remains action-driven.
+  bool ActivateDiagnosticTable(Ui2TrackerPage tablePage);
+  bool ActivateDiagnosticBrowser(Ui2DiagnosticBrowser browser);
 
 private:
   void DispatchLogicalAction(TrackerAction action, bool pressed);

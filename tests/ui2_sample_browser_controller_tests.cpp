@@ -164,6 +164,24 @@ TEST_CASE("UI2 Sample Browser opens the approved project-pool state") {
   CHECK(std::strcmp(snapshot.actions[2].data(), "DELETE") == 0);
 }
 
+TEST_CASE("UI2 Sample Browser can enter the import library directly") {
+  using namespace ui2;
+  SampleBrowserFileSystem fileSystem;
+  Ui2SampleBrowserController controller;
+  REQUIRE(controller.OpenLibrary("DEMO", 2U));
+
+  CHECK(controller.Mode() == Ui2SampleBrowserMode::Library);
+  const Ui2BrowserSnapshot snapshot = controller.Snapshot(60);
+  CHECK(std::strcmp(snapshot.title.data(), "IMPORT") == 0);
+  CHECK(std::strcmp(snapshot.meta.data(), "02") == 0);
+  REQUIRE(snapshot.visibleItemCount == 2U);
+  CHECK(std::strcmp(snapshot.items[0].data(), "~KICK.WAV") == 0);
+  CHECK(std::strcmp(snapshot.items[1].data(), "/DRUMS") == 0);
+  REQUIRE(snapshot.actionCount == 3U);
+  CHECK(std::strcmp(snapshot.actions[0].data(), "IMPORT") == 0);
+  CHECK(std::strcmp(snapshot.actions[2].data(), "BACK") == 0);
+}
+
 TEST_CASE("UI2 Sample Browser keeps project pool flat and root-addressed") {
   using namespace ui2;
   SampleBrowserFileSystem fileSystem;

@@ -62,19 +62,19 @@ ui2::UiApplicationPage NativePageForDiagnostic(std::uint32_t view) {
     return Page::Instrument;
   case VT_TABLE:
   case VT_TABLE2:
-    return Page::Table;
+  case VT_IMPORT:
+  case VT_INSTRUMENT_IMPORT:
+  case VT_SELECTPROJECT:
+    return Page::None;
   case VT_GROOVE:
     return Page::Groove;
   case VT_MIXER:
     return Page::Mixer;
-  case VT_IMPORT:
-  case VT_INSTRUMENT_IMPORT:
-  case VT_SELECTPROJECT:
-  case VT_SELECTTHEME:
-  case VT_THEME_IMPORT:
-    return Page::Browser;
   case VT_THEME:
     return Page::Theme;
+  case VT_SELECTTHEME:
+  case VT_THEME_IMPORT:
+    return Page::None;
   case VT_SAMPLE_EDITOR:
     return Page::SampleEditor;
   case VT_SAMPLE_SLICES:
@@ -86,6 +86,36 @@ ui2::UiApplicationPage NativePageForDiagnostic(std::uint32_t view) {
   default:
     return Page::None;
   }
+}
+
+bool ActivateDiagnosticView(ui2::Ui2TrackerApplication &application,
+                            std::uint32_t view) {
+  using Browser = ui2::Ui2DiagnosticBrowser;
+  switch (view) {
+  case VT_TABLE:
+    return application.ActivateDiagnosticTable(
+        ui2::Ui2TrackerPage::PhraseTable);
+  case VT_TABLE2:
+    return application.ActivateDiagnosticTable(
+        ui2::Ui2TrackerPage::InstrumentTable);
+  case VT_IMPORT:
+    return application.ActivateDiagnosticBrowser(Browser::SampleImport);
+  case VT_INSTRUMENT_IMPORT:
+    return application.ActivateDiagnosticBrowser(Browser::Instrument);
+  case VT_SELECTPROJECT:
+    return application.ActivateDiagnosticBrowser(Browser::Project);
+  case VT_SELECTTHEME:
+  case VT_THEME_IMPORT:
+    return application.ActivateDiagnosticBrowser(Browser::Theme);
+  default:
+    break;
+  }
+
+  const ui2::UiApplicationPage page = NativePageForDiagnostic(view);
+  if (page == ui2::UiApplicationPage::None)
+    return false;
+  (void)application.ActivatePage(page);
+  return application.ActivePage() == page;
 }
 } // namespace
 
@@ -167,9 +197,7 @@ void WasmEventManager::PumpFrame() {
   const std::uint32_t requestedView = requestedDiagnosticView_.exchange(
       NoDiagnosticView, std::memory_order_acq_rel);
   if (requestedView != NoDiagnosticView) {
-    const ui2::UiApplicationPage page = NativePageForDiagnostic(requestedView);
-    if (page != ui2::UiApplicationPage::None) {
-      application.ActivatePage(page);
+    if (ActivateDiagnosticView(application, requestedView)) {
       diagnosticViewAwaitingDraw_ = requestedView;
     } else {
       diagnosticView_.store(NoDiagnosticView, std::memory_order_release);

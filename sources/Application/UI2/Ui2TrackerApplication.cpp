@@ -673,6 +673,69 @@ bool Ui2TrackerApplication::ActivatePage(UiApplicationPage page) {
   return changed;
 }
 
+bool Ui2TrackerApplication::ActivateDiagnosticTable(
+    Ui2TrackerPage tablePage) {
+  if (tablePage != Ui2TrackerPage::PhraseTable &&
+      tablePage != Ui2TrackerPage::InstrumentTable)
+    return false;
+  (void)ActivatePage(UiApplicationPage::Table);
+  if (activePage_ != UiApplicationPage::Table)
+    return false;
+  if (tracker_.Hub().Activate(tablePage)) {
+    modelPort_.StoreGridNavigation(tracker_.Hub().Navigation());
+    runtime_.Invalidate();
+  }
+  return true;
+}
+
+bool Ui2TrackerApplication::ActivateDiagnosticBrowser(
+    Ui2DiagnosticBrowser browser) {
+  (void)ActivatePage(UiApplicationPage::Browser);
+  if (activePage_ != UiApplicationPage::Browser)
+    return false;
+
+  settingsBrowser_.Close();
+  CloseSampleBrowser();
+  instrumentBrowserActive_ = false;
+  source_.SetInstrumentBrowserActive(false);
+
+  switch (browser) {
+  case Ui2DiagnosticBrowser::Project:
+    // The project controller remains the browser source even when refreshing
+    // an unavailable directory produces an empty diagnostic state.
+    (void)projectBrowser_.Refresh(session_.ProjectName());
+    break;
+  case Ui2DiagnosticBrowser::Instrument:
+    if (!instrumentBrowser_.Refresh())
+      instrumentBrowser_.SetError("INSTRUMENT BROWSER FAILED");
+    instrumentBrowserActive_ = true;
+    source_.SetInstrumentBrowserActive(true);
+    break;
+  case Ui2DiagnosticBrowser::SampleImport: {
+    const std::uint8_t instrument = static_cast<std::uint8_t>(
+        session_.EditorState().currentInstrumentID_);
+    if (!sampleBrowser_.OpenLibrary(session_.ProjectName(), instrument))
+      return false;
+    break;
+  }
+  case Ui2DiagnosticBrowser::Theme: {
+    std::array<char, MAX_THEME_NAME_LENGTH + 1U> currentName{};
+    if (Config *config = Config::GetInstance()) {
+      if (Variable *name = config->FindVariable(FourCC::VarThemeName))
+        std::snprintf(currentName.data(), currentName.size(), "%s",
+                      name->GetString().c_str());
+    }
+    (void)settingsBrowser_.OpenTheme(currentName.data());
+    break;
+  }
+  }
+
+  // Consecutive diagnostic browser requests keep the same application page,
+  // so the controller-mode change itself must invalidate the native frame.
+  runtime_.Invalidate();
+  return true;
+}
+
 void Ui2TrackerApplication::HandleProject(TrackerAction action, bool pressed) {
   if (!projectInput_.Update(action, pressed))
     return;
