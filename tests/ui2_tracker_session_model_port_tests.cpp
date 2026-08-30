@@ -152,7 +152,7 @@ TEST_CASE("UI2 model port clips clipboard paste at Song boundaries") {
   CHECK(port.ProjectMutationGeneration() == 1U);
 }
 
-TEST_CASE("UI2 model port jumps between populated Song sections") {
+TEST_CASE("UI2 Song controller jumps through the model port between sections") {
   TrackerApplicationSession session;
   Ui2TrackerSessionModelPort port(session);
   Song &song = session.ProjectModel().song_;
@@ -165,17 +165,72 @@ TEST_CASE("UI2 model port jumps between populated Song sections") {
   for (int row = 5; row <= 6; ++row)
     song.data_[row * SONG_CHANNEL_COUNT] = static_cast<std::uint8_t>(row);
 
-  Ui2TrackerCommand jump = GridCommand(
-      Ui2TrackerCommandType::JumpSection, Ui2TrackerPage::Song, 1, 0);
-  jump.track = 0U;
-  jump.value = 1;
-  port.ApplyGridCommand(jump);
+  ui2::Ui2TrackerCommandExecutor executor(port);
+  CHECK(executor.Handle(TrackerAction::Option, true).Empty());
+  const auto next = executor.Handle(TrackerAction::Down, true);
+  REQUIRE(next.count == 1U);
+  CHECK(next[0].type == Ui2TrackerCommandType::JumpSection);
+  CHECK(next[0].row == 1U);
+  CHECK(next[0].track == 0U);
+  CHECK(next[0].value == 1);
   CHECK(editor.songOffset_ + editor.songY_ == 5);
+  CHECK(executor.ActiveState().rowOffset + executor.ActiveState().row == 5U);
+  executor.Handle(TrackerAction::Down, false);
+  executor.Handle(TrackerAction::Option, false);
 
-  jump.row = 5U;
-  jump.value = -1;
-  port.ApplyGridCommand(jump);
+  CHECK(executor.Handle(TrackerAction::Option, true).Empty());
+  const auto previous = executor.Handle(TrackerAction::Up, true);
+  REQUIRE(previous.count == 1U);
+  CHECK(previous[0].type == Ui2TrackerCommandType::JumpSection);
+  CHECK(previous[0].row == 5U);
+  CHECK(previous[0].track == 0U);
+  CHECK(previous[0].value == -1);
   CHECK(editor.songOffset_ + editor.songY_ == 0);
+  CHECK(executor.ActiveState().rowOffset + executor.ActiveState().row == 0U);
+}
+
+TEST_CASE("UI2 Song JumpSection keeps the cursor when no target section exists") {
+  struct NoTargetCase {
+    bool populateEveryRow;
+    TrackerAction direction;
+    int commandValue;
+  };
+  constexpr NoTargetCase cases[] = {
+      {false, TrackerAction::Up, -1},
+      {false, TrackerAction::Down, 1},
+      {true, TrackerAction::Up, -1},
+      {true, TrackerAction::Down, 1},
+  };
+
+  for (const NoTargetCase &testCase : cases) {
+    CAPTURE(testCase.populateEveryRow);
+    CAPTURE(testCase.commandValue);
+    TrackerApplicationSession session;
+    Ui2TrackerSessionModelPort port(session);
+    TrackerSessionState &editor = session.EditorState();
+    Song &song = session.ProjectModel().song_;
+    editor.songX_ = 3;
+    editor.songY_ = 10;
+    editor.songOffset_ = 32;
+    if (testCase.populateEveryRow) {
+      for (int row = 0; row < SONG_ROW_COUNT; ++row)
+        song.data_[row * SONG_CHANNEL_COUNT + 3] = 0U;
+    }
+
+    ui2::Ui2TrackerCommandExecutor executor(port);
+    CHECK(executor.Handle(TrackerAction::Option, true).Empty());
+    const auto jump = executor.Handle(testCase.direction, true);
+    REQUIRE(jump.count == 1U);
+    CHECK(jump[0].type == Ui2TrackerCommandType::JumpSection);
+    CHECK(jump[0].row == 42U);
+    CHECK(jump[0].track == 3U);
+    CHECK(jump[0].value == testCase.commandValue);
+
+    CHECK(editor.songOffset_ == 32);
+    CHECK(editor.songY_ == 10);
+    CHECK(executor.ActiveState().rowOffset == 32U);
+    CHECK(executor.ActiveState().row == 10U);
+  }
 }
 
 TEST_CASE("UI2 model port cuts and pastes all Table cell kinds") {

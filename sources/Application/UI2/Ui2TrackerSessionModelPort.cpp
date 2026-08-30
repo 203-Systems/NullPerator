@@ -406,14 +406,22 @@ void Ui2TrackerSessionModelPort::ApplyGridCommand(
     int current = std::clamp<int>(command.row, 0, SONG_ROW_COUNT - 1);
     const int direction = command.value < 0 ? -1 : 1;
     bool foundGap = false;
+    bool foundTarget = false;
     for (int count = 0; count < SONG_ROW_COUNT; ++count) {
       const std::uint8_t value =
           song.data_[current * SONG_CHANNEL_COUNT + command.track];
-      if (foundGap && value != 0xFFU)
+      if (foundGap && value != 0xFFU) {
+        foundTarget = true;
         break;
+      }
       foundGap = foundGap || value == 0xFFU;
       current = (current + direction + SONG_ROW_COUNT) % SONG_ROW_COUNT;
     }
+    // A completely empty track has no section to select; a completely full
+    // track has no separating gap. In both cases a full circular scan must be
+    // a no-op instead of manufacturing a different cursor for UP only.
+    if (!foundTarget)
+      break;
     if (direction < 0) {
       while (current > 0 &&
              song.data_[current * SONG_CHANNEL_COUNT + command.track] != 0xFFU)
