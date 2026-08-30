@@ -369,14 +369,6 @@ void WasmEventManager::PostQuitMessage() {
   PicoTracker_Wasm_RequestShutdown();
 }
 
-int WasmEventManager::GetKeyCode(const char *name) {
-  if (name == nullptr) {
-    return -1;
-  }
-  const SDL_Scancode scanCode = SDL_GetScancodeFromName(name);
-  return scanCode == SDL_SCANCODE_UNKNOWN ? -1 : static_cast<int>(scanCode);
-}
-
 void WasmViewDiagnostics_Request(std::uint32_t viewType) noexcept {
   WasmEventManager::GetInstance()->RequestDiagnosticView(viewType);
 }

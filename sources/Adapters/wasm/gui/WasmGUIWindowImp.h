@@ -19,8 +19,6 @@ class WasmGUIWindowImp final : public ui2::IUiPresenter {
 public:
   static constexpr int CanvasWidth = 240;
   static constexpr int CanvasHeight = 240;
-  static constexpr int SourceWidth = 240;
-  static constexpr int SourceHeight = 240;
 
   WasmGUIWindowImp();
   ~WasmGUIWindowImp() override;

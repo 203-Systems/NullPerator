@@ -17,7 +17,6 @@ public:
   bool Init();
   int MainLoop();
   void PostQuitMessage();
-  int GetKeyCode(const char *name);
 
   void RequestDiagnosticView(std::uint32_t viewType);
   void RequestDiagnosticModal(std::uint32_t modalType);
