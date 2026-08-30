@@ -11,7 +11,6 @@
 #define _WAV_FILE_WRITER_H_
 
 #include "Application/Utils/fixed.h"
-#include "Services/Audio/AudioDriver.h"
 #include "System/FileSystem/FileSystem.h"
 #include <cstddef>
 #include <cstdint>
@@ -53,9 +52,11 @@ public:
                 SampleEditProgressCallback progressCallback = nullptr);
 
 private:
+  static constexpr int kWriteChunkFrames = 256;
   int sampleCount_;
-  // Buffer in AXI RAM since it has to be reachable by DMA perif
-  __attribute__((aligned(32))) static short buffer_[MAX_SAMPLE_COUNT * 2];
+  // Recording converts and writes in bounded chunks instead of permanently
+  // reserving enough internal SRAM for the largest possible mixer callback.
+  __attribute__((aligned(32))) static short buffer_[kWriteChunkFrames * 2];
   FileHandle file_;
 };
 #endif

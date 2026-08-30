@@ -15,7 +15,7 @@
 #include <cstring>
 #include <limits>
 
-short WavFileWriter::buffer_[MAX_SAMPLE_COUNT * 2];
+short WavFileWriter::buffer_[WavFileWriter::kWriteChunkFrames * 2];
 
 inline void reportProgress(SampleEditProgressCallback callback,
                            uint32_t processed, uint32_t total) {
@@ -54,27 +54,32 @@ WavFileWriter::~WavFileWriter() { Close(); }
 
 void WavFileWriter::AddBuffer(fixed *bufferIn, int size) {
 
-  if (!file_)
+  if (!file_ || bufferIn == nullptr || size <= 0)
     return;
 
-  short *s = buffer_;
   fixed *p = bufferIn;
+  const fixed f_32767 = i2fp(32767);
+  const fixed f_m32768 = i2fp(-32768);
+  int framesRemaining = size;
 
-  fixed v;
-  fixed f_32767 = i2fp(32767);
-  fixed f_m32768 = i2fp(-32768);
+  while (framesRemaining > 0) {
+    const int chunkFrames = std::min(framesRemaining, kWriteChunkFrames);
+    const int chunkSamples = chunkFrames * 2;
+    short *output = buffer_;
 
-  for (int i = 0; i < size * 2; i++) {
-    // Left
-    v = *p++;
-    if (v > f_32767) {
-      v = f_32767;
-    } else if (v < f_m32768) {
-      v = f_m32768;
+    for (int i = 0; i < chunkSamples; ++i) {
+      fixed value = *p++;
+      if (value > f_32767) {
+        value = f_32767;
+      } else if (value < f_m32768) {
+        value = f_m32768;
+      }
+      *output++ = short(fp2i(value));
     }
-    *s++ = short(fp2i(v));
-  };
-  file_->Write(buffer_, 2, size * 2);
+
+    file_->Write(buffer_, sizeof(short), chunkSamples);
+    framesRemaining -= chunkFrames;
+  }
   sampleCount_ += size;
 };
 
