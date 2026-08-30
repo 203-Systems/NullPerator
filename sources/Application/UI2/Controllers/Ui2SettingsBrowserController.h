@@ -157,7 +157,7 @@ public:
         mode_ == Ui2SettingsBrowserMode::Font ? "FONTS" : "THEMES");
     Ui2BrowserSnapshot::CopyText(
         snapshot.meta,
-        mode_ == Ui2SettingsBrowserMode::Font ? "BUILT-IN" : "PTT");
+        mode_ == Ui2SettingsBrowserMode::Font ? "BUILT-IN" : "NPT");
     snapshot.ConfigureWindow(ItemCount(), selected_, top_);
     for (std::uint8_t row = 0U; row < snapshot.visibleItemCount; ++row) {
       const std::uint16_t item =
