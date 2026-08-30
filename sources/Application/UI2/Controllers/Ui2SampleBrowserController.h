@@ -535,11 +535,13 @@ private:
 
   void NavigateParent() {
     FileSystem *fileSystem = FileSystem::GetInstance();
-    if (fileSystem == nullptr || fileSystem->isCurrentRoot() ||
+    // depth_ is relative to the configured sample-library root. Do not let
+    // the legacy OPTION+LEFT shortcut escape that product boundary even when
+    // the filesystem adapter itself still has a parent directory.
+    if (depth_ == 0U || fileSystem == nullptr || fileSystem->isCurrentRoot() ||
         !fileSystem->chdir(".."))
       return;
-    const std::uint16_t prior =
-        depth_ == 0U ? 0U : selectedStack_[--depth_];
+    const std::uint16_t prior = selectedStack_[--depth_];
     RefreshCurrentDirectory();
     if (count_ != 0U) {
       selected_ = std::min<std::uint16_t>(prior, count_ - 1U);
