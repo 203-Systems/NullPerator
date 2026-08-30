@@ -452,6 +452,40 @@ TEST_CASE("UI2 Rename owns its bounded draft and full-page navigation") {
   CHECK_FALSE(controller.Active());
 }
 
+TEST_CASE("UI2 Rename waits for the opening EDIT release") {
+  using namespace ui2;
+  Ui2RenameController controller;
+
+  SUBCASE("held UP cannot jump directly to actions") {
+    controller.Begin("ONECYCAC", 16U, nullptr, TrackerAction::Edit);
+    CHECK(controller.Snapshot().focus == UiDialogFocus::Input);
+    CHECK(controller.Handle(TrackerAction::Up, true) ==
+          Ui2RenameCommand::None);
+    CHECK(controller.Handle(TrackerAction::Up, false) ==
+          Ui2RenameCommand::None);
+    CHECK(controller.Snapshot().focus == UiDialogFocus::Input);
+    CHECK(controller.Handle(TrackerAction::Edit, false) ==
+          Ui2RenameCommand::None);
+    Tap(controller, TrackerAction::Up);
+    CHECK(controller.Snapshot().focus == UiDialogFocus::Actions);
+  }
+
+  SUBCASE("held DOWN cannot jump directly to the keyboard") {
+    controller.Begin("ONECYCAC", 16U, nullptr, TrackerAction::Edit);
+    CHECK(controller.Handle(TrackerAction::Down, true) ==
+          Ui2RenameCommand::None);
+    CHECK(controller.Handle(TrackerAction::Down, false) ==
+          Ui2RenameCommand::None);
+    CHECK(controller.Handle(TrackerAction::Edit, true) ==
+          Ui2RenameCommand::None);
+    CHECK(controller.Snapshot().focus == UiDialogFocus::Input);
+    CHECK(controller.Handle(TrackerAction::Edit, false) ==
+          Ui2RenameCommand::None);
+    Tap(controller, TrackerAction::Down);
+    CHECK(controller.Snapshot().focus == UiDialogFocus::Keyboard);
+  }
+}
+
 TEST_CASE("UI2 Rename disables save for visually empty names") {
   using namespace ui2;
   Ui2RenameController controller;

@@ -1722,7 +1722,8 @@ void Ui2TrackerApplication::ExecuteInstrument(Ui2InstrumentCommand command) {
     const auto name = instrument->GetUserSetName();
     renameTarget_ = RenameTarget::Instrument;
     renameInstrumentNumber_ = number;
-    rename_.Begin(name.c_str(), MAX_INSTRUMENT_NAME_LENGTH);
+    rename_.Begin(name.c_str(), MAX_INSTRUMENT_NAME_LENGTH, nullptr,
+                  TrackerAction::Edit);
     return;
   }
   if (command.type == Ui2InstrumentCommandType::ActivateField) {
@@ -1967,7 +1968,7 @@ void Ui2TrackerApplication::ExecuteTheme(Ui2ThemeCommand command) {
   case Ui2ThemeCommandType::NewTheme:
     renameTarget_ = RenameTarget::NewTheme;
     rename_.Begin("New Theme", MAX_THEME_NAME_LENGTH,
-                  &Config::IsValidThemeName);
+                  &Config::IsValidThemeName, TrackerAction::Edit);
     break;
   case Ui2ThemeCommandType::LoadTheme: {
     std::array<char, MAX_THEME_NAME_LENGTH + 1U> currentName{};
@@ -2011,7 +2012,8 @@ void Ui2TrackerApplication::ExecuteTheme(Ui2ThemeCommand command) {
       Variable *name = config->FindVariable(FourCC::VarThemeName);
       renameTarget_ = RenameTarget::Theme;
       rename_.Begin(name == nullptr ? "" : name->GetString().c_str(),
-                    MAX_THEME_NAME_LENGTH, &Config::IsValidThemeName);
+                    MAX_THEME_NAME_LENGTH, &Config::IsValidThemeName,
+                    TrackerAction::Edit);
     }
     break;
   case Ui2ThemeCommandType::AdjustColor:
@@ -2340,7 +2342,8 @@ void Ui2TrackerApplication::ExecuteProject(Ui2ProjectCommand command) {
     renameTarget_ = RenameTarget::Project;
     rename_.Begin(
         Ui2ProjectNamePresentation(session_.ProjectName()).RenameDraft(),
-        MAX_PROJECT_NAME_LENGTH, &PersistencyService::IsValidProjectName);
+        MAX_PROJECT_NAME_LENGTH, &PersistencyService::IsValidProjectName,
+        TrackerAction::Edit);
     break;
   case Ui2ProjectCommandType::LoadProject:
     if (projectSaveAsPending_) {

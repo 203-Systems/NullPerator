@@ -22,7 +22,8 @@ public:
   using SaveValidator = bool (*)(const char *value);
 
   void Begin(const char *value, std::uint8_t maximumLength = 16U,
-             SaveValidator saveValidator = nullptr) {
+             SaveValidator saveValidator = nullptr,
+             TrackerAction trigger = TrackerAction::Count) {
     maximumLength_ = std::min(maximumLength, DraftCapacity);
     saveValidator_ = saveValidator;
     draft_.fill('\0');
@@ -37,6 +38,7 @@ public:
     active_ = true;
     ++instanceId_;
     input_ = {};
+    releaseGate_.BlockUntilRelease(trigger);
   }
 
   [[nodiscard]] bool Active() const { return active_; }
@@ -44,7 +46,8 @@ public:
   [[nodiscard]] std::uint32_t InstanceId() const { return instanceId_; }
 
   Ui2RenameCommand Handle(TrackerAction action, bool pressed) {
-    if (!active_ || !input_.Update(action, pressed) || !pressed)
+    if (!active_ || !input_.Update(action, pressed) ||
+        !releaseGate_.Update(action, pressed) || !pressed)
       return Ui2RenameCommand::None;
     if (action == TrackerAction::Shift) {
       uppercase_ = !uppercase_;
@@ -91,12 +94,14 @@ public:
     } else if (action == TrackerAction::Edit) {
       if (selectedAction_ == 0U) {
         active_ = false;
+        releaseGate_.Reset();
         return Ui2RenameCommand::Cancel;
       }
       if (selectedAction_ == 1U)
         return Ui2RenameCommand::Randomize;
       if (CanSave()) {
         active_ = false;
+        releaseGate_.Reset();
         return Ui2RenameCommand::Save;
       }
     }
@@ -254,6 +259,7 @@ private:
   }
 
   Ui2ControllerInputState input_{};
+  Ui2InputReleaseGate releaseGate_{};
   std::array<char, DraftCapacity + 1U> draft_{};
   std::uint32_t instanceId_ = 0U;
   std::uint8_t length_ = 0U;
