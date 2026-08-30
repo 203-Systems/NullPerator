@@ -25,6 +25,7 @@ if(Node)
   set_source_files_properties(SampleInstrument.cpp PROPERTIES
     COMPILE_OPTIONS "-O2"
   )
+  target_link_libraries(application_instruments PUBLIC idf::heap)
 endif()
 
 target_link_libraries(application_instruments PUBLIC
