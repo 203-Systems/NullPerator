@@ -7,6 +7,7 @@
 #ifndef _NODE_FILESYSTEM_H_
 #define _NODE_FILESYSTEM_H_
 
+#include "Adapters/node/platform/PsramAllocator.h"
 #include "System/Console/Trace.h"
 #include "System/FileSystem/FileSystem.h"
 #include "System/FileSystem/I_File.h"
@@ -49,12 +50,17 @@ private:
 
   std::mutex mutex_;
   std::string cwd_;
+  using PsramString =
+      std::basic_string<char, std::char_traits<char>, NodePsramAllocator<char>>;
   struct DirEntry {
-    std::string name;
+    DirEntry(const char *entryName, bool directory, uint64_t entrySize)
+        : name(entryName), is_dir(directory), size(entrySize) {}
+
+    PsramString name;
     bool is_dir;
     uint64_t size;
   };
-  std::vector<DirEntry> entries_;
+  std::vector<DirEntry, NodePsramAllocator<DirEntry>> entries_;
 };
 
 class VfsFile : public I_File {

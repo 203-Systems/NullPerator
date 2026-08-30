@@ -164,7 +164,7 @@ bool NodeFileSystem::RefreshDir(const char *filter, bool subDirOnly,
     return false;
   }
   if (cwd_ != kMountPoint) {
-    entries_.push_back({"..", true, 0});
+    entries_.emplace_back("..", true, 0);
   }
   while (true) {
     errno = 0;
@@ -205,7 +205,7 @@ bool NodeFileSystem::RefreshDir(const char *filter, bool subDirOnly,
     if (subDirOnly && !isDir) {
       continue;
     }
-    entries_.push_back({name, isDir, sz});
+    entries_.emplace_back(name.c_str(), isDir, sz);
   }
   return closedir(dir) == 0;
 }
