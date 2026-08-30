@@ -917,6 +917,45 @@ TEST_CASE("UI2 Groove workflow reports only effective mutations") {
   CHECK(result.dispatchPerformance);
 }
 
+TEST_CASE("UI2 Groove coarse edits preserve each adjacent pair's tick sum") {
+  using namespace ui2;
+  std::uint8_t steps[Ui2GrooveController::RowCount]{};
+  steps[0] = 6U;
+  steps[1] = 6U;
+
+  auto result = Ui2GrooveWorkflow::Execute(
+      {.type = Ui2GrooveCommandType::AdjustStep,
+       .value = 1,
+       .row = 0,
+       .synchronized = true},
+      steps);
+  CHECK(result.projectMutated);
+  CHECK(steps[0] == 7U);
+  CHECK(steps[1] == 5U);
+
+  result = Ui2GrooveWorkflow::Execute(
+      {.type = Ui2GrooveCommandType::AdjustStep,
+       .value = 1,
+       .row = 1,
+       .synchronized = true},
+      steps);
+  CHECK(result.projectMutated);
+  CHECK(steps[0] == 6U);
+  CHECK(steps[1] == 6U);
+
+  steps[0] = 15U;
+  steps[1] = 1U;
+  result = Ui2GrooveWorkflow::Execute(
+      {.type = Ui2GrooveCommandType::AdjustStep,
+       .value = 1,
+       .row = 0,
+       .synchronized = true},
+      steps);
+  CHECK_FALSE(result.projectMutated);
+  CHECK(steps[0] == 15U);
+  CHECK(steps[1] == 1U);
+}
+
 TEST_CASE("UI2 settings controllers keep fixed-capacity trivial state") {
   using namespace ui2;
   CHECK(std::is_trivially_copyable_v<Ui2DeviceController>);

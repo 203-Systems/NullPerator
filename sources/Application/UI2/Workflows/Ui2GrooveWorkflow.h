@@ -42,6 +42,25 @@ public:
           Ui2GrooveStepPolicy::Adjust(steps[command.row], command.value);
       if (adjusted == steps[command.row])
         return {};
+      if (command.synchronized &&
+          steps[command.row] != Ui2GrooveStepPolicy::Empty) {
+        // M8 coarse Groove editing treats even/odd rows as a timing pair:
+        // 06/06 + UP on row 0 becomes 07/05, and UP on row 1 reverses the
+        // emphasis. Preserve that pair sum atomically; at PicoTracker's 1..15
+        // boundaries a partial adjustment would change the phrase duration.
+        const std::uint8_t pairedRow =
+            static_cast<std::uint8_t>(command.row ^ 1U);
+        if (steps[pairedRow] != Ui2GrooveStepPolicy::Empty) {
+          const std::uint8_t paired = Ui2GrooveStepPolicy::Adjust(
+              steps[pairedRow], static_cast<std::int16_t>(-command.value));
+          const unsigned oldTotal =
+              static_cast<unsigned>(steps[command.row]) + steps[pairedRow];
+          const unsigned newTotal = static_cast<unsigned>(adjusted) + paired;
+          if (newTotal != oldTotal)
+            return {};
+          steps[pairedRow] = paired;
+        }
+      }
       steps[command.row] = adjusted;
       return {.projectMutated = true};
     }
