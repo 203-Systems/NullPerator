@@ -35,11 +35,6 @@ public:
 
   void Reset() noexcept;
 
-  [[nodiscard]] std::uint32_t SourceRate() const noexcept { return sourceRate_; }
-  [[nodiscard]] std::uint32_t DestinationRate() const noexcept {
-    return destinationRate_;
-  }
-
 private:
   [[nodiscard]] bool DrainSegment(std::span<StereoF32> output,
                                   std::size_t &produced) noexcept;

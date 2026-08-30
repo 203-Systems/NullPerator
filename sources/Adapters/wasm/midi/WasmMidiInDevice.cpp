@@ -49,10 +49,6 @@ void WasmMidiInDevice::RequestDisconnect() noexcept {
   disconnectRequested_.store(true, std::memory_order_release);
 }
 
-std::uint64_t WasmMidiInDevice::DroppedBytes() const noexcept {
-  return queue_.Dropped();
-}
-
 std::uint64_t WasmMidiInDevice::ProcessedBytes() const noexcept {
   return processedBytes_.load(std::memory_order_acquire);
 }

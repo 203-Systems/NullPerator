@@ -30,7 +30,6 @@ public:
                             double timestampMilliseconds,
                             const MidiLatencyTrace::Ticket &trace) noexcept;
   void RequestDisconnect() noexcept;
-  [[nodiscard]] std::uint64_t DroppedBytes() const noexcept;
   [[nodiscard]] std::uint64_t ProcessedBytes() const noexcept;
   [[nodiscard]] std::uint8_t LastProcessedByte() const noexcept;
   [[nodiscard]] double LastProcessedTimestamp() const noexcept;
