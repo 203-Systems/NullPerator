@@ -221,8 +221,10 @@ struct UiGrooveFrameState {
   std::uint8_t editRow = 0;
   std::int8_t playbackRow = -1;
   RectI16 cursorVisualRect{};
+  RectI16 selectionVisualRect{};
   bool cursorVisualOverride = false;
   bool cursorInkVisible = true;
+  bool selectionActive = false;
   UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
 

@@ -681,6 +681,8 @@ TEST_CASE("UI2 tracker selections resolve to one clipped rounded region") {
   // endpoint to the sixth visible value column without escaping the screen.
   CHECK(ui2::UiTableView::SelectionTargetRect(2, 0, 6, 15) ==
         ui2::RectI16{90, 47, 120, 159});
+  CHECK(ui2::UiGrooveView::SelectionTargetRect(2, 6) ==
+        ui2::RectI16{27, 66, 15, 45});
 }
 
 TEST_CASE("UI2 tracker selections use their independent theme color") {
@@ -699,6 +701,29 @@ TEST_CASE("UI2 tracker selections use their independent theme color") {
   ui2::UiIndexedSurface surface(storage);
   ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
 
+  const ui2::RectI16 selection = data.selectionVisualRect;
+  CHECK(surface.Pixel(selection.x, selection.y) ==
+        palette.Index(ui2::UiColorToken::DerivedSelectionCorner));
+  CHECK(surface.Pixel(selection.x + 1, selection.y + 1) ==
+        palette.Index(ui2::UiColorToken::SelectionActive));
+}
+
+TEST_CASE("UI2 Groove selection uses the selection palette and mode bar") {
+  ui2::UiGrooveViewData data = ui2::test::ApprovedGrooveFixture();
+  data.selectionActive = true;
+  data.selectionVisualRect = ui2::UiGrooveView::SelectionTargetRect(1, 3);
+
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiGrooveView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK(scene.bottomVisible);
+  CHECK(FindTextCommand(scene.bottom.Stream(), "SELECTION") != nullptr);
+  CHECK(FindTextCommand(scene.bottom.Stream(), "MODE") != nullptr);
+
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
   const ui2::RectI16 selection = data.selectionVisualRect;
   CHECK(surface.Pixel(selection.x, selection.y) ==
         palette.Index(ui2::UiColorToken::DerivedSelectionCorner));
@@ -740,6 +765,16 @@ TEST_CASE("UI2 tracker selection deltas match complete redraws") {
         ui2::UiTableView::SelectionTargetRect(0, 4, 5, 9);
     CheckDeltaMatchesFullFrame(previous, current, ui2::UiTableView::Build,
                                ui2::UiTableView::RenderDelta);
+  }
+  {
+    const ui2::UiGrooveViewData previous =
+        ui2::test::ApprovedGrooveFixture();
+    ui2::UiGrooveViewData current = previous;
+    current.selectionActive = true;
+    current.selectionVisualRect =
+        ui2::UiGrooveView::SelectionTargetRect(1, 8);
+    CheckDeltaMatchesFullFrame(previous, current, ui2::UiGrooveView::Build,
+                               ui2::UiGrooveView::RenderDelta);
   }
 }
 

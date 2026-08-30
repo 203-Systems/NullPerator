@@ -6,8 +6,10 @@
 
 #include "UI2/Views/Groove/UiGrooveView.h"
 
+#include "UI2/Chrome/UiBarResolver.h"
 #include "UI2/Render/UiFrameRenderer.h"
 
+#include <algorithm>
 #include <array>
 
 namespace ui2 {
@@ -41,6 +43,16 @@ RectI16 UiGrooveView::CursorTargetRect(std::uint8_t row) {
   if (row >= 16U)
     return {};
   return {27, static_cast<std::int16_t>(48 + row * 9), 15, 9};
+}
+
+RectI16 UiGrooveView::SelectionTargetRect(std::int16_t top,
+                                          std::int16_t bottom) {
+  top = std::clamp<std::int16_t>(top, 0, 15);
+  bottom = std::clamp<std::int16_t>(bottom, 0, 15);
+  if (top > bottom)
+    std::swap(top, bottom);
+  return {27, static_cast<std::int16_t>(48 + top * 9), 15,
+          static_cast<std::int16_t>((bottom - top + 1) * 9)};
 }
 
 RectI16 UiGrooveView::RowDamageRect(std::uint8_t row) {
@@ -84,32 +96,53 @@ void UiGrooveView::RenderDelta(const UiGrooveViewData &previous,
     if (current.playbackRow >= 0 && current.playbackRow < 16)
       render(RowDamageRect(static_cast<std::uint8_t>(current.playbackRow)));
   }
+  if (previous.selectionVisualRect != current.selectionVisualRect) {
+    render(previous.selectionVisualRect);
+    render(current.selectionVisualRect);
+  }
   for (std::uint8_t row = 0; row < 16U; ++row) {
     if (previous.steps[row] != current.steps[row])
       render(RowDamageRect(row));
   }
+  if (previous.selectionActive != current.selectionActive)
+    render({0, 208, 240, 32});
 }
 
 UiBuildStatus UiGrooveView::Build(const UiGrooveViewData &data, UiPalette &,
                                   UiFrameScene &scene) {
   scene.Clear();
   scene.topHeight = 34;
-  scene.bottomVisible = false;
+  scene.bottomTop = 208;
   scene.topBackground = UiColorToken::SurfaceTopBar;
-  const UiTopBarModel top{
+  scene.bottomBackground = UiColorToken::SurfaceBottomBar;
+  const UiTopBarModel pageTop{
       .title = "GROOVE",
       .meta = data.number,
       .power = data.power,
       .navTarget = UiNavTarget::Groove,
       .navCursor = data.navCursor,
   };
-  const UiBuildStatus topStatus = UiChromeRenderer::BuildTop(top, scene.top);
+  const UiBottomBarModel hidden{.kind = UiBottomBarKind::Hidden};
+  const UiResolvedChrome chrome = UiBarResolver::Resolve({
+      .pageTop = pageTop,
+      .pageDefault = hidden,
+      .selectionActive = data.selectionActive,
+  });
+  const UiBuildStatus topStatus =
+      UiChromeRenderer::BuildTop(chrome.top, scene.top);
   if (topStatus != UiBuildStatus::Built)
     return topStatus;
+  scene.bottomVisible = chrome.bottom.kind != UiBottomBarKind::Hidden;
+  const UiBuildStatus bottomStatus =
+      UiChromeRenderer::BuildBottom(chrome.bottom, scene.bottom);
+  if (bottomStatus != UiBuildStatus::Built)
+    return bottomStatus;
 
   UiSceneBuilder<256, 1024> builder(scene.content);
   builder.Text("STEP", 28, 39, UiColorToken::TextColored);
   const RectI16 cursor = ResolvedCursorRect(data);
+  if (!data.selectionVisualRect.Empty())
+    builder.SelectionHighlight(data.selectionVisualRect);
   for (std::uint8_t row = 0; row < 16U; ++row) {
     const std::int16_t y = static_cast<std::int16_t>(49 + row * 9);
     const auto rowText = HexByte(row);

@@ -23,8 +23,10 @@ struct UiGrooveViewData {
   std::uint8_t editRow = 0;
   std::int8_t playbackRow = -1;
   RectI16 cursorVisualRect{};
+  RectI16 selectionVisualRect{};
   bool cursorVisualOverride = false;
   bool cursorInkVisible = true;
+  bool selectionActive = false;
   UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
 };
@@ -38,6 +40,8 @@ public:
                           const UiFrameScene &currentScene,
                           UiIndexedSurface &surface, const UiPalette &palette);
   [[nodiscard]] static RectI16 CursorTargetRect(std::uint8_t row);
+  [[nodiscard]] static RectI16 SelectionTargetRect(std::int16_t top,
+                                                   std::int16_t bottom);
   [[nodiscard]] static RectI16 RowDamageRect(std::uint8_t row);
   [[nodiscard]] static RectI16 PlaybackTickRect(std::uint8_t row);
 };

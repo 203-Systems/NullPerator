@@ -1405,8 +1405,10 @@ UiApplicationRuntime::ViewDataFor(const GrooveFrameState &state) {
   data.editRow = state.editRow;
   data.playbackRow = state.playbackRow;
   data.cursorVisualRect = state.cursorVisualRect;
+  data.selectionVisualRect = state.selectionVisualRect;
   data.cursorVisualOverride = state.cursorVisualOverride;
   data.cursorInkVisible = state.cursorInkVisible;
+  data.selectionActive = state.selectionActive;
   data.power = state.power;
   data.navCursor = state.navCursor;
   return data;

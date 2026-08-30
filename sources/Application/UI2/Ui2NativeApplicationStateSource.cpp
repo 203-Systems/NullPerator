@@ -26,6 +26,7 @@
 #include "Application/Utils/char.h"
 #include "System/System/System.h"
 #include "UI2/Views/Chain/UiChainView.h"
+#include "UI2/Views/Groove/UiGrooveView.h"
 #include "UI2/Views/Song/UiSongView.h"
 
 #include <algorithm>
@@ -969,6 +970,11 @@ Ui2NativeApplicationStateSource::CaptureGroove(UiGrooveFrameState &state) {
   state = {};
   hex2char(groove_.Number(), state.number.data());
   state.editRow = groove_.Row();
+  state.selectionActive = groove_.Selection().active;
+  if (groove_.Selection().active) {
+    state.selectionVisualRect = UiGrooveView::SelectionTargetRect(
+        groove_.Selection().Top(), groove_.Selection().Bottom());
+  }
   Groove *groove = Groove::GetInstance();
   const unsigned char *steps = groove->GetGrooveData(groove_.Number());
   std::copy_n(steps, 16, state.steps.begin());
