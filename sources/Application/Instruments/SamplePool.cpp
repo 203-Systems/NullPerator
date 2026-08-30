@@ -22,9 +22,14 @@
 #include "System/io/Status.h"
 #include "WavHeader.h"
 #include <cstdint>
+#include <memory>
 #include <stdlib.h>
 #include <string.h>
 #include <utility>
+
+#ifdef ESP_PLATFORM
+#include <esp_heap_caps.h>
+#endif
 
 SamplePool::SamplePool() : Observable(&observers_) {
   count_ = 0;
@@ -155,9 +160,40 @@ static constexpr int32_t kImportInputSamples =
     IMPORT_CHUNK_SIZE / static_cast<int32_t>(sizeof(int16_t));
 static constexpr int32_t kImportMaxOutputSamples =
     (kImportInputSamples * SRC_MAX_RATIO) + 8;
-static float importResampleIn_[kImportInputSamples];
-static float importResampleOut_[kImportMaxOutputSamples];
-static int16_t importResampleOutInt16_[kImportMaxOutputSamples];
+
+namespace {
+
+struct ImportResampleScratch {
+  float input[kImportInputSamples];
+  float output[kImportMaxOutputSamples];
+  int16_t outputInt16[kImportMaxOutputSamples];
+};
+
+struct ImportResampleScratchDeleter {
+  void operator()(ImportResampleScratch *scratch) const {
+#ifdef ESP_PLATFORM
+    heap_caps_free(scratch);
+#else
+    free(scratch);
+#endif
+  }
+};
+
+using ImportResampleScratchPtr =
+    std::unique_ptr<ImportResampleScratch, ImportResampleScratchDeleter>;
+
+ImportResampleScratchPtr allocateImportResampleScratch() {
+#ifdef ESP_PLATFORM
+  void *storage = heap_caps_malloc(sizeof(ImportResampleScratch),
+                                   MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+#else
+  void *storage = malloc(sizeof(ImportResampleScratch));
+#endif
+  return ImportResampleScratchPtr(
+      static_cast<ImportResampleScratch *>(storage));
+}
+
+} // namespace
 
 int SamplePool::ImportSample(const char *name, const char *projectName) {
   if (count_ == MAX_SAMPLES) {
@@ -202,6 +238,15 @@ int SamplePool::ImportSample(const char *name, const char *projectName) {
   const bool shouldResample =
       (importResampler > 0) && (sourceSampleRate != 44100);
   const int32_t outputSampleRate = shouldResample ? 44100 : sourceSampleRate;
+
+  ImportResampleScratchPtr resampleScratch;
+  if (shouldResample) {
+    resampleScratch = allocateImportResampleScratch();
+    if (!resampleScratch) {
+      Trace::Error("Failed to allocate sample import resampling workspace");
+      return -1;
+    }
+  }
 
   if (!WavHeaderWriter::WriteHeader(fout.get(), outputSampleRate, channelCount,
                                     16)) {
@@ -261,7 +306,7 @@ int SamplePool::ImportSample(const char *name, const char *projectName) {
       totalWrittenFrames +=
           bytesRead / (static_cast<uint32_t>(channelCount) * 2);
     } else {
-      if (!wav.ReadFloat(importResampleIn_, kImportInputSamples,
+      if (!wav.ReadFloat(resampleScratch->input, kImportInputSamples,
                          &samplesRead)) {
         Trace::Error("Failed reading sample data from:%s", name);
         return -1;
@@ -274,13 +319,13 @@ int SamplePool::ImportSample(const char *name, const char *projectName) {
       const uint32_t inputFrames =
           samplesRead / static_cast<uint32_t>(channelCount);
       uint32_t framesRemaining = inputFrames;
-      float *inPtr = importResampleIn_;
+      float *inPtr = resampleScratch->input;
       while (framesRemaining > 0) {
         SRC_DATA data;
         memset(&data, 0, sizeof(data));
         data.data_in = inPtr;
         data.input_frames = static_cast<long>(framesRemaining);
-        data.data_out = importResampleOut_;
+        data.data_out = resampleScratch->output;
         data.output_frames = static_cast<long>(
             kImportMaxOutputSamples / static_cast<int32_t>(channelCount));
         data.src_ratio = srcRatio;
@@ -295,11 +340,12 @@ int SamplePool::ImportSample(const char *name, const char *projectName) {
         if (data.output_frames_gen > 0) {
           const int32_t outputSamples =
               static_cast<int32_t>(data.output_frames_gen) * channelCount;
-          src_float_to_short_array(importResampleOut_, importResampleOutInt16_,
+          src_float_to_short_array(resampleScratch->output,
+                                   resampleScratch->outputInt16,
                                    outputSamples);
           const int32_t bytesToWrite = outputSamples * sizeof(int16_t);
           uint32_t written =
-              fout->Write(importResampleOutInt16_, 1, bytesToWrite);
+              fout->Write(resampleScratch->outputInt16, 1, bytesToWrite);
           if (written != static_cast<uint32_t>(bytesToWrite)) {
             Trace::Error("Failed writing sample data to:%s",
                          projectSamplePath.c_str());
@@ -327,7 +373,7 @@ int SamplePool::ImportSample(const char *name, const char *projectName) {
       memset(&data, 0, sizeof(data));
       data.data_in = nullptr;
       data.input_frames = 0;
-      data.data_out = importResampleOut_;
+      data.data_out = resampleScratch->output;
       data.output_frames = static_cast<long>(
           kImportMaxOutputSamples / static_cast<int32_t>(channelCount));
       data.src_ratio = srcRatio;
@@ -345,10 +391,11 @@ int SamplePool::ImportSample(const char *name, const char *projectName) {
 
       const int32_t outputSamples =
           static_cast<int32_t>(data.output_frames_gen) * channelCount;
-      src_float_to_short_array(importResampleOut_, importResampleOutInt16_,
-                               outputSamples);
+      src_float_to_short_array(resampleScratch->output,
+                               resampleScratch->outputInt16, outputSamples);
       const int32_t bytesToWrite = outputSamples * sizeof(int16_t);
-      uint32_t written = fout->Write(importResampleOutInt16_, 1, bytesToWrite);
+      uint32_t written =
+          fout->Write(resampleScratch->outputInt16, 1, bytesToWrite);
       if (written != static_cast<uint32_t>(bytesToWrite)) {
         Trace::Error("Failed writing sample data to:%s",
                      projectSamplePath.c_str());
