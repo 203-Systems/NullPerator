@@ -65,6 +65,7 @@ struct UiDialogViewData {
   bool actionsFocused = true;
   bool saveEnabled = true;
   bool uppercase = true;
+  bool labelUserText = false;
   bool cursorVisualOverride = false;
   bool cursorInkVisible = true;
   UiDialogFocus focus = UiDialogFocus::Actions;

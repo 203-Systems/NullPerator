@@ -92,6 +92,15 @@ void RenderActions(const UiDialogViewData &data,
   }
 }
 
+void RenderCenteredLabel(UiSceneBuilder<80, 256> &builder,
+                         const UiDialogViewData &data, std::int16_t y,
+                         UiColorToken color) {
+  if (data.labelUserText)
+    builder.CenteredUserText(data.label, 120, y, color);
+  else
+    builder.CenteredText(data.label, 120, y, color);
+}
+
 void RenderRename(const UiDialogViewData &data,
                   UiSceneBuilder<80, 256> &builder) {
   builder.Fill(RectI16::Screen(), UiColorToken::SurfaceBackground);
@@ -252,7 +261,7 @@ UiBuildStatus UiDialogView::Apply(const UiDialogViewData &data,
       builder.CenteredText(data.title, 120,
                            titleScale == 2U ? 102 : 106,
                            UiColorToken::SystemError, titleScale);
-      builder.CenteredText(data.label, 120, 122, UiColorToken::TextDim);
+      RenderCenteredLabel(builder, data, 122, UiColorToken::TextDim);
     }
     return builder.Ok() ? UiBuildStatus::Built
                         : UiBuildStatus::CommandOverflow;
@@ -298,8 +307,7 @@ UiBuildStatus UiDialogView::Apply(const UiDialogViewData &data,
     } else {
       builder.CenteredText(data.title, 120, 88,
                            UiColorToken::TextNormal);
-      builder.CenteredText(data.label, 120, 105,
-                           UiColorToken::TextDim);
+      RenderCenteredLabel(builder, data, 105, UiColorToken::TextDim);
       RenderActions(data, builder, 139);
     }
     break;

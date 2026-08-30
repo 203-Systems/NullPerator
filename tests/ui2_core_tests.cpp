@@ -2532,6 +2532,20 @@ TEST_CASE("UI2 Sample Editor preserves sample filename case while unfocused") {
         nullptr);
 }
 
+TEST_CASE("UI2 message dialogs preserve user-authored label case") {
+  Ui2DialogSnapshot snapshot;
+  snapshot.kind = ui2::UiDialogKind::Message;
+  snapshot.SetTitle("Remove sample?");
+  snapshot.SetUserLabel("Kick_One.wav");
+  snapshot.PushAction(ui2::UiDialogAction::No);
+
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiDialogView::Apply(snapshot.ToViewData(), scene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK(FindLiteralTextCommand(scene.overlay.Stream(), "Kick_One.wav") !=
+        nullptr);
+}
+
 TEST_CASE(
     "UI2 Instrument field focus delta is pixel-identical to a full redraw") {
   ui2::UiPalette palette;

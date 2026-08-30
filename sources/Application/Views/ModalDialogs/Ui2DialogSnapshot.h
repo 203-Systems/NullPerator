@@ -39,6 +39,7 @@ struct Ui2DialogSnapshot {
   bool actionsFocused = true;
   bool saveEnabled = true;
   bool uppercase = true;
+  bool labelUserText = false;
   bool cursorVisualOverride = false;
   bool cursorInkVisible = true;
   ui2::UiDialogFocus focus = ui2::UiDialogFocus::Actions;
@@ -47,6 +48,10 @@ struct Ui2DialogSnapshot {
 
   void SetTitle(std::string_view text) { Copy(title, text); }
   void SetLabel(std::string_view text) { Copy(label, text); }
+  void SetUserLabel(std::string_view text) {
+    Copy(label, text);
+    labelUserText = true;
+  }
   void SetValue(std::string_view text) { Copy(value, text); }
   void SetElapsed(std::string_view text) { Copy(elapsed, text); }
 
@@ -100,6 +105,7 @@ struct Ui2DialogSnapshot {
         .actionsFocused = actionsFocused,
         .saveEnabled = saveEnabled,
         .uppercase = uppercase,
+        .labelUserText = labelUserText,
         .cursorVisualOverride = cursorVisualOverride,
         .cursorInkVisible = cursorInkVisible,
         .focus = focus,

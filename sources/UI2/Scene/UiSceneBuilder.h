@@ -84,6 +84,15 @@ public:
     Text(text, x, y, color, scale);
   }
 
+  void CenteredUserText(std::string_view text, std::int16_t center,
+                        std::int16_t y, UiColorToken color,
+                        std::uint8_t scale = 1) {
+    const std::int16_t width = UiFont5x7::TextWidth(text.size(), scale);
+    const std::int16_t x =
+        static_cast<std::int16_t>(center - width / 2 - (width % 2 < 0));
+    UserText(text, x, y, color, scale);
+  }
+
   void CenteredLiteralText(std::string_view text, std::int16_t center,
                            std::int16_t y, UiColorToken color,
                            std::uint8_t scale = 1) {

@@ -100,7 +100,7 @@ public:
       return {};
     }
     Show(Purpose::ConfirmDelete, "Delete selected project?", project_.data(),
-         UiDialogAction::Yes, UiDialogAction::No);
+         UiDialogAction::Yes, UiDialogAction::No, 2U, true);
     return {};
   }
 
@@ -143,7 +143,7 @@ public:
       ShowInfo("Error saving Project");
       break;
     case Ui2ProjectLifecycleFailure::LoadProject:
-      ShowInfo("Invalid Project:", project);
+      ShowInfo("Invalid Project:", project, true);
       break;
     case Ui2ProjectLifecycleFailure::SaveProject:
       ShowInfo("Error saving Project");
@@ -208,7 +208,10 @@ public:
     Ui2DialogSnapshot snapshot;
     snapshot.kind = UiDialogKind::Message;
     snapshot.SetTitle(line1_.data());
-    snapshot.SetLabel(line2_.data());
+    if (line2UserText_)
+      snapshot.SetUserLabel(line2_.data());
+    else
+      snapshot.SetLabel(line2_.data());
     for (std::uint8_t index = 0U; index < actionCount_; ++index)
       snapshot.PushAction(actions_[index]);
     snapshot.SetSelectedAction(selectedAction_, true);
@@ -254,17 +257,19 @@ private:
     Show(purpose, prompt, {}, UiDialogAction::Yes, UiDialogAction::No);
   }
 
-  void ShowInfo(const char *line1, const char *line2 = nullptr) {
+  void ShowInfo(const char *line1, const char *line2 = nullptr,
+                bool line2UserText = false) {
     Show(Purpose::Info, line1, line2, UiDialogAction::Ok, UiDialogAction::Ok,
-         1U);
+         1U, line2UserText);
   }
 
   void Show(Purpose purpose, const char *line1, const char *line2,
             UiDialogAction first, UiDialogAction second,
-            std::uint8_t count = 2U) {
+            std::uint8_t count = 2U, bool line2UserText = false) {
     purpose_ = purpose;
     CopyText(line1_, line1);
     CopyText(line2_, line2);
+    line2UserText_ = line2UserText;
     actions_.fill(UiDialogAction::Ok);
     actions_[0] = first;
     actions_[1] = second;
@@ -300,6 +305,7 @@ private:
   std::uint32_t instanceId_ = 0U;
   std::uint8_t actionCount_ = 0U;
   std::uint8_t selectedAction_ = 0U;
+  bool line2UserText_ = false;
 };
 
 static_assert(std::is_trivially_copyable_v<Ui2ProjectLifecycleCommand>);

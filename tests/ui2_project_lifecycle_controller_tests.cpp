@@ -74,12 +74,14 @@ TEST_CASE("UI2 project lifecycle protects current project from Delete") {
   REQUIRE(controller.Active());
   CHECK(Text(controller.Snapshot().title) == "Cannot delete the active");
   CHECK(Text(controller.Snapshot().label) == "project.");
+  CHECK_FALSE(controller.Snapshot().labelUserText);
   Tap(controller, TrackerAction::Edit);
 
   controller.RequestDelete("OLD", "CURRENT", false);
   const Ui2DialogSnapshot dialog = controller.Snapshot();
   CHECK(Text(dialog.title) == "Delete selected project?");
   CHECK(Text(dialog.label) == "OLD");
+  CHECK(dialog.labelUserText);
   CHECK(dialog.selectedAction == 1U);
   Tap(controller, TrackerAction::Left);
   const Ui2ProjectLifecycleCommand remove =
@@ -179,6 +181,7 @@ TEST_CASE("UI2 project lifecycle exposes established persistence failures") {
   controller.ReportFailure(Ui2ProjectLifecycleFailure::LoadProject, "BROKEN");
   CHECK(Text(controller.Snapshot().title) == "Invalid Project:");
   CHECK(Text(controller.Snapshot().label) == "BROKEN");
+  CHECK(controller.Snapshot().labelUserText);
   Tap(controller, TrackerAction::Edit);
   controller.ReportFailure(Ui2ProjectLifecycleFailure::DeleteProject);
   CHECK(Text(controller.Snapshot().title) == "Project could not be deleted");
@@ -187,6 +190,7 @@ TEST_CASE("UI2 project lifecycle exposes established persistence failures") {
       Ui2ProjectLifecycleFailure::RefreshBrowserAfterDelete);
   CHECK(Text(controller.Snapshot().title) == "Project deleted;");
   CHECK(Text(controller.Snapshot().label) == "browser refresh failed");
+  CHECK_FALSE(controller.Snapshot().labelUserText);
   Tap(controller, TrackerAction::Edit);
   controller.ReportFailure(Ui2ProjectLifecycleFailure::SaveTheme);
   CHECK(Text(controller.Snapshot().title) == "Failed to export theme");

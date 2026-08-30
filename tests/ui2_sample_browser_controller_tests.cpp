@@ -395,7 +395,10 @@ TEST_CASE("UI2 Sample Browser delete confirmation defaults to NO") {
   REQUIRE(request.type == Ui2SampleBrowserCommandType::RequestDelete);
   controller.RequestDeleteConfirmation(request.filename.data());
   REQUIRE(controller.DialogActive());
-  CHECK(controller.DialogSnapshot().selectedAction == 1U);
+  const Ui2DialogSnapshot dialog = controller.DialogSnapshot();
+  CHECK(dialog.selectedAction == 1U);
+  CHECK(std::string_view(dialog.label.data()) == "AKWF.WAV");
+  CHECK(dialog.labelUserText);
   CHECK(controller.HandleDialog(TrackerAction::Edit, true).type ==
         Ui2SampleBrowserCommandType::None);
   controller.HandleDialog(TrackerAction::Edit, false);

@@ -211,7 +211,7 @@ public:
     Ui2DialogSnapshot snapshot;
     snapshot.kind = UiDialogKind::Message;
     snapshot.SetTitle("Remove sample?");
-    snapshot.SetLabel(pendingDelete_.data());
+    snapshot.SetUserLabel(pendingDelete_.data());
     snapshot.PushAction(UiDialogAction::Yes);
     snapshot.PushAction(UiDialogAction::No);
     snapshot.SetSelectedAction(dialogSelectedAction_, true);
