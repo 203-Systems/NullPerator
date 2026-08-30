@@ -301,8 +301,8 @@ test('real oneCycAc project imports, trims, plays, and survives reload plus runt
   await expectModel(page, { playerRunning: false })
 
   // Exercise the real fixed Node controls instead of a diagnostic view jump:
-  // NAV+UP opens Project, then ENTER+RIGHT changes tempo and ENTER saves it.
-  await chord(page, 'c', 'w')
+  // SHIFT+UP opens Project, then EDIT+RIGHT changes tempo and EDIT saves it.
+  await chord(page, 'x', 'w')
   await tap(page, 's')
   await tap(page, 's')
   await chord(page, 'k', 'd')
@@ -337,12 +337,12 @@ test('real oneCycAc project imports, trims, plays, and survives reload plus runt
   )))).toBe(fixtureFiles[2].sha256)
 
   // Focus remains on Project/Save. Walk the real Node field UI to Sample Pool,
-  // switch from the project pool to /data/samples with NAV+EDIT, and import the
+  // switch from the project pool to /data/samples with SHIFT+OPTION, and import the
   // renamed, known-good factory WAV. Preview is meaningful only when the
   // AudioWorklet gate is enabled; the default gate declares audio unavailable.
   for (let index = 0; index < 5; index += 1) await tap(page, 's')
   await tap(page, 'k')
-  await chord(page, 'c', 'j')
+  await chord(page, 'x', 'j')
   await tap(page, 's') // skip /data/samples' parent-directory entry
   if (workletMode) await tap(page, 'c')
   await tap(page, 'k')
@@ -363,11 +363,11 @@ test('real oneCycAc project imports, trims, plays, and survives reload plus runt
 
   // Return to the project pool, choose the newly imported (sorted-last) WAV,
   // and enter SampleEditor through its real Edit action.
-  await chord(page, 'c', 'j')
+  await chord(page, 'x', 'j')
   await tap(page, 's')
   await tap(page, 'k')
 
-  // name -> start; ENTER+UP changes the start frame from 0 to 1. Move through
+  // name -> start; EDIT+UP changes the start frame from 0 to 1. Move through
   // end and the default Trim operation to Apply, then select Yes in the modal.
   await tap(page, 's')
   await chord(page, 'k', 'w')
@@ -409,9 +409,9 @@ test('real oneCycAc project imports, trims, plays, and survives reload plus runt
   expect(editedHash).not.toBe(sha256(importedBytes))
   expect(editedBytes.readUInt32LE(40)).toBe(importedBytes.readUInt32LE(40) - 2)
 
-  // Leave Import with NAV+LEFT, return from Sample Pool to Project/Save, and
+  // Leave Import with SHIFT+LEFT, return from Sample Pool to Project/Save, and
   // persist the model after assigning the new sample to the current instrument.
-  await chord(page, 'c', 'a')
+  await chord(page, 'x', 'a')
   for (let index = 0; index < 5; index += 1) await tap(page, 'w')
   await tap(page, 'd')
   const beforeImportedProjectSave = await storageSnapshot(page)
@@ -443,7 +443,7 @@ test('real oneCycAc project imports, trims, plays, and survives reload plus runt
 
   // Re-open the persisted project pool with Node controls. In AudioWorklet
   // mode, preview the edited WAV once more; a bad header would open a modal.
-  await chord(page, 'c', 'w')
+  await chord(page, 'x', 'w')
   for (let index = 0; index < 6; index += 1) await tap(page, 's')
   await tap(page, 'k')
   await tap(page, 's')

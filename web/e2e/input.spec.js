@@ -5,9 +5,10 @@ const virtualActions = [
   ['Down', 1],
   ['Right', 2],
   ['Up', 3],
-  ['ALT', 4],
-  ['EDIT', 5],
-  ['ENTER', 6],
+  ['SHIFT', 4],
+  ['OPTION', 5],
+  ['EDIT', 6],
+  ['PLAY', 7],
 ]
 
 function actionMask(canvas) {
@@ -26,21 +27,14 @@ test('every virtual control reaches its specific C++ UI action path', async ({ p
   for (const [label, action] of virtualActions) {
     const button = page.getByRole('button', { name: label, exact: true })
     const pointerId = action + 100
+    const generation = Number(await actionGeneration(canvas))
     await button.dispatchEvent('pointerdown', { pointerId, pointerType: 'touch' })
     await expect.poll(() => actionMask(canvas)).toBe(String(1 << action))
     await button.dispatchEvent('pointerup', { pointerId, pointerType: 'touch' })
     await expect.poll(() => actionMask(canvas)).toBe('0')
+    await expect.poll(() => actionGeneration(canvas)).toBe(String(generation + 2))
+    await expect(canvas).toHaveAttribute('data-last-action', String(action))
   }
-
-
-  const start = page.getByRole('button', { name: 'PLAY', exact: true })
-  const startGeneration = Number(await actionGeneration(canvas))
-  await start.dispatchEvent('pointerdown', { pointerId: 180, pointerType: 'touch' })
-  await expect.poll(() => actionMask(canvas)).toBe(String(1 << 7))
-  await start.dispatchEvent('pointerup', { pointerId: 180, pointerType: 'touch' })
-  await expect.poll(() => actionGeneration(canvas)).toBe(String(startGeneration + 4))
-  await expect(canvas).toHaveAttribute('data-last-action', '8')
-  await expect(canvas).toHaveAttribute('data-action-mask', '0')
 })
 
 test('blur and pointer cancellation clear C++ state and stop further input dispatch', async ({ page }) => {
@@ -58,10 +52,10 @@ test('blur and pointer cancellation clear C++ state and stop further input dispa
   await page.waitForTimeout(350)
   await expect(actionGeneration(canvas)).resolves.toBe(blurGeneration)
 
-  const enter = page.getByRole('button', { name: 'ENTER', exact: true })
-  await enter.dispatchEvent('pointerdown', { pointerId: 200, pointerType: 'touch' })
+  const edit = page.getByRole('button', { name: 'EDIT', exact: true })
+  await edit.dispatchEvent('pointerdown', { pointerId: 200, pointerType: 'touch' })
   await expect.poll(() => actionMask(canvas)).toBe(String(1 << 6))
-  await enter.dispatchEvent('pointercancel', { pointerId: 200, pointerType: 'touch' })
+  await edit.dispatchEvent('pointercancel', { pointerId: 200, pointerType: 'touch' })
   await expect.poll(() => actionMask(canvas)).toBe('0')
   const cancelGeneration = await actionGeneration(canvas)
   await page.waitForTimeout(350)
@@ -69,7 +63,7 @@ test('blur and pointer cancellation clear C++ state and stop further input dispa
 
   // pointercancel must not leave the button's pointer-click suppression armed:
   // a subsequent real keyboard activation still travels through InputMap.
-  await enter.focus()
+  await edit.focus()
   await page.keyboard.press('Space')
   await expect.poll(() => actionGeneration(canvas)).toBe(String(Number(cancelGeneration) + 2))
   await expect(canvas).toHaveAttribute('data-last-action', '6')
@@ -80,9 +74,9 @@ test('focused virtual buttons activate with keyboard click semantics without glo
   await page.goto('/?inputDiagnostics=1')
   await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible()
   const canvas = page.locator('#picotracker-canvas')
-  const enter = page.getByRole('button', { name: 'ENTER', exact: true })
+  const edit = page.getByRole('button', { name: 'EDIT', exact: true })
 
-  await enter.focus()
+  await edit.focus()
   for (const key of ['Enter', 'Space']) {
     const generation = Number(await actionGeneration(canvas))
     await page.keyboard.press(key)
@@ -92,7 +86,7 @@ test('focused virtual buttons activate with keyboard click semantics without glo
   }
 })
 
-test('Operator fixed WASD, JK, and XC controls reach C++ and preserve Node START semantics', async ({ page }) => {
+test('Operator fixed WASD, J/K, and X/C controls reach C++ with direct M8 semantics', async ({ page }) => {
   await page.goto('/?inputDiagnostics=1')
   await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible()
   const canvas = page.locator('#picotracker-canvas')
@@ -104,8 +98,12 @@ test('Operator fixed WASD, JK, and XC controls reach C++ and preserve Node START
   await expect(page.getByRole('button', { name: 'SELECT', exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'POWER', exact: true })).toHaveCount(0)
 
-  for (const [key, action] of [['w', 3], ['a', 0], ['s', 1], ['d', 2], ['j', 5], ['k', 6]]) {
-    const control = page.locator(`[data-action="${({ w:'up', a:'left', s:'down', d:'right', j:'edit', k:'enter' })[key]}"]`)
+  const keyActions = [
+    ['w', 'up', 3], ['a', 'left', 0], ['s', 'down', 1], ['d', 'right', 2],
+    ['j', 'option', 5], ['k', 'edit', 6], ['x', 'shift', 4], ['c', 'play', 7],
+  ]
+  for (const [key, name, action] of keyActions) {
+    const control = page.locator(`[data-action="${name}"]`)
     await page.keyboard.down(key)
     await expect.poll(() => actionMask(canvas)).toBe(String(1 << action))
     await expect(control).toHaveAttribute('aria-pressed', 'true')
@@ -113,22 +111,11 @@ test('Operator fixed WASD, JK, and XC controls reach C++ and preserve Node START
     await expect.poll(() => actionMask(canvas)).toBe('0')
     await expect(control).toHaveAttribute('aria-pressed', 'false')
   }
-
-
-  const tapGeneration = Number(await actionGeneration(canvas))
-  await page.keyboard.down('c')
-  await expect.poll(() => actionMask(canvas)).toBe(String(1 << 7))
-  await expect(page.locator('[data-action="start"]')).toHaveAttribute('aria-pressed', 'true')
-  await page.keyboard.up('c')
-  await expect(page.locator('[data-action="start"]')).toHaveAttribute('aria-pressed', 'false')
-  await expect.poll(() => actionGeneration(canvas)).toBe(String(tapGeneration + 4))
-  await expect(canvas).toHaveAttribute('data-last-action', '8')
-  await expect(canvas).toHaveAttribute('data-action-mask', '0')
-
   const holdGeneration = Number(await actionGeneration(canvas))
   await page.keyboard.down('c')
   await expect.poll(() => actionMask(canvas)).toBe(String(1 << 7))
   await page.waitForTimeout(550)
+  await expect(actionGeneration(canvas)).resolves.toBe(String(holdGeneration + 1))
   await page.keyboard.up('c')
   await expect.poll(() => actionGeneration(canvas)).toBe(String(holdGeneration + 2))
   await expect(canvas).toHaveAttribute('data-last-action', '7')
@@ -143,25 +130,25 @@ test('Operator fixed WASD, JK, and XC controls reach C++ and preserve Node START
   await page.keyboard.up('x')
   await expect.poll(() => actionMask(canvas)).toBe('0')
 
-  const altPlayGeneration = Number(await actionGeneration(canvas))
+  const shiftPlayGeneration = Number(await actionGeneration(canvas))
   await page.keyboard.down('x')
   await expect.poll(() => actionMask(canvas)).toBe(String(1 << 4))
   await page.keyboard.down('c')
-  await expect.poll(() => actionMask(canvas)).toBe(String((1 << 4) | (1 << 8)))
+  await expect.poll(() => actionMask(canvas)).toBe(String((1 << 4) | (1 << 7)))
   await page.keyboard.up('c')
-  await expect.poll(() => actionGeneration(canvas)).toBe(String(altPlayGeneration + 3))
-  await expect(canvas).toHaveAttribute('data-last-action', '8')
+  await expect.poll(() => actionGeneration(canvas)).toBe(String(shiftPlayGeneration + 3))
+  await expect(canvas).toHaveAttribute('data-last-action', '7')
   await expect(canvas).toHaveAttribute('data-action-mask', String(1 << 4))
   await page.keyboard.up('x')
   await expect.poll(() => actionMask(canvas)).toBe('0')
 
   await page.keyboard.down('x')
   await page.keyboard.down('c')
-  await expect.poll(() => actionMask(canvas)).toBe(String((1 << 4) | (1 << 8)))
+  await expect.poll(() => actionMask(canvas)).toBe(String((1 << 4) | (1 << 7)))
   await page.keyboard.down('j')
-  await expect.poll(() => actionMask(canvas)).toBe(String((1 << 4) | (1 << 5)))
+  await expect.poll(() => actionMask(canvas)).toBe(String((1 << 4) | (1 << 5) | (1 << 7)))
   await page.keyboard.up('j')
-  await expect.poll(() => actionMask(canvas)).toBe(String(1 << 4))
+  await expect.poll(() => actionMask(canvas)).toBe(String((1 << 4) | (1 << 7)))
   await page.keyboard.up('c')
   await expect.poll(() => actionMask(canvas)).toBe(String(1 << 4))
   await page.keyboard.up('x')
