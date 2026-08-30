@@ -130,15 +130,18 @@ if(NOT PICOTRACKER_WASM_COMMIT)
 endif()
 
 execute_process(
-  COMMAND git status --porcelain
+  # Only tracked changes can alter this binary. Avoid scanning unrelated
+  # untracked files, and forbid Git from refreshing/locking the index during a
+  # read-only CMake configure (notably important on macOS FileProvider trees).
+  COMMAND "${CMAKE_COMMAND}" -E env GIT_OPTIONAL_LOCKS=0
+          git diff-index --quiet HEAD --
   WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../../.."
-  OUTPUT_VARIABLE PICOTRACKER_WASM_DIRTY_OUTPUT
-  OUTPUT_STRIP_TRAILING_WHITESPACE
+  RESULT_VARIABLE PICOTRACKER_WASM_DIRTY_RESULT
   ERROR_QUIET)
-if(PICOTRACKER_WASM_DIRTY_OUTPUT)
-  set(PICOTRACKER_WASM_DIRTY true)
-else()
+if(PICOTRACKER_WASM_DIRTY_RESULT EQUAL 0)
   set(PICOTRACKER_WASM_DIRTY false)
+else()
+  set(PICOTRACKER_WASM_DIRTY true)
 endif()
 
 string(TIMESTAMP PICOTRACKER_WASM_BUILT_AT "%Y-%m-%dT%H:%M:%SZ" UTC)
