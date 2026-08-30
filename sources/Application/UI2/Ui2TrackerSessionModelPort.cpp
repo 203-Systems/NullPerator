@@ -1129,7 +1129,7 @@ void Ui2TrackerSessionModelPort::ApplyTransport(
           command.selection.active ? command.selection.Left() : command.track;
       const std::uint8_t to =
           command.selection.active ? command.selection.Right() : command.track;
-      player->OnSongStartButton(from, to, false, false);
+      player->OnSongStartButton(from, to, command.flag, false);
     } else {
       // Phrase and both Table views edit a step inside the current phrase,
       // but Player::OnStartButton expects the position of that phrase inside

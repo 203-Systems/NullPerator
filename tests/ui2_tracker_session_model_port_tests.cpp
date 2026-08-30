@@ -770,3 +770,22 @@ TEST_CASE("UI2 model port preserves playback and solo command semantics") {
   CHECK(player->IsChannelMuted(6));
   CHECK_FALSE(player->IsChannelMuted(7));
 }
+
+TEST_CASE("UI2 Shift Play requests a selected-track stop in Live mode") {
+  TrackerApplicationSession session;
+  Ui2TrackerSessionModelPort port(session);
+  Player *player = Player::GetInstance();
+  player->Reset();
+  player->SetSequencerMode(SM_LIVE);
+
+  Ui2TrackerCommand stop = GridCommand(Ui2TrackerCommandType::StartPlayback,
+                                       Ui2TrackerPage::Song, 23, 4);
+  stop.flag = true;
+  port.ApplyGridCommand(stop);
+
+  CHECK(player->songStartCalls == 1);
+  CHECK(player->lastFrom == 4U);
+  CHECK(player->lastTo == 4U);
+  CHECK(player->lastRequestStop);
+  CHECK_FALSE(player->lastForceImmediate);
+}
