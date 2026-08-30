@@ -28,6 +28,7 @@ add_executable(picoTracker_tests
   sample_pool_loading_tests.cpp
   ui2_browser_legacy_snapshot_tests.cpp
   ui2_dialog_adapter_tests.cpp
+  ui2_feedback_controller_tests.cpp
   ui2_project_controller_tests.cpp
   ui2_project_lifecycle_controller_tests.cpp
   ui2_device_lifecycle_controller_tests.cpp

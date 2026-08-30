@@ -15,6 +15,7 @@
 #include "Application/UI2/Controllers/Ui2ControllerPrimitives.h"
 #include "Application/UI2/Controllers/Ui2DeviceController.h"
 #include "Application/UI2/Controllers/Ui2DeviceLifecycleController.h"
+#include "Application/UI2/Controllers/Ui2FeedbackController.h"
 #include "Application/UI2/Controllers/Ui2FontController.h"
 #include "Application/UI2/Controllers/Ui2GrooveController.h"
 #include "Application/UI2/Controllers/Ui2InstrumentController.h"
@@ -149,6 +150,7 @@ private:
   void ResetControllersAfterProjectBoundary();
   void MarkProjectDirty();
   void SynchronizeProjectMutationState();
+  void ShowFeedbackError(const char *message);
   [[nodiscard]] bool FlushConfig();
   [[nodiscard]] bool AutosaveSafePage() const;
   [[nodiscard]] AutoSaveCoordinator::Conditions AutoSaveConditions() const;
@@ -161,6 +163,7 @@ private:
   Ui2ProjectController project_{};
   Ui2ProjectBrowserController projectBrowser_{};
   Ui2SettingsBrowserController settingsBrowser_{};
+  Ui2FeedbackController feedback_{};
   Ui2ProjectLifecycleController projectLifecycle_{};
   Ui2GrooveController groove_{};
   Ui2DeviceController device_{};

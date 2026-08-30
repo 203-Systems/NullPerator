@@ -185,6 +185,8 @@ RectI16 UiDialogView::DamageRect(UiDialogKind kind) {
     return RectI16::Screen();
   if (kind == UiDialogKind::Rename)
     return RectI16::Screen();
+  if (kind == UiDialogKind::Feedback)
+    return {12, 184, 216, 18};
   return {27, 71, 186, 94};
 }
 
@@ -266,6 +268,21 @@ UiBuildStatus UiDialogView::Apply(const UiDialogViewData &data,
                         : UiBuildStatus::CommandOverflow;
   }
 
+  if (data.kind == UiDialogKind::Feedback) {
+    // Feedback is an overlay, not a modal. Keep both bars and the complete
+    // base scene intact so page input and live updates continue normally.
+    scene.overlay.Clear();
+    UiSceneBuilder<80, 256> builder(scene.overlay);
+    const UiColorToken accent = data.tone == UiDialogTone::Error
+                                    ? UiColorToken::SystemError
+                                    : UiColorToken::TextColored;
+    builder.Fill({12, 184, 216, 18}, accent);
+    builder.Fill({14, 186, 212, 14}, UiColorToken::SurfaceBackground);
+    builder.CenteredText(data.title, 120, 189, accent);
+    return builder.Ok() ? UiBuildStatus::Built
+                        : UiBuildStatus::CommandOverflow;
+  }
+
   scene.bottomVisible = false;
   scene.overlay.Clear();
   UiSceneBuilder<80, 256> builder(scene.overlay);
@@ -325,6 +342,7 @@ UiBuildStatus UiDialogView::Apply(const UiDialogViewData &data,
     break;
   case UiDialogKind::FullScreen:
   case UiDialogKind::Rename:
+  case UiDialogKind::Feedback:
     break;
   }
   return builder.Ok() ? UiBuildStatus::Built

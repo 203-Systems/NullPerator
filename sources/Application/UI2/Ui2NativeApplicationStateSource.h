@@ -8,6 +8,7 @@
 
 #include "Application/UI2/Controllers/Ui2DeviceController.h"
 #include "Application/UI2/Controllers/Ui2DeviceLifecycleController.h"
+#include "Application/UI2/Controllers/Ui2FeedbackController.h"
 #include "Application/UI2/Controllers/Ui2FontController.h"
 #include "Application/UI2/Controllers/Ui2GrooveController.h"
 #include "Application/UI2/Controllers/Ui2InstrumentController.h"
@@ -44,6 +45,7 @@ public:
       Ui2ProjectController &project,
       Ui2ProjectBrowserController &projectBrowser,
       Ui2SettingsBrowserController &settingsBrowser,
+      Ui2FeedbackController &feedback,
       Ui2ProjectLifecycleController &projectLifecycle,
       Ui2ProjectRenderController &projectRender, Ui2GrooveController &groove,
       Ui2DeviceController &device,
@@ -61,6 +63,7 @@ public:
       const Ui2PersistenceStatus &persistenceStatus)
       : session_(session), tracker_(tracker), project_(project),
         projectBrowser_(projectBrowser), settingsBrowser_(settingsBrowser),
+        feedback_(feedback),
         projectLifecycle_(projectLifecycle), projectRender_(projectRender),
         groove_(groove), device_(device), deviceLifecycle_(deviceLifecycle),
         theme_(theme), font_(font), rename_(rename), mixer_(mixer),
@@ -88,7 +91,8 @@ public:
   [[nodiscard]] bool HasDialog() const override {
     return projectRender_.Active() || projectLifecycle_.Active() ||
            sampleBrowser_.DialogActive() || deviceLifecycle_.Active() ||
-           instrumentLifecycle_.Active() || rename_.Active();
+           instrumentLifecycle_.Active() || rename_.Active() ||
+           feedback_.Active();
   }
   [[nodiscard]] Ui2DialogSnapshot DialogSnapshot() const override {
     if (projectRender_.Active())
@@ -99,8 +103,9 @@ public:
       return sampleBrowser_.DialogSnapshot();
     if (deviceLifecycle_.Active())
       return deviceLifecycle_.Snapshot();
-    return instrumentLifecycle_.Active() ? instrumentLifecycle_.Snapshot()
-                                         : rename_.Snapshot();
+    if (instrumentLifecycle_.Active())
+      return instrumentLifecycle_.Snapshot();
+    return rename_.Active() ? rename_.Snapshot() : feedback_.Snapshot();
   }
   [[nodiscard]] std::uint32_t DialogInstanceId() const override {
     // Modal owners need three tag bits. The owner tag prevents equal
@@ -117,7 +122,9 @@ public:
       return (deviceLifecycle_.InstanceId() << tagBits) | 4U;
     if (instrumentLifecycle_.Active())
       return (instrumentLifecycle_.InstanceId() << tagBits) | 5U;
-    return rename_.InstanceId() << tagBits;
+    if (rename_.Active())
+      return rename_.InstanceId() << tagBits;
+    return (feedback_.InstanceId() << tagBits) | 6U;
   }
 
   [[nodiscard]] UiApplicationActivityState
@@ -157,6 +164,7 @@ private:
   Ui2ProjectController &project_;
   Ui2ProjectBrowserController &projectBrowser_;
   Ui2SettingsBrowserController &settingsBrowser_;
+  Ui2FeedbackController &feedback_;
   Ui2ProjectLifecycleController &projectLifecycle_;
   Ui2ProjectRenderController &projectRender_;
   Ui2GrooveController &groove_;

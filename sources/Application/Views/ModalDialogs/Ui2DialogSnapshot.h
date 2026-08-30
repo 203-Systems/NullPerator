@@ -25,6 +25,7 @@ struct Ui2DialogSnapshot {
   static constexpr std::uint8_t ProgressPixelWidth = 144;
 
   ui2::UiDialogKind kind = ui2::UiDialogKind::Message;
+  ui2::UiDialogTone tone = ui2::UiDialogTone::Message;
   std::array<char, TextCapacity> title{};
   std::array<char, TextCapacity> label{};
   std::array<char, ValueCapacity> value{};
@@ -85,6 +86,7 @@ struct Ui2DialogSnapshot {
   [[nodiscard]] ui2::UiDialogViewData ToViewData() const {
     return {
         .kind = kind,
+        .tone = tone,
         .title = CStringView(title),
         .label = CStringView(label),
         .value = CStringView(value),

@@ -24,6 +24,12 @@ enum class UiDialogKind : std::uint8_t {
   RenderProgress,
   FullScreen,
   Rename,
+  Feedback,
+};
+
+enum class UiDialogTone : std::uint8_t {
+  Message,
+  Error,
 };
 
 enum class UiDialogAction : std::uint8_t {
@@ -45,6 +51,7 @@ inline constexpr std::size_t kUiDialogActionCapacity = 4U;
 
 struct UiDialogViewData {
   UiDialogKind kind = UiDialogKind::Message;
+  UiDialogTone tone = UiDialogTone::Message;
   std::string_view title = "DIAGNOSTIC MESSAGE";
   std::string_view label = "NAME";
   std::string_view value = "ONECYCAC";

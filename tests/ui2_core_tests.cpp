@@ -3745,6 +3745,32 @@ TEST_CASE("UI2 Dialog overlay preserves its page and suppresses Bottom Bar") {
   CHECK(scene.overlay.Size() > 0);
 }
 
+TEST_CASE("UI2 feedback overlay preserves bars and exposes no actions") {
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiSongView::Build(ui2::test::ApprovedSongFixture(), palette,
+                                 scene) == ui2::UiBuildStatus::Built);
+  const std::size_t baseCommands = scene.content.Size();
+  const std::size_t bottomCommands = scene.bottom.Size();
+
+  ui2::UiDialogViewData feedback;
+  feedback.kind = ui2::UiDialogKind::Feedback;
+  feedback.tone = ui2::UiDialogTone::Error;
+  feedback.title = "NO FREE TABLE";
+  REQUIRE(ui2::UiDialogView::Apply(feedback, scene) ==
+          ui2::UiBuildStatus::Built);
+
+  CHECK(scene.bottomVisible);
+  CHECK(scene.content.Size() == baseCommands);
+  CHECK(scene.bottom.Size() == bottomCommands);
+  CHECK(scene.overlay.Size() == 3U);
+  const ui2::UiCommandStream stream = scene.overlay.Stream();
+  const std::string_view text(stream.text.data(), stream.text.size());
+  CHECK(text.find("NO FREE TABLE") != std::string_view::npos);
+  CHECK(ui2::UiDialogView::DamageRect(ui2::UiDialogKind::Feedback) ==
+        ui2::RectI16{12, 184, 216, 18});
+}
+
 TEST_CASE("UI2 Dialog fits every live base-page scene") {
   ui2::UiPalette palette;
   ui2::UiFrameScene scene;

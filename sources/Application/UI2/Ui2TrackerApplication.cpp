@@ -142,7 +142,7 @@ Ui2TrackerApplication::Ui2TrackerApplication(IUiPresenter &presenter)
       projectRenderBackend_(session_.ProjectModel(), session_.EditorState()),
       projectRender_(projectRenderBackend_),
       source_(session_, tracker_, project_, projectBrowser_, settingsBrowser_,
-              projectLifecycle_, projectRender_, groove_, device_,
+              feedback_, projectLifecycle_, projectRender_, groove_, device_,
               deviceLifecycle_, theme_, font_, rename_, mixer_, instrument_,
               instrumentLifecycle_, instrumentBrowser_, sampleBrowser_,
               sampleEditor_, sampleSlices_, record_, firmwareLifecycle_,
@@ -580,6 +580,8 @@ PresentResult Ui2TrackerApplication::Present() {
 void Ui2TrackerApplication::Tick(std::uint32_t nowMs) {
   if (!initialized_)
     return;
+  if (feedback_.Tick(nowMs))
+    runtime_.Invalidate();
   const FirmwareLifecycleCommand firmwareCommand =
       firmwareLifecycle_.Tick(firmwareController_, nowMs);
   // A physical power-down bypasses the normal page-boundary/config flush.
@@ -2183,6 +2185,7 @@ void Ui2TrackerApplication::ResetControllersAfterProjectBoundary() {
 
   project_ = {};
   projectBrowser_ = {};
+  feedback_ = {};
   projectLifecycle_ = {};
   projectRender_.Reset();
   groove_ = {};
@@ -2230,6 +2233,12 @@ void Ui2TrackerApplication::SynchronizeProjectMutationState() {
     return;
   observedProjectMutationGeneration_ = mutationGeneration;
   autoSave_.MarkDirty(System::GetInstance()->Millis());
+}
+
+void Ui2TrackerApplication::ShowFeedbackError(const char *message) {
+  System *system = System::GetInstance();
+  feedback_.ShowError(message, system == nullptr ? 0U : system->Millis());
+  runtime_.Invalidate();
 }
 
 bool Ui2TrackerApplication::FlushConfig() {
