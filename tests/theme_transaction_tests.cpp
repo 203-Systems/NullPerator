@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdarg>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -21,6 +22,13 @@
 #include "System/FileSystem/I_File.h"
 
 namespace {
+
+void WriteAdapterFormat(I_File *file, const char *format, ...) {
+  va_list arguments;
+  va_start(arguments, format);
+  i_file_vfprintf(file, format, arguments);
+  va_end(arguments);
+}
 
 class ThemeMemoryFileSystem;
 
@@ -371,6 +379,24 @@ void SetDistinctTheme(Config &config, std::uint32_t base) {
 }
 
 } // namespace
+
+TEST_CASE("TinyXML adapter forwards va_list arguments without partial writes") {
+  ThemeFixture fixture;
+  {
+    FileHandle file = fixture.fileSystem_.Open("/formatted.xml", "w");
+    REQUIRE(file);
+    WriteAdapterFormat(file.get(), "%s:%d:%02X", "slot", 19, 255);
+  }
+  CHECK(fixture.fileSystem_.Get("/formatted.xml") == "slot:19:FF");
+
+  {
+    FileHandle file = fixture.fileSystem_.Open("/oversized.xml", "w");
+    REQUIRE(file);
+    const std::string oversized(256U, 'X');
+    WriteAdapterFormat(file.get(), "%s", oversized.c_str());
+  }
+  CHECK(fixture.fileSystem_.Get("/oversized.xml").empty());
+}
 
 TEST_CASE("theme import validates the complete stream before changing Config") {
   ThemeFixture fixture;
