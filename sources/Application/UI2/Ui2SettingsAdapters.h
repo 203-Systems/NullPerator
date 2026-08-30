@@ -7,6 +7,7 @@
 #pragma once
 
 #include "Application/UI2/Ui2SettingsSnapshots.h"
+#include "Application/UI2/Workflows/Ui2ThemeWorkflow.h"
 #include "UI2/Theme/UiPalette.h"
 #include "UI2/Views/Font/UiFontView.h"
 #include "UI2/Views/Theme/UiThemeView.h"
@@ -47,6 +48,10 @@ MakeUiThemeViewState(const ThemeViewUi2Snapshot &snapshot,
                   ThemeViewUi2Snapshot::ColorCount
           ? snapshot.selectedColor
           : -1;
+  if (state.selectedColor >= 0 && snapshot.colorsValid) {
+    state.selectedRgb = Ui2ThemeWorkflow::Components(
+        snapshot.colors[static_cast<std::size_t>(state.selectedColor)]);
+  }
   state.power = power;
   return state;
 }

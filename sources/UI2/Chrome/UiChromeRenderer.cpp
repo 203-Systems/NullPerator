@@ -285,6 +285,22 @@ RectI16 UiChromeRenderer::BottomTrackTargetRect(std::int8_t track) {
   return {static_cast<std::int16_t>(center - 7), 212, 15, 8};
 }
 
+RectI16 UiChromeRenderer::BottomRgbTargetRect(std::uint8_t component,
+                                              std::uint8_t value) {
+  if (component >= 3U)
+    return {};
+  constexpr std::array<std::int16_t, 3> centers{42, 120, 198};
+  std::array<char, 4> text{};
+  const int length = std::snprintf(text.data(), text.size(), "%u",
+                                   static_cast<unsigned>(value));
+  const std::int16_t width = UiFont5x7::TextWidth(
+      static_cast<std::size_t>(std::clamp(length, 0, 3)));
+  const std::int16_t valueX = static_cast<std::int16_t>(
+      centers[component] - width / 2 + 7);
+  return {static_cast<std::int16_t>(valueX - 2), 218,
+          static_cast<std::int16_t>(width + 4), 11};
+}
+
 UiBuildStatus UiChromeRenderer::BuildBottom(const UiBottomBarModel &model,
                                             UiBarScene &scene) {
   scene.Clear();
@@ -431,6 +447,29 @@ UiBuildStatus UiChromeRenderer::BuildBottom(const UiBottomBarModel &model,
       DrawPlusMinus(builder, 170, 220);
     builder.CenteredText(coarseText, 183, 220, UiColorToken::TextColored);
     DrawVerticalArrow(builder, 215, 222, true);
+    break;
+  }
+  case UiBottomBarKind::Rgb: {
+    constexpr std::array<std::string_view, 3> labels{"R", "G", "B"};
+    constexpr std::array<std::int16_t, 3> centers{42, 120, 198};
+    for (std::uint8_t index = 0; index < 3U; ++index) {
+      std::array<char, 4> value{};
+      std::snprintf(value.data(), value.size(), "%u",
+                    static_cast<unsigned>(model.rgb.values[index]));
+      const RectI16 target =
+          BottomRgbTargetRect(index, model.rgb.values[index]);
+      builder.Text(labels[index],
+                   static_cast<std::int16_t>(centers[index] - 22), 220,
+                   UiColorToken::TextColored);
+      if (index == model.rgb.active) {
+        builder.Selection(target);
+        builder.Text(value.data(), static_cast<std::int16_t>(target.x + 2),
+                     220, UiColorToken::TextHighlighted);
+      } else {
+        builder.Text(value.data(), static_cast<std::int16_t>(target.x + 2),
+                     220, UiColorToken::TextNormal);
+      }
+    }
     break;
   }
   }

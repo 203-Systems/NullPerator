@@ -664,6 +664,8 @@ TEST_CASE("UI2 vertical list reveals items and reconciles contextual bars") {
   ui2::UiThemeViewData previous;
   ui2::UiThemeViewData current = previous;
   current.selectedColor = 18;
+  current.selectedRgb = {1U, 128U, 255U};
+  current.colorComponent = 2U;
   current.scrollOffset = ui2::UiThemeView::RevealCursor(0, current);
   CHECK(current.scrollOffset == 122);
 
@@ -680,6 +682,22 @@ TEST_CASE("UI2 vertical list reveals items and reconciles contextual bars") {
   REQUIRE(ui2::UiThemeView::Build(current, palette, currentScene) ==
           ui2::UiBuildStatus::Built);
   CHECK(currentScene.contentOffsetY == 122);
+  CHECK(currentScene.bottomVisible);
+  CHECK(FindTextCommand(currentScene.bottom.Stream(), "R") != nullptr);
+  CHECK(FindTextCommand(currentScene.bottom.Stream(), "G") != nullptr);
+  CHECK(FindTextCommand(currentScene.bottom.Stream(), "B") != nullptr);
+  CHECK(FindTextCommand(currentScene.bottom.Stream(), "255") != nullptr);
+  const ui2::RectI16 rgbCursor =
+      ui2::UiChromeRenderer::BottomRgbTargetRect(2U, 255U);
+  const ui2::UiCommandStream bottom = currentScene.bottom.Stream();
+  const auto rgbSelection =
+      std::find_if(bottom.commands.begin(), bottom.commands.end(),
+                   [rgbCursor](const ui2::UiCommand &command) {
+                     return command.kind ==
+                                ui2::UiCommandKind::FillCoverageRoundedRect &&
+                            command.bounds == rgbCursor;
+                   });
+  CHECK(rgbSelection != bottom.commands.end());
   ui2::UiThemeView::RenderDelta(previous, current, currentScene, surface,
                                 palette);
   ui2::UiSurfaceStorage expectedStorage;
@@ -2823,9 +2841,30 @@ TEST_CASE("UI2 Theme and Font remain separate page contracts") {
   CHECK(scene.bottomVisible);
 
   theme.selectedColor = 0;
+  theme.selectedRgb = {3U, 7U, 255U};
+  theme.colorComponent = 1U;
   REQUIRE(ui2::UiThemeView::Build(theme, palette, scene) ==
           ui2::UiBuildStatus::Built);
-  CHECK_FALSE(scene.bottomVisible);
+  CHECK(scene.bottomVisible);
+  CHECK(FindTextCommand(scene.bottom.Stream(), "3") != nullptr);
+  CHECK(FindTextCommand(scene.bottom.Stream(), "7") != nullptr);
+  CHECK(FindTextCommand(scene.bottom.Stream(), "255") != nullptr);
+  CHECK((ui2::UiChromeRenderer::BottomRgbTargetRect(0U, 0U) ==
+         ui2::RectI16{45, 218, 9, 11}));
+  CHECK((ui2::UiChromeRenderer::BottomRgbTargetRect(1U, 128U) ==
+         ui2::RectI16{117, 218, 21, 11}));
+  CHECK((ui2::UiChromeRenderer::BottomRgbTargetRect(2U, 255U) ==
+         ui2::RectI16{195, 218, 21, 11}));
+  CHECK(ui2::UiChromeRenderer::BottomRgbTargetRect(3U, 0U).Empty());
+
+  ui2::UiThemeViewState retained;
+  retained.selectedColor = 18;
+  retained.selectedRgb = {0U, 127U, 255U};
+  retained.colorComponent = 2U;
+  const ui2::UiThemeViewData projected = retained.ToViewData();
+  CHECK(projected.selectedColor == 18);
+  CHECK(projected.selectedRgb == retained.selectedRgb);
+  CHECK(projected.colorComponent == 2U);
 
   REQUIRE(ui2::UiFontView::Build({}, palette, scene) ==
           ui2::UiBuildStatus::Built);
@@ -2877,6 +2916,8 @@ TEST_CASE("UI2 Theme and Font adapters retain owned fixed-capacity text") {
   themeSnapshot.focus = ThemeViewUi2Focus::Color;
   themeSnapshot.selectedColor = 11;
   themeSnapshot.nameAction = 2;
+  themeSnapshot.colorsValid = true;
+  themeSnapshot.colors[11] = 0x123456U;
 
   const ui2::UiThemeViewState themeState =
       ui2::MakeUiThemeViewState(themeSnapshot, ui2::UiPowerState::BatteryHigh);
@@ -2884,6 +2925,8 @@ TEST_CASE("UI2 Theme and Font adapters retain owned fixed-capacity text") {
   const ui2::UiThemeViewData themeData = themeState.ToViewData();
   CHECK(themeData.name == "NIGHT");
   CHECK(themeData.selectedColor == 11);
+  const std::array<std::uint8_t, 3> expectedRgb{0x12U, 0x34U, 0x56U};
+  CHECK(themeData.selectedRgb == expectedRgb);
   CHECK(themeData.nameAction == 2);
   CHECK(themeData.power == ui2::UiPowerState::BatteryHigh);
 
@@ -3007,6 +3050,12 @@ TEST_CASE("UI2 Theme bottom action changes use a pixel-identical delta") {
                              ui2::UiThemeView::RenderDelta);
 
   current.selectedColor = 0;
+  CheckDeltaMatchesFullFrame(previous, current, ui2::UiThemeView::Build,
+                             ui2::UiThemeView::RenderDelta);
+
+  previous = current;
+  current.selectedRgb = {255U, 127U, 0U};
+  current.colorComponent = 1U;
   CheckDeltaMatchesFullFrame(previous, current, ui2::UiThemeView::Build,
                              ui2::UiThemeView::RenderDelta);
 }

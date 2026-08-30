@@ -16,6 +16,7 @@
 // library headers above the production persistence headers.
 #include "../sources/Application/Model/Config.h"
 #include "Application/Persistency/PersistencyDocument.h"
+#include "Application/UI2/Workflows/Ui2ThemeWorkflow.h"
 #include "System/FileSystem/FileSystem.h"
 #include "System/FileSystem/I_File.h"
 
@@ -487,6 +488,34 @@ TEST_CASE("complete current device config loads without migration") {
   CHECK(loaded.FindVariable(FourCC::VarOutputVolume)->GetInt() == 77);
   CHECK(loaded.GetSemanticThemeColors() == expected);
   CHECK(fixture.fileSystem_.Get("/.config.xml") == saved);
+}
+
+TEST_CASE("UI2 RGB workflow commits one semantic slot through Config save") {
+  ThemeFixture fixture;
+  Config::SemanticThemeColors expected{};
+  {
+    Config config;
+    expected = config.GetSemanticThemeColors();
+    expected[18] = 0x0102FEU;
+    config.SetSemanticThemeColors(expected);
+
+    const ui2::Ui2ThemeColorEditResult edit = ui2::Ui2ThemeWorkflow::Execute(
+        {.type = ui2::Ui2ThemeCommandType::AdjustColor,
+         .color = 18,
+         .component = 2U,
+         .delta = 1},
+        config.GetSemanticThemeColors());
+    REQUIRE(edit.accepted);
+    REQUIRE(edit.changed);
+    CHECK(edit.packedColor == 0x0102FFU);
+    config.SetSemanticThemeColor(edit.color, edit.packedColor);
+    expected[18] = edit.packedColor;
+    CHECK(config.GetSemanticThemeColors() == expected);
+    REQUIRE(config.Save());
+  }
+
+  Config loaded;
+  CHECK(loaded.GetSemanticThemeColors() == expected);
 }
 
 TEST_CASE("theme overwrite preserves old bytes on short write and move failure") {

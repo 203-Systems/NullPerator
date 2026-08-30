@@ -20,6 +20,7 @@
 #include "Application/UI2/Ui2ConfigSaveState.h"
 #include "Application/UI2/Ui2TransportPolicy.h"
 #include "Application/UI2/Workflows/Ui2GrooveWorkflow.h"
+#include "Application/UI2/Workflows/Ui2ThemeWorkflow.h"
 
 namespace {
 
@@ -252,12 +253,86 @@ TEST_CASE("UI2 Theme owns NAME actions and all nineteen palette rows") {
     CHECK(controller.SelectedColor() == static_cast<std::int8_t>(color));
   }
   CHECK(controller.FirstVisibleOrdinal() == 14U);
-  CHECK(controller.Bottom().kind == Ui2ThemeBottomKind::Hidden);
-  const auto color = Tap(controller, TrackerAction::Edit);
-  CHECK(color.type == Ui2ThemeCommandType::ActivateColor);
+  CHECK(controller.Bottom().kind == Ui2ThemeBottomKind::Rgb);
+  CHECK(controller.Bottom().selectedIndex == 0U);
+  CHECK(controller.Bottom().optionCount == 3U);
+  CHECK_FALSE(Tap(controller, TrackerAction::Edit).HasValue());
+
+  Tap(controller, TrackerAction::Left);
+  CHECK(controller.ColorComponent() == 2U);
+  CHECK(controller.Bottom().selectedIndex == 2U);
+  controller.Handle(TrackerAction::Edit, true);
+  const auto color = controller.Handle(TrackerAction::Up, true);
+  CHECK(color.type == Ui2ThemeCommandType::AdjustColor);
   CHECK(color.color == 18);
+  CHECK(color.component == 2U);
+  CHECK(color.delta == 1);
+  const auto repeated = controller.Handle(TrackerAction::Up, true);
+  CHECK(repeated.type == Ui2ThemeCommandType::AdjustColor);
+  controller.Handle(TrackerAction::Up, false);
+  const auto decrement = controller.Handle(TrackerAction::Down, true);
+  CHECK(decrement.delta == -1);
+  controller.Handle(TrackerAction::Down, false);
+  controller.Handle(TrackerAction::Edit, false);
+
+  Tap(controller, TrackerAction::Right);
+  CHECK(controller.ColorComponent() == 0U);
   Tap(controller, TrackerAction::Down);
   CHECK(controller.SelectedColor() == 18);
+}
+
+TEST_CASE("UI2 Theme workflow bounds RGB edits for application persistence") {
+  using namespace ui2;
+  static_assert(Ui2ThemeWorkflow::Colors{}.size() == 19U);
+
+  Ui2ThemeWorkflow::Colors colors{};
+  colors[0] = 0x102030U;
+  Ui2ThemeController controller(0);
+  controller.Handle(TrackerAction::Edit, true);
+  const Ui2ThemeCommand command = controller.Handle(TrackerAction::Up, true);
+  controller.Handle(TrackerAction::Up, false);
+  controller.Handle(TrackerAction::Edit, false);
+
+  const Ui2ThemeColorEditResult edit =
+      Ui2ThemeWorkflow::Execute(command, colors);
+  REQUIRE(edit.accepted);
+  REQUIRE(edit.changed);
+  CHECK(edit.color == 0U);
+  CHECK(edit.packedColor == 0x112030U);
+  const std::array<std::uint8_t, 3> expected{0x11U, 0x20U, 0x30U};
+  CHECK(Ui2ThemeWorkflow::Components(edit.packedColor) == expected);
+
+  Ui2ConfigSaveState persistence;
+  if (edit.changed)
+    persistence.MarkDirty();
+  CHECK(persistence.Dirty());
+
+  colors[0] = 0xFF2030U;
+  const auto clamped = Ui2ThemeWorkflow::Execute(command, colors);
+  CHECK(clamped.accepted);
+  CHECK_FALSE(clamped.changed);
+  CHECK(clamped.packedColor == 0xFF2030U);
+
+  const auto greenFloor = Ui2ThemeWorkflow::Execute(
+      {.type = Ui2ThemeCommandType::AdjustColor,
+       .color = 0,
+       .component = 1U,
+       .delta = -1000},
+      colors);
+  CHECK(greenFloor.accepted);
+  CHECK(greenFloor.changed);
+  CHECK(greenFloor.packedColor == 0xFF0030U);
+
+  CHECK_FALSE(Ui2ThemeWorkflow::Execute(
+                  {.type = Ui2ThemeCommandType::AdjustColor, .color = 19},
+                  colors)
+                  .accepted);
+  CHECK_FALSE(Ui2ThemeWorkflow::Execute(
+                  {.type = Ui2ThemeCommandType::AdjustColor,
+                   .color = 0,
+                   .component = 3U},
+                  colors)
+                  .accepted);
 }
 
 TEST_CASE("UI2 Font selects text case and exposes BROWSE as a second row") {

@@ -27,16 +27,18 @@ enum class Ui2ThemeCommandType : std::uint8_t {
   LoadTheme,
   SaveTheme,
   RenameTheme,
-  ActivateColor,
+  AdjustColor,
 };
 
-enum class Ui2ThemeBottomKind : std::uint8_t { Hidden, NameActions };
+enum class Ui2ThemeBottomKind : std::uint8_t { Hidden, NameActions, Rgb };
 
 struct Ui2ThemeCommand {
   Ui2ThemeCommandType type = Ui2ThemeCommandType::None;
-  // Valid only for ActivateColor. It is an index into the nineteen public
+  // Valid only for AdjustColor. It is an index into the nineteen public
   // palette slots, not a renderer token or a legacy color definition.
   std::int8_t color = -1;
+  std::uint8_t component = 0;
+  std::int16_t delta = 0;
 
   [[nodiscard]] constexpr bool HasValue() const {
     return type != Ui2ThemeCommandType::None;
@@ -83,10 +85,16 @@ public:
   [[nodiscard]] constexpr std::uint16_t HeldMask() const {
     return input_.Mask();
   }
+  [[nodiscard]] constexpr std::uint8_t ColorComponent() const {
+    return colorComponent_;
+  }
 
   [[nodiscard]] constexpr Ui2ThemeBottomState Bottom() const {
-    if (!NameSelected())
-      return {};
+    if (!NameSelected()) {
+      return {.kind = Ui2ThemeBottomKind::Rgb,
+              .selectedIndex = colorComponent_,
+              .optionCount = 3U};
+    }
     return {.kind = Ui2ThemeBottomKind::NameActions,
             .selectedCommand = NameCommand(nameAction_),
             .selectedIndex = static_cast<std::uint8_t>(nameAction_),
@@ -97,8 +105,7 @@ public:
   [[nodiscard]] constexpr Ui2ThemeCommand Enter() const {
     if (NameSelected())
       return {.type = NameCommand(nameAction_)};
-    return {.type = Ui2ThemeCommandType::ActivateColor,
-            .color = SelectedColor()};
+    return {};
   }
 
   constexpr Ui2ThemeCommand Handle(TrackerAction action, bool pressed) {
@@ -106,9 +113,17 @@ public:
       return {};
 
     if (input_.Held(TrackerAction::Edit)) {
-      if (action == TrackerAction::Edit &&
+      if (NameSelected() && action == TrackerAction::Edit &&
           input_.Mask() == TrackerActionBit(TrackerAction::Edit))
         return Enter();
+      if (!NameSelected() &&
+          (action == TrackerAction::Up || action == TrackerAction::Down)) {
+        return {.type = Ui2ThemeCommandType::AdjustColor,
+                .color = SelectedColor(),
+                .component = colorComponent_,
+                .delta = static_cast<std::int16_t>(
+                    action == TrackerAction::Up ? 1 : -1)};
+      }
       return {};
     }
     if (input_.AnyModifier())
@@ -124,6 +139,10 @@ public:
     } else if (NameSelected() && action == TrackerAction::Right) {
       nameAction_ = static_cast<Ui2ThemeNameAction>(
           Next(static_cast<std::uint8_t>(nameAction_), NameActionCount()));
+    } else if (!NameSelected() && action == TrackerAction::Left) {
+      colorComponent_ = static_cast<std::uint8_t>((colorComponent_ + 2U) % 3U);
+    } else if (!NameSelected() && action == TrackerAction::Right) {
+      colorComponent_ = static_cast<std::uint8_t>((colorComponent_ + 1U) % 3U);
     }
     return {};
   }
@@ -178,6 +197,7 @@ private:
   Ui2FixedListCursor<RowCount> cursor_{};
   Ui2ControllerInputState input_{};
   Ui2ThemeNameAction nameAction_ = Ui2ThemeNameAction::New;
+  std::uint8_t colorComponent_ = 0;
 };
 
 static_assert(std::is_trivially_copyable_v<Ui2ThemeCommand>);

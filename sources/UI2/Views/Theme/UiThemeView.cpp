@@ -27,6 +27,8 @@ UiThemeViewData UiThemeViewState::ToViewData() const {
   UiThemeViewData data;
   data.name = name.data();
   data.selectedColor = selectedColor;
+  data.selectedRgb = selectedRgb;
+  data.colorComponent = colorComponent;
   data.nameAction = nameAction;
   data.scrollOffset = scrollOffset;
   data.cursorVisualRect = cursorVisualRect;
@@ -71,7 +73,9 @@ void UiThemeView::RenderDelta(const UiThemeViewData &previous,
                                       current.scrollOffset));
   }
   if (previous.selectedColor != current.selectedColor ||
-      previous.nameAction != current.nameAction)
+      previous.nameAction != current.nameAction ||
+      previous.selectedRgb != current.selectedRgb ||
+      previous.colorComponent != current.colorComponent)
     render({0, 208, 240, 32});
 }
 
@@ -80,7 +84,7 @@ UiBuildStatus UiThemeView::Build(const UiThemeViewData &data, UiPalette &,
   scene.Clear();
   scene.topHeight = 34;
   scene.bottomTop = 208;
-  scene.bottomVisible = data.selectedColor < 0;
+  scene.bottomVisible = true;
   scene.contentOffsetY = UiVerticalList::Clamp(data.scrollOffset,
                                                 kRevealBottom,
                                                 kContentBottom);
@@ -90,13 +94,16 @@ UiBuildStatus UiThemeView::Build(const UiThemeViewData &data, UiPalette &,
   const UiBuildStatus topStatus = UiChromeRenderer::BuildTop(top, scene.top);
   if (topStatus != UiBuildStatus::Built)
     return topStatus;
-  UiBottomBarModel bottom{.kind = scene.bottomVisible
-                                      ? UiBottomBarKind::Actions
-                                      : UiBottomBarKind::Hidden};
-  if (scene.bottomVisible) {
+  UiBottomBarModel bottom{};
+  if (data.selectedColor < 0) {
+    bottom.kind = UiBottomBarKind::Actions;
     bottom.actions.actions = {"NEW", "LOAD", "SAVE", "RENAME"};
     bottom.actions.count = 4;
     bottom.actions.active = std::min<std::uint8_t>(data.nameAction, 3);
+  } else {
+    bottom.kind = UiBottomBarKind::Rgb;
+    bottom.rgb.values = data.selectedRgb;
+    bottom.rgb.active = std::min<std::uint8_t>(data.colorComponent, 2U);
   }
   const UiBuildStatus bottomStatus =
       UiChromeRenderer::BuildBottom(bottom, scene.bottom);

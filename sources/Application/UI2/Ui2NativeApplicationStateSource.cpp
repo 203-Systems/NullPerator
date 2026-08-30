@@ -21,6 +21,7 @@
 #include "Application/UI2/Ui2InstrumentParameters.h"
 #include "Application/UI2/Ui2ProjectNamePresentation.h"
 #include "Application/UI2/Ui2VuMapping.h"
+#include "Application/UI2/Workflows/Ui2ThemeWorkflow.h"
 #include "Application/Utils/HelpLegend.h"
 #include "Application/Utils/char.h"
 #include "System/System/System.h"
@@ -883,6 +884,14 @@ Ui2NativeApplicationStateSource::CaptureTheme(UiThemeFrameState &state) {
   }
   state.view.selectedColor = theme_.SelectedColor();
   state.view.nameAction = static_cast<std::uint8_t>(theme_.NameAction());
+  state.view.colorComponent = theme_.ColorComponent();
+  if (state.view.selectedColor >= 0 &&
+      static_cast<std::size_t>(state.view.selectedColor) <
+          state.colors.size() &&
+      state.colorsValid) {
+    state.view.selectedRgb = Ui2ThemeWorkflow::Components(
+        state.colors[static_cast<std::size_t>(state.view.selectedColor)]);
+  }
   return {.active = PlayerRunning()};
 }
 

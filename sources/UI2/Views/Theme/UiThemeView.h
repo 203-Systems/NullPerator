@@ -24,6 +24,8 @@ struct UiThemeViewData {
   std::string_view name = "DEFAULT";
   // -1 selects NAME; 0..18 select the configurable palette entries.
   std::int8_t selectedColor = -1;
+  std::array<std::uint8_t, 3> selectedRgb{};
+  std::uint8_t colorComponent = 0;
   std::uint8_t nameAction = 0;
   std::int16_t scrollOffset = 0;
   RectI16 cursorVisualRect{};
@@ -41,6 +43,8 @@ struct UiThemeViewState {
   std::array<char, NameCapacity> name{
       'D', 'E', 'F', 'A', 'U', 'L', 'T', '\0'};
   std::int8_t selectedColor = -1;
+  std::array<std::uint8_t, 3> selectedRgb{};
+  std::uint8_t colorComponent = 0;
   std::uint8_t nameAction = 0;
   std::int16_t scrollOffset = 0;
   RectI16 cursorVisualRect{};

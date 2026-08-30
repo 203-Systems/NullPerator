@@ -15,6 +15,8 @@ int main(int argc, char **argv) {
     ui2::UiThemeViewData data;
     if (state == "theme-scroll") {
       data.selectedColor = 18;
+      const ui2::Rgb888 color = palette.Get(18U);
+      data.selectedRgb = {color.red, color.green, color.blue};
       data.scrollOffset = ui2::UiThemeView::RevealCursor(0, data);
     }
     if (ui2::UiThemeView::Build(data, palette, scene) !=

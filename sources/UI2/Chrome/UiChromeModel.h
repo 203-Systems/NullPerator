@@ -136,6 +136,11 @@ struct UiAdjustmentLegendModel {
   std::string_view coarseLabel{};
 };
 
+struct UiRgbBarModel {
+  std::array<std::uint8_t, 3> values{};
+  std::uint8_t active = 0;
+};
+
 enum class UiBottomBarKind : std::uint8_t {
   Hidden,
   TrackNotes,
@@ -143,6 +148,7 @@ enum class UiBottomBarKind : std::uint8_t {
   Actions,
   Selector,
   AdjustmentLegend,
+  Rgb,
 };
 
 struct UiBottomBarModel {
@@ -152,6 +158,7 @@ struct UiBottomBarModel {
   UiActionBarModel actions{};
   UiSelectorBarModel selector{};
   UiAdjustmentLegendModel adjustment{};
+  UiRgbBarModel rgb{};
 };
 
 struct UiResolvedChrome {

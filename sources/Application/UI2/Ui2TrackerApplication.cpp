@@ -14,6 +14,7 @@
 #include "Application/UI2/Ui2SampleFileOperations.h"
 #include "Application/UI2/Ui2TransportPolicy.h"
 #include "Application/UI2/Workflows/Ui2InstrumentWorkflow.h"
+#include "Application/UI2/Workflows/Ui2ThemeWorkflow.h"
 
 #include "Application/Audio/RecordingPlatform.h"
 #include "Application/Instruments/SampleInstrument.h"
@@ -1970,10 +1971,17 @@ void Ui2TrackerApplication::ExecuteTheme(Ui2ThemeCommand command) {
                     MAX_THEME_NAME_LENGTH);
     }
     break;
-  case Ui2ThemeCommandType::ActivateColor:
-    // The nineteen values are now real, independently persisted renderer
-    // inputs. No approved UI2 color editor exists yet, so entering a color row
-    // intentionally stops here instead of inventing a picker or RGB dialog.
+  case Ui2ThemeCommandType::AdjustColor:
+    if (config != nullptr) {
+      const Ui2ThemeColorEditResult edit =
+          Ui2ThemeWorkflow::Execute(command,
+                                    config->GetSemanticThemeColors());
+      if (!edit.changed)
+        break;
+      config->SetSemanticThemeColor(edit.color, edit.packedColor);
+      ApplyCurrentTheme();
+      configSave_.MarkDirty();
+    }
     break;
   case Ui2ThemeCommandType::None:
     break;

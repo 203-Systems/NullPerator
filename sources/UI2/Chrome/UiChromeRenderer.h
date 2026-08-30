@@ -30,6 +30,8 @@ public:
   [[nodiscard]] static UiNavMapModel NavigationMap(UiNavTarget target);
   [[nodiscard]] static RectI16 MetaTargetRect(const UiTopBarModel &model);
   [[nodiscard]] static RectI16 BottomTrackTargetRect(std::int8_t track);
+  [[nodiscard]] static RectI16 BottomRgbTargetRect(std::uint8_t component,
+                                                   std::uint8_t value);
 
 private:
   static void DrawPower(const UiTopBarModel &model,
