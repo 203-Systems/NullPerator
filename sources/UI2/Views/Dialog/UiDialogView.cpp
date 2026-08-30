@@ -168,22 +168,12 @@ void RenderRename(const UiDialogViewData &data,
     const std::int16_t center = kRenameActionCenters[index];
     const bool selected = data.focus == UiDialogFocus::Actions &&
                           index == data.selectedAction;
-    const bool selectedInk =
-        selected && (!data.cursorVisualOverride || data.cursorInkVisible);
-    if (selected && !data.cursorVisualOverride) {
-      const std::int16_t width = UiFont5x7::TextWidth(label.size());
-      builder.Selection({static_cast<std::int16_t>(
-                             center - (width + 1) / 2 - 4),
-                         216,
-                         static_cast<std::int16_t>(width + 8), 11});
-    }
     const bool save = data.actions[index] == UiDialogAction::Save;
     const bool enabled = !save || data.saveEnabled;
     const UiColorToken color =
-        !enabled      ? UiColorToken::TextDim
-        : selectedInk ? UiColorToken::TextHighlighted
-        : save        ? UiColorToken::TextColored
-                      : UiColorToken::TextDim;
+        !enabled ? UiColorToken::TextDim
+        : selected ? UiColorToken::TextColored
+                   : UiColorToken::TextDim;
     builder.CenteredText(label, center, 218, color);
   }
 }
@@ -222,14 +212,9 @@ RectI16 UiDialogView::CursorTargetRect(const UiDialogViewData &data) {
                ? kRenameSpecialKeys[specialIndex]
                : RectI16{};
   }
-  if (data.selectedAction >= data.actionCount ||
-      data.selectedAction >= kRenameActionCenters.size())
-    return {};
-  const std::string_view label = ActionLabel(data.actions[data.selectedAction]);
-  const std::int16_t width = UiFont5x7::TextWidth(label.size());
-  const std::int16_t center = kRenameActionCenters[data.selectedAction];
-  return {static_cast<std::int16_t>(center - (width + 1) / 2 - 4), 216,
-          static_cast<std::int16_t>(width + 8), 11};
+  // Bottom bars express focus through colored text. The rounded content cursor
+  // is reserved for the input and keyboard regions above the bar.
+  return {};
 }
 
 void UiDialogView::RenderDelta(const UiDialogViewData &previous,

@@ -173,6 +173,13 @@ void UiApplicationRuntime::CaptureDialog(IUiApplicationStateSource &source) {
 
   const RectI16 cursorTarget =
       UiDialogView::CursorTargetRect(currentDialog_.snapshot.ToViewData());
+  if (cursorTarget.Empty()) {
+    dialogCursorTargetValid_ = false;
+    currentDialog_.snapshot.cursorVisualRect = {};
+    currentDialog_.snapshot.cursorVisualOverride = false;
+    currentDialog_.snapshot.cursorInkVisible = true;
+    return;
+  }
   if (!dialogCursorTargetValid_) {
     cursors_.Snap(UiCursorRole::Navigation, cursorTarget, frameNowMs_);
     dialogCursorTarget_ = cursorTarget;

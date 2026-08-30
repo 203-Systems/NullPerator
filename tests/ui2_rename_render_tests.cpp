@@ -10,6 +10,24 @@
 #include <string_view>
 #include <type_traits>
 
+namespace {
+
+const ui2::UiCommand *FindTextCommand(const ui2::UiCommandStream &stream,
+                                      std::string_view text) {
+  for (const ui2::UiCommand &command : stream.commands) {
+    if (command.kind != ui2::UiCommandKind::Text ||
+        command.auxiliaryColor != text.size())
+      continue;
+    const std::size_t begin = command.payload;
+    if (begin + text.size() <= stream.text.size() &&
+        std::equal(text.begin(), text.end(), stream.text.begin() + begin))
+      return &command;
+  }
+  return nullptr;
+}
+
+} // namespace
+
 TEST_CASE("Rename dialog snapshot is fixed-capacity and owns its projection") {
   std::string source = "ABCDEFGHIJKLMNOPQRSTUV";
   Ui2DialogSnapshot snapshot;
@@ -69,14 +87,11 @@ TEST_CASE("Rename full page and all cursor targets stay in 240x240") {
 
   data.focus = ui2::UiDialogFocus::Actions;
   data.selectedAction = 0U;
-  CHECK(ui2::UiDialogView::CursorTargetRect(data) ==
-        ui2::RectI16{18, 216, 43, 11});
+  CHECK(ui2::UiDialogView::CursorTargetRect(data).Empty());
   data.selectedAction = 1U;
-  CHECK(ui2::UiDialogView::CursorTargetRect(data) ==
-        ui2::RectI16{98, 216, 43, 11});
+  CHECK(ui2::UiDialogView::CursorTargetRect(data).Empty());
   data.selectedAction = 2U;
-  CHECK(ui2::UiDialogView::CursorTargetRect(data) ==
-        ui2::RectI16{181, 216, 31, 11});
+  CHECK(ui2::UiDialogView::CursorTargetRect(data).Empty());
 
   ui2::UiFrameScene scene;
   REQUIRE(ui2::UiDialogView::Apply(data, scene) == ui2::UiBuildStatus::Built);
@@ -124,7 +139,21 @@ TEST_CASE("Rename page exposes input keyboard case space and three actions") {
                       [](const ui2::UiCommand &command) {
                         return command.kind ==
                                ui2::UiCommandKind::FillCoverageRoundedRect;
-                      }) == 1);
+                      }) == 0);
+
+  const ui2::UiCommand *save = FindTextCommand(stream, "SAVE");
+  REQUIRE(save != nullptr);
+  CHECK(save->color ==
+        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextColored));
+
+  data.focus = ui2::UiDialogFocus::Input;
+  ui2::UiFrameScene inputScene;
+  REQUIRE(ui2::UiDialogView::Apply(data, inputScene) ==
+          ui2::UiBuildStatus::Built);
+  save = FindTextCommand(inputScene.overlay.Stream(), "SAVE");
+  REQUIRE(save != nullptr);
+  CHECK(save->color ==
+        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextDim));
 }
 
 TEST_CASE("Rename cursor-only changes are pixel-identical to full redraw") {
