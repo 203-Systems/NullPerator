@@ -103,4 +103,23 @@
   .compact .bottom-buttons button:first-child{left:4px}.compact .bottom-buttons button:last-child{right:4px}
   .compact .bottom-buttons em { top:21px; bottom:auto; }
   .compact .face.enter,.compact .bottom-buttons button:last-child { border-color:rgba(76,201,240,.3); }
+  @media(orientation:landscape) and (max-height:539px){
+    .operator-controls.compact{width:280px;height:156px}
+    .compact button,.compact .d-pad button,.compact .face{width:48px;height:48px;border-radius:12px}
+    .compact .d-pad{left:0;top:4px;width:148px;height:144px}
+    .compact .d-pad .up{left:50px;top:0}.compact .d-pad .left{left:0;top:48px}.compact .d-pad .down{left:50px;top:96px}.compact .d-pad .right{left:100px;top:48px}
+    .compact .face-buttons{right:0;top:4px;width:116px;height:116px}
+    .compact .face.enter{left:60px;top:0}.compact .face.edit{left:0;top:0}
+    .compact .bottom-buttons{right:0;top:60px;width:116px;height:48px}
+    .compact .bottom-buttons button:first-child{left:0}.compact .bottom-buttons button:last-child{right:0}
+  }
+  @media(orientation:landscape) and (max-height:539px) and (max-width:567px){
+    .operator-controls.compact{width:240px;height:136px}
+    .compact button,.compact .d-pad button,.compact .face{width:44px;height:44px;border-radius:11px}
+    .compact .d-pad{left:0;top:2px;width:132px;height:132px}
+    .compact .d-pad .up{left:44px;top:0}.compact .d-pad .left{left:0;top:44px}.compact .d-pad .down{left:44px;top:88px}.compact .d-pad .right{left:88px;top:44px}
+    .compact .face-buttons{right:0;top:20px;width:100px;height:96px}
+    .compact .face.enter{left:56px;top:0}.compact .face.edit{left:0;top:0}
+    .compact .bottom-buttons{right:0;top:72px;width:100px;height:44px}
+  }
 </style>

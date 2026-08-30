@@ -33,4 +33,5 @@
   .nav-label { display:inline-block; max-width:0; overflow:hidden; opacity:0; transform:translateX(-6px); transition:opacity .14s ease,max-width .24s cubic-bezier(.2,.8,.2,1),transform .22s cubic-bezier(.2,.8,.2,1); }
   .expanded .nav-label { max-width:128px; opacity:1; transform:translateX(0); transition-delay:.05s; }
   @media(max-width:720px){.left-nav,.left-nav.expanded{width:52px}.left-nav{padding-top:5px}.left-nav.expanded .nav-label{max-width:0;opacity:0}.left-nav button{min-height:44px;padding-left:14px}}
+  @media(max-height:399px){.left-nav{overflow-x:hidden;overflow-y:auto;scrollbar-width:none}.left-nav::-webkit-scrollbar{display:none}}
 </style>

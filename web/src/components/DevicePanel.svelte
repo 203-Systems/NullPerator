@@ -121,6 +121,17 @@
     .compact .device-scene{padding-inline:0}
     .device-input-host:not(.compact) .operator-device{zoom:.72!important}
   }
+  @media(orientation:landscape) and (max-height:539px){
+    .compact .device-scene{padding:6px 12px}
+    .compact .operator-device{display:grid;width:544px;height:264px;grid-template-columns:264px 280px;align-items:center}
+    .compact :global(.operator-controls){margin:0}
+  }
+  @media(orientation:landscape) and (max-height:539px) and (max-width:567px){
+    .compact .device-scene{padding:6px 0}
+    .compact .operator-device{width:480px;height:240px;grid-template-columns:240px 240px}
+    .compact .screen-bezel{width:240px;height:240px;padding:0;border:0}
+    .compact .screen-glass{inset:0}
+  }
   @media(min-height:540px){
     .compact .operator-device{height:min(720px,calc(100dvh - 72px - env(safe-area-inset-bottom)))}
     .compact :global(.operator-controls){position:absolute;left:0;bottom:0;margin:0}
