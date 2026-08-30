@@ -97,7 +97,7 @@ public:
     const Ui2TrackerEditDirection direction = Ui2TrackerDirectionFor(action);
     if (action == TrackerAction::Option && input_.Held(TrackerAction::Shift)) {
       selection_.Begin(grid_.Column(), grid_.Row());
-      clonePending_ = grid_.Column() == 1U;
+      clonePending_ = grid_.Column() == 1U || IsParameterColumn();
       return output;
     }
     if (action == TrackerAction::Shift && input_.Held(TrackerAction::Option)) {

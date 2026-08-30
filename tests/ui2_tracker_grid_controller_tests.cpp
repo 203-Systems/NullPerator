@@ -246,6 +246,26 @@ TEST_CASE("UI2 Phrase clones an instrument after SHIFT OPTION release EDIT") {
   CHECK(note.Selection().active);
 }
 
+TEST_CASE("UI2 Phrase and Table clone referenced data from parameter cells") {
+  Ui2PhraseController phrase(2, 1, 3, 3);
+  phrase.Handle(TrackerAction::Shift, true);
+  phrase.Handle(TrackerAction::Option, true);
+  phrase.Handle(TrackerAction::Option, false);
+  const auto phraseClone = phrase.Handle(TrackerAction::Edit, true);
+  REQUIRE(phraseClone.count == 1U);
+  CHECK(phraseClone[0].type == Ui2TrackerCommandType::CloneCell);
+  CHECK_FALSE(phrase.Selection().active);
+
+  Ui2TableController table(Ui2TrackerPage::PhraseTable, 2, 1, 3, 1);
+  table.Handle(TrackerAction::Shift, true);
+  table.Handle(TrackerAction::Option, true);
+  table.Handle(TrackerAction::Option, false);
+  const auto tableClone = table.Handle(TrackerAction::Edit, true);
+  REQUIRE(tableClone.count == 1U);
+  CHECK(tableClone[0].type == Ui2TrackerCommandType::CloneCell);
+  CHECK_FALSE(table.Selection().active);
+}
+
 TEST_CASE("UI2 clone gesture cancels when SHIFT is released") {
   Ui2SongController controller(2, 3, 4);
   controller.Handle(TrackerAction::Shift, true);
@@ -264,6 +284,22 @@ TEST_CASE("UI2 clone gesture cancels when SHIFT is released") {
   REQUIRE(playback.count == 1U);
   CHECK(playback[0].type == Ui2TrackerCommandType::StartPlayback);
   CHECK_FALSE(interrupted.ClonePending());
+
+  Ui2PhraseController movedPhrase(2, 1, 3, 3);
+  movedPhrase.Handle(TrackerAction::Shift, true);
+  Tap(movedPhrase, TrackerAction::Option);
+  REQUIRE(movedPhrase.ClonePending());
+  Tap(movedPhrase, TrackerAction::Right);
+  CHECK_FALSE(movedPhrase.ClonePending());
+  CHECK(movedPhrase.Handle(TrackerAction::Edit, true).Empty());
+  CHECK(movedPhrase.Selection().active);
+
+  Ui2TableController releasedTable(Ui2TrackerPage::PhraseTable, 2, 1, 3, 1);
+  releasedTable.Handle(TrackerAction::Shift, true);
+  Tap(releasedTable, TrackerAction::Option);
+  releasedTable.Handle(TrackerAction::Shift, false);
+  CHECK(releasedTable.Handle(TrackerAction::Edit, true).Empty());
+  CHECK(releasedTable.Selection().active);
 }
 
 TEST_CASE("UI2 Song follows M8 modifier order and transport chords") {

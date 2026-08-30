@@ -366,6 +366,46 @@ TEST_CASE("UI2 Phrase instrument clone is a no-op when the bank is full") {
   CHECK(port.ProjectMutationGeneration() == 0U);
 }
 
+TEST_CASE("UI2 model port clones TBL references from Phrase and Table cells") {
+  TableHolder *tables = TableHolder::GetInstance();
+  tables->Reset();
+  TrackerApplicationSession session;
+  Ui2TrackerSessionModelPort port(session);
+  constexpr std::uint8_t sourceTable = 4U;
+  tables->GetTable(sourceTable).cmd1_[2] = FourCC::InstrumentCommandVolume;
+  tables->GetTable(sourceTable).param1_[2] = 0x1234U;
+
+  session.EditorState().currentPhrase_ = 2;
+  constexpr std::uint8_t phraseRow = 5U;
+  const int phraseIndex = 2 * STEPS_PER_PHRASE + phraseRow;
+  session.ProjectModel().song_.phrase_.cmd1_[phraseIndex] =
+      FourCC::InstrumentCommandTable;
+  session.ProjectModel().song_.phrase_.param1_[phraseIndex] = sourceTable;
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::CloneCell,
+                                    Ui2TrackerPage::Phrase, phraseRow, 3));
+
+  constexpr std::uint8_t firstClone = 0U;
+  CHECK(session.ProjectModel().song_.phrase_.param1_[phraseIndex] ==
+        firstClone);
+  CHECK(tables->GetTable(firstClone).cmd1_[2] ==
+        FourCC::InstrumentCommandVolume);
+  CHECK(tables->GetTable(firstClone).param1_[2] == 0x1234U);
+
+  constexpr std::uint8_t tableRow = 7U;
+  Table &visible = tables->GetTable(firstClone);
+  visible.cmd2_[tableRow] = FourCC::InstrumentCommandTable;
+  visible.param2_[tableRow] = sourceTable;
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::CloneCell,
+                                    Ui2TrackerPage::PhraseTable, tableRow, 3));
+
+  constexpr std::uint8_t secondClone = 1U;
+  CHECK(visible.param2_[tableRow] == secondClone);
+  CHECK(tables->GetTable(secondClone).cmd1_[2] ==
+        FourCC::InstrumentCommandVolume);
+  CHECK(tables->GetTable(secondClone).param1_[2] == 0x1234U);
+  CHECK(port.ProjectMutationGeneration() == 2U);
+}
+
 TEST_CASE("UI2 model port reports clone allocation exhaustion as a no-op") {
   TrackerApplicationSession session;
   Ui2TrackerSessionModelPort port(session);

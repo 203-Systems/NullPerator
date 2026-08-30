@@ -26,6 +26,21 @@ public:
     std::fill(std::begin(param3_), std::end(param3_), 0U);
   }
 
+  void Copy(const Table &other) {
+    std::copy(std::begin(other.cmd1_), std::end(other.cmd1_),
+              std::begin(cmd1_));
+    std::copy(std::begin(other.param1_), std::end(other.param1_),
+              std::begin(param1_));
+    std::copy(std::begin(other.cmd2_), std::end(other.cmd2_),
+              std::begin(cmd2_));
+    std::copy(std::begin(other.param2_), std::end(other.param2_),
+              std::begin(param2_));
+    std::copy(std::begin(other.cmd3_), std::end(other.cmd3_),
+              std::begin(cmd3_));
+    std::copy(std::begin(other.param3_), std::end(other.param3_),
+              std::begin(param3_));
+  }
+
   FourCC cmd1_[TABLE_STEPS]{};
   ushort param1_[TABLE_STEPS]{};
   FourCC cmd2_[TABLE_STEPS]{};
@@ -62,6 +77,15 @@ public:
   void SetUsed(int table) {
     if (table >= 0 && table < TABLE_COUNT)
       used_[table] = true;
+  }
+
+  int Clone(int table) {
+    if (table < 0 || table >= TABLE_COUNT)
+      return NO_MORE_TABLE;
+    const int target = GetNext();
+    if (target != NO_MORE_TABLE)
+      tables_[target].Copy(tables_[table]);
+    return target;
   }
 
 private:

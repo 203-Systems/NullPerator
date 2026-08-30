@@ -819,6 +819,23 @@ bool Ui2TrackerSessionModelPort::ApplyCloneCell(
   Song &song = session_.ProjectModel().song_;
   if (!IsGridCell(command.sourcePage, command.row, command.column))
     return false;
+  const auto cloneTableReference = [this](FourCC effect,
+                                          std::uint16_t &parameter) {
+    if (effect != FourCC::InstrumentCommandTable || parameter >= TABLE_COUNT)
+      return false;
+    TableHolder *tables = TableHolder::GetInstance();
+    // Persisted references do not rebuild TableHolder's allocation bitmap.
+    // Mark the referenced source before allocating so Clone() cannot select
+    // the source slot as its destination. Keep it marked even if allocation
+    // is exhausted: a referenced empty table is still not a free table.
+    tables->SetUsed(parameter);
+    const int next = tables->Clone(parameter);
+    if (next == NO_MORE_TABLE)
+      return false;
+    parameter = static_cast<std::uint16_t>(next);
+    lastParameter_ = parameter;
+    return true;
+  };
   if (command.sourcePage == Ui2TrackerPage::Song) {
     if (command.track >= SONG_CHANNEL_COUNT)
       return false;
@@ -888,6 +905,29 @@ bool Ui2TrackerSessionModelPort::ApplyCloneCell(
     cell = static_cast<std::uint8_t>(next);
     lastInstrument_ = cell;
     return true;
+  } else if (command.sourcePage == Ui2TrackerPage::Phrase &&
+             (command.column == 3U || command.column == 5U)) {
+    const int index = editor.currentPhrase_ * STEPS_PER_PHRASE + command.row;
+    FourCC &effect = command.column == 3U ? song.phrase_.cmd1_[index]
+                                          : song.phrase_.cmd2_[index];
+    std::uint16_t &parameter =
+        command.column == 3U ? song.phrase_.param1_[index]
+                             : song.phrase_.param2_[index];
+    return cloneTableReference(effect, parameter);
+  } else if ((command.sourcePage == Ui2TrackerPage::PhraseTable ||
+              command.sourcePage == Ui2TrackerPage::InstrumentTable) &&
+             (command.column & 1U) != 0U) {
+    const std::uint8_t tableNumber =
+        command.sourcePage == Ui2TrackerPage::PhraseTable
+            ? phraseTableNumber_
+            : instrumentTableNumber_;
+    Table &table = TableHolder::GetInstance()->GetTable(tableNumber);
+    const std::uint8_t group = command.column / 2U;
+    FourCC *commands[3] = {table.cmd1_, table.cmd2_, table.cmd3_};
+    std::uint16_t *parameters[3] = {table.param1_, table.param2_,
+                                    table.param3_};
+    return cloneTableReference(commands[group][command.row],
+                               parameters[group][command.row]);
   }
   return false;
 }
