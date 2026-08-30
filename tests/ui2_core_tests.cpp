@@ -3778,6 +3778,22 @@ TEST_CASE("UI2 Sample Slices delta is pixel-identical to a full redraw") {
                    expected.Pixels().begin(), expected.Pixels().end()));
 }
 
+TEST_CASE("UI2 Sample pages keep the top bar free of legacy metadata") {
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+
+  ui2::UiSampleEditorViewData editor;
+  REQUIRE(ui2::UiSampleEditorView::Build(editor, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK(FindTextCommand(scene.top.Stream(), "EDIT") == nullptr);
+
+  ui2::UiSampleSlicesViewData slices;
+  slices.sliceCount = "04";
+  REQUIRE(ui2::UiSampleSlicesView::Build(slices, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK(FindTextCommand(scene.top.Stream(), "04") == nullptr);
+}
+
 TEST_CASE("UI2 Sample pages remain clean while their state is idle") {
   ui2::UiPalette palette;
   ui2::UiSampleEditorViewData editor = ui2::test::ApprovedSampleEditorFixture();

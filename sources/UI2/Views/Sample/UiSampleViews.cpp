@@ -144,8 +144,7 @@ UiBuildStatus UiSampleEditorView::Build(const UiSampleEditorViewData &data,
   scene.bottomVisible = true;
   scene.topBackground = UiColorToken::SurfaceTopBar;
   scene.bottomBackground = UiColorToken::SurfaceBottomBar;
-  const UiTopBarModel top{
-      .title = "SAMPLE", .meta = "EDIT", .power = data.power};
+  const UiTopBarModel top{.title = "SAMPLE", .power = data.power};
   const UiBuildStatus topStatus = UiChromeRenderer::BuildTop(top, scene.top);
   if (topStatus != UiBuildStatus::Built) return topStatus;
   UiBottomBarModel bottom{.kind = UiBottomBarKind::Actions};
@@ -256,9 +255,7 @@ void UiSampleSlicesView::RenderDelta(
   const auto render = [&](RectI16 rect) {
     UiFrameRenderer::RenderRegion(currentScene, surface, palette, rect);
   };
-  if (previous.sliceCount != current.sliceCount)
-    render({0, 0, 240, 34});
-  else if (previous.power != current.power)
+  if (previous.power != current.power)
     render({184, 0, 56, 34});
   if (WaveformChanged(previous, current) ||
       previous.selectedMarker != current.selectedMarker ||
@@ -292,8 +289,7 @@ UiBuildStatus UiSampleSlicesView::Build(const UiSampleSlicesViewData &data,
   scene.bottomVisible = true;
   scene.topBackground = UiColorToken::SurfaceTopBar;
   scene.bottomBackground = UiColorToken::SurfaceBottomBar;
-  const UiTopBarModel top{
-      .title = "SLICES", .meta = data.sliceCount, .power = data.power};
+  const UiTopBarModel top{.title = "SLICES", .power = data.power};
   const UiBuildStatus topStatus = UiChromeRenderer::BuildTop(top, scene.top);
   if (topStatus != UiBuildStatus::Built) return topStatus;
   UiBottomBarModel bottom{.kind = UiBottomBarKind::Actions};
