@@ -129,7 +129,6 @@ public:
   [[nodiscard]] Ui2BrowserSnapshot Snapshot() const {
     Ui2BrowserSnapshot snapshot;
     Ui2BrowserSnapshot::CopyText(snapshot.title, "THEMES");
-    Ui2BrowserSnapshot::CopyText(snapshot.meta, "NPT");
     snapshot.ConfigureWindow(ItemCount(), selected_, top_);
     for (std::uint8_t row = 0U; row < snapshot.visibleItemCount; ++row) {
       const std::uint16_t item =

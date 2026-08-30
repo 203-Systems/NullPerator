@@ -738,9 +738,7 @@ bool Ui2TrackerApplication::ActivateDiagnosticBrowser(
     source_.SetInstrumentBrowserActive(true);
     break;
   case Ui2DiagnosticBrowser::SampleImport: {
-    const std::uint8_t instrument = static_cast<std::uint8_t>(
-        session_.EditorState().currentInstrumentID_);
-    if (!sampleBrowser_.OpenLibrary(session_.ProjectName(), instrument))
+    if (!sampleBrowser_.OpenLibrary(session_.ProjectName()))
       return false;
     break;
   }
@@ -2321,9 +2319,7 @@ void Ui2TrackerApplication::ExecuteProject(Ui2ProjectCommand command) {
       projectLifecycle_.ReportRunningBlocked();
       break;
     }
-    const std::uint8_t instrument = static_cast<std::uint8_t>(
-        session_.EditorState().currentInstrumentID_);
-    if (!sampleBrowser_.Open(session_.ProjectName(), instrument))
+    if (!sampleBrowser_.Open(session_.ProjectName()))
       break;
     settingsBrowser_.Close();
     instrumentBrowserActive_ = false;

@@ -947,8 +947,7 @@ Ui2NativeApplicationStateSource::CaptureBrowser(UiBrowserFrameState &state) {
   if (settingsBrowser_.Active()) {
     state.snapshot = settingsBrowser_.Snapshot();
   } else if (instrumentBrowserActive_) {
-    state.snapshot = instrumentBrowser_.Snapshot(static_cast<std::uint8_t>(
-        session_.EditorState().currentInstrumentID_));
+    state.snapshot = instrumentBrowser_.Snapshot();
   } else if (sampleBrowser_.Active()) {
     Project &project = session_.ProjectModel();
     int previewVolume = 0;

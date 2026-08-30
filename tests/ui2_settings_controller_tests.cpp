@@ -121,9 +121,9 @@ TEST_CASE("UI2 brightness percentage preserves a visible hardware floor") {
 TEST_CASE("UI2 instrument browser leaves return navigation to Shift Left") {
   using namespace ui2;
   Ui2InstrumentBrowserController controller;
-  const Ui2BrowserSnapshot snapshot = controller.Snapshot(0x12U);
+  const Ui2BrowserSnapshot snapshot = controller.Snapshot();
   CHECK(std::string(snapshot.title.data()) == "LOAD INSTRUMENT");
-  CHECK(std::string(snapshot.meta.data()) == "12");
+  CHECK(std::string(snapshot.meta.data()).empty());
   CHECK(snapshot.totalItemCount == 0U);
   CHECK_FALSE(snapshot.hasSelection);
   CHECK(Tap(controller, TrackerAction::Edit).type ==
@@ -133,7 +133,7 @@ TEST_CASE("UI2 instrument browser leaves return navigation to Shift Left") {
   CHECK(std::is_trivially_copyable_v<Ui2InstrumentBrowserCommand>);
 
   controller.SetError("INSTRUMENT LOAD FAILED");
-  CHECK(std::string(controller.Snapshot(0x12U).footer.data()) ==
+  CHECK(std::string(controller.Snapshot().footer.data()) ==
         "INSTRUMENT LOAD FAILED");
 }
 
@@ -144,7 +144,7 @@ TEST_CASE("UI2 settings browser does not fabricate font entries") {
   CHECK(controller.Mode() == Ui2SettingsBrowserMode::None);
   const Ui2BrowserSnapshot snapshot = controller.Snapshot();
   CHECK(std::string(snapshot.title.data()) == "THEMES");
-  CHECK(std::string(snapshot.meta.data()) == "NPT");
+  CHECK(std::string(snapshot.meta.data()).empty());
   CHECK(snapshot.totalItemCount == 0U);
   CHECK_FALSE(snapshot.hasSelection);
 }

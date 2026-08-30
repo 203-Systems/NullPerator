@@ -150,11 +150,11 @@ TEST_CASE("UI2 Sample Browser opens the approved project-pool state") {
   using namespace ui2;
   SampleBrowserFileSystem fileSystem;
   Ui2SampleBrowserController controller;
-  REQUIRE(controller.Open("DEMO", 1U));
+  REQUIRE(controller.Open("DEMO"));
 
   const Ui2BrowserSnapshot snapshot = controller.Snapshot(60);
   CHECK(std::strcmp(snapshot.title.data(), "SAMPLES") == 0);
-  CHECK(std::strcmp(snapshot.meta.data(), "01") == 0);
+  CHECK(std::strcmp(snapshot.meta.data(), "") == 0);
   CHECK(std::strcmp(snapshot.items[0].data(), "AKWF.WAV") == 0);
   CHECK(snapshot.visibleItemCount == 1U);
   CHECK(std::strcmp(snapshot.footer.data(), "13 KB  /  60") == 0);
@@ -168,12 +168,12 @@ TEST_CASE("UI2 Sample Browser can enter the import library directly") {
   using namespace ui2;
   SampleBrowserFileSystem fileSystem;
   Ui2SampleBrowserController controller;
-  REQUIRE(controller.OpenLibrary("DEMO", 2U));
+  REQUIRE(controller.OpenLibrary("DEMO"));
 
   CHECK(controller.Mode() == Ui2SampleBrowserMode::Library);
   const Ui2BrowserSnapshot snapshot = controller.Snapshot(60);
   CHECK(std::strcmp(snapshot.title.data(), "IMPORT") == 0);
-  CHECK(std::strcmp(snapshot.meta.data(), "02") == 0);
+  CHECK(std::strcmp(snapshot.meta.data(), "") == 0);
   REQUIRE(snapshot.visibleItemCount == 2U);
   CHECK(std::strcmp(snapshot.items[0].data(), "~KICK.WAV") == 0);
   CHECK(std::strcmp(snapshot.items[1].data(), "/DRUMS") == 0);
@@ -186,7 +186,7 @@ TEST_CASE("UI2 Sample Browser keeps project pool flat and root-addressed") {
   using namespace ui2;
   SampleBrowserFileSystem fileSystem;
   Ui2SampleBrowserController controller;
-  REQUIRE(controller.Open("DEMO", 1U));
+  REQUIRE(controller.Open("DEMO"));
 
   const Ui2BrowserSnapshot snapshot = controller.Snapshot(60);
   REQUIRE(snapshot.visibleItemCount == 1U);
@@ -212,7 +212,7 @@ TEST_CASE("UI2 Sample Browser library retains directories and parent chord") {
   using namespace ui2;
   SampleBrowserFileSystem fileSystem;
   Ui2SampleBrowserController controller;
-  REQUIRE(controller.Open("DEMO", 1U));
+  REQUIRE(controller.Open("DEMO"));
 
   controller.Handle(TrackerAction::Shift, true);
   REQUIRE(controller.Handle(TrackerAction::Option, true).type ==
@@ -251,7 +251,7 @@ TEST_CASE("UI2 Sample Browser parent chord cannot escape the library root") {
   using namespace ui2;
   SampleBrowserFileSystem fileSystem;
   Ui2SampleBrowserController controller;
-  REQUIRE(controller.OpenLibrary("DEMO", 1U));
+  REQUIRE(controller.OpenLibrary("DEMO"));
 
   controller.Handle(TrackerAction::Option, true);
   CHECK_FALSE(controller.Handle(TrackerAction::Left, true).HasValue());
@@ -268,7 +268,7 @@ TEST_CASE("UI2 Sample Browser previews, imports, and restores pool mode") {
   using namespace ui2;
   SampleBrowserFileSystem fileSystem;
   Ui2SampleBrowserController controller;
-  REQUIRE(controller.Open("DEMO", 3U));
+  REQUIRE(controller.Open("DEMO"));
 
   const Ui2SampleBrowserCommand preview =
       controller.Handle(TrackerAction::Play, true);
@@ -301,7 +301,7 @@ TEST_CASE("UI2 Sample Browser accepts held-direction repeat pulses") {
   using namespace ui2;
   SampleBrowserFileSystem fileSystem;
   Ui2SampleBrowserController controller;
-  REQUIRE(controller.Open("DEMO", 3U));
+  REQUIRE(controller.Open("DEMO"));
 
   controller.Handle(TrackerAction::Right, true);
   controller.Handle(TrackerAction::Right, true);
@@ -317,7 +317,7 @@ TEST_CASE("UI2 Sample Browser exposes actions for empty states") {
   using namespace ui2;
   SampleBrowserFileSystem fileSystem(true);
   Ui2SampleBrowserController controller;
-  REQUIRE(controller.Open("DEMO", 1U));
+  REQUIRE(controller.Open("DEMO"));
 
   Ui2BrowserSnapshot snapshot = controller.Snapshot(60);
   CHECK_FALSE(snapshot.hasSelection);
@@ -338,7 +338,7 @@ TEST_CASE("UI2 Sample Browser delete confirmation defaults to NO") {
   using namespace ui2;
   SampleBrowserFileSystem fileSystem;
   Ui2SampleBrowserController controller;
-  REQUIRE(controller.Open("DEMO", 0U));
+  REQUIRE(controller.Open("DEMO"));
   Tap(controller, TrackerAction::Left); // DELETE wraps from EDIT
   const Ui2SampleBrowserCommand request = Tap(controller, TrackerAction::Edit);
   REQUIRE(request.type == Ui2SampleBrowserCommandType::RequestDelete);

@@ -81,11 +81,9 @@ public:
     error_.back() = '\0';
   }
 
-  [[nodiscard]] Ui2BrowserSnapshot Snapshot(std::uint8_t instrument) const {
+  [[nodiscard]] Ui2BrowserSnapshot Snapshot() const {
     Ui2BrowserSnapshot snapshot;
     Ui2BrowserSnapshot::CopyText(snapshot.title, "LOAD INSTRUMENT");
-    std::snprintf(snapshot.meta.data(), snapshot.meta.size(), "%02X",
-                  static_cast<unsigned>(instrument));
     snapshot.ConfigureWindow(count_, selected_, top_);
     for (std::uint8_t row = 0U; row < snapshot.visibleItemCount; ++row)
       ReadName(static_cast<std::uint16_t>(snapshot.topIndex + row),

@@ -60,16 +60,15 @@ public:
   static constexpr std::uint8_t DirectoryDepthCapacity = 32U;
   using SampleUseQuery = bool (*)(void *context, const char *filename);
 
-  bool Open(const char *projectName, std::uint8_t instrument) {
-    return OpenAtMode(projectName, instrument,
-                      Ui2SampleBrowserMode::ProjectPool);
+  bool Open(const char *projectName) {
+    return OpenAtMode(projectName, Ui2SampleBrowserMode::ProjectPool);
   }
 
   // Diagnostic and host preview surfaces may need to enter the same import
   // controller state that the product reaches after selecting IMPORT. Keep
   // that entry typed so callers do not have to synthesize a held-key chord.
-  bool OpenLibrary(const char *projectName, std::uint8_t instrument) {
-    return OpenAtMode(projectName, instrument, Ui2SampleBrowserMode::Library);
+  bool OpenLibrary(const char *projectName) {
+    return OpenAtMode(projectName, Ui2SampleBrowserMode::Library);
   }
 
   void Close() {
@@ -274,8 +273,6 @@ public:
     Ui2BrowserSnapshot::CopyText(
         snapshot.title,
         mode_ == Ui2SampleBrowserMode::ProjectPool ? "SAMPLES" : "IMPORT");
-    std::snprintf(snapshot.meta.data(), snapshot.meta.size(), "%02X",
-                  static_cast<unsigned>(instrument_));
     snapshot.ConfigureWindow(count_, selected_, top_);
     FileSystem *fileSystem = FileSystem::GetInstance();
     for (std::uint8_t row = 0U; row < snapshot.visibleItemCount; ++row) {
@@ -350,13 +347,11 @@ public:
   }
 
 private:
-  bool OpenAtMode(const char *projectName, std::uint8_t instrument,
-                  Ui2SampleBrowserMode mode) {
+  bool OpenAtMode(const char *projectName, Ui2SampleBrowserMode mode) {
     Close();
     if (projectName == nullptr || projectName[0] == '\0')
       return false;
     std::snprintf(projectName_.data(), projectName_.size(), "%s", projectName);
-    instrument_ = instrument;
     active_ = true;
     mode_ = mode;
     if (!JumpToModeRoot()) {
@@ -556,7 +551,6 @@ private:
   std::uint16_t selected_ = 0U;
   std::uint16_t top_ = 0U;
   Ui2ControllerInputState input_{};
-  std::uint8_t instrument_ = 0U;
   std::uint8_t depth_ = 0U;
   std::uint8_t selectedAction_ = 0U;
   std::uint8_t dialogSelectedAction_ = 1U;
