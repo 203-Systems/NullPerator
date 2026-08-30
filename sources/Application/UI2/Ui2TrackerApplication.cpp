@@ -1980,7 +1980,10 @@ void Ui2TrackerApplication::ExecuteTheme(Ui2ThemeCommand command) {
       if (!edit.changed)
         break;
       config->SetSemanticThemeColor(edit.color, edit.packedColor);
-      ApplyCurrentTheme();
+      // The next Theme frame reads the updated Config and rebuilds the
+      // palette once. Applying here as well would invalidate that frame and
+      // make every key-repeat rebuild all derived colors twice.
+      runtime_.Invalidate();
       configSave_.MarkDirty();
     }
     break;
