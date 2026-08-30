@@ -33,6 +33,10 @@ Ui2GrooveTrackerCommand(Ui2GrooveCommand command, int track) {
   case Ui2GrooveCommandType::InitializeStep:
   case Ui2GrooveCommandType::ClearStep:
   case Ui2GrooveCommandType::AdjustStep:
+  case Ui2GrooveCommandType::CopySelection:
+  case Ui2GrooveCommandType::CutSelection:
+  case Ui2GrooveCommandType::PasteSelection:
+  case Ui2GrooveCommandType::InterpolateSelection:
   case Ui2GrooveCommandType::SelectNumber:
     break;
   }

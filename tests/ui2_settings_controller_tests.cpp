@@ -1,5 +1,7 @@
 #include "doctest/doctest.h"
 
+#include <algorithm>
+#include <array>
 #include <cstdint>
 #include <string>
 #include <type_traits>
@@ -798,7 +800,7 @@ TEST_CASE("UI2 Instrument Enter moves a bounded component cursor") {
         Ui2InstrumentCommandType::CommitValueEdits);
 }
 
-TEST_CASE("UI2 Groove owns sixteen wrapping rows and never a bottom bar") {
+TEST_CASE("UI2 Groove owns sixteen wrapping rows outside selection mode") {
   using namespace ui2;
   Ui2GrooveController controller(0, 0);
   CHECK_FALSE(controller.BottomVisible());
@@ -816,6 +818,70 @@ TEST_CASE("UI2 Groove owns sixteen wrapping rows and never a bottom bar") {
   CHECK(adjust.value == 1);
   CHECK(adjust.synchronized);
   controller.Handle(TrackerAction::Up, false);
+  controller.Handle(TrackerAction::Edit, false);
+}
+
+TEST_CASE("UI2 Groove selection follows the grid clipboard lifecycle") {
+  using namespace ui2;
+  Ui2GrooveController controller(0, 3);
+
+  controller.Handle(TrackerAction::Shift, true);
+  CHECK_FALSE(Tap(controller, TrackerAction::Option).HasValue());
+  controller.Handle(TrackerAction::Shift, false);
+  REQUIRE(controller.Selection().active);
+  CHECK(controller.Selection().SingleCell());
+  CHECK(controller.Selection().Top() == 3U);
+  CHECK(controller.BottomVisible());
+
+  CHECK_FALSE(Tap(controller, TrackerAction::Down).HasValue());
+  CHECK(controller.Row() == 4U);
+  CHECK(controller.Selection().Top() == 3U);
+  CHECK(controller.Selection().Bottom() == 4U);
+
+  const Ui2GrooveCommand copy = Tap(controller, TrackerAction::Option);
+  REQUIRE(copy.type == Ui2GrooveCommandType::CopySelection);
+  CHECK(copy.selection.active);
+  CHECK(copy.selection.Top() == 3U);
+  CHECK(copy.selection.Bottom() == 4U);
+  CHECK_FALSE(controller.Selection().active);
+  CHECK_FALSE(controller.BottomVisible());
+
+  controller.Handle(TrackerAction::Shift, true);
+  const Ui2GrooveCommand paste = Tap(controller, TrackerAction::Edit);
+  controller.Handle(TrackerAction::Shift, false);
+  REQUIRE(paste.type == Ui2GrooveCommandType::PasteSelection);
+  CHECK(paste.row == 4U);
+}
+
+TEST_CASE("UI2 Groove selection cuts interpolates and stays in fixed bounds") {
+  using namespace ui2;
+  Ui2GrooveController controller(0, 0);
+
+  controller.Handle(TrackerAction::Shift, true);
+  Tap(controller, TrackerAction::Option);
+  controller.Handle(TrackerAction::Shift, false);
+  REQUIRE(controller.Selection().active);
+  CHECK_FALSE(Tap(controller, TrackerAction::Up).HasValue());
+  CHECK(controller.Row() == 0U);
+  CHECK(controller.Selection().Top() == 0U);
+  CHECK_FALSE(Tap(controller, TrackerAction::Down).HasValue());
+  CHECK_FALSE(Tap(controller, TrackerAction::Down).HasValue());
+  CHECK(controller.Selection().Bottom() == 2U);
+
+  controller.Handle(TrackerAction::Shift, true);
+  const Ui2GrooveCommand interpolate = Tap(controller, TrackerAction::Edit);
+  controller.Handle(TrackerAction::Shift, false);
+  REQUIRE(interpolate.type == Ui2GrooveCommandType::InterpolateSelection);
+  CHECK(interpolate.selection.Top() == 0U);
+  CHECK(interpolate.selection.Bottom() == 2U);
+  CHECK(controller.Selection().active);
+
+  controller.Handle(TrackerAction::Edit, true);
+  const Ui2GrooveCommand cut = controller.Handle(TrackerAction::Option, true);
+  REQUIRE(cut.type == Ui2GrooveCommandType::CutSelection);
+  CHECK(cut.selection.active);
+  CHECK_FALSE(controller.Selection().active);
+  controller.Handle(TrackerAction::Option, false);
   controller.Handle(TrackerAction::Edit, false);
 }
 
@@ -926,6 +992,82 @@ TEST_CASE("UI2 Groove workflow reports only effective mutations") {
   CHECK(result.dispatchPerformance);
 }
 
+TEST_CASE("UI2 Groove workflow copies cuts and clips selection pastes") {
+  using namespace ui2;
+  std::uint8_t steps[Ui2GrooveController::RowCount]{};
+  for (std::uint8_t row = 0U; row < Ui2GrooveController::RowCount; ++row)
+    steps[row] = static_cast<std::uint8_t>(row + 1U);
+  Ui2GrooveClipboard clipboard;
+  Ui2GridSelectionState selection;
+  selection.Begin(0U, 2U);
+  selection.Follow(0U, 4U);
+
+  auto result = Ui2GrooveWorkflow::Execute(
+      {.type = Ui2GrooveCommandType::CopySelection,
+       .selection = selection},
+      steps, clipboard);
+  CHECK_FALSE(result.projectMutated);
+  REQUIRE(clipboard.count == 3U);
+  CHECK(clipboard.steps[0] == 3U);
+  CHECK(clipboard.steps[1] == 4U);
+  CHECK(clipboard.steps[2] == 5U);
+
+  steps[15] = Ui2GrooveStepPolicy::Empty;
+  result = Ui2GrooveWorkflow::Execute(
+      {.type = Ui2GrooveCommandType::PasteSelection, .row = 15U}, steps,
+      clipboard);
+  CHECK(result.projectMutated);
+  CHECK(steps[15] == 3U);
+
+  result = Ui2GrooveWorkflow::Execute(
+      {.type = Ui2GrooveCommandType::CutSelection,
+       .selection = selection},
+      steps, clipboard);
+  CHECK(result.projectMutated);
+  CHECK(steps[2] == Ui2GrooveStepPolicy::Empty);
+  CHECK(steps[3] == Ui2GrooveStepPolicy::Empty);
+  CHECK(steps[4] == Ui2GrooveStepPolicy::Empty);
+  REQUIRE(clipboard.count == 3U);
+  CHECK(clipboard.steps[0] == 3U);
+  CHECK(clipboard.steps[1] == 4U);
+  CHECK(clipboard.steps[2] == 5U);
+}
+
+TEST_CASE("UI2 Groove interpolation is linear and rejects empty endpoints") {
+  using namespace ui2;
+  std::uint8_t steps[Ui2GrooveController::RowCount]{};
+  steps[2] = 3U;
+  steps[3] = Ui2GrooveStepPolicy::Empty;
+  steps[4] = Ui2GrooveStepPolicy::Empty;
+  steps[5] = Ui2GrooveStepPolicy::Empty;
+  steps[6] = 11U;
+  Ui2GridSelectionState selection;
+  selection.Begin(0U, 2U);
+  selection.Follow(0U, 6U);
+  Ui2GrooveClipboard clipboard;
+
+  auto result = Ui2GrooveWorkflow::Execute(
+      {.type = Ui2GrooveCommandType::InterpolateSelection,
+       .selection = selection},
+      steps, clipboard);
+  CHECK(result.projectMutated);
+  CHECK(steps[2] == 3U);
+  CHECK(steps[3] == 5U);
+  CHECK(steps[4] == 7U);
+  CHECK(steps[5] == 9U);
+  CHECK(steps[6] == 11U);
+
+  steps[6] = Ui2GrooveStepPolicy::Empty;
+  const auto before = std::array<std::uint8_t, 5U>{
+      steps[2], steps[3], steps[4], steps[5], steps[6]};
+  result = Ui2GrooveWorkflow::Execute(
+      {.type = Ui2GrooveCommandType::InterpolateSelection,
+       .selection = selection},
+      steps, clipboard);
+  CHECK_FALSE(result.projectMutated);
+  CHECK(std::equal(before.begin(), before.end(), steps + 2U));
+}
+
 TEST_CASE("UI2 Groove coarse edits preserve each adjacent pair's tick sum") {
   using namespace ui2;
   std::uint8_t steps[Ui2GrooveController::RowCount]{};
@@ -978,7 +1120,7 @@ TEST_CASE("UI2 settings controllers keep fixed-capacity trivial state") {
   CHECK(sizeof(Ui2ThemeController) <= 16U);
   CHECK(sizeof(Ui2FontController) <= 8U);
   CHECK(sizeof(Ui2InstrumentController) <= 40U);
-  CHECK(sizeof(Ui2GrooveController) <= 8U);
+  CHECK(sizeof(Ui2GrooveController) <= 16U);
   CHECK(sizeof(Ui2RecordController) <= 16U);
   CHECK(sizeof(Ui2SettingsBrowserController) <= 1'100U);
 }

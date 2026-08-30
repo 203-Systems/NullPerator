@@ -166,6 +166,7 @@ private:
   Ui2FeedbackController feedback_{};
   Ui2ProjectLifecycleController projectLifecycle_{};
   Ui2GrooveController groove_{};
+  Ui2GrooveClipboard grooveClipboard_{};
   Ui2DeviceController device_{};
   Ui2DeviceLifecycleController deviceLifecycle_{};
   Ui2ThemeController theme_{};

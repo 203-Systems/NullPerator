@@ -2217,6 +2217,7 @@ void Ui2TrackerApplication::ResetControllersAfterProjectBoundary() {
   projectLifecycle_ = {};
   projectRender_.Reset();
   groove_ = {};
+  grooveClipboard_ = {};
   device_ = {};
   deviceLifecycle_ = {};
   for (std::size_t index = 0U; index < deviceSelectors.size(); ++index) {
@@ -2364,7 +2365,7 @@ void Ui2TrackerApplication::ExecuteGroove(Ui2GrooveCommand command) {
   const std::uint8_t number = groove_.Number();
   std::uint8_t *steps = Groove::GetInstance()->GetGrooveData(number);
   const Ui2GrooveWorkflowResult result =
-      Ui2GrooveWorkflow::Execute(command, steps);
+      Ui2GrooveWorkflow::Execute(command, steps, grooveClipboard_);
   if (result.projectMutated)
     MarkProjectDirty();
   if (result.selectNumber)
