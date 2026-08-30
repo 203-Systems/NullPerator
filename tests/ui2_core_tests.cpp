@@ -710,7 +710,7 @@ TEST_CASE("UI2 vertical list reveals items and reconciles contextual bars") {
   CHECK(mismatch.first == surface.Pixels().end());
   CHECK(surface.Pixel(0, 0) == palette.Index(ui2::UiColorToken::SurfaceTopBar));
   CHECK(surface.Pixel(0, 239) ==
-        palette.Index(ui2::UiColorToken::SurfaceBackground));
+        palette.Index(ui2::UiColorToken::SurfaceBottomBar));
 }
 
 TEST_CASE("UI2 sparse coverage masks copy bounded data and decode columns") {
