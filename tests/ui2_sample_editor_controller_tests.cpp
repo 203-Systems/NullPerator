@@ -395,8 +395,9 @@ TEST_CASE("UI2 Sample Editor exposes a read-only runtime model") {
   const SampleEditorViewUi2Snapshot snapshot = controller.Snapshot();
   CHECK(snapshot.focus == SampleEditorViewUi2Focus::Discard);
   CHECK_FALSE(snapshot.projectPool);
-  const UiSampleEditorViewData discardData =
-      MakeUiSampleEditorControllerState(snapshot).ToViewData();
+  const UiSampleEditorControllerState discardState =
+      MakeUiSampleEditorControllerState(snapshot);
+  const UiSampleEditorViewData discardData = discardState.ToViewData();
   CHECK(discardData.bottomActive == 0U);
   CHECK(discardData.help == "EDIT DISCARD");
 
