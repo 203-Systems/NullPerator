@@ -49,7 +49,6 @@ public:
   // viewport is 86 px tall; markers are emitted independently by the
   // controller and therefore are not baked into this coverage mask.
   static constexpr std::uint8_t SlicesMaskHeight = 78U;
-  static constexpr std::uint8_t SlicesMarkerViewportHeight = 86U;
 
   [[nodiscard]] Ui2SampleWaveformLoadResult LoadPath(FileSystem &fileSystem,
                                                      const char *path);

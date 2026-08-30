@@ -18,7 +18,6 @@ inline constexpr std::int16_t kScreenWidth = 240;
 inline constexpr std::int16_t kScreenHeight = 240;
 inline constexpr std::int16_t kTopBarHeight = 34;
 inline constexpr std::int16_t kBottomBarTop = 208;
-inline constexpr std::int16_t kBottomBarHeight = 32;
 
 using PaletteIndex = std::uint8_t;
 
