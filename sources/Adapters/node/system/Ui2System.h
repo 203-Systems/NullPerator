@@ -11,6 +11,8 @@
 #include <atomic>
 #include <cstdint>
 
+class NodeSamplePool;
+
 // Service-only System implementation for the strict Node UI2 product.  It
 // installs the native filesystem/audio/MIDI/timer/sample services without
 // constructing GUIFactory, EventManager, AppWindow, or a legacy character
@@ -44,5 +46,5 @@ private:
   static std::uint8_t requestedBrightness_;
   static bool displayRevealed_;
   static bool booted_;
+  static NodeSamplePool *samplePool_;
 };
-

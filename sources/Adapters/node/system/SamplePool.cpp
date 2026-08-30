@@ -20,6 +20,16 @@ static bool has_psram() {
 
 NodeSamplePool::NodeSamplePool() : SamplePool() {}
 
+NodeSamplePool::~NodeSamplePool() {
+  Reset();
+  if (sampleStore_ != nullptr) {
+    heap_caps_free(sampleStore_);
+    sampleStore_ = nullptr;
+  }
+  dedicatedStoreAttempted_ = false;
+  storeLimit_ = 0;
+}
+
 bool NodeSamplePool::ensureDedicatedPsramStore() {
   if (sampleStore_ != nullptr) {
     return true;

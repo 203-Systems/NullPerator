@@ -17,7 +17,7 @@
 class NodeSamplePool : public SamplePool {
 public:
   NodeSamplePool();
-  ~NodeSamplePool() override = default;
+  ~NodeSamplePool() override;
 
   void Reset() override;
   bool CheckSampleFits(int sampleSize) override;

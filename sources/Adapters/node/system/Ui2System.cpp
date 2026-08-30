@@ -38,6 +38,7 @@ std::atomic<bool> NodeUi2System::quitRequested_{false};
 std::uint8_t NodeUi2System::requestedBrightness_ = 0U;
 bool NodeUi2System::displayRevealed_ = false;
 bool NodeUi2System::booted_ = false;
+NodeSamplePool *NodeUi2System::samplePool_ = nullptr;
 
 bool NodeUi2System::Boot(int, char **) {
   if (booted_)
@@ -100,8 +101,9 @@ bool NodeUi2System::Boot(int, char **) {
     Shutdown();
     return false;
   }
-  SamplePool::Install(
-      std::construct_at(static_cast<NodeSamplePool *>(samplePoolStorage)));
+  samplePool_ =
+      std::construct_at(static_cast<NodeSamplePool *>(samplePoolStorage));
+  SamplePool::Install(samplePool_);
 
   requestedBrightness_ = 0U;
   displayRevealed_ = false;
@@ -117,6 +119,13 @@ void NodeUi2System::Shutdown() {
   // MIDI ownership before this service-level shutdown is entered.
   if (Audio *audio = Audio::GetInstance())
     audio->Close();
+  SamplePool::Install(nullptr);
+  if (samplePool_ != nullptr) {
+    NodeSamplePool *pool = samplePool_;
+    samplePool_ = nullptr;
+    std::destroy_at(pool);
+    heap_caps_free(pool);
+  }
   platform_brightness(0U);
   displayRevealed_ = false;
   booted_ = false;
