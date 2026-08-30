@@ -108,7 +108,12 @@ public:
     return lastBuild_;
   }
 
-  void SetFocus(SampleEditorViewUi2Focus focus) { focus_ = focus; }
+  bool SetFocus(SampleEditorViewUi2Focus focus) {
+    if (!FocusAvailable(focus))
+      return false;
+    focus_ = focus;
+    return true;
+  }
 
   bool PanView(std::int16_t columns) {
     if (!waveform_.PanColumns(columns))
@@ -239,12 +244,14 @@ public:
       return command;
     }
     case SampleEditorViewUi2Focus::Save:
-      return MakeCommand(Ui2SampleEditorCommandType::RequestSave);
+      return FocusAvailable(focus_)
+                 ? MakeCommand(Ui2SampleEditorCommandType::RequestSave)
+                 : Ui2SampleEditorCommand{};
     case SampleEditorViewUi2Focus::SaveAndLoad:
-      return projectPool_
-                 ? Ui2SampleEditorCommand{}
-                 : MakeCommand(
-                       Ui2SampleEditorCommandType::RequestSaveAndLoad);
+      return FocusAvailable(focus_)
+                 ? MakeCommand(
+                       Ui2SampleEditorCommandType::RequestSaveAndLoad)
+                 : Ui2SampleEditorCommand{};
     case SampleEditorViewUi2Focus::Discard:
       return MakeCommand(Ui2SampleEditorCommandType::RequestDiscard);
     case SampleEditorViewUi2Focus::Start:
@@ -301,6 +308,14 @@ private:
   static bool IsDirection(TrackerAction action) {
     return action == TrackerAction::Left || action == TrackerAction::Right ||
            action == TrackerAction::Up || action == TrackerAction::Down;
+  }
+
+  [[nodiscard]] bool FocusAvailable(SampleEditorViewUi2Focus focus) const {
+    if (focus == SampleEditorViewUi2Focus::Save)
+      return waveform_.SupportsTransactionalRewrite();
+    if (focus == SampleEditorViewUi2Focus::SaveAndLoad)
+      return waveform_.SupportsTransactionalRewrite() && !projectPool_;
+    return focus != SampleEditorViewUi2Focus::Unknown;
   }
 
   [[nodiscard]] bool IsSingleCycle() const {
@@ -429,12 +444,11 @@ private:
   }
 
   void MoveFocus(int delta) {
-    std::array<SampleEditorViewUi2Focus, kLibraryFocusOrder.size()> order =
-        kLibraryFocusOrder;
-    std::size_t count = order.size();
-    if (projectPool_) {
-      order[7] = SampleEditorViewUi2Focus::Discard;
-      --count;
+    std::array<SampleEditorViewUi2Focus, kLibraryFocusOrder.size()> order{};
+    std::size_t count = 0U;
+    for (SampleEditorViewUi2Focus candidate : kLibraryFocusOrder) {
+      if (FocusAvailable(candidate))
+        order[count++] = candidate;
     }
     std::size_t current = 0U;
     for (std::size_t index = 0U; index < count; ++index) {
@@ -460,6 +474,10 @@ private:
   }
 
   void MoveBottomFocus(int delta) {
+    if (!waveform_.SupportsTransactionalRewrite()) {
+      focus_ = SampleEditorViewUi2Focus::Discard;
+      return;
+    }
     constexpr std::array<SampleEditorViewUi2Focus, 3> library{
         SampleEditorViewUi2Focus::Save,
         SampleEditorViewUi2Focus::SaveAndLoad,

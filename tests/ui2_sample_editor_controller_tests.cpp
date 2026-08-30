@@ -354,12 +354,45 @@ TEST_CASE("UI2 Sample Editor keeps destructive operations typed") {
         Ui2SampleEditorCommandType::RequestApplyOperation);
   CHECK(apply.operation == Ui2SampleEditorOperation::Normalize);
 
-  controller.SetFocus(SampleEditorViewUi2Focus::SaveAndLoad);
-  CHECK(Tap(controller, TrackerAction::Edit).type ==
-        Ui2SampleEditorCommandType::RequestSaveAndLoad);
-  controller.SetFocus(SampleEditorViewUi2Focus::Discard);
+  REQUIRE(controller.SetFocus(SampleEditorViewUi2Focus::Discard));
+  CHECK_FALSE(controller.SetFocus(SampleEditorViewUi2Focus::Save));
+  CHECK_FALSE(controller.SetFocus(SampleEditorViewUi2Focus::SaveAndLoad));
+  CHECK(controller.Focus() == SampleEditorViewUi2Focus::Discard);
   CHECK(Tap(controller, TrackerAction::Edit).type ==
         Ui2SampleEditorCommandType::RequestDiscard);
+}
+
+TEST_CASE("UI2 Sample Editor skips save actions without a rewrite backend") {
+  using namespace ui2;
+  Config::SetImportResampler(0);
+  SampleWaveFileSystem fileSystem;
+  fileSystem.BuildPcm(1024U);
+  Ui2SampleWaveformBackend waveform;
+  CHECK_FALSE(waveform.SupportsTransactionalRewrite());
+  Ui2SampleEditorController controller(waveform);
+  REQUIRE(controller.OpenLibrary(fileSystem, "VOICE.WAV") ==
+          Ui2SampleWaveformLoadResult::Loaded);
+
+  REQUIRE(controller.SetFocus(SampleEditorViewUi2Focus::Apply));
+  Tap(controller, TrackerAction::Down);
+  CHECK(controller.Focus() == SampleEditorViewUi2Focus::Discard);
+  Tap(controller, TrackerAction::Left);
+  CHECK(controller.Focus() == SampleEditorViewUi2Focus::Discard);
+  Tap(controller, TrackerAction::Right);
+  CHECK(controller.Focus() == SampleEditorViewUi2Focus::Discard);
+
+  const SampleEditorViewUi2Snapshot snapshot = controller.Snapshot();
+  CHECK(snapshot.focus == SampleEditorViewUi2Focus::Discard);
+  CHECK_FALSE(snapshot.projectPool);
+
+  controller.Close();
+  REQUIRE(controller.OpenProjectPool(fileSystem, "DEMO", "VOICE.WAV") ==
+          Ui2SampleWaveformLoadResult::Loaded);
+  REQUIRE(controller.SetFocus(SampleEditorViewUi2Focus::Apply));
+  Tap(controller, TrackerAction::Down);
+  CHECK(controller.Focus() == SampleEditorViewUi2Focus::Discard);
+  CHECK_FALSE(controller.SetFocus(SampleEditorViewUi2Focus::Save));
+  CHECK(controller.Snapshot().projectPool);
 }
 
 TEST_CASE("UI2 Sample Editor endpoints cannot cross or leave the WAV") {
