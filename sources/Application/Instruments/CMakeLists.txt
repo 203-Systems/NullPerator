@@ -36,7 +36,6 @@ target_link_libraries(application_instruments PUBLIC
   SampleRate::samplerate
   etl
   application_utils
-  profiler
 )
 
 target_include_directories(application_instruments PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

@@ -46,7 +46,6 @@ target_link_libraries(${COMPONENT_LIB} PUBLIC
     system_io
     system_system
     system_filesystem
-    profiler
     foundation_services
     foundation_variables
     foundation
