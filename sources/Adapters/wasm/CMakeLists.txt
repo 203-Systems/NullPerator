@@ -23,6 +23,7 @@ target_include_directories(platform_mutex PUBLIC "${PROJECT_SOURCE_DIR}")
 
 add_library(platform_timer timer/WasmTimer.cpp)
 target_include_directories(platform_timer PUBLIC "${PROJECT_SOURCE_DIR}")
+target_link_libraries(platform_timer PUBLIC system_timer)
 
 add_library(platform_filesystem
   filesystem/WasmFile.cpp

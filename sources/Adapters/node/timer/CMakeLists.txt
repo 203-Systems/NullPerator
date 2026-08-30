@@ -4,6 +4,7 @@ add_library(platform_timer
 
 target_link_libraries(platform_timer 
     PUBLIC idf::esp_timer
+    PUBLIC system_timer
 )
 
 target_include_directories(platform_timer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR} ${IDF_PATH}/components/esp_timer/include)
