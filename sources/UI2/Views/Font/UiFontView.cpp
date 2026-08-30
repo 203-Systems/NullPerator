@@ -58,7 +58,7 @@ void UiFontView::RenderDelta(const UiFontViewData &previous,
   if (previous.font != current.font || previous.textCase != current.textCase ||
       previous.feedback != current.feedback ||
       previous.cursor != current.cursor)
-    render({5, 52, 230, 62});
+    render({0, 52, 240, 62});
   if (ResolvedCursorRect(previous) != ResolvedCursorRect(current) ||
       previous.cursorInkVisible != current.cursorInkVisible) {
     render({5, 52, 230, 18});

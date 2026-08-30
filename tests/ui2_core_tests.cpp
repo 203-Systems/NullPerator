@@ -3202,6 +3202,8 @@ TEST_CASE("UI2 Theme delta rendering is pixel-identical to a full redraw") {
 TEST_CASE("UI2 Font delta rendering is pixel-identical to a full redraw") {
   ui2::UiPalette palette;
   ui2::UiFontViewData previous;
+  const std::string longFont(25U, 'W');
+  previous.font = longFont;
   ui2::UiFrameScene scene;
   REQUIRE(ui2::UiFontView::Build(previous, palette, scene) ==
           ui2::UiBuildStatus::Built);
@@ -3210,7 +3212,7 @@ TEST_CASE("UI2 Font delta rendering is pixel-identical to a full redraw") {
   ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
   surface.ClearDirty();
   ui2::UiFontViewData current = previous;
-  current.font = "CONDENSED 5X7";
+  current.font = "I";
   current.cursorVisualOverride = true;
   current.cursorVisualRect = {7, 59, 226, 9};
   current.cursorInkVisible = false;
