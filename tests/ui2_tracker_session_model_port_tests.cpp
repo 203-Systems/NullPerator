@@ -518,6 +518,38 @@ TEST_CASE("UI2 inherited Phrase instruments do not poison new Note entry") {
   CHECK(phrase.instr_[2] == 7U);
 }
 
+TEST_CASE("UI2 model port pastes the last Phrase and Table FX values") {
+  TableHolder::GetInstance()->Reset();
+  TrackerApplicationSession session;
+  Ui2TrackerSessionModelPort port(session);
+  Song &song = session.ProjectModel().song_;
+  session.EditorState().currentPhrase_ = 2;
+
+  const int phraseBase = 2 * STEPS_PER_PHRASE;
+  song.phrase_.cmd1_[phraseBase] = FourCC::InstrumentCommandVolume;
+  song.phrase_.param1_[phraseBase] = 0x1234U;
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::PasteLast,
+                                    Ui2TrackerPage::Phrase, 0, 3));
+  song.phrase_.cmd1_[phraseBase + 1] = FourCC::InstrumentCommandVolume;
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::PasteLast,
+                                    Ui2TrackerPage::Phrase, 1, 3));
+  CHECK(song.phrase_.param1_[phraseBase + 1] == 0x1234U);
+
+  Table &table = TableHolder::GetInstance()->GetTable(0);
+  table.cmd2_[3] = FourCC::InstrumentCommandKill;
+  table.param2_[3] = 0x00BBU;
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::PasteLast,
+                                    Ui2TrackerPage::PhraseTable, 3, 2));
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::PasteLast,
+                                    Ui2TrackerPage::PhraseTable, 3, 3));
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::PasteLast,
+                                    Ui2TrackerPage::PhraseTable, 4, 2));
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::PasteLast,
+                                    Ui2TrackerPage::PhraseTable, 4, 3));
+  CHECK(table.cmd2_[4] == FourCC::InstrumentCommandKill);
+  CHECK(table.param2_[4] == 0x00BBU);
+}
+
 TEST_CASE("UI2 model port synchronizes Phrase audition row and adjacent phrases") {
   TrackerApplicationSession session;
   Ui2TrackerSessionModelPort port(session);

@@ -757,6 +757,41 @@ void Ui2TrackerSessionModelPort::ApplyPasteLast(
         cell = lastCommand_;
       else
         lastCommand_ = cell;
+    } else if (command.column == 3U || command.column == 5U) {
+      const FourCC effect =
+          command.column == 3U ? phrase.cmd1_[index] : phrase.cmd2_[index];
+      std::uint16_t &cell = command.column == 3U ? phrase.param1_[index]
+                                                : phrase.param2_[index];
+      if (cell == 0U)
+        cell = CommandList::RangeLimitCommandParam(effect, lastParameter_);
+      else
+        lastParameter_ = cell;
+    }
+  } else if (command.sourcePage == Ui2TrackerPage::PhraseTable ||
+             command.sourcePage == Ui2TrackerPage::InstrumentTable) {
+    const std::uint8_t tableNumber =
+        command.sourcePage == Ui2TrackerPage::InstrumentTable
+            ? instrumentTableNumber_
+            : phraseTableNumber_;
+    Table &table = TableHolder::GetInstance()->GetTable(tableNumber);
+    FourCC *commands[3] = {table.cmd1_, table.cmd2_, table.cmd3_};
+    std::uint16_t *parameters[3] = {table.param1_, table.param2_,
+                                    table.param3_};
+    const std::uint8_t group = command.column / 2U;
+    if ((command.column & 1U) == 0U) {
+      FourCC &cell = commands[group][command.row];
+      if (cell == FourCC::InstrumentCommandNone)
+        cell = lastCommand_;
+      else
+        lastCommand_ = cell;
+    } else {
+      std::uint16_t &cell = parameters[group][command.row];
+      if (cell == 0U) {
+        cell = CommandList::RangeLimitCommandParam(
+            commands[group][command.row], lastParameter_);
+      } else {
+        lastParameter_ = cell;
+      }
     }
   }
 }
