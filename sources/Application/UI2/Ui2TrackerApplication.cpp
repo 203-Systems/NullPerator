@@ -135,6 +135,15 @@ void ConfigureInstrumentSubfields(TrackerApplicationSession &session,
   controller.ConfigureValueSubfields(spec.mode, spec.count);
 }
 
+TrackerAction InstrumentTypeChangeTrigger(
+    Ui2InstrumentValueDirection direction) {
+  if (direction == Ui2InstrumentValueDirection::Left)
+    return TrackerAction::Left;
+  if (direction == Ui2InstrumentValueDirection::Right)
+    return TrackerAction::Right;
+  return TrackerAction::Count;
+}
+
 } // namespace
 
 Ui2TrackerApplication::Ui2TrackerApplication(IUiPresenter &presenter)
@@ -1776,7 +1785,8 @@ void Ui2TrackerApplication::ExecuteInstrument(Ui2InstrumentCommand command) {
         instrumentLifecycle_.RequestTypeChange(
             requested, current,
             Ui2InstrumentNeedsTypeChangeConfirmation(instrument),
-            Player::GetInstance()->IsRunning());
+            Player::GetInstance()->IsRunning(),
+            InstrumentTypeChangeTrigger(command.direction));
     ExecuteInstrumentLifecycle(lifecycleCommand);
     return;
   }
@@ -1891,7 +1901,7 @@ void Ui2TrackerApplication::SaveCurrentInstrument(bool overwrite) {
   }
   if (result == Ui2InstrumentExportOutcome::Exists) {
     Status::Set("INSTRUMENT FILE EXISTS");
-    instrumentLifecycle_.RequestExportOverwrite();
+    instrumentLifecycle_.RequestExportOverwrite(TrackerAction::Edit);
   }
   runtime_.Invalidate();
 }

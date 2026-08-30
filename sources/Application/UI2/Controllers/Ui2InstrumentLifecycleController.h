@@ -46,7 +46,8 @@ public:
 
   Ui2InstrumentLifecycleCommand RequestTypeChange(
       InstrumentType requested, InstrumentType current,
-      bool needsConfirmation, bool playerRunning) {
+      bool needsConfirmation, bool playerRunning,
+      TrackerAction trigger = TrackerAction::Count) {
     // NONE is a valid explicit target; values outside the type enum are not.
     if (requested < IT_NONE || requested >= IT_LAST)
       return {};
@@ -55,6 +56,7 @@ public:
     if (playerRunning) {
       Show(Purpose::PlayingBlocked, UiDialogAction::Ok, UiDialogAction::Ok,
            1U);
+      BlockUntilRelease(trigger);
       return {};
     }
     if (!needsConfirmation)
@@ -64,16 +66,29 @@ public:
     requested_ = requested;
     Show(Purpose::ConfirmTypeChange, UiDialogAction::Yes, UiDialogAction::No,
          2U);
+    BlockUntilRelease(trigger);
     return {};
   }
 
-  void RequestExportOverwrite() {
+  void RequestExportOverwrite(
+      TrackerAction trigger = TrackerAction::Count) {
     Show(Purpose::ConfirmExportOverwrite, UiDialogAction::Yes,
          UiDialogAction::No, 2U);
+    BlockUntilRelease(trigger);
   }
 
   Ui2InstrumentLifecycleCommand Handle(TrackerAction action, bool pressed) {
-    if (!Active() || !input_.Update(action, pressed) || !pressed)
+    if (!Active() || !input_.Update(action, pressed))
+      return {};
+    const std::uint16_t bit = action < TrackerAction::Count
+                                  ? TrackerActionBit(action)
+                                  : 0U;
+    if (!pressed) {
+      blockedInputMask_ =
+          static_cast<std::uint16_t>(blockedInputMask_ & ~bit);
+      return {};
+    }
+    if ((blockedInputMask_ & bit) != 0U)
       return {};
     if (action == TrackerAction::Left) {
       MoveSelection(-1);
@@ -90,6 +105,7 @@ public:
     const UiDialogAction selected = actions_[selectedAction_];
     purpose_ = Purpose::None;
     input_ = {};
+    blockedInputMask_ = 0U;
     if (purpose == Purpose::ConfirmTypeChange &&
         selected == UiDialogAction::Yes) {
       return {.type = Ui2InstrumentLifecycleCommandType::ApplyType,
@@ -138,7 +154,14 @@ private:
     // open on NO and key repeat cannot discard settings.
     selectedAction_ = static_cast<std::uint8_t>(count - 1U);
     input_ = {};
+    blockedInputMask_ = 0U;
     ++instanceId_;
+  }
+
+  void BlockUntilRelease(TrackerAction action) {
+    if (action < TrackerAction::Count)
+      blockedInputMask_ = static_cast<std::uint16_t>(
+          blockedInputMask_ | TrackerActionBit(action));
   }
 
   void MoveSelection(int delta) {
@@ -152,6 +175,7 @@ private:
   Purpose purpose_ = Purpose::None;
   std::array<UiDialogAction, kUiDialogActionCapacity> actions_{};
   Ui2ControllerInputState input_{};
+  std::uint16_t blockedInputMask_ = 0U;
   std::uint32_t instanceId_ = 0U;
   InstrumentType requested_ = IT_NONE;
   std::uint8_t actionCount_ = 0U;
