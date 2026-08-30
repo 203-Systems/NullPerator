@@ -23,31 +23,31 @@ class AudioDriver;
 class AudioOutDriver : public AudioOut, protected I_Observer {
 public:
   AudioOutDriver(AudioDriver &);
-  virtual ~AudioOutDriver();
+  ~AudioOutDriver() override;
 
-  virtual bool Init();
-  virtual void Close();
-  virtual bool Start();
-  virtual void Stop();
+  bool Init() override;
+  void Close() override;
+  bool Start() override;
+  void Stop() override;
   void SetAudioActive(bool active) override;
 
-  virtual void Trigger();
+  void Trigger() override;
 
   virtual stereosample GetLastPeakLevels();
 
-  virtual int GetPlayedBufferPercentage();
+  int GetPlayedBufferPercentage() override;
 
   AudioDriver *GetDriver();
 
-  virtual etl::string<STRING_AUDIO_API_MAX> GetAudioAPI();
-  virtual etl::string<STRING_AUDIO_DEVICE_MAX> GetAudioDevice();
-  virtual int GetAudioBufferSize();
-  virtual int GetAudioRequestedBufferSize();
-  virtual int GetAudioPreBufferCount();
-  virtual double GetStreamTime();
+  etl::string<STRING_AUDIO_API_MAX> GetAudioAPI() override;
+  etl::string<STRING_AUDIO_DEVICE_MAX> GetAudioDevice() override;
+  int GetAudioBufferSize() override;
+  int GetAudioRequestedBufferSize() override;
+  int GetAudioPreBufferCount() override;
+  double GetStreamTime() override;
 
 protected:
-  virtual void Update(Observable &o, I_ObservableData *d);
+  void Update(Observable &o, I_ObservableData *d) override;
 
   void prepareMixBuffers();
   void clipToMix();
