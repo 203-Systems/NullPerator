@@ -390,6 +390,15 @@ TEST_CASE("UI2 Font keeps text case and exposes BROWSE DEFAULT on the font row")
 
 TEST_CASE("UI2 Font workflow fails BROWSE closed and restores DEFAULT") {
   using namespace ui2;
+  Variable textCase(FourCC::VarUITextCase, 1);
+  CHECK(Ui2ExecuteFontCommand(
+            {.type = Ui2FontCommandType::SetTextCase, .value = 2U},
+            &textCase) == Ui2FontWorkflowResult::TextCaseChanged);
+  CHECK(textCase.GetInt() == 2);
+  CHECK(Ui2ExecuteFontCommand(
+            {.type = Ui2FontCommandType::SetTextCase, .value = 2U},
+            &textCase) == Ui2FontWorkflowResult::None);
+
   CountingFontVariable font;
   font.SetInt(2);
   REQUIRE(font.GetInt() == 2);

@@ -1513,23 +1513,21 @@ void Ui2TrackerApplication::HandleFont(TrackerAction action, bool pressed) {
     ActivatePage(UiApplicationPage::Device);
     return;
   }
-  if (command.type == Ui2FontCommandType::SetTextCase) {
-    Config *config = Config::GetInstance();
-    if (config != nullptr) {
-      if (Variable *value = config->FindVariable(FourCC::VarUITextCase))
-        value->SetInt(command.value);
-      configSave_.MarkDirty();
-      (void)FlushConfig();
-    }
-    return;
+  Config *config = Config::GetInstance();
+  Variable *configured = nullptr;
+  if (config != nullptr) {
+    if (command.type == Ui2FontCommandType::SetTextCase)
+      configured = config->FindVariable(FourCC::VarUITextCase);
+    else if (command.type == Ui2FontCommandType::RestoreDefault)
+      configured = config->FindVariable(FourCC::VarUIFont);
   }
-
-  Config *config = command.type == Ui2FontCommandType::RestoreDefault
-                       ? Config::GetInstance()
-                       : nullptr;
-  Variable *configured =
-      config == nullptr ? nullptr : config->FindVariable(FourCC::VarUIFont);
   switch (Ui2ExecuteFontCommand(command, configured)) {
+  case Ui2FontWorkflowResult::TextCaseChanged:
+    // CASE may receive held-direction repeats. Coalesce those writes with
+    // Device/Theme settings and persist once at the page boundary instead of
+    // synchronously rewriting config for every repeat pulse.
+    configSave_.MarkDirty();
+    break;
   case Ui2FontWorkflowResult::BrowserUnavailable:
     font_.SetFeedback(Ui2FontFeedback::BrowserUnavailable);
     Status::Set("FONT BROWSER UNAVAILABLE");
