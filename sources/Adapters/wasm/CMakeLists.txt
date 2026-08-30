@@ -166,9 +166,7 @@ target_link_libraries(picotracker_wasm PRIVATE
   platform_filesystem
   platform_midi
   platform_timer
-  platform
-  system_timer
-  foundation)
+  platform)
 target_compile_definitions(picotracker_wasm PRIVATE
   PICOTRACKER_WASM_BUILD_COMMIT="${PICOTRACKER_WASM_COMMIT}"
   PICOTRACKER_WASM_BUILD_DIRTY=${PICOTRACKER_WASM_DIRTY}

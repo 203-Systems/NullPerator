@@ -40,7 +40,6 @@ target_link_libraries(${COMPONENT_LIB} PUBLIC
 
     services_audio
     services_midi
-    system_timer
     system_console
     system_process
     system_io
@@ -48,7 +47,6 @@ target_link_libraries(${COMPONENT_LIB} PUBLIC
     system_filesystem
     foundation_services
     foundation_variables
-    foundation
     ui2)
 
 target_include_directories(${COMPONENT_LIB} PUBLIC
