@@ -728,8 +728,11 @@ bool Ui2TrackerApplication::ActivateDiagnosticBrowser(
   switch (browser) {
   case Ui2DiagnosticBrowser::Project:
     // The project controller remains the browser source even when refreshing
-    // an unavailable directory produces an empty diagnostic state.
-    (void)projectBrowser_.Refresh(session_.ProjectName());
+    // an unavailable directory produces an empty diagnostic state, but the
+    // storage failure must not look like a genuinely empty project library.
+    if (!projectBrowser_.Refresh(session_.ProjectName()))
+      projectLifecycle_.ReportFailure(
+          Ui2ProjectLifecycleFailure::OpenProjectBrowser);
     break;
   case Ui2DiagnosticBrowser::Instrument:
     if (!instrumentBrowser_.Refresh())
@@ -2310,8 +2313,8 @@ void Ui2TrackerApplication::ExecuteProject(Ui2ProjectCommand command) {
       break;
     }
     if (!projectBrowser_.Refresh(session_.ProjectName())) {
-      projectLifecycle_.ReportFailure(Ui2ProjectLifecycleFailure::LoadProject,
-                                      session_.ProjectName());
+      projectLifecycle_.ReportFailure(
+          Ui2ProjectLifecycleFailure::OpenProjectBrowser);
       break;
     }
     instrumentBrowserActive_ = false;

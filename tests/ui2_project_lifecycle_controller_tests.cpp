@@ -175,6 +175,9 @@ TEST_CASE("UI2 project lifecycle confirms instrument purge and blocks playback")
 TEST_CASE("UI2 project lifecycle exposes established persistence failures") {
   using namespace ui2;
   Ui2ProjectLifecycleController controller;
+  controller.ReportFailure(Ui2ProjectLifecycleFailure::OpenProjectBrowser);
+  CHECK(Text(controller.Snapshot().title) == "Project browser unavailable");
+  Tap(controller, TrackerAction::Edit);
   controller.ReportFailure(Ui2ProjectLifecycleFailure::SaveProject);
   CHECK(Text(controller.Snapshot().title) == "Error saving Project");
   Tap(controller, TrackerAction::Edit);

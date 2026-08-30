@@ -40,6 +40,7 @@ struct Ui2ProjectLifecycleCommand {
 };
 
 enum class Ui2ProjectLifecycleFailure : std::uint8_t {
+  OpenProjectBrowser,
   NewProject,
   LoadProject,
   SaveProject,
@@ -137,6 +138,9 @@ public:
   void ReportFailure(Ui2ProjectLifecycleFailure failure,
                      const char *project = nullptr) {
     switch (failure) {
+    case Ui2ProjectLifecycleFailure::OpenProjectBrowser:
+      ShowInfo("Project browser unavailable");
+      break;
     case Ui2ProjectLifecycleFailure::NewProject:
       // There is no separate legacy New failure message. Reuse the existing
       // project-persist failure state instead of inventing a new UI state.
