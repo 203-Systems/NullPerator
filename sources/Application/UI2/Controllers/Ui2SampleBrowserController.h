@@ -78,6 +78,7 @@ public:
     openFailed_ = false;
     input_ = {};
     dialogInput_ = {};
+    dialogReleaseGate_.Reset();
     dialogActive_ = false;
     count_ = selected_ = top_ = 0U;
     depth_ = 0U;
@@ -171,8 +172,10 @@ public:
     return {};
   }
 
-  void RequestDeleteConfirmation(const char *filename) {
+  void RequestDeleteConfirmation(
+      const char *filename, TrackerAction trigger = TrackerAction::Count) {
     pendingDelete_.fill('\0');
+    dialogReleaseGate_.Reset();
     if (filename == nullptr || filename[0] == '\0')
       return;
     std::snprintf(pendingDelete_.data(), pendingDelete_.size(), "%s",
@@ -180,11 +183,17 @@ public:
     dialogActive_ = true;
     dialogSelectedAction_ = 1U; // NO is the conservative legacy default.
     dialogInput_ = {};
+    // This controller owns both browser and dialog input. Transfer the opener
+    // to the dialog so its later release cannot remain latched in the browser.
+    if (trigger < TrackerAction::Count)
+      input_.Update(trigger, false);
+    dialogReleaseGate_.BlockUntilRelease(trigger);
     ++dialogInstanceId_;
   }
 
   Ui2SampleBrowserCommand HandleDialog(TrackerAction action, bool pressed) {
-    if (!dialogActive_ || !dialogInput_.Update(action, pressed) || !pressed)
+    if (!dialogActive_ || !dialogInput_.Update(action, pressed) ||
+        !dialogReleaseGate_.Update(action, pressed) || !pressed)
       return {};
     if (action == TrackerAction::Left || action == TrackerAction::Right) {
       dialogSelectedAction_ = static_cast<std::uint8_t>(
@@ -196,6 +205,7 @@ public:
     const bool confirmed = dialogSelectedAction_ == 0U;
     dialogActive_ = false;
     dialogInput_ = {};
+    dialogReleaseGate_.Reset();
     if (!confirmed) {
       pendingDelete_.fill('\0');
       return {};
@@ -561,6 +571,7 @@ private:
   std::array<char, PFILENAME_SIZE> pendingDelete_{};
   std::array<char, 32U> error_{};
   Ui2ControllerInputState dialogInput_{};
+  Ui2InputReleaseGate dialogReleaseGate_{};
   std::uint32_t dialogInstanceId_ = 0U;
   std::uint16_t count_ = 0U;
   std::uint16_t selected_ = 0U;

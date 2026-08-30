@@ -1048,7 +1048,8 @@ void Ui2TrackerApplication::ExecuteSampleBrowser(
       sampleBrowser_.SetError("SAMPLE IN USE");
       return;
     }
-    sampleBrowser_.RequestDeleteConfirmation(command.filename.data());
+    sampleBrowser_.RequestDeleteConfirmation(command.filename.data(),
+                                             TrackerAction::Edit);
     return;
   }
 

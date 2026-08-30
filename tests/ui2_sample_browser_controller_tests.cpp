@@ -450,3 +450,39 @@ TEST_CASE("UI2 Sample Browser delete confirmation defaults to NO") {
   CHECK(confirmed.type == Ui2SampleBrowserCommandType::DeleteConfirmed);
   CHECK(std::strcmp(confirmed.filename.data(), "AKWF.WAV") == 0);
 }
+
+TEST_CASE("UI2 Sample Browser delete dialog waits for its EDIT release") {
+  using namespace ui2;
+  SampleBrowserFileSystem fileSystem;
+  Ui2SampleBrowserController controller;
+  REQUIRE(controller.Open("DEMO"));
+  Tap(controller, TrackerAction::Left); // DELETE wraps from EDIT
+
+  // Keep the activating EDIT physically held while the dialog opens.
+  const Ui2SampleBrowserCommand request =
+      controller.Handle(TrackerAction::Edit, true);
+  REQUIRE(request.type == Ui2SampleBrowserCommandType::RequestDelete);
+  controller.RequestDeleteConfirmation(request.filename.data(),
+                                       TrackerAction::Edit);
+  REQUIRE(controller.DialogActive());
+
+  CHECK(controller.HandleDialog(TrackerAction::Edit, true).type ==
+        Ui2SampleBrowserCommandType::None);
+  CHECK(controller.HandleDialog(TrackerAction::Left, true).type ==
+        Ui2SampleBrowserCommandType::None);
+  CHECK(controller.HandleDialog(TrackerAction::Left, false).type ==
+        Ui2SampleBrowserCommandType::None);
+  CHECK(controller.DialogActive());
+  CHECK(controller.DialogSnapshot().selectedAction == 1U);
+  CHECK(controller.HandleDialog(TrackerAction::Edit, false).type ==
+        Ui2SampleBrowserCommandType::None);
+
+  CHECK(controller.HandleDialog(TrackerAction::Left, true).type ==
+        Ui2SampleBrowserCommandType::None);
+  CHECK(controller.HandleDialog(TrackerAction::Left, false).type ==
+        Ui2SampleBrowserCommandType::None);
+  const Ui2SampleBrowserCommand confirmed =
+      controller.HandleDialog(TrackerAction::Edit, true);
+  CHECK(confirmed.type == Ui2SampleBrowserCommandType::DeleteConfirmed);
+  CHECK(std::strcmp(confirmed.filename.data(), "AKWF.WAV") == 0);
+}
