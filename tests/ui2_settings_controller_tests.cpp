@@ -264,6 +264,31 @@ TEST_CASE("UI2 Rename owns its bounded draft and full-page navigation") {
   CHECK_FALSE(controller.Active());
 }
 
+TEST_CASE("UI2 Rename disables save for visually empty names") {
+  using namespace ui2;
+  Ui2RenameController controller;
+  controller.Begin("", 16U);
+  CHECK_FALSE(controller.Snapshot().saveEnabled);
+
+  // Input -> actions. SAVE is skipped while the draft is empty.
+  Tap(controller, TrackerAction::Up);
+  CHECK(controller.Snapshot().selectedAction == 1U);
+  Tap(controller, TrackerAction::Right);
+  CHECK(controller.Snapshot().selectedAction == 0U);
+  Tap(controller, TrackerAction::Right);
+  CHECK(controller.Snapshot().selectedAction == 1U);
+  CHECK(Tap(controller, TrackerAction::Edit) == Ui2RenameCommand::Randomize);
+
+  controller.Begin(" ", 16U);
+  CHECK_FALSE(controller.Snapshot().saveEnabled);
+  Tap(controller, TrackerAction::Up);
+  Tap(controller, TrackerAction::Right);
+  CHECK(controller.Snapshot().selectedAction == 0U);
+  Tap(controller, TrackerAction::Right);
+  CHECK(controller.Snapshot().selectedAction == 1U);
+  CHECK(controller.Active());
+}
+
 TEST_CASE("UI2 Mixer selects nine strips and edits volume with Enter") {
   using namespace ui2;
   Ui2MixerController controller;

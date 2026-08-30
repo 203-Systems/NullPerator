@@ -28,7 +28,7 @@ public:
         std::min<std::size_t>(std::strlen(source), maximumLength_));
     std::copy_n(source, length_, draft_.begin());
     keyboardRow_ = keyboardColumn_ = 0U;
-    selectedAction_ = length_ == 0U ? 1U : 2U;
+    selectedAction_ = CanSave() ? 2U : 1U;
     uppercase_ = true;
     focus_ = Focus::Input;
     active_ = true;
@@ -92,7 +92,7 @@ public:
       }
       if (selectedAction_ == 1U)
         return Ui2RenameCommand::Randomize;
-      if (length_ != 0U) {
+      if (CanSave()) {
         active_ = false;
         return Ui2RenameCommand::Save;
       }
@@ -125,7 +125,7 @@ public:
     snapshot.PushAction(UiDialogAction::Random);
     snapshot.PushAction(UiDialogAction::Save);
     snapshot.SetSelectedAction(selectedAction_, focus_ == Focus::Actions);
-    snapshot.saveEnabled = length_ != 0U;
+    snapshot.saveEnabled = CanSave();
     snapshot.SetRenameUppercase(uppercase_);
     snapshot.SetRenameFocus(
         focus_ == Focus::Input      ? UiDialogFocus::Input
@@ -163,7 +163,7 @@ private:
   void Backspace() {
     if (length_ != 0U)
       draft_[--length_] = '\0';
-    if (length_ == 0U && selectedAction_ == 2U)
+    if (!CanSave() && selectedAction_ == 2U)
       selectedAction_ = 1U;
   }
   void ActivateKey() {
@@ -227,12 +227,18 @@ private:
     focus_ = Focus::Keyboard;
   }
   void MoveAction(std::int8_t direction) {
-    if (length_ == 0U) {
+    if (!CanSave()) {
       selectedAction_ = selectedAction_ == 0U ? 1U : 0U;
       return;
     }
     selectedAction_ = static_cast<std::uint8_t>(
         (static_cast<int>(selectedAction_) + direction + 3) % 3);
+  }
+  [[nodiscard]] bool CanSave() const {
+    // A visually empty name (spaces only) must behave exactly like an empty
+    // draft: SAVE stays disabled and action navigation skips it.
+    return std::any_of(draft_.begin(), draft_.begin() + length_,
+                       [](char character) { return character != ' '; });
   }
   [[nodiscard]] std::uint8_t SelectedKeyIndex() const {
     std::uint8_t index = 0U;
