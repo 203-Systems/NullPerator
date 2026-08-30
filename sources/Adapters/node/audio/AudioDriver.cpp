@@ -1,6 +1,7 @@
 #include "AudioDriver.h"
 #include "Adapters/node/hal/nullperator/audio/audio.h"
 #include "Adapters/node/platform/platform.h"
+#include "Adapters/node/system/TaskStackTelemetry.h"
 #include "Application/Model/Config.h"
 #include "Services/Midi/MidiService.h"
 #include "System/System/System.h"
@@ -75,8 +76,10 @@ void return_free_buffer(uint8_t index) {
 void esp32_sound_pause(int yes) { esp32_sound_pausei = yes; }
 
 void NodeAudioDriver::AudioThread(void *arg) {
+  NodeTaskStackTelemetry stackTelemetry("AudioThread");
   uint8_t bufferIndex = 0;
   while (1) {
+    stackTelemetry.Poll();
     if (instance_ == NULL || !instance_->isPlaying_) {
       vTaskDelay(pdMS_TO_TICKS(1));
       continue;
@@ -106,8 +109,10 @@ void NodeAudioDriver::AudioThread(void *arg) {
 }
 
 void NodeAudioDriver::I2SThread(void *arg) {
+  NodeTaskStackTelemetry stackTelemetry("I2SThread");
   uint8_t bufferIndex = 0;
   while (1) {
+    stackTelemetry.Poll();
     if (instance_ == NULL || !instance_->isPlaying_) {
       vTaskDelay(pdMS_TO_TICKS(1));
       continue;
@@ -238,7 +243,7 @@ bool NodeAudioDriver::InitDriver() {
       kAudioRenderPriority, &audioThreadHandle_, 1);
 
   BaseType_t i2sTaskCreated = xTaskCreatePinnedToCore(
-      NodeAudioDriver::I2SThread, "I2SThread", 4096, NULL,
+      NodeAudioDriver::I2SThread, "I2SThread", 3072, NULL,
       kI2SWriterPriority, &i2sThreadHandle_, 0);
 
   if (audioTaskCreated != pdPASS || i2sTaskCreated != pdPASS) {

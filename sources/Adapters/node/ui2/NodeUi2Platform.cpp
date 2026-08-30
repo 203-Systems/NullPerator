@@ -10,6 +10,7 @@
 #include "Adapters/node/hal/nullperator/input/input.h"
 #include "Adapters/node/midi/MidiService.h"
 #include "Adapters/node/platform/platform.h"
+#include "Adapters/node/system/TaskStackTelemetry.h"
 #include "Adapters/node/system/Ui2System.h"
 #include "Services/Midi/MidiService.h"
 
@@ -251,6 +252,7 @@ void NodeUi2Platform::MarkTaskStopped(EventBits_t bit) {
 }
 
 void NodeUi2Platform::RunApplicationTask() {
+  NodeTaskStackTelemetry stackTelemetry("UI2 Application");
   // Wait for the input owner to publish a real boot sample. This both avoids a
   // fabricated all-up startup state and lets held M8 EDIT request the untitled
   // recovery project without involving legacy Application.cpp globals.
@@ -303,6 +305,7 @@ void NodeUi2Platform::RunApplicationTask() {
   bool presenterFailureReported = false;
 
   while (runRequested_.load(std::memory_order_acquire)) {
+    stackTelemetry.Poll();
     const std::uint32_t beforeWaitMs = millis();
     (void)xEventGroupWaitBits(taskEvents_, kInputPublishedBit, pdTRUE, pdFALSE,
                               WaitTicksUntil(beforeWaitMs, nextFrameMs));
@@ -339,8 +342,10 @@ void NodeUi2Platform::RunApplicationTask() {
 }
 
 void NodeUi2Platform::RunInputTask() {
+  NodeTaskStackTelemetry stackTelemetry("UI2 Input");
   TickType_t wake = xTaskGetTickCount();
   while (runRequested_.load(std::memory_order_acquire)) {
+    stackTelemetry.Poll();
     bool headphoneConnected = false;
     const std::uint16_t heldMask =
         ReadPhysicalHeldMask(&headphoneConnected);

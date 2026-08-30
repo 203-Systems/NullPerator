@@ -1,6 +1,7 @@
 #include "Adapters/node/platform/platform.h"
 
 #include "Adapters/node/system/Ui2System.h"
+#include "Adapters/node/system/TaskStackTelemetry.h"
 #include "Adapters/node/ui2/NodeUi2Platform.h"
 #include "esp_attr.h"
 #include "esp_heap_caps.h"
@@ -17,6 +18,7 @@ namespace {
 constexpr char kLogTag[] = "NODE_UI2_MAIN";
 
 int RunUi2Product(int argc, char **argv) {
+  NodeTaskStackTelemetry stackTelemetry("main");
   board_init();
   platform_init();
 
@@ -62,6 +64,7 @@ int RunUi2Product(int argc, char **argv) {
         break;
       if (NodeUi2System::QuitRequested())
         platform->RequestStop();
+      stackTelemetry.Poll();
       vTaskDelay(pdMS_TO_TICKS(10U));
     }
     if (platform->CurrentState() == NodeUi2Platform::State::Failed)

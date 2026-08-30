@@ -72,7 +72,7 @@ public:
 
 private:
   static constexpr std::uint32_t kApplicationTaskStackBytes = 16U * 1024U;
-  static constexpr std::uint32_t kInputTaskStackBytes = 4U * 1024U;
+  static constexpr std::uint32_t kInputTaskStackBytes = 3U * 1024U;
   static constexpr EventBits_t kApplicationStoppedBit = BIT0;
   static constexpr EventBits_t kInputStoppedBit = BIT1;
   static constexpr EventBits_t kInputPublishedBit = BIT3;
