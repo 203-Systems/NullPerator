@@ -212,8 +212,8 @@ TEST_CASE("UI2 Instrument formatter covers decimal note boolean bitmask and OFF"
   CHECK(Format(channel, 0) == "01");
   CHECK(Format(channel, 15) == "16");
   CHECK(Format(Ui2InstrumentFieldParameter(IT_SAMPLE, 4U), 60) == "C3");
-  CHECK(Format(Ui2InstrumentFieldParameter(IT_MIDI, 4U), 0) == "FALSE");
-  CHECK(Format(Ui2InstrumentFieldParameter(IT_MIDI, 4U), 1) == "TRUE");
+  CHECK(Format(Ui2InstrumentFieldParameter(IT_MIDI, 4U), 0) == "NO");
+  CHECK(Format(Ui2InstrumentFieldParameter(IT_MIDI, 4U), 1) == "YES");
   CHECK(Format(Ui2InstrumentFieldParameter(IT_MIDI, 3U), -1) == "--");
   CHECK(Format(Ui2InstrumentFieldParameter(IT_OPAL, 1U), 2) == "10");
   CHECK(Format(Ui2InstrumentOperatorParameter(3U, false), 0) == "SINE");
