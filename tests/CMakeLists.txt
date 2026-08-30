@@ -173,6 +173,22 @@ target_include_directories(player_storage_bounds_tests PRIVATE
 target_compile_definitions(player_storage_bounds_tests PRIVATE HOST_TEST)
 add_test(NAME player_storage_bounds COMMAND player_storage_bounds_tests)
 
+# Start planning is kept allocation-free so transport context and stop-at-end
+# propagation can be exercised without booting an audio driver.
+add_executable(player_start_plan_tests
+  test_main.cpp
+  player_start_plan_tests.cpp
+)
+
+target_include_directories(player_start_plan_tests PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals/SRC/include
+  ${CMAKE_CURRENT_LIST_DIR}/../sources
+)
+
+target_compile_definitions(player_start_plan_tests PRIVATE HOST_TEST)
+add_test(NAME player_start_plan COMMAND player_start_plan_tests)
+
 add_executable(ui2_status_bridge_tests
   test_main.cpp
   nanoprintf_test.cpp

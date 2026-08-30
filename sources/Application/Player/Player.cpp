@@ -18,6 +18,7 @@
 #include "Application/Instruments/SampleInstrument.h"
 #include "Application/Mixer/MixerService.h"
 #include "Application/Model/Groove.h"
+#include "Application/Player/PlayerStartPlan.h"
 #include "Application/Player/PlayerStorageBounds.h"
 #include "Application/Player/TablePlayback.h"
 #include "Application/Utils/char.h"
@@ -101,12 +102,18 @@ bool Player::IsChannelMuted(int channel) {
 };
 
 void Player::Start(PlayMode mode, bool forceSongMode, MixerServiceMode msmMode,
-                   bool stopAtEnd) {
+                   bool stopAtEnd, int contextChannel,
+                   int contextChainPosition) {
 
   mixer_.Lock();
 
+  const PlayerStartPlan plan =
+      ResolvePlayerStartPlan<SONG_CHANNEL_COUNT, PHRASES_PER_CHAIN>(
+          mode, forceSongMode, stopAtEnd, contextChannel, contextChainPosition,
+          viewData_->songX_, viewData_->chainRow_);
+
   lastBeatCount_ = 0;
-  stopAtEnd_ = stopAtEnd;
+  stopAtEnd_ = plan.stopAtEnd;
 
   // Get start time for clock
 
@@ -117,14 +124,14 @@ void Player::Start(PlayMode mode, bool forceSongMode, MixerServiceMode msmMode,
   // DO I need playMode_ in view data ?
   // Seems like duplicate with mode_
 
-  viewData_->playMode_ = (forceSongMode ? PM_SONG : mode);
+  viewData_->playMode_ = plan.mode;
 
   // See if we start from current song position
   // or from last stored
 
   unsigned playPos = viewData_->songY_ + viewData_->songOffset_;
 
-  if (forceSongMode == false) {
+  if (!plan.resumeLastSongPosition) {
     lastSongPos_ = playPos;
   } else {
     playPos = lastSongPos_;
@@ -185,19 +192,18 @@ void Player::Start(PlayMode mode, bool forceSongMode, MixerServiceMode msmMode,
 
   case PM_CHAIN:
   case PM_PHRASE: {
-    int currentChannel = viewData_->songX_;
+    const int currentChannel = plan.contextChannel;
     mixer_.StartChannel(currentChannel);
-    ;
-    int currentChainPos = viewData_->chainRow_;
+    const int currentChainPos = plan.contextChainPosition;
     updateSongPos(playPos, currentChannel, currentChainPos);
   } break;
 
   case PM_AUDITION: {
-    int currentChannel = viewData_->songX_;
+    const int currentChannel = plan.contextChannel;
     mixer_.StartChannel(currentChannel);
 
-    int currentChainPos = viewData_->chainRow_;
-    int currentPhrasePos = viewData_->phraseCurPos_;
+    const int currentChainPos = plan.contextChainPosition;
+    const int currentPhrasePos = viewData_->phraseCurPos_;
     // uses hop for PhrasePos
     updateSongPos(playPos, currentChannel, currentChainPos, currentPhrasePos);
   } break;
@@ -348,7 +354,11 @@ void Player::OnStartButton(PlayMode origin, unsigned int from,
       for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {
         liveQueueingMode_[i] = QM_NONE;
       };
-      Start(origin, startFromPrevious, msmMode);
+      const PlayerStartPlan plan =
+          ResolveContextStartPlan<SONG_CHANNEL_COUNT, PHRASES_PER_CHAIN>(
+              origin, startFromPrevious, stopAtEnd, from, chainPos);
+      Start(plan.mode, plan.resumeLastSongPosition, msmMode, plan.stopAtEnd,
+            plan.contextChannel, plan.contextChainPosition);
     }
     break;
   case SM_LIVE: // doesn't make much sense here
@@ -379,7 +389,7 @@ void Player::OnSongStartButton(unsigned int from, unsigned int to,
       for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {
         liveQueueingMode_[i] = QM_NONE;
       };
-      Start(PM_SONG, false, msmMode);
+      Start(PM_SONG, false, msmMode, stopAtEnd);
     }
     break;
 
@@ -403,7 +413,7 @@ void Player::OnSongStartButton(unsigned int from, unsigned int to,
         }
       };
 
-      Start(PM_LIVE, false, msmMode);
+      Start(PM_LIVE, false, msmMode, stopAtEnd);
 
     } else { // Player already running
 

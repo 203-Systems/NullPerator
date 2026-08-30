@@ -7,8 +7,7 @@
 #pragma once
 
 #include "Application/Model/Project.h"
-
-enum PlayMode { PM_SONG, PM_CHAIN, PM_PHRASE, PM_LIVE, PM_AUDITION };
+#include "Application/Session/PlayMode.h"
 
 // Mutable editor/playback session state shared by the application controller
 // and Player. It has no dependency on either UI implementation.

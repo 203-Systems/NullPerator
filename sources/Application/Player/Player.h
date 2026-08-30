@@ -86,7 +86,8 @@ public:
   // basic interface
 
   void Start(PlayMode mode, bool forceSongMode, MixerServiceMode msmMode,
-             bool stopAtEnd = false);
+             bool stopAtEnd = false, int contextChannel = -1,
+             int contextChainPosition = -1);
   void Stop();
 
   void SetSequencerMode(SequencerMode mode);
