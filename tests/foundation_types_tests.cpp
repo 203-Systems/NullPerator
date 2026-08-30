@@ -70,6 +70,14 @@ TEST_CASE("VariableContainer finds variables with high FourCC identifiers") {
   CHECK(container.FindVariable(FourCC::VarTempo) == nullptr);
 }
 
+TEST_CASE("float variables format their integer part without float printf") {
+  Variable value(FourCC::VarTempo, 12.75F);
+  CHECK(std::strcmp(value.GetString().c_str(), "12") == 0);
+
+  value.SetFloat(-3.5F, false);
+  CHECK(std::strcmp(value.GetString().c_str(), "-3") == 0);
+}
+
 TEST_CASE("FourCC command persistence is byte-sized and platform stable") {
   CHECK(sizeof(FourCC) == 1U);
   CHECK(sizeof(FourCC::enum_type) == 1U);

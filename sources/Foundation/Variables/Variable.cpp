@@ -210,7 +210,7 @@ etl::string<MAX_VARIABLE_STRING_LENGTH> Variable::GetString() {
   // !!! NOTE !!! we don't want to enable nanoprintf's float support so we just
   // cast to int here because we don't really display floats anyway
   case FLOAT:
-    npf_snprintf(buf, sizeof(buf), "%f", (int)value_.float_);
+    npf_snprintf(buf, sizeof(buf), "%d", static_cast<int>(value_.float_));
     break;
   case INT:
     npf_snprintf(buf, sizeof(buf), "%d", value_.int_);
