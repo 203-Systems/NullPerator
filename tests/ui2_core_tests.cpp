@@ -5,6 +5,7 @@
 #include "Application/UI2/Ui2SampleAdapters.h"
 #include "Application/UI2/Ui2SettingsAdapters.h"
 #include "Application/UI2/Ui2SettingsControllerAdapters.h"
+#include "Application/UI2/Ui2VuMapping.h"
 #include "UI2/Animation/UiMotionTrack.h"
 #include "UI2/Animation/UiTransitionTimeline.h"
 #include "UI2/Chrome/UiBarResolver.h"
@@ -54,6 +55,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <limits>
 #include <span>
 #include <utility>
 
@@ -1390,17 +1392,30 @@ TEST_CASE("UI2 held NAV persists through page changes without page motion") {
 }
 
 TEST_CASE("UI2 VU mapping is bounded monotonic and integer only") {
-  CHECK(ui2::UiApplicationRuntime::VuTopFromAmplitude(0) == 153);
-  CHECK(ui2::UiApplicationRuntime::VuTopFromAmplitude(32) == 153);
-  CHECK(ui2::UiApplicationRuntime::VuTopFromAmplitude(32700) == 0);
-  std::uint8_t previous = 153;
-  for (std::uint32_t amplitude = 33; amplitude <= 32767; amplitude += 37) {
-    const std::uint8_t top = ui2::UiApplicationRuntime::VuTopFromAmplitude(
+  CHECK(ui2::Ui2VuTopFromAmplitude(0U) == ui2::Ui2VuMeterHeight);
+  CHECK(ui2::Ui2VuTopFromAmplitude(32U) == ui2::Ui2VuMeterHeight);
+  CHECK(ui2::Ui2VuTopFromAmplitude(33U) == ui2::Ui2VuMeterHeight);
+  CHECK(ui2::Ui2VuTopFromAmplitude(32699U) == 1U);
+  CHECK(ui2::Ui2VuTopFromAmplitude(32700U) == 0U);
+  CHECK(ui2::Ui2VuTopFromAmplitude(
+            std::numeric_limits<std::uint16_t>::max()) == 0U);
+
+  std::uint8_t previous = ui2::Ui2VuTopFromAmplitude(0U);
+  bool monotonic = true;
+  std::uint32_t violation = 0U;
+  for (std::uint32_t amplitude = 1U;
+       amplitude <= std::numeric_limits<std::uint16_t>::max(); ++amplitude) {
+    const std::uint8_t top = ui2::Ui2VuTopFromAmplitude(
         static_cast<std::uint16_t>(amplitude));
-    CHECK(top <= previous);
-    CHECK(top <= 153);
+    if (top > previous) {
+      monotonic = false;
+      violation = amplitude;
+      break;
+    }
     previous = top;
   }
+  CAPTURE(violation);
+  CHECK(monotonic);
 }
 
 TEST_CASE("UI2 firmware runtime keeps a fixed bounded memory footprint") {

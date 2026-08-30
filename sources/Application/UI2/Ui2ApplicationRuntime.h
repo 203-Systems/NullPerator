@@ -87,28 +87,6 @@ public:
     dialogCursorTargetValid_ = false;
   }
 
-  // Integer-only approximation of the legacy -60 dB..0 dB meter mapping.
-  // VU fill is deliberately not part of the pixel-exact golden contract.
-  static constexpr std::uint8_t VuTopFromAmplitude(std::uint16_t amplitude) {
-    if (amplitude < 33U)
-      return 153U;
-    if (amplitude >= 32700U)
-      return 0U;
-    std::uint8_t exponent = 0;
-    std::uint16_t value = amplitude;
-    while (value > 1U) {
-      value >>= 1U;
-      ++exponent;
-    }
-    const std::uint32_t base = 1U << exponent;
-    const std::uint32_t fraction =
-        ((static_cast<std::uint32_t>(amplitude) - base) * 16U) / base;
-    const std::uint32_t steps =
-        (static_cast<std::uint32_t>(exponent - 5U) * 16U) + fraction;
-    const std::uint32_t active = (steps * 153U) / 160U;
-    return static_cast<std::uint8_t>(153U - active);
-  }
-
 private:
   struct PowerFrameState {
     UiPowerState power = UiPowerState::BatteryNormal;

@@ -19,6 +19,7 @@
 #include "Application/Session/FirmwareLifecycleService.h"
 #include "Application/Session/TrackerApplicationSession.h"
 #include "Application/UI2/Ui2InstrumentParameters.h"
+#include "Application/UI2/Ui2VuMapping.h"
 #include "Application/Utils/HelpLegend.h"
 #include "Application/Utils/char.h"
 #include "System/System/System.h"
@@ -192,34 +193,18 @@ void CaptureHelp(FourCC command, std::array<char, LeadSize> &lead,
   CopyUpper(description, detail);
 }
 
-constexpr std::uint8_t VuTopFromAmplitude(std::uint16_t amplitude) {
-  if (amplitude < 33U)
-    return 153U;
-  if (amplitude >= 32700U)
-    return 0U;
-  std::uint8_t exponent = 0;
-  std::uint16_t value = amplitude;
-  while (value > 1U) {
-    value >>= 1U;
-    ++exponent;
-  }
-  const std::uint32_t base = 1U << exponent;
-  const std::uint32_t fraction =
-      ((static_cast<std::uint32_t>(amplitude) - base) * 16U) / base;
-  const std::uint32_t steps =
-      (static_cast<std::uint32_t>(exponent - 5U) * 16U) + fraction;
-  return static_cast<std::uint8_t>(153U - (steps * 153U) / 160U);
-}
-
-std::array<std::uint8_t, 2> MasterVu(std::uint8_t height = 153U) {
+std::array<std::uint8_t, 2>
+MasterVu(std::uint8_t height = Ui2VuMeterHeight) {
   Player *player = Player::GetInstance();
   const std::uint32_t level =
       PlayerRunning() ? static_cast<std::uint32_t>(player->GetMasterLevel())
                       : 0U;
   const auto top = [height](std::uint16_t amplitude) {
-    const std::uint8_t songTop = VuTopFromAmplitude(amplitude);
+    const std::uint8_t songTop = Ui2VuTopFromAmplitude(amplitude);
     return static_cast<std::uint8_t>(
-        (static_cast<std::uint16_t>(songTop) * height + 76U) / 153U);
+        (static_cast<std::uint16_t>(songTop) * height +
+         Ui2VuMeterHeight / 2U) /
+        Ui2VuMeterHeight);
   };
   return {top(static_cast<std::uint16_t>(level >> 16U)),
           top(static_cast<std::uint16_t>(level & 0xFFFFU))};
@@ -976,9 +961,9 @@ Ui2NativeApplicationStateSource::CaptureMixer(UiMixerFrameState &state) {
   const auto captureStereoLevel = [&](std::uint8_t channel,
                                       std::uint32_t level) {
     state.vuLevelTop[channel][0] =
-        VuTopFromAmplitude(static_cast<std::uint16_t>(level >> 16U));
+        Ui2VuTopFromAmplitude(static_cast<std::uint16_t>(level >> 16U));
     state.vuLevelTop[channel][1] =
-        VuTopFromAmplitude(static_cast<std::uint16_t>(level & 0xFFFFU));
+        Ui2VuTopFromAmplitude(static_cast<std::uint16_t>(level & 0xFFFFU));
   };
   const auto *levels = player->GetMixerLevels();
   if (levels != nullptr) {
