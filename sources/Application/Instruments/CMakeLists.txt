@@ -19,12 +19,12 @@ add_library(application_instruments
   WavHeader.cpp
 )
 
-# Keep the more aggressive optimization local to the sampler hot path. Global
-# -O3 increases code size and can put extra pressure on the ESP32-S3 instruction
-# cache, while this translation unit contains the measured render bottleneck.
+# Keep the measured sampler hot path at O2. On ESP32-S3 hardware, forcing this
+# translation unit to O3 was consistently slower, most likely because its
+# larger code footprint adds instruction-cache pressure.
 if(Node)
   set_source_files_properties(SampleInstrument.cpp PROPERTIES
-    COMPILE_OPTIONS "-O3"
+    COMPILE_OPTIONS "-O2"
   )
 endif()
 
