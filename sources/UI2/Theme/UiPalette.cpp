@@ -39,12 +39,14 @@ UiPalette::UiPalette() {
 }
 
 void UiPalette::Set(PaletteIndex index, Rgb888 color) {
+  InvalidateVuGradient();
   SetRaw(index, color);
   if (index < kUserColorCount) RebuildDerivedColors();
 }
 
 void UiPalette::SetUserColors(
     const std::array<Rgb888, kUserColorCount> &colors) {
+  InvalidateVuGradient();
   for (std::size_t index = 0; index < colors.size(); ++index)
     SetRaw(static_cast<PaletteIndex>(index), colors[index]);
   RebuildDerivedColors();

@@ -877,6 +877,27 @@ TEST_CASE("UI2 VU gradient uses fixed palette slots without RGB framebuffer") {
   CHECK_FALSE(ui2::UiVuGradient::Configure(palette, 154));
 }
 
+TEST_CASE("UI2 VU gradient is restored after shared dynamic palette writes") {
+  ui2::UiPalette palette;
+  REQUIRE(ui2::UiVuGradient::Configure(palette, 153));
+  const auto middle = ui2::UiVuGradient::IndexAt(60);
+  const ui2::Rgb888 expected = palette.Get(middle);
+
+  // Page-bar fades share the dynamic bank with the VU ramp. A cached gradient
+  // must notice any direct dynamic write and rebuild before the next meter
+  // frame instead of presenting the transition color as audio level ink.
+  palette.Set(middle, {0x12, 0x34, 0x56});
+  REQUIRE(palette.Get(middle) != expected);
+  REQUIRE(ui2::UiVuGradient::Configure(palette, 153));
+  CHECK(palette.Get(middle) == expected);
+
+  // User theme changes also invalidate the cached ramp even when no dynamic
+  // slot was touched directly.
+  palette.Set(ui2::UiColorToken::VuSafe, {0x21, 0x43, 0x65});
+  REQUIRE(ui2::UiVuGradient::Configure(palette, 153));
+  CHECK(palette.Get(middle) == ui2::Rgb888{0x21, 0x43, 0x65});
+}
+
 TEST_CASE("UI2 bar resolver applies the documented central priority") {
   ui2::UiBottomBarModel page{.kind = ui2::UiBottomBarKind::Hidden};
   ui2::UiBottomBarModel cursor{.kind = ui2::UiBottomBarKind::Context};

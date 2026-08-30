@@ -41,6 +41,10 @@ std::uint8_t LerpChannel(std::uint8_t from, std::uint8_t to,
 
 bool UiVuGradient::Configure(UiPalette &palette, std::uint16_t height) {
   if (height == 0 || height > kMaximumHeight) return false;
+  // Meter levels rebuild their command scenes at audio cadence, while the
+  // 153 gradient colors only depend on the theme. Preserve that work until a
+  // theme edit or a page-bar transition writes into the shared dynamic bank.
+  if (palette.VuGradientCurrent(height)) return true;
   const std::uint32_t coordinateDenominator = 2U * height;
   for (std::uint16_t row = 0; row < height; ++row) {
     const std::uint32_t coordinate = 100U * (2U * row + 1U);
@@ -60,11 +64,12 @@ bool UiVuGradient::Configure(UiPalette &palette, std::uint16_t height) {
         coordinate > lower ? coordinate - lower : 0;
     const Rgb888 from = palette.Get(palette.Index(lowerStop.color));
     const Rgb888 to = palette.Get(palette.Index(upperStop.color));
-    palette.Set(IndexAt(row),
-                {LerpChannel(from.red, to.red, numerator, denominator),
-                 LerpChannel(from.green, to.green, numerator, denominator),
-                 LerpChannel(from.blue, to.blue, numerator, denominator)});
+    palette.SetRaw(IndexAt(row),
+                   {LerpChannel(from.red, to.red, numerator, denominator),
+                    LerpChannel(from.green, to.green, numerator, denominator),
+                    LerpChannel(from.blue, to.blue, numerator, denominator)});
   }
+  palette.MarkVuGradientCurrent(height);
   return true;
 }
 

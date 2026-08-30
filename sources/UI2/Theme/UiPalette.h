@@ -14,6 +14,8 @@
 
 namespace ui2 {
 
+class UiVuGradient;
+
 // Stable semantic indices are part of the UI2 presenter contract. Page code
 // never names hues and user themes only replace these semantic roles.
 enum class UiColorToken : PaletteIndex {
@@ -99,6 +101,14 @@ private:
 
   void SetRaw(PaletteIndex index, Rgb888 color);
   void RebuildDerivedColors();
+  [[nodiscard]] bool VuGradientCurrent(std::uint16_t height) const {
+    return vuGradientValid_ && vuGradientHeight_ == height;
+  }
+  void MarkVuGradientCurrent(std::uint16_t height) {
+    vuGradientHeight_ = height;
+    vuGradientValid_ = true;
+  }
+  void InvalidateVuGradient() { vuGradientValid_ = false; }
   [[nodiscard]] static Rgb888 Composite(Rgb888 source, std::uint8_t alpha,
                                         Rgb888 destination);
   [[nodiscard]] static Rgb888 CompositeQuarter(Rgb888 source,
@@ -108,6 +118,12 @@ private:
   std::array<Rgb888, kColorCount> colors_{};
   std::array<std::uint16_t, kColorCount> rgb565_{};
   std::array<std::array<PaletteIndex, kThemeColorCount>, 2> coverage_{};
+  // The VU ramp and page transitions intentionally share the fixed dynamic
+  // palette bank. Public palette writes invalidate this owner-specific cache.
+  std::uint16_t vuGradientHeight_ = 0;
+  bool vuGradientValid_ = false;
+
+  friend class UiVuGradient;
 };
 
 } // namespace ui2
