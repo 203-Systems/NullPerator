@@ -15,6 +15,28 @@ Tap(ui2::Ui2ProjectLifecycleController &controller, TrackerAction action) {
 
 std::string_view Text(const auto &text) { return text.data(); }
 
+void CheckHeldEditIsReleasedBeforeDialogInput(
+    ui2::Ui2ProjectLifecycleController &controller,
+    ui2::Ui2ProjectLifecycleCommandType expected) {
+  REQUIRE(controller.Active());
+  REQUIRE(controller.Snapshot().actionCount == 2U);
+  CHECK(controller.Snapshot().selectedAction == 1U);
+
+  // This is the platform repeat pulse from the EDIT press that opened the
+  // dialog. It must neither accept the conservative default nor close it.
+  CHECK_FALSE(controller.Handle(TrackerAction::Edit, true).HasValue());
+  CHECK(controller.Active());
+  CHECK(controller.Snapshot().selectedAction == 1U);
+  CHECK_FALSE(controller.Handle(TrackerAction::Left, true).HasValue());
+  CHECK_FALSE(controller.Handle(TrackerAction::Left, false).HasValue());
+  CHECK(controller.Snapshot().selectedAction == 1U);
+  CHECK_FALSE(controller.Handle(TrackerAction::Edit, false).HasValue());
+
+  CHECK_FALSE(Tap(controller, TrackerAction::Left).HasValue());
+  CHECK(Tap(controller, TrackerAction::Edit).type == expected);
+  CHECK_FALSE(controller.Active());
+}
+
 } // namespace
 
 TEST_CASE("UI2 project lifecycle confirms dirty New with safe default") {
@@ -126,6 +148,64 @@ TEST_CASE("UI2 theme overwrite reuses conservative lifecycle confirmation") {
       Tap(controller, TrackerAction::Edit);
   CHECK(overwrite.type == Ui2ProjectLifecycleCommandType::OverwriteTheme);
   CHECK(std::string_view(overwrite.project.data()) == "DEFAULT");
+}
+
+TEST_CASE("UI2 project dialogs ignore their held EDIT opener until release") {
+  using namespace ui2;
+  Ui2ProjectLifecycleController controller;
+
+  SUBCASE("dirty New") {
+    CHECK_FALSE(
+        controller.RequestNew(true, false, TrackerAction::Edit).HasValue());
+    CheckHeldEditIsReleasedBeforeDialogInput(
+        controller, Ui2ProjectLifecycleCommandType::NewProject);
+  }
+  SUBCASE("dirty Load") {
+    CHECK_FALSE(controller
+                    .RequestLoad("RESTORE-ME", true, false,
+                                 TrackerAction::Edit)
+                    .HasValue());
+    CheckHeldEditIsReleasedBeforeDialogInput(
+        controller, Ui2ProjectLifecycleCommandType::LoadProject);
+  }
+  SUBCASE("Delete") {
+    CHECK_FALSE(controller
+                    .RequestDelete("OLD", "CURRENT", false,
+                                   TrackerAction::Edit)
+                    .HasValue());
+    CheckHeldEditIsReleasedBeforeDialogInput(
+        controller, Ui2ProjectLifecycleCommandType::DeleteProject);
+  }
+  SUBCASE("sample purge") {
+    controller.RequestPurgeUnusedSamples(false, TrackerAction::Edit);
+    CheckHeldEditIsReleasedBeforeDialogInput(
+        controller, Ui2ProjectLifecycleCommandType::PurgeUnusedSamples);
+  }
+  SUBCASE("instrument purge") {
+    controller.RequestPurgeUnusedInstruments(false, TrackerAction::Edit);
+    CheckHeldEditIsReleasedBeforeDialogInput(
+        controller, Ui2ProjectLifecycleCommandType::PurgeUnusedInstruments);
+  }
+  SUBCASE("Theme overwrite") {
+    controller.RequestThemeOverwrite("DEFAULT", TrackerAction::Edit);
+    CheckHeldEditIsReleasedBeforeDialogInput(
+        controller, Ui2ProjectLifecycleCommandType::OverwriteTheme);
+  }
+  SUBCASE("Project overwrite") {
+    controller.RequestOverwrite("EXISTING", TrackerAction::Edit);
+    CheckHeldEditIsReleasedBeforeDialogInput(
+        controller, Ui2ProjectLifecycleCommandType::OverwriteProject);
+  }
+  SUBCASE("running guard") {
+    controller.RequestPurgeUnusedSamples(true, TrackerAction::Edit);
+    REQUIRE(controller.Active());
+    REQUIRE(controller.Snapshot().actionCount == 1U);
+    CHECK_FALSE(controller.Handle(TrackerAction::Edit, true).HasValue());
+    CHECK(controller.Active());
+    CHECK_FALSE(controller.Handle(TrackerAction::Edit, false).HasValue());
+    CHECK_FALSE(Tap(controller, TrackerAction::Edit).HasValue());
+    CHECK_FALSE(controller.Active());
+  }
 }
 
 TEST_CASE("UI2 project lifecycle confirms sample purge with safe default") {

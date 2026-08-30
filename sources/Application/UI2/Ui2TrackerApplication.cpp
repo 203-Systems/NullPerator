@@ -934,11 +934,12 @@ void Ui2TrackerApplication::HandleBrowser(TrackerAction action, bool pressed) {
   if (command.type == Ui2ProjectBrowserCommandType::Load) {
     lifecycleCommand =
         projectLifecycle_.RequestLoad(command.project.data(), autoSave_.Dirty(),
-                                      Player::GetInstance()->IsRunning());
+                                      Player::GetInstance()->IsRunning(),
+                                      TrackerAction::Edit);
   } else if (command.type == Ui2ProjectBrowserCommandType::Delete) {
     lifecycleCommand = projectLifecycle_.RequestDelete(
         command.project.data(), session_.ProjectName(),
-        Player::GetInstance()->IsRunning());
+        Player::GetInstance()->IsRunning(), TrackerAction::Edit);
   }
   ExecuteProjectLifecycle(lifecycleCommand);
 }
@@ -1994,7 +1995,8 @@ void Ui2TrackerApplication::ExecuteTheme(Ui2ThemeCommand command) {
       } else if (fileSystem->exists(path.data())) {
         // Match the legacy flow: an existing theme is never silently replaced.
         // The shared conservative message dialog defaults to NO.
-        projectLifecycle_.RequestThemeOverwrite(name->GetString().c_str());
+        projectLifecycle_.RequestThemeOverwrite(name->GetString().c_str(),
+                                                TrackerAction::Edit);
       } else if (!config->ExportTheme(name->GetString().c_str(), false)) {
         projectLifecycle_.ReportFailure(Ui2ProjectLifecycleFailure::SaveTheme);
       } else {
@@ -2080,7 +2082,14 @@ void Ui2TrackerApplication::ExecutePendingSave(std::uint32_t nowMs) {
   autoSave_.SetPersistBusy(false);
   persistenceStatus_.FinishSaving();
   if (result == TrackerApplicationSession::SaveResult::Exists) {
-    projectLifecycle_.RequestOverwrite(session_.ProjectName());
+    // Saving is deferred until the saving indicator has been presented. A
+    // fast tap may therefore release EDIT before this dialog opens; only arm
+    // the release gate while the opener is still physically held.
+    const TrackerAction trigger =
+        (physicalHeldMask_ & TrackerActionBit(TrackerAction::Edit)) != 0U
+            ? TrackerAction::Edit
+            : TrackerAction::Count;
+    projectLifecycle_.RequestOverwrite(session_.ProjectName(), trigger);
     return;
   }
   if (result != TrackerApplicationSession::SaveResult::Saved) {
@@ -2122,9 +2131,10 @@ void Ui2TrackerApplication::ExecuteProjectLifecycle(
     if (Player::GetInstance()->IsRunning()) {
       if (command.type ==
           Ui2ProjectLifecycleCommandType::PurgeUnusedSamples)
-        projectLifecycle_.RequestPurgeUnusedSamples(true);
+        projectLifecycle_.RequestPurgeUnusedSamples(true, TrackerAction::Edit);
       else
-        projectLifecycle_.RequestPurgeUnusedInstruments(true);
+        projectLifecycle_.RequestPurgeUnusedInstruments(true,
+                                                        TrackerAction::Edit);
       return;
     }
     if (command.type == Ui2ProjectLifecycleCommandType::PurgeUnusedSamples)
@@ -2298,11 +2308,11 @@ void Ui2TrackerApplication::ExecuteProject(Ui2ProjectCommand command) {
     break;
   case Ui2ProjectCommandType::RemoveUnusedSamples:
     projectLifecycle_.RequestPurgeUnusedSamples(
-        Player::GetInstance()->IsRunning());
+        Player::GetInstance()->IsRunning(), TrackerAction::Edit);
     break;
   case Ui2ProjectCommandType::RemoveUnusedInstruments:
     projectLifecycle_.RequestPurgeUnusedInstruments(
-        Player::GetInstance()->IsRunning());
+        Player::GetInstance()->IsRunning(), TrackerAction::Edit);
     break;
   case Ui2ProjectCommandType::AdjustTempo:
   case Ui2ProjectCommandType::AdjustTranspose:
@@ -2322,7 +2332,8 @@ void Ui2TrackerApplication::ExecuteProject(Ui2ProjectCommand command) {
   }
   case Ui2ProjectCommandType::NewProject:
     ExecuteProjectLifecycle(projectLifecycle_.RequestNew(
-        autoSave_.Dirty(), Player::GetInstance()->IsRunning()));
+        autoSave_.Dirty(), Player::GetInstance()->IsRunning(),
+        TrackerAction::Edit));
     break;
   case Ui2ProjectCommandType::RenameProject:
     renameTarget_ = RenameTarget::Project;

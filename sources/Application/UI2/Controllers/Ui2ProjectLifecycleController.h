@@ -58,23 +58,28 @@ public:
   [[nodiscard]] bool Active() const { return purpose_ != Purpose::None; }
   [[nodiscard]] std::uint32_t InstanceId() const { return instanceId_; }
 
-  Ui2ProjectLifecycleCommand RequestNew(bool dirty, bool playerRunning) {
+  Ui2ProjectLifecycleCommand
+  RequestNew(bool dirty, bool playerRunning,
+             TrackerAction trigger = TrackerAction::Count) {
     if (playerRunning) {
-      ShowInfo("Not while running!");
+      ShowInfo("Not while running!", nullptr, false, trigger);
       return {};
     }
     if (!dirty)
       return {.type = Ui2ProjectLifecycleCommandType::NewProject};
     project_.fill('\0');
     Show(Purpose::ConfirmNew, "Create a new project and",
-         "   lose all changes?", UiDialogAction::Yes, UiDialogAction::No);
+         "   lose all changes?", UiDialogAction::Yes, UiDialogAction::No, 2U,
+         false, trigger);
     return {};
   }
 
   Ui2ProjectLifecycleCommand RequestLoad(const char *project, bool dirty,
-                                         bool playerRunning) {
+                                         bool playerRunning,
+                                         TrackerAction trigger =
+                                             TrackerAction::Count) {
     if (playerRunning) {
-      ShowInfo("Not while running!");
+      ShowInfo("Not while running!", nullptr, false, trigger);
       return {};
     }
     if (!CopyProject(project))
@@ -82,51 +87,58 @@ public:
     if (!dirty)
       return Command(Ui2ProjectLifecycleCommandType::LoadProject);
     Show(Purpose::ConfirmLoad, "Load song and lose changes?", {},
-         UiDialogAction::Yes, UiDialogAction::No);
+         UiDialogAction::Yes, UiDialogAction::No, 2U, false, trigger);
     return {};
   }
 
   Ui2ProjectLifecycleCommand RequestDelete(const char *project,
                                            const char *currentProject,
-                                           bool playerRunning) {
+                                           bool playerRunning,
+                                           TrackerAction trigger =
+                                               TrackerAction::Count) {
     if (playerRunning) {
-      ShowInfo("Not while running!");
+      ShowInfo("Not while running!", nullptr, false, trigger);
       return {};
     }
     if (!CopyProject(project))
       return {};
     if (currentProject != nullptr &&
         std::strcmp(project_.data(), currentProject) == 0) {
-      ShowInfo("Cannot delete the active", "project.");
+      ShowInfo("Cannot delete the active", "project.", false, trigger);
       return {};
     }
     Show(Purpose::ConfirmDelete, "Delete selected project?", project_.data(),
-         UiDialogAction::Yes, UiDialogAction::No, 2U, true);
+         UiDialogAction::Yes, UiDialogAction::No, 2U, true, trigger);
     return {};
   }
 
-  void RequestOverwrite(const char *project) {
+  void RequestOverwrite(
+      const char *project, TrackerAction trigger = TrackerAction::Count) {
     if (!CopyProject(project))
       return;
     Show(Purpose::ConfirmOverwrite, "Overwrite EXISTING project?", {},
-         UiDialogAction::Ok, UiDialogAction::Cancel);
+         UiDialogAction::Ok, UiDialogAction::Cancel, 2U, false, trigger);
   }
 
-  void RequestThemeOverwrite(const char *theme) {
+  void RequestThemeOverwrite(
+      const char *theme, TrackerAction trigger = TrackerAction::Count) {
     if (!CopyProject(theme))
       return;
     Show(Purpose::ConfirmThemeOverwrite, "Theme already exists",
-         "Overwrite?", UiDialogAction::Yes, UiDialogAction::No);
+         "Overwrite?", UiDialogAction::Yes, UiDialogAction::No, 2U, false,
+         trigger);
   }
 
-  void RequestPurgeUnusedSamples(bool playerRunning) {
+  void RequestPurgeUnusedSamples(
+      bool playerRunning, TrackerAction trigger = TrackerAction::Count) {
     RequestPurge(Purpose::ConfirmPurgeSamples, "Remove unused samples?",
-                 playerRunning);
+                 playerRunning, trigger);
   }
 
-  void RequestPurgeUnusedInstruments(bool playerRunning) {
+  void RequestPurgeUnusedInstruments(
+      bool playerRunning, TrackerAction trigger = TrackerAction::Count) {
     RequestPurge(Purpose::ConfirmPurgeInstruments,
-                 "Remove unused instruments?", playerRunning);
+                 "Remove unused instruments?", playerRunning, trigger);
   }
 
   void WarnPendingRename() { ShowInfo("Save project rename first"); }
@@ -165,7 +177,8 @@ public:
   }
 
   Ui2ProjectLifecycleCommand Handle(TrackerAction action, bool pressed) {
-    if (!Active() || !input_.Update(action, pressed) || !pressed)
+    if (!Active() || !input_.Update(action, pressed) ||
+        !releaseGate_.Update(action, pressed) || !pressed)
       return {};
     if (action == TrackerAction::Left) {
       MoveSelection(-1);
@@ -182,6 +195,7 @@ public:
     const Purpose purpose = purpose_;
     purpose_ = Purpose::None;
     input_ = {};
+    releaseGate_.Reset();
     if (chosen == UiDialogAction::No || chosen == UiDialogAction::Cancel ||
         purpose == Purpose::Info)
       return {};
@@ -249,27 +263,30 @@ private:
   }
 
   void RequestPurge(Purpose purpose, const char *prompt,
-                    bool playerRunning) {
+                    bool playerRunning, TrackerAction trigger) {
     // Legacy exposed these actions while playback was active, even though
     // they can release live instruments or delete sample files. UI2 keeps the
     // established prompt when idle and reuses its existing running guard so
     // confirmation can never mutate resources currently owned by Player.
     if (playerRunning) {
-      ShowInfo("Not while running!");
+      ShowInfo("Not while running!", nullptr, false, trigger);
       return;
     }
-    Show(purpose, prompt, {}, UiDialogAction::Yes, UiDialogAction::No);
+    Show(purpose, prompt, {}, UiDialogAction::Yes, UiDialogAction::No, 2U,
+         false, trigger);
   }
 
   void ShowInfo(const char *line1, const char *line2 = nullptr,
-                bool line2UserText = false) {
+                bool line2UserText = false,
+                TrackerAction trigger = TrackerAction::Count) {
     Show(Purpose::Info, line1, line2, UiDialogAction::Ok, UiDialogAction::Ok,
-         1U, line2UserText);
+         1U, line2UserText, trigger);
   }
 
   void Show(Purpose purpose, const char *line1, const char *line2,
             UiDialogAction first, UiDialogAction second,
-            std::uint8_t count = 2U, bool line2UserText = false) {
+            std::uint8_t count = 2U, bool line2UserText = false,
+            TrackerAction trigger = TrackerAction::Count) {
     purpose_ = purpose;
     CopyText(line1_, line1);
     CopyText(line2_, line2);
@@ -282,6 +299,7 @@ private:
     // confirmations that is NO/CANCEL, so key repeat cannot accept data loss.
     selectedAction_ = static_cast<std::uint8_t>(actionCount_ - 1U);
     input_ = {};
+    releaseGate_.BlockUntilRelease(trigger);
     ++instanceId_;
   }
 
@@ -306,6 +324,7 @@ private:
   std::array<UiDialogAction, kUiDialogActionCapacity> actions_{};
   std::array<char, MAX_PROJECT_NAME_LENGTH + 1U> project_{};
   Ui2ControllerInputState input_{};
+  Ui2InputReleaseGate releaseGate_{};
   std::uint32_t instanceId_ = 0U;
   std::uint8_t actionCount_ = 0U;
   std::uint8_t selectedAction_ = 0U;

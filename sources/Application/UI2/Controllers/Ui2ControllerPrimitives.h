@@ -49,6 +49,33 @@ private:
   std::uint16_t mask_ = 0;
 };
 
+// A newly opened controller must not consume the press (or held companion
+// inputs) that opened it. The gate stays closed until that trigger is
+// released, without timers, allocation, or knowledge of platform repeat
+// policy.
+class Ui2InputReleaseGate {
+public:
+  constexpr void BlockUntilRelease(TrackerAction trigger) {
+    blockedMask_ = trigger < TrackerAction::Count
+                       ? TrackerActionBit(trigger)
+                       : 0U;
+  }
+
+  [[nodiscard]] constexpr bool Update(TrackerAction action, bool pressed) {
+    if (action >= TrackerAction::Count)
+      return false;
+    if (!pressed)
+      blockedMask_ = static_cast<std::uint16_t>(
+          blockedMask_ & ~TrackerActionBit(action));
+    return blockedMask_ == 0U;
+  }
+
+  constexpr void Reset() { blockedMask_ = 0U; }
+
+private:
+  std::uint16_t blockedMask_ = 0U;
+};
+
 // A selector owns indices only. Display strings remain static/model-owned, so
 // the controller is deterministic and has no lifetime or allocation concerns.
 struct Ui2SelectorState {
@@ -259,7 +286,9 @@ private:
 };
 
 static_assert(std::is_trivially_copyable_v<Ui2ControllerInputState>);
+static_assert(std::is_trivially_copyable_v<Ui2InputReleaseGate>);
 static_assert(std::is_trivially_copyable_v<Ui2SelectorState>);
 static_assert(sizeof(Ui2ControllerInputState) == 2U);
+static_assert(sizeof(Ui2InputReleaseGate) == 2U);
 
 } // namespace ui2
