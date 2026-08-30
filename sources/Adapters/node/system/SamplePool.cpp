@@ -127,7 +127,6 @@ std::optional<void *> NodeSamplePool::allocSampleBuffer(size_t bytes) {
 }
 
 void NodeSamplePool::Reset() {
-  (void)ensureDedicatedPsramStore();
   for (uint32_t i = 0; i < count_; ++i) {
     freeSampleBuffer(wav_[i]);
     wav_[i].Close();
@@ -158,12 +157,23 @@ bool NodeSamplePool::CheckSampleFits(int sampleSize) {
 }
 
 uint32_t NodeSamplePool::GetAvailableSampleStorageSpace() {
-  if (ensureDedicatedPsramStore()) {
+  if (sampleStore_ != nullptr) {
     return storeLimit_ - writeOffset_;
   }
-  size_t freeBytes = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+
+  // Reporting capacity must remain side-effect free. Reserving the dedicated
+  // arena here made an empty project consume nearly all available PSRAM merely
+  // because the UI queried free sample space. The first real fit check/load
+  // creates the arena instead.
+  size_t freeBytes = 0;
   if (has_psram()) {
-    freeBytes += heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+    const size_t largestBlock =
+        heap_caps_get_largest_free_block(MALLOC_CAP_SPIRAM);
+    freeBytes = largestBlock >= kDedicatedSampleStoreSize
+                    ? kDedicatedSampleStoreSize
+                    : largestBlock;
+  } else {
+    freeBytes = heap_caps_get_free_size(MALLOC_CAP_8BIT);
   }
   return static_cast<uint32_t>(freeBytes);
 }
