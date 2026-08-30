@@ -230,6 +230,30 @@ TEST_CASE("UI2 Instrument workflow validates and maps exports") {
             }) == Ui2InstrumentExportOutcome::Failed);
 }
 
+TEST_CASE("UI2 Instrument export outcomes define visible feedback") {
+  using namespace ui2;
+
+  const Ui2InstrumentExportFeedback saved =
+      Ui2InstrumentExportFeedbackFor(Ui2InstrumentExportOutcome::Saved);
+  CHECK(std::strcmp(saved.text, "INSTRUMENT SAVED") == 0);
+  CHECK_FALSE(saved.error);
+
+  const Ui2InstrumentExportFeedback missing =
+      Ui2InstrumentExportFeedbackFor(Ui2InstrumentExportOutcome::MissingName);
+  CHECK(std::strcmp(missing.text, "NAME INSTRUMENT FIRST") == 0);
+  CHECK(missing.error);
+
+  const Ui2InstrumentExportFeedback exists =
+      Ui2InstrumentExportFeedbackFor(Ui2InstrumentExportOutcome::Exists);
+  CHECK(std::strcmp(exists.text, "") == 0);
+  CHECK_FALSE(exists.error);
+
+  const Ui2InstrumentExportFeedback failed =
+      Ui2InstrumentExportFeedbackFor(Ui2InstrumentExportOutcome::Failed);
+  CHECK(std::strcmp(failed.text, "INSTRUMENT SAVE FAILED") == 0);
+  CHECK(failed.error);
+}
+
 TEST_CASE("UI2 Instrument workflow keeps browser failure copy stable") {
   CHECK(std::strcmp(ui2::Ui2InstrumentImportFailureText(
                         ui2::Ui2InstrumentImportOutcome::InvalidFile),

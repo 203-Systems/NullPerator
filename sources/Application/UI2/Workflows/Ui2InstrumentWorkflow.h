@@ -48,6 +48,11 @@ enum class Ui2InstrumentExportOutcome : std::uint8_t {
   Failed,
 };
 
+struct Ui2InstrumentExportFeedback {
+  const char *text = "";
+  bool error = false;
+};
+
 // Owns the data/service portion of Instrument lifecycle commands. The methods
 // stay templated so production passes stack-only lambdas directly and focused
 // tests can use fixed-pool fakes without std::function or another interface
@@ -150,9 +155,28 @@ Ui2InstrumentImportFailureText(Ui2InstrumentImportOutcome outcome) {
   return "INSTRUMENT LOAD FAILED";
 }
 
+[[nodiscard]] constexpr Ui2InstrumentExportFeedback
+Ui2InstrumentExportFeedbackFor(Ui2InstrumentExportOutcome outcome) {
+  switch (outcome) {
+  case Ui2InstrumentExportOutcome::Saved:
+    return {.text = "INSTRUMENT SAVED", .error = false};
+  case Ui2InstrumentExportOutcome::NoInstrument:
+    return {.text = "NO INSTRUMENT TO SAVE", .error = true};
+  case Ui2InstrumentExportOutcome::MissingName:
+    return {.text = "NAME INSTRUMENT FIRST", .error = true};
+  case Ui2InstrumentExportOutcome::Exists:
+    // The overwrite confirmation is already visible and owns this state.
+    return {};
+  case Ui2InstrumentExportOutcome::Failed:
+    return {.text = "INSTRUMENT SAVE FAILED", .error = true};
+  }
+  return {.text = "INSTRUMENT SAVE FAILED", .error = true};
+}
+
 static_assert(std::is_empty_v<Ui2InstrumentWorkflow>);
 static_assert(sizeof(Ui2InstrumentImportOutcome) == 1U);
 static_assert(sizeof(Ui2InstrumentTypeOutcome) == 1U);
 static_assert(sizeof(Ui2InstrumentExportOutcome) == 1U);
+static_assert(std::is_trivially_copyable_v<Ui2InstrumentExportFeedback>);
 
 } // namespace ui2

@@ -1856,17 +1856,20 @@ void Ui2TrackerApplication::SaveCurrentInstrument(bool overwrite) {
           return Ui2InstrumentStorageResult::Exists;
         return Ui2InstrumentStorageResult::Failed;
       });
-  if (result == Ui2InstrumentExportOutcome::NoInstrument) {
-    Status::Set("NO INSTRUMENT TO SAVE");
-  } else if (result == Ui2InstrumentExportOutcome::MissingName) {
-    Status::Set("NAME INSTRUMENT FIRST");
-  } else if (result == Ui2InstrumentExportOutcome::Saved) {
-    Status::Set("INSTRUMENT SAVED");
-  } else if (result == Ui2InstrumentExportOutcome::Exists) {
+  const Ui2InstrumentExportFeedback presentation =
+      Ui2InstrumentExportFeedbackFor(result);
+  if (presentation.text[0] != '\0') {
+    Status::Set("%s", presentation.text);
+    System *system = System::GetInstance();
+    const std::uint32_t nowMs = system == nullptr ? 0U : system->Millis();
+    if (presentation.error)
+      feedback_.ShowError(presentation.text, nowMs);
+    else
+      feedback_.ShowMessage(presentation.text, nowMs);
+  }
+  if (result == Ui2InstrumentExportOutcome::Exists) {
     Status::Set("INSTRUMENT FILE EXISTS");
     instrumentLifecycle_.RequestExportOverwrite();
-  } else {
-    Status::Set("INSTRUMENT SAVE FAILED");
   }
   runtime_.Invalidate();
 }
