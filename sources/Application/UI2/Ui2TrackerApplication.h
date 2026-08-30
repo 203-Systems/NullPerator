@@ -35,6 +35,7 @@
 #include "Application/UI2/Ui2ApplicationRuntime.h"
 #include "Application/UI2/Ui2ConfigSaveState.h"
 #include "Application/UI2/Ui2NativeApplicationStateSource.h"
+#include "Application/UI2/Ui2PersistenceStatus.h"
 #include "Application/UI2/Ui2ProjectRenderBackend.h"
 #include "Application/UI2/Ui2SampleWaveformBackend.h"
 #include "Application/UI2/Ui2StatusBridge.h"
@@ -141,6 +142,7 @@ private:
   void ExecuteProject(Ui2ProjectCommand command);
   void ExecuteProjectLifecycle(Ui2ProjectLifecycleCommand command);
   void SaveCurrentProject(bool overwrite = false);
+  void ExecutePendingSave(std::uint32_t nowMs);
   void ExecuteGroove(Ui2GrooveCommand command);
   void SynchronizeGridPage();
   void ResetControllersAfterProjectBoundary();
@@ -148,6 +150,7 @@ private:
   void SynchronizeProjectMutationState();
   [[nodiscard]] bool FlushConfig();
   [[nodiscard]] bool AutosaveSafePage() const;
+  [[nodiscard]] AutoSaveCoordinator::Conditions AutoSaveConditions() const;
 
   TrackerApplicationSession session_;
   Ui2TrackerSessionModelPort modelPort_;
@@ -177,6 +180,7 @@ private:
   FirmwareLifecyclePlatformAdapter firmwarePlatform_{};
   FirmwareLifecycleService firmwareLifecycle_{&firmwarePlatform_};
   FirmwareLifecycleController firmwareController_{};
+  Ui2PersistenceStatus persistenceStatus_{};
   Ui2NativeApplicationStateSource source_;
   UiApplicationRuntime runtime_;
   UiApplicationPage activePage_ = UiApplicationPage::Song;
@@ -213,6 +217,13 @@ private:
   std::uint8_t renameInstrumentNumber_ = 0U;
   Ui2ConfigSaveState configSave_{};
   AutoSaveCoordinator autoSave_{};
+  enum class PendingSaveKind : std::uint8_t {
+    None,
+    Project,
+    AutoSave,
+  };
+  PendingSaveKind pendingSave_ = PendingSaveKind::None;
+  bool pendingSaveOverwrite_ = false;
   std::uint32_t observedProjectMutationGeneration_ = 0U;
   Ui2StatusBridge statusBridge_{};
 };

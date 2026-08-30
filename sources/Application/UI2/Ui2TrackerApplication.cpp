@@ -144,7 +144,8 @@ Ui2TrackerApplication::Ui2TrackerApplication(IUiPresenter &presenter)
               projectLifecycle_, projectRender_, groove_, device_,
               deviceLifecycle_, theme_, font_, rename_, mixer_, instrument_,
               instrumentLifecycle_, instrumentBrowser_, sampleBrowser_,
-              sampleEditor_, sampleSlices_, record_, firmwareLifecycle_),
+              sampleEditor_, sampleSlices_, record_, firmwareLifecycle_,
+              persistenceStatus_),
       runtime_(presenter) {}
 
 Ui2TrackerApplication::~Ui2TrackerApplication() { Shutdown(); }
@@ -156,6 +157,9 @@ bool Ui2TrackerApplication::Init(Ui2StartupOptions options) {
   // platform or a future approved UI treatment instead of disappearing.
   statusBridge_.Attach();
   statusBridge_.Clear();
+  persistenceStatus_.FinishSaving();
+  pendingSave_ = PendingSaveKind::None;
+  pendingSaveOverwrite_ = false;
 
   FileSystem *fileSystem = FileSystem::GetInstance();
   EnsureDirectory(fileSystem, PROJECTS_DIR);
@@ -274,6 +278,10 @@ void Ui2TrackerApplication::Shutdown() {
   // Shutdown is also called directly by host/adapter teardown, without a page
   // transition. Do not drop coalesced settings just because that path never
   // reached ActivatePage().
+  if (pendingSave_ != PendingSaveKind::None) {
+    System *system = System::GetInstance();
+    ExecutePendingSave(system == nullptr ? 0U : system->Millis());
+  }
   if (configSave_.Dirty())
     (void)FlushConfig();
   StopSamplePreview();
@@ -563,7 +571,12 @@ bool Ui2TrackerApplication::TryNavigate(TrackerAction action) {
 }
 
 PresentResult Ui2TrackerApplication::Present() {
-  return initialized_ ? runtime_.Present(source_) : PresentResult::Failed;
+  if (!initialized_)
+    return PresentResult::Failed;
+  const PresentResult result = runtime_.Present(source_);
+  if (result == PresentResult::Presented)
+    persistenceStatus_.MarkPresented();
+  return result;
 }
 
 void Ui2TrackerApplication::Tick(std::uint32_t nowMs) {
@@ -582,22 +595,17 @@ void Ui2TrackerApplication::Tick(std::uint32_t nowMs) {
   projectRender_.Tick();
   UpdateSamplePreview(nowMs);
   SynchronizeProjectMutationState();
-  const AutoSaveCoordinator::Conditions conditions{
-      .projectLoaded = session_.IsLoaded(),
-      .playerRunning = Player::GetInstance()->IsRunning(),
-      .recordingActive = IsRecordingActive() || IsSavingRecording(),
-      .operationAllowsSave = AutosaveSafePage() &&
-                             !projectRender_.Active() &&
-                             !projectLifecycle_.Active() &&
-                             !deviceLifecycle_.Active() &&
-                             !instrumentLifecycle_.Active() &&
-                             !rename_.Active(),
-  };
+  if (pendingSave_ != PendingSaveKind::None) {
+    if (persistenceStatus_.ReadyToPersist())
+      ExecutePendingSave(nowMs);
+    return;
+  }
+  const AutoSaveCoordinator::Conditions conditions = AutoSaveConditions();
   if (autoSave_.Tick(nowMs, conditions) !=
       AutoSaveCoordinator::TickResult::SaveRequested)
     return;
-  const bool saved = session_.AutoSave(true, conditions.recordingActive);
-  autoSave_.CompleteAutoSave(nowMs, saved);
+  pendingSave_ = PendingSaveKind::AutoSave;
+  persistenceStatus_.BeginSaving();
 }
 
 bool Ui2TrackerApplication::AutosaveSafePage() const {
@@ -622,6 +630,21 @@ bool Ui2TrackerApplication::AutosaveSafePage() const {
     return false;
   }
   return false;
+}
+
+AutoSaveCoordinator::Conditions
+Ui2TrackerApplication::AutoSaveConditions() const {
+  return {
+      .projectLoaded = session_.IsLoaded(),
+      .playerRunning = Player::GetInstance()->IsRunning(),
+      .recordingActive = IsRecordingActive() || IsSavingRecording(),
+      .operationAllowsSave = AutosaveSafePage() &&
+                             !projectRender_.Active() &&
+                             !projectLifecycle_.Active() &&
+                             !deviceLifecycle_.Active() &&
+                             !instrumentLifecycle_.Active() &&
+                             !rename_.Active(),
+  };
 }
 
 bool Ui2TrackerApplication::ActivatePage(UiApplicationPage page) {
@@ -1959,11 +1982,44 @@ void Ui2TrackerApplication::ApplyCurrentTheme() {
 }
 
 void Ui2TrackerApplication::SaveCurrentProject(bool overwrite) {
-  const std::uint32_t nowMs = System::GetInstance()->Millis();
+  if (pendingSave_ != PendingSaveKind::None)
+    return;
   autoSave_.SetPersistBusy(true);
+  pendingSave_ = PendingSaveKind::Project;
+  pendingSaveOverwrite_ = overwrite;
+  persistenceStatus_.BeginSaving();
+}
+
+void Ui2TrackerApplication::ExecutePendingSave(std::uint32_t nowMs) {
+  const PendingSaveKind kind = pendingSave_;
+  const bool overwrite = pendingSaveOverwrite_;
+  pendingSave_ = PendingSaveKind::None;
+  pendingSaveOverwrite_ = false;
+
+  if (kind == PendingSaveKind::AutoSave) {
+    const AutoSaveCoordinator::Conditions conditions = AutoSaveConditions();
+    if (!conditions.projectLoaded || conditions.playerRunning ||
+        conditions.recordingActive || !conditions.operationAllowsSave) {
+      autoSave_.CompleteAutoSave(nowMs, false);
+      persistenceStatus_.FinishSaving();
+      return;
+    }
+    const bool saved =
+        session_.AutoSave(conditions.operationAllowsSave,
+                          conditions.recordingActive);
+    autoSave_.CompleteAutoSave(nowMs, saved);
+    persistenceStatus_.FinishSaving();
+    return;
+  }
+  if (kind != PendingSaveKind::Project) {
+    persistenceStatus_.FinishSaving();
+    return;
+  }
+
   const TrackerApplicationSession::SaveResult result = session_.SaveProject(
       savedProjectName_.data(), projectSaveAsPending_, overwrite);
   autoSave_.SetPersistBusy(false);
+  persistenceStatus_.FinishSaving();
   if (result == TrackerApplicationSession::SaveResult::Exists) {
     projectLifecycle_.RequestOverwrite(session_.ProjectName());
     return;

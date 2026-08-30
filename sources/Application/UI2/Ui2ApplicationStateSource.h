@@ -397,6 +397,7 @@ public:
   [[nodiscard]] virtual UiApplicationPage ActivePage() const = 0;
   [[nodiscard]] virtual std::uint32_t NowMs() const = 0;
   [[nodiscard]] virtual UiApplicationBatteryState ReadBattery() const = 0;
+  [[nodiscard]] virtual bool PersistenceSaving() const { return false; }
   [[nodiscard]] virtual bool NavigationHeld() const { return false; }
   [[nodiscard]] virtual UiTextCaseMode TextCase() const {
     return UiTextCaseMode::Upper;

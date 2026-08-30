@@ -27,6 +27,7 @@
 #include "Application/UI2/Controllers/Ui2ThemeController.h"
 #include "Application/UI2/Controllers/Ui2TrackerControllerHub.h"
 #include "Application/UI2/Ui2ApplicationStateSource.h"
+#include "Application/UI2/Ui2PersistenceStatus.h"
 
 class TrackerApplicationSession;
 class FirmwareLifecycleService;
@@ -56,7 +57,8 @@ public:
       Ui2SampleEditorController &sampleEditor,
       Ui2SampleSlicesController &sampleSlices,
       Ui2RecordController &record,
-      FirmwareLifecycleService &firmwareLifecycle)
+      FirmwareLifecycleService &firmwareLifecycle,
+      const Ui2PersistenceStatus &persistenceStatus)
       : session_(session), tracker_(tracker), project_(project),
         projectBrowser_(projectBrowser), settingsBrowser_(settingsBrowser),
         projectLifecycle_(projectLifecycle), projectRender_(projectRender),
@@ -65,7 +67,8 @@ public:
         instrument_(instrument), instrumentLifecycle_(instrumentLifecycle),
         instrumentBrowser_(instrumentBrowser), sampleBrowser_(sampleBrowser),
         sampleEditor_(sampleEditor), sampleSlices_(sampleSlices),
-        record_(record), firmwareLifecycle_(firmwareLifecycle) {}
+        record_(record), firmwareLifecycle_(firmwareLifecycle),
+        persistenceStatus_(persistenceStatus) {}
 
   void SetActivePage(UiApplicationPage page) { activePage_ = page; }
   void SetNavigationHeld(bool held) { navigationHeld_ = held; }
@@ -76,6 +79,9 @@ public:
   [[nodiscard]] UiApplicationPage ActivePage() const override;
   [[nodiscard]] std::uint32_t NowMs() const override;
   [[nodiscard]] UiApplicationBatteryState ReadBattery() const override;
+  [[nodiscard]] bool PersistenceSaving() const override {
+    return persistenceStatus_.Saving();
+  }
   [[nodiscard]] bool NavigationHeld() const override { return navigationHeld_; }
   [[nodiscard]] UiTextCaseMode TextCase() const override;
 
@@ -168,6 +174,7 @@ private:
   Ui2SampleSlicesController &sampleSlices_;
   Ui2RecordController &record_;
   FirmwareLifecycleService &firmwareLifecycle_;
+  const Ui2PersistenceStatus &persistenceStatus_;
   UiApplicationPage activePage_ = UiApplicationPage::Song;
   bool navigationHeld_ = false;
   bool instrumentBrowserActive_ = false;

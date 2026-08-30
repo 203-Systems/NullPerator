@@ -91,6 +91,7 @@ public:
   ui2::UiApplicationBatteryState ReadBattery() const override {
     return {.percentage = 73, .available = true, .charging = false};
   }
+  bool PersistenceSaving() const override { return persistenceSaving; }
   bool NavigationHeld() const override { return navigationHeld; }
   bool HasDialog() const override { return false; }
   Ui2DialogSnapshot DialogSnapshot() const override { return {}; }
@@ -170,6 +171,7 @@ public:
 
   ui2::UiApplicationPage page = ui2::UiApplicationPage::Song;
   std::uint32_t nowMs = 0;
+  bool persistenceSaving = false;
   bool navigationHeld = false;
 };
 
@@ -760,6 +762,33 @@ TEST_CASE("UI2 bar resolver applies the documented central priority") {
   CHECK(resolved.bottom.kind == ui2::UiBottomBarKind::Actions);
 }
 
+TEST_CASE("UI2 saving spinner replaces the top-right battery presentation") {
+  ui2::UiBarScene scene;
+  REQUIRE(ui2::UiChromeRenderer::BuildTop(
+              {.title = "PROJECT",
+               .power = ui2::UiPowerState::Saving,
+               .showBatteryPercent = true,
+               .batteryPercent = 73U},
+              scene) == ui2::UiBuildStatus::Built);
+
+  CHECK(FindTextCommand(scene.Stream(), "73%") == nullptr);
+  const auto hasFill = [&](ui2::RectI16 bounds, ui2::UiColorToken color) {
+    return std::any_of(scene.Stream().commands.begin(),
+                       scene.Stream().commands.end(),
+                       [&](const ui2::UiCommand &command) {
+                         return command.kind == ui2::UiCommandKind::FillRect &&
+                                command.bounds == bounds &&
+                                command.color ==
+                                    static_cast<ui2::PaletteIndex>(color);
+                       });
+  };
+  CHECK(hasFill({216, 11, 3, 3}, ui2::UiColorToken::SystemWarning));
+  CHECK(hasFill({222, 15, 3, 3}, ui2::UiColorToken::DerivedTextFaint));
+  CHECK(hasFill({216, 20, 3, 3}, ui2::UiColorToken::DerivedTextFaint));
+  CHECK(hasFill({210, 15, 3, 3}, ui2::UiColorToken::DerivedTextFaint));
+  CHECK(scene.Size() == 5U);
+}
+
 TEST_CASE("UI2 selection mode overrides page and edit bottom bars") {
   ui2::UiBottomBarModel context{.kind = ui2::UiBottomBarKind::Context};
   ui2::UiAdjustmentLegendModel adjustment{};
@@ -1339,6 +1368,37 @@ TEST_CASE("UI2 application runtime consumes the pure state-source boundary") {
   CHECK_FALSE(runtime.Supports(source));
   CHECK(runtime.Present(source) == ui2::PresentResult::Deferred);
   CHECK(presenter.calls == 1);
+}
+
+TEST_CASE("UI2 persistence status overrides navigation and battery chrome") {
+  RecordingPresenter presenter;
+  ui2::UiApplicationRuntime runtime(presenter);
+  TestApplicationStateSource source;
+
+  REQUIRE(runtime.Present(source) == ui2::PresentResult::Presented);
+  source.persistenceSaving = true;
+  source.nowMs = 1U;
+  REQUIRE(runtime.Present(source) == ui2::PresentResult::Presented);
+  REQUIRE(presenter.pixels != nullptr);
+  const auto topRightPixel = [&]() {
+    return presenter.pixels[11U * ui2::kScreenWidth + 216U];
+  };
+  CHECK(topRightPixel() ==
+        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::SystemWarning));
+
+  // Holding NAV cannot replace a persistence indicator that must remain
+  // visible until the blocking write completes.
+  source.navigationHeld = true;
+  source.nowMs = 2U;
+  REQUIRE(runtime.Present(source) == ui2::PresentResult::Presented);
+  CHECK(topRightPixel() ==
+        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::SystemWarning));
+
+  source.persistenceSaving = false;
+  source.nowMs = 3U;
+  REQUIRE(runtime.Present(source) == ui2::PresentResult::Presented);
+  CHECK(topRightPixel() !=
+        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::SystemWarning));
 }
 
 TEST_CASE("UI2 runtime applies all persisted semantic theme colors globally") {

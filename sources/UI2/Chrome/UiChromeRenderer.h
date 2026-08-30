@@ -34,6 +34,7 @@ public:
 private:
   static void DrawPower(const UiTopBarModel &model,
                         UiSceneBuilder<64, 256> &builder);
+  static void DrawSaving(UiSceneBuilder<64, 256> &builder);
 };
 
 } // namespace ui2

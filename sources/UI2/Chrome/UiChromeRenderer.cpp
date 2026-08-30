@@ -90,6 +90,16 @@ void UiChromeRenderer::DrawPower(const UiTopBarModel &model,
                color);
 }
 
+void UiChromeRenderer::DrawSaving(BarBuilder &builder) {
+  // Reuse the battery slot and the established warning color used by other
+  // persistence progress UI. The subdued trailing segments keep the compact
+  // indicator legible without introducing a new palette or full-screen state.
+  builder.Fill({216, 11, 3, 3}, UiColorToken::SystemWarning);
+  builder.Fill({222, 15, 3, 3}, UiColorToken::DerivedTextFaint);
+  builder.Fill({216, 20, 3, 3}, UiColorToken::DerivedTextFaint);
+  builder.Fill({210, 15, 3, 3}, UiColorToken::DerivedTextFaint);
+}
+
 UiBuildStatus UiChromeRenderer::BuildTop(const UiTopBarModel &model,
                                          UiBarScene &scene,
                                          std::optional<RectI16> navHighlight) {
@@ -127,6 +137,8 @@ UiBuildStatus UiChromeRenderer::BuildTop(const UiTopBarModel &model,
   if (model.power == UiPowerState::Playing) {
     builder.Text(">", 193, 14, UiColorToken::PlaybackActive);
     builder.Text(model.elapsed, 206, 14, UiColorToken::TextNormal);
+  } else if (model.power == UiPowerState::Saving) {
+    DrawSaving(builder);
   } else if (model.power == UiPowerState::Navigation) {
     const UiNavMapModel map =
         model.navMapOverride ? model.navMap : NavigationMap(model.navTarget);

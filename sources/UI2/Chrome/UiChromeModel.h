@@ -22,6 +22,7 @@ enum class UiPowerState : std::uint8_t {
   BatteryLow,
   Charging,
   Navigation,
+  Saving,
 };
 
 enum class UiNavTarget : std::uint8_t {

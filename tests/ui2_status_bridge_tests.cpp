@@ -1,5 +1,6 @@
 #include "doctest/doctest.h"
 
+#include "Application/UI2/Ui2PersistenceStatus.h"
 #include "Application/UI2/Ui2StatusBridge.h"
 
 #include <cstring>
@@ -29,6 +30,31 @@ private:
 };
 
 } // namespace
+
+TEST_CASE("UI2 persistence waits for a presented saving frame") {
+  ui2::Ui2PersistenceStatus status;
+  CHECK_FALSE(status.Saving());
+  CHECK_FALSE(status.ReadyToPersist());
+
+  status.BeginSaving();
+  CHECK(status.Saving());
+  CHECK_FALSE(status.ReadyToPersist());
+
+  status.MarkPresented();
+  CHECK(status.Saving());
+  CHECK(status.ReadyToPersist());
+
+  status.FinishSaving();
+  CHECK_FALSE(status.Saving());
+  CHECK_FALSE(status.ReadyToPersist());
+}
+
+TEST_CASE("UI2 persistence ignores presentation outside a save") {
+  ui2::Ui2PersistenceStatus status;
+  status.MarkPresented();
+  CHECK_FALSE(status.Saving());
+  CHECK_FALSE(status.ReadyToPersist());
+}
 
 TEST_CASE("UI2 status bridge captures formatted status without heap state") {
   Status::Install(nullptr);
