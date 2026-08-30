@@ -225,7 +225,7 @@ TEST_CASE("UI2 Device selectors preserve each field's wrap contract") {
   controller.Handle(TrackerAction::Edit, false);
 }
 
-TEST_CASE("UI2 Theme owns NAME actions and all nineteen palette rows") {
+TEST_CASE("UI2 Theme owns NAME actions and every palette row") {
   using namespace ui2;
   Ui2ThemeController controller(-1, Ui2ThemeNameAction::New, 6);
   constexpr Ui2ThemeCommandType actions[] = {
@@ -250,7 +250,7 @@ TEST_CASE("UI2 Theme owns NAME actions and all nineteen palette rows") {
     Tap(controller, TrackerAction::Down);
     CHECK(controller.SelectedColor() == static_cast<std::int8_t>(color));
   }
-  CHECK(controller.FirstVisibleOrdinal() == 14U);
+  CHECK(controller.FirstVisibleOrdinal() == 15U);
   CHECK(controller.Bottom().kind == Ui2ThemeBottomKind::Rgb);
   CHECK(controller.Bottom().selectedIndex == 0U);
   CHECK(controller.Bottom().optionCount == 3U);
@@ -262,7 +262,7 @@ TEST_CASE("UI2 Theme owns NAME actions and all nineteen palette rows") {
   controller.Handle(TrackerAction::Edit, true);
   const auto color = controller.Handle(TrackerAction::Up, true);
   CHECK(color.type == Ui2ThemeCommandType::AdjustColor);
-  CHECK(color.color == 18);
+  CHECK(color.color == 19);
   CHECK(color.component == 2U);
   CHECK(color.delta == 10);
   const auto repeated = controller.Handle(TrackerAction::Up, true);
@@ -284,7 +284,7 @@ TEST_CASE("UI2 Theme owns NAME actions and all nineteen palette rows") {
 
   const auto reset = controller.Handle(TrackerAction::Option, true);
   CHECK(reset.type == Ui2ThemeCommandType::ResetColorComponent);
-  CHECK(reset.color == 18);
+  CHECK(reset.color == 19);
   CHECK(reset.component == 2U);
   controller.Handle(TrackerAction::Option, false);
   controller.Handle(TrackerAction::Edit, false);
@@ -292,12 +292,12 @@ TEST_CASE("UI2 Theme owns NAME actions and all nineteen palette rows") {
   Tap(controller, TrackerAction::Right);
   CHECK(controller.ColorComponent() == 0U);
   Tap(controller, TrackerAction::Down);
-  CHECK(controller.SelectedColor() == 18);
+  CHECK(controller.SelectedColor() == 19);
 }
 
 TEST_CASE("UI2 Theme workflow bounds RGB edits for application persistence") {
   using namespace ui2;
-  static_assert(Ui2ThemeWorkflow::Colors{}.size() == 19U);
+  static_assert(Ui2ThemeWorkflow::Colors{}.size() == 20U);
 
   Ui2ThemeWorkflow::Colors colors{};
   Ui2ThemeWorkflow::Colors defaults{};
@@ -340,7 +340,7 @@ TEST_CASE("UI2 Theme workflow bounds RGB edits for application persistence") {
   CHECK(greenFloor.packedColor == 0xFF0030U);
 
   CHECK_FALSE(Ui2ThemeWorkflow::Execute(
-                  {.type = Ui2ThemeCommandType::AdjustColor, .color = 19},
+                  {.type = Ui2ThemeCommandType::AdjustColor, .color = 20},
                   colors, defaults)
                   .accepted);
   CHECK_FALSE(Ui2ThemeWorkflow::Execute(

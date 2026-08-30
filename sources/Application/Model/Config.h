@@ -23,7 +23,7 @@
 
 class Config : public T_Singleton<Config>, public VariableContainer {
 public:
-  static constexpr std::size_t SemanticThemeColorCount = 19U;
+  static constexpr std::size_t SemanticThemeColorCount = 20U;
   using SemanticThemeColors =
       std::array<std::uint32_t, SemanticThemeColorCount>;
 
@@ -47,7 +47,7 @@ public:
   // the detail and retain the historical boolean success contract.
   bool ImportTheme(const char *themeName, bool *loaded = nullptr);
 
-  // UI2 persists all nineteen public semantic roles independently. Legacy
+  // UI2 persists all public semantic roles independently. Legacy
   // FourCC colors remain source-only UI1 reference data and never seed UI2.
   [[nodiscard]] const SemanticThemeColors &GetSemanticThemeColors() const {
     return semanticThemeColors_;
@@ -63,9 +63,9 @@ public:
   [[nodiscard]] static constexpr SemanticThemeColors
   DefaultSemanticThemeColors() {
     return {{0x030707U, 0x081210U, 0x081210U, 0xE8EEEBU, 0x596462U,
-             0x041011U, 0x45DCE8U, 0x45DCE8U, 0x15181AU, 0x68E69AU,
-             0x00DC74U, 0xF0CE00U, 0xF02E75U, 0xE8EEEBU, 0x00DC74U,
-             0xF02E75U, 0x00DC74U, 0xF0CE00U, 0xF02E75U}};
+             0x041011U, 0x45DCE8U, 0x45DCE8U, 0x15181AU, 0x1A3335U,
+             0x68E69AU, 0x00DC74U, 0xF0CE00U, 0xF02E75U, 0xE8EEEBU,
+             0x00DC74U, 0xF02E75U, 0x00DC74U, 0xF0CE00U, 0xF02E75U}};
   }
 
 private:

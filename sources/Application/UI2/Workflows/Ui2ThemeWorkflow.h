@@ -68,7 +68,7 @@ public:
   }
 };
 
-static_assert(Ui2ThemeController::ColorCount == 19U);
+static_assert(Ui2ThemeController::ColorCount == 20U);
 static_assert(std::is_trivially_copyable_v<Ui2ThemeColorEditResult>);
 static_assert(sizeof(Ui2ThemeColorEditResult) <= 8U);
 

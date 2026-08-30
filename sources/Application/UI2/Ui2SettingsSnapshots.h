@@ -23,7 +23,7 @@ enum class ThemeViewUi2Focus : std::uint8_t {
 // the legacy GUI/controller dependency graph into renderer-only builds.
 struct ThemeViewUi2Snapshot {
   static constexpr std::size_t NameCapacity = 17;
-  static constexpr std::size_t ColorCount = 19;
+  static constexpr std::size_t ColorCount = 20;
 
   std::array<char, NameCapacity> name{};
   std::array<std::uint32_t, ColorCount> colors{};

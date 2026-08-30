@@ -58,10 +58,10 @@ constexpr std::array<const char *, Config::SemanticThemeColorCount>
         "surface.bg",       "surface.top_bar", "surface.bottom_bar",
         "text.normal",      "text.dim",        "text.highlighted",
         "text.colored",     "cursor.primary",  "cursor.row",
-        "playback.active",  "system.info",     "system.warning",
-        "system.error",     "battery.normal",  "battery.charging",
-        "battery.low",      "vu.safe",         "vu.warning",
-        "vu.peak",
+        "selection.active",  "playback.active", "system.info",
+        "system.warning",    "system.error",    "battery.normal",
+        "battery.charging",  "battery.low",     "vu.safe",
+        "vu.warning",        "vu.peak",
     }};
 
 constexpr std::uint32_t kAllSemanticThemeColors =

@@ -24,6 +24,7 @@ UiPalette::UiPalette() {
   SetRaw(Index(UiColorToken::TextColored), {0x45, 0xDC, 0xE8});
   SetRaw(Index(UiColorToken::CursorPrimary), {0x45, 0xDC, 0xE8});
   SetRaw(Index(UiColorToken::CursorRow), {0x15, 0x18, 0x1A});
+  SetRaw(Index(UiColorToken::SelectionActive), {0x1A, 0x33, 0x35});
   SetRaw(Index(UiColorToken::PlaybackActive), {0x68, 0xE6, 0x9A});
   SetRaw(Index(UiColorToken::SystemInfo), {0x00, 0xDC, 0x74});
   SetRaw(Index(UiColorToken::SystemWarning), {0xF0, 0xCE, 0x00});
@@ -96,6 +97,10 @@ void UiPalette::RebuildDerivedColors() {
                    Get(Index(UiColorToken::SurfaceBackground))));
   SetRaw(Index(UiColorToken::DerivedCursorRowCorner),
          Composite(Get(Index(UiColorToken::CursorRow)),
+                   UiCursorElement::kCornerAlpha,
+                   Get(Index(UiColorToken::SurfaceBackground))));
+  SetRaw(Index(UiColorToken::DerivedSelectionCorner),
+         Composite(Get(Index(UiColorToken::SelectionActive)),
                    UiCursorElement::kCornerAlpha,
                    Get(Index(UiColorToken::SurfaceBackground))));
   SetRaw(Index(UiColorToken::DerivedPlaybackMuted),

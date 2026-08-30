@@ -228,7 +228,7 @@ UiBuildStatus UiChainView::Build(const UiChainViewData &data,
                    : UiColorToken::TextDim);
   const RectI16 cursor = ResolvedCursorRect(data);
   if (!data.numberFocus && !data.selectionVisualRect.Empty()) {
-    builder.RowHighlight(data.selectionVisualRect);
+    builder.SelectionHighlight(data.selectionVisualRect);
   } else if (!data.numberFocus && data.editRow < 16U) {
     builder.RowHighlight({5, UiTrackerGridMetrics::RowHighlightY(data.editRow),
                           213, UiTrackerGridMetrics::kRowHeight});

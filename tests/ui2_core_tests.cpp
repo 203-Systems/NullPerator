@@ -448,9 +448,10 @@ TEST_CASE("UI2 semantic palette reproduces exact quarter coverage colors") {
 }
 
 TEST_CASE("UI2 user palette exposes exactly the approved semantic fields") {
-  CHECK(ui2::UiPalette::kUserColorCount == 19);
+  CHECK(ui2::UiPalette::kUserColorCount == 20);
   CHECK(ui2::kUiThemeColors.size() == ui2::UiPalette::kUserColorCount);
   CHECK(ui2::kUiThemeColors.front().key == "surface.bg");
+  CHECK(ui2::kUiThemeColors[9].key == "selection.active");
   CHECK(ui2::kUiThemeColors.back().key == "vu.peak");
   for (std::size_t left = 0; left < ui2::kUiThemeColors.size(); ++left) {
     CHECK(static_cast<std::size_t>(ui2::kUiThemeColors[left].token) == left);
@@ -680,6 +681,29 @@ TEST_CASE("UI2 tracker selections resolve to one clipped rounded region") {
   // endpoint to the sixth visible value column without escaping the screen.
   CHECK(ui2::UiTableView::SelectionTargetRect(2, 0, 6, 15) ==
         ui2::RectI16{90, 47, 120, 159});
+}
+
+TEST_CASE("UI2 tracker selections use their independent theme color") {
+  ui2::UiSongViewData data = ui2::test::ApprovedSongFixture();
+  data.editRow = 0U;
+  data.editTrack = 0U;
+  data.playbackRows.fill(-1);
+  data.selectionVisualRect =
+      ui2::UiSongView::SelectionTargetRect(0, 8, 1, 9, 0);
+
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiSongView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+
+  const ui2::RectI16 selection = data.selectionVisualRect;
+  CHECK(surface.Pixel(selection.x, selection.y) ==
+        palette.Index(ui2::UiColorToken::DerivedSelectionCorner));
+  CHECK(surface.Pixel(selection.x + 1, selection.y + 1) ==
+        palette.Index(ui2::UiColorToken::SelectionActive));
 }
 
 TEST_CASE("UI2 tracker selection deltas match complete redraws") {

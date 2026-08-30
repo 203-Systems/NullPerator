@@ -85,7 +85,7 @@ ApplyThemeSnapshotToPalette(const ThemeViewUi2Snapshot &snapshot,
   return true;
 }
 
-// A native UI2 theme controller may copy all nineteen independent palette
+// A native UI2 theme controller may copy all independent palette
 // values into its owned snapshot. This does not make the twelve-color legacy
 // Config independently editable; its capability masks remain authoritative.
 inline void CopyPaletteToThemeSnapshot(const UiPalette &palette,

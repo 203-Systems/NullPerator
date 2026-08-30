@@ -310,10 +310,10 @@ constexpr std::array<const char *, Config::SemanticThemeColorCount>
         "surface.bg",       "surface.top_bar", "surface.bottom_bar",
         "text.normal",      "text.dim",        "text.highlighted",
         "text.colored",     "cursor.primary",  "cursor.row",
-        "playback.active",  "system.info",     "system.warning",
-        "system.error",     "battery.normal",  "battery.charging",
-        "battery.low",      "vu.safe",         "vu.warning",
-        "vu.peak",
+        "selection.active",  "playback.active", "system.info",
+        "system.warning",    "system.error",    "battery.normal",
+        "battery.charging",  "battery.low",     "vu.safe",
+        "vu.warning",        "vu.peak",
 }};
 
 std::string NptThemeXml(bool closeRoot = true) {
@@ -588,7 +588,7 @@ TEST_CASE("theme overwrite preserves old bytes on short write and move failure")
   }
 }
 
-TEST_CASE("theme export closes, syncs and round-trips all nineteen roles") {
+TEST_CASE("theme export closes, syncs and round-trips all semantic roles") {
   ThemeFixture fixture;
   Config config;
   SetDistinctTheme(config, 0x660000U);

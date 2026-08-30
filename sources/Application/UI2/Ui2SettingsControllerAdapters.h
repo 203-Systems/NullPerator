@@ -51,10 +51,10 @@ inline constexpr std::array<std::int8_t, 12> kLegacyThemeColorToUi2{
     6,  // Highlight2 -> text.colored
     1,  // Console -> surface.top_bar
     7,  // Cursor -> cursor.primary
-    10, // Info -> system.info
-    11, // Warning -> system.warning
-    12, // Error -> system.error
-    9,  // Accent -> playback.active
+    11, // Info -> system.info
+    12, // Warning -> system.warning
+    13, // Error -> system.error
+    10, // Accent -> playback.active
     8,  // AccentAlt -> cursor.row
     4,  // Emphasis -> text.dim
 };

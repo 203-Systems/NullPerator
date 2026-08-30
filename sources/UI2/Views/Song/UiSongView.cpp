@@ -312,7 +312,7 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data, UiPalette &palette,
   }
 
   if (!data.selectionVisualRect.Empty()) {
-    builder.RowHighlight(data.selectionVisualRect);
+    builder.SelectionHighlight(data.selectionVisualRect);
   } else {
     builder.RowHighlight({5, UiTrackerGridMetrics::RowHighlightY(data.editRow),
                           213, UiTrackerGridMetrics::kRowHeight});

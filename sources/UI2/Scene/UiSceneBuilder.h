@@ -43,6 +43,11 @@ public:
                 UiColorToken::DerivedCursorRowCorner);
   }
 
+  void SelectionHighlight(RectI16 bounds) {
+    RoundedFill(bounds, UiColorToken::SelectionActive,
+                UiColorToken::DerivedSelectionCorner);
+  }
+
   void VerticalPaletteRamp(RectI16 bounds, PaletteIndex firstColor) {
     Accept(commands_.FillVerticalPaletteRamp(bounds, firstColor));
   }

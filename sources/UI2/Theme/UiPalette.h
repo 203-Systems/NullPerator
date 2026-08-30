@@ -26,6 +26,7 @@ enum class UiColorToken : PaletteIndex {
   TextColored,
   CursorPrimary,
   CursorRow,
+  SelectionActive,
   PlaybackActive,
   SystemInfo,
   SystemWarning,
@@ -43,6 +44,7 @@ enum class UiColorToken : PaletteIndex {
   DerivedVuTrack,
   DerivedVuSafeLow,
   DerivedCursorRowCorner,
+  DerivedSelectionCorner,
   DerivedPlaybackMuted,
   Count,
 };
@@ -62,8 +64,8 @@ public:
 
   void Set(PaletteIndex index, Rgb888 color);
   // Theme loads replace all user slots at once and rebuild the derived ramps a
-  // single time. Calling Set nineteen times is correct but needlessly repeats
-  // the same coverage work on ESP32.
+  // single time. Calling Set once per user slot is correct but needlessly
+  // repeats the same coverage work on ESP32.
   void SetUserColors(const std::array<Rgb888, kUserColorCount> &colors);
   void Set(UiColorToken token, Rgb888 color) {
     Set(static_cast<PaletteIndex>(token), color);

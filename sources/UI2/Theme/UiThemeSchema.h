@@ -31,6 +31,7 @@ inline constexpr std::array<UiThemeColorElement, UiPalette::kUserColorCount>
         {UiColorToken::TextColored, "text.colored", "TEXT COLORED"},
         {UiColorToken::CursorPrimary, "cursor.primary", "CURSOR"},
         {UiColorToken::CursorRow, "cursor.row", "CURSOR ROW"},
+        {UiColorToken::SelectionActive, "selection.active", "SELECTION"},
         {UiColorToken::PlaybackActive, "playback.active", "PLAYBACK"},
         {UiColorToken::SystemInfo, "system.info", "SYSTEM INFO"},
         {UiColorToken::SystemWarning, "system.warning", "SYSTEM WARNING"},

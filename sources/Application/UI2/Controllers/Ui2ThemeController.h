@@ -35,7 +35,7 @@ enum class Ui2ThemeBottomKind : std::uint8_t { Hidden, NameActions, Rgb };
 
 struct Ui2ThemeCommand {
   Ui2ThemeCommandType type = Ui2ThemeCommandType::None;
-  // Valid only for AdjustColor. It is an index into the nineteen public
+  // Valid only for AdjustColor. It is an index into the public
   // palette slots, not a renderer token or a legacy color definition.
   std::int8_t color = -1;
   std::uint8_t component = 0;
@@ -55,7 +55,7 @@ struct Ui2ThemeBottomState {
 
 class Ui2ThemeController {
 public:
-  static constexpr std::uint8_t ColorCount = 19U;
+  static constexpr std::uint8_t ColorCount = 20U;
   static constexpr std::uint8_t RowCount = ColorCount + 1U;
 
   constexpr Ui2ThemeController(std::int8_t selectedColor = -1,

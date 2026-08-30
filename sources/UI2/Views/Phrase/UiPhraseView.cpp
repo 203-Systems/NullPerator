@@ -316,7 +316,7 @@ UiBuildStatus UiPhraseView::Build(const UiPhraseViewData &data, UiPalette &,
                HeaderColor(data.activeHeader, UiPhraseHeader::Fx2));
 
   if (!data.numberFocus && !data.selectionVisualRect.Empty()) {
-    builder.RowHighlight(data.selectionVisualRect);
+    builder.SelectionHighlight(data.selectionVisualRect);
   } else if (!data.numberFocus && data.editRow < 16U) {
     builder.RowHighlight(
         {5, UiTrackerGridMetrics::RowHighlightY(data.editRow), 230,
