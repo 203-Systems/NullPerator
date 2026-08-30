@@ -35,7 +35,9 @@ UiFontViewData UiFontViewState::ToViewData() const {
   UiFontViewData data;
   data.font = font.data();
   data.textCase = textCase.data();
+  data.feedback = feedback.data();
   data.cursor = cursor;
+  data.action = action;
   data.cursorVisualRect = cursorVisualRect;
   data.cursorVisualOverride = cursorVisualOverride;
   data.cursorInkVisible = cursorInkVisible;
@@ -54,12 +56,15 @@ void UiFontView::RenderDelta(const UiFontViewData &previous,
   if (previous.power != current.power)
     render({184, 0, 56, 34});
   if (previous.font != current.font || previous.textCase != current.textCase ||
+      previous.feedback != current.feedback ||
       previous.cursor != current.cursor)
-    render({5, 52, 230, 44});
+    render({5, 52, 230, 62});
   if (ResolvedCursorRect(previous) != ResolvedCursorRect(current) ||
       previous.cursorInkVisible != current.cursorInkVisible) {
     render({5, 52, 230, 18});
   }
+  if (previous.action != current.action)
+    render({0, 208, 240, 32});
 }
 
 UiBuildStatus UiFontView::Build(const UiFontViewData &data, UiPalette &,
@@ -67,29 +72,22 @@ UiBuildStatus UiFontView::Build(const UiFontViewData &data, UiPalette &,
   scene.Clear();
   scene.topHeight = 34;
   scene.bottomTop = 208;
-  scene.bottomVisible = data.cursor == UiFontCursor::TextCase;
+  scene.bottomVisible = true;
   scene.topBackground = UiColorToken::SurfaceTopBar;
+  scene.bottomBackground = UiColorToken::SurfaceBottomBar;
   const UiTopBarModel top{.title = "FONT", .power = data.power};
   const UiBuildStatus topStatus = UiChromeRenderer::BuildTop(top, scene.top);
   if (topStatus != UiBuildStatus::Built)
     return topStatus;
-  if (scene.bottomVisible) {
-    constexpr std::array<std::string_view, 3> options{"Case", "CASE", "case"};
-    std::uint8_t current = 0;
-    if (data.textCase == "CASE")
-      current = 1;
-    else if (data.textCase == "case")
-      current = 2;
-    UiBottomBarModel bottom{.kind = UiBottomBarKind::Selector};
-    bottom.selector.options = options;
-    bottom.selector.current = current;
-    bottom.selector.wrap = true;
-    bottom.selector.preserveCase = true;
-    const UiBuildStatus bottomStatus =
-        UiChromeRenderer::BuildBottom(bottom, scene.bottom);
-    if (bottomStatus != UiBuildStatus::Built)
-      return bottomStatus;
-  }
+  constexpr std::array<std::string_view, 2> actions{"BROWSE", "DEFAULT"};
+  UiBottomBarModel bottom{.kind = UiBottomBarKind::Selector};
+  bottom.selector.options = actions;
+  bottom.selector.current = data.action == UiFontAction::Browse ? 0U : 1U;
+  bottom.selector.preserveCase = true;
+  const UiBuildStatus bottomStatus =
+      UiChromeRenderer::BuildBottom(bottom, scene.bottom);
+  if (bottomStatus != UiBuildStatus::Built)
+    return bottomStatus;
 
   UiSceneBuilder<256, 1024> builder(scene.content);
   DrawSection(builder, "DISPLAY", 42);
@@ -98,7 +96,8 @@ UiBuildStatus UiFontView::Build(const UiFontViewData &data, UiPalette &,
   DrawSection(builder, "FACE", 74);
   builder.Text("FONT", 9, 86, UiColorToken::TextDim);
   builder.Text(data.font, 92, 86, UiColorToken::TextNormal);
-  builder.Text("BROWSE", 92, 100, UiColorToken::TextColored);
+  if (!data.feedback.empty())
+    builder.Text(data.feedback, 9, 101, UiColorToken::TextColored);
   DrawSection(builder, "PREVIEW", 120);
   builder.Text("ABCDEFGH", 9, 135, UiColorToken::TextNormal, 2);
   builder.Text("01234567", 9, 153, UiColorToken::TextColored, 2);

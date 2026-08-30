@@ -19,11 +19,14 @@
 namespace ui2 {
 
 enum class UiFontCursor : std::uint8_t { TextCase, Browse };
+enum class UiFontAction : std::uint8_t { Browse, Default };
 
 struct UiFontViewData {
   std::string_view font = "REGULAR 5X7";
   std::string_view textCase = "Case";
+  std::string_view feedback{};
   UiFontCursor cursor = UiFontCursor::TextCase;
+  UiFontAction action = UiFontAction::Browse;
   RectI16 cursorVisualRect{};
   bool cursorVisualOverride = false;
   bool cursorInkVisible = true;
@@ -34,11 +37,14 @@ struct UiFontViewData {
 // frames. ToViewData only borrows this object's internal font buffer.
 struct UiFontViewState {
   static constexpr std::size_t FontCapacity = 41;
+  static constexpr std::size_t FeedbackCapacity = 32;
 
   std::array<char, FontCapacity> font{
       'R', 'E', 'G', 'U', 'L', 'A', 'R', ' ', '5', 'X', '7', '\0'};
   std::array<char, 5> textCase{'C', 'a', 's', 'e', '\0'};
+  std::array<char, FeedbackCapacity> feedback{};
   UiFontCursor cursor = UiFontCursor::TextCase;
+  UiFontAction action = UiFontAction::Browse;
   RectI16 cursorVisualRect{};
   bool cursorVisualOverride = false;
   bool cursorInkVisible = true;

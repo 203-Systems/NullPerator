@@ -13,8 +13,21 @@
 
 namespace ui2 {
 
-enum class Ui2FontField : std::uint8_t { TextCase, Browse };
-enum class Ui2FontCommandType : std::uint8_t { None, SetTextCase, BrowseFont };
+enum class Ui2FontField : std::uint8_t { TextCase, Font };
+enum class Ui2FontAction : std::uint8_t { Browse, Default };
+enum class Ui2FontFeedback : std::uint8_t {
+  None,
+  BrowserUnavailable,
+  ConfigUnavailable,
+  SaveFailed,
+  DefaultRestored,
+};
+enum class Ui2FontCommandType : std::uint8_t {
+  None,
+  SetTextCase,
+  BrowseFont,
+  RestoreDefault,
+};
 
 struct Ui2FontCommand {
   Ui2FontCommandType type = Ui2FontCommandType::None;
@@ -28,6 +41,10 @@ struct Ui2FontCommand {
 class Ui2FontController {
 public:
   [[nodiscard]] constexpr Ui2FontField SelectedField() const { return field_; }
+  [[nodiscard]] constexpr Ui2FontAction SelectedAction() const {
+    return action_;
+  }
+  [[nodiscard]] constexpr Ui2FontFeedback Feedback() const { return feedback_; }
   [[nodiscard]] constexpr std::uint8_t TextCase() const { return textCase_; }
   [[nodiscard]] constexpr std::uint16_t HeldMask() const {
     return input_.Mask();
@@ -37,16 +54,22 @@ public:
     textCase_ = static_cast<std::uint8_t>(value % 3U);
   }
 
+  constexpr void SetFeedback(Ui2FontFeedback feedback) { feedback_ = feedback; }
+
   constexpr Ui2FontCommand Handle(TrackerAction action, bool pressed) {
     if (!input_.Update(action, pressed) || !pressed)
       return {};
-    if (field_ == Ui2FontField::Browse && action == TrackerAction::Edit &&
-        input_.Mask() == TrackerActionBit(TrackerAction::Edit))
-      return {.type = Ui2FontCommandType::BrowseFont};
+    feedback_ = Ui2FontFeedback::None;
+    if (field_ == Ui2FontField::Font && action == TrackerAction::Edit &&
+        input_.Mask() == TrackerActionBit(TrackerAction::Edit)) {
+      return {.type = action_ == Ui2FontAction::Browse
+                          ? Ui2FontCommandType::BrowseFont
+                          : Ui2FontCommandType::RestoreDefault};
+    }
     if (input_.AnyModifier())
       return {};
     if (action == TrackerAction::Up || action == TrackerAction::Down) {
-      field_ = field_ == Ui2FontField::TextCase ? Ui2FontField::Browse
+      field_ = field_ == Ui2FontField::TextCase ? Ui2FontField::Font
                                                 : Ui2FontField::TextCase;
       return {};
     }
@@ -56,12 +79,18 @@ public:
       textCase_ = static_cast<std::uint8_t>((textCase_ + delta + 3) % 3);
       return {.type = Ui2FontCommandType::SetTextCase, .value = textCase_};
     }
+    if (field_ == Ui2FontField::Font && action == TrackerAction::Left)
+      action_ = Ui2FontAction::Browse;
+    else if (field_ == Ui2FontField::Font && action == TrackerAction::Right)
+      action_ = Ui2FontAction::Default;
     return {};
   }
 
 private:
   Ui2ControllerInputState input_{};
   Ui2FontField field_ = Ui2FontField::TextCase;
+  Ui2FontAction action_ = Ui2FontAction::Browse;
+  Ui2FontFeedback feedback_ = Ui2FontFeedback::None;
   std::uint8_t textCase_ = 1;
 };
 

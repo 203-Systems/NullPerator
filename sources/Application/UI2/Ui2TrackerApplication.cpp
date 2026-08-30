@@ -13,6 +13,7 @@
 #include "Application/UI2/Ui2ProjectNamePresentation.h"
 #include "Application/UI2/Ui2SampleFileOperations.h"
 #include "Application/UI2/Ui2TransportPolicy.h"
+#include "Application/UI2/Workflows/Ui2FontWorkflow.h"
 #include "Application/UI2/Workflows/Ui2InstrumentWorkflow.h"
 #include "Application/UI2/Workflows/Ui2ThemeWorkflow.h"
 
@@ -856,26 +857,6 @@ void Ui2TrackerApplication::HandleBrowser(TrackerAction action, bool pressed) {
       ActivatePage(UiApplicationPage::Theme);
       return;
     }
-    if (command.type == Ui2SettingsBrowserCommandType::SelectFont) {
-      Config *config = Config::GetInstance();
-      Variable *font =
-          config == nullptr ? nullptr : config->FindVariable(FourCC::VarUIFont);
-      if (font == nullptr) {
-        settingsBrowser_.SetError("FONT CONFIG UNAVAILABLE");
-        runtime_.Invalidate();
-        return;
-      }
-      font->SetInt(command.font);
-      configSave_.MarkDirty();
-      if (!FlushConfig()) {
-        settingsBrowser_.SetError("FONT SAVE FAILED");
-        runtime_.Invalidate();
-        return;
-      }
-      settingsBrowser_.Close();
-      ActivatePage(UiApplicationPage::Font);
-      return;
-    }
     return;
   }
   if (instrumentBrowserActive_) {
@@ -955,8 +936,6 @@ void Ui2TrackerApplication::HandleBrowser(TrackerAction action, bool pressed) {
 UiApplicationPage Ui2TrackerApplication::BrowserReturnPage() const {
   if (settingsBrowser_.Mode() == Ui2SettingsBrowserMode::Theme)
     return UiApplicationPage::Theme;
-  if (settingsBrowser_.Mode() == Ui2SettingsBrowserMode::Font)
-    return UiApplicationPage::Font;
   if (sampleBrowser_.Active())
     return UiApplicationPage::Project;
   return instrumentBrowserActive_ ? UiApplicationPage::Instrument
@@ -1541,15 +1520,38 @@ void Ui2TrackerApplication::HandleFont(TrackerAction action, bool pressed) {
       configSave_.MarkDirty();
       (void)FlushConfig();
     }
-  } else if (command.type == Ui2FontCommandType::BrowseFont) {
-    instrumentBrowserActive_ = false;
-    source_.SetInstrumentBrowserActive(false);
-    Config *config = Config::GetInstance();
-    Variable *configured =
-        config == nullptr ? nullptr : config->FindVariable(FourCC::VarUIFont);
-    settingsBrowser_.OpenFont(static_cast<std::uint8_t>(
-        configured == nullptr ? 0 : std::clamp(configured->GetInt(), 0, 2)));
-    ActivatePage(UiApplicationPage::Browser);
+    return;
+  }
+
+  Config *config = command.type == Ui2FontCommandType::RestoreDefault
+                       ? Config::GetInstance()
+                       : nullptr;
+  Variable *configured =
+      config == nullptr ? nullptr : config->FindVariable(FourCC::VarUIFont);
+  switch (Ui2ExecuteFontCommand(command, configured)) {
+  case Ui2FontWorkflowResult::BrowserUnavailable:
+    font_.SetFeedback(Ui2FontFeedback::BrowserUnavailable);
+    Status::Set("FONT BROWSER UNAVAILABLE");
+    runtime_.Invalidate();
+    break;
+  case Ui2FontWorkflowResult::ConfigUnavailable:
+    font_.SetFeedback(Ui2FontFeedback::ConfigUnavailable);
+    Status::Set("FONT CONFIG UNAVAILABLE");
+    runtime_.Invalidate();
+    break;
+  case Ui2FontWorkflowResult::DefaultRestored:
+    configSave_.MarkDirty();
+    if (FlushConfig()) {
+      font_.SetFeedback(Ui2FontFeedback::DefaultRestored);
+      Status::Set("DEFAULT FONT RESTORED");
+    } else {
+      font_.SetFeedback(Ui2FontFeedback::SaveFailed);
+      Status::Set("FONT SAVE FAILED");
+    }
+    runtime_.Invalidate();
+    break;
+  case Ui2FontWorkflowResult::None:
+    break;
   }
 }
 

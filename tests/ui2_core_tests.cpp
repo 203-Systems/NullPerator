@@ -261,6 +261,23 @@ const ui2::UiCommand *FindTextCommand(const ui2::UiCommandStream &stream,
   return nullptr;
 }
 
+const ui2::UiCommand *FindLiteralTextCommand(const ui2::UiCommandStream &stream,
+                                             std::string_view text) {
+  for (const ui2::UiCommand &command : stream.commands) {
+    if (command.kind != ui2::UiCommandKind::Text ||
+        (command.parameter & 0x80U) == 0U ||
+        command.auxiliaryColor != text.size()) {
+      continue;
+    }
+    const std::size_t begin = command.payload;
+    const std::size_t end = begin + text.size();
+    if (end <= stream.text.size() &&
+        std::equal(text.begin(), text.end(), stream.text.begin() + begin))
+      return &command;
+  }
+  return nullptr;
+}
+
 } // namespace
 
 TEST_CASE("UI2 geometry clips and unions signed pixel rectangles") {
@@ -2954,11 +2971,9 @@ TEST_CASE("UI2 Font case choices remain literal under every case mode") {
   REQUIRE(ui2::UiFontView::Build(data, palette, scene) ==
           ui2::UiBuildStatus::Built);
 
-  for (const std::string_view option : {"Case", "CASE", "case"}) {
-    const ui2::UiCommand *command = FindTextCommand(scene.bottom.Stream(), option);
-    REQUIRE(command != nullptr);
-    CHECK((command->parameter & 0x80U) != 0U);
-  }
+  CHECK(FindLiteralTextCommand(scene.content.Stream(), "CASE") != nullptr);
+  CHECK(FindLiteralTextCommand(scene.bottom.Stream(), "BROWSE") != nullptr);
+  CHECK(FindLiteralTextCommand(scene.bottom.Stream(), "DEFAULT") != nullptr);
 
   ui2::UiSurfaceStorage upperStorage;
   ui2::UiIndexedSurface upper(upperStorage);
@@ -2982,6 +2997,28 @@ TEST_CASE("UI2 Font case choices remain literal under every case mode") {
     for (std::int16_t x = 0; x < 240; ++x)
       CHECK(upper.Pixel(x, y) == lower.Pixel(x, y));
   }
+}
+
+TEST_CASE("UI2 Font bottom bar exposes only BROWSE and DEFAULT") {
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  ui2::UiFontViewData data;
+  data.cursor = ui2::UiFontCursor::Browse;
+  data.feedback = "FONT BROWSER UNAVAILABLE";
+  REQUIRE(ui2::UiFontView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+
+  REQUIRE(scene.bottomVisible);
+  CHECK(FindTextCommand(scene.bottom.Stream(), "BROWSE") != nullptr);
+  CHECK(FindTextCommand(scene.bottom.Stream(), "DEFAULT") != nullptr);
+  CHECK(FindTextCommand(scene.bottom.Stream(), "Case") == nullptr);
+  CHECK(FindTextCommand(scene.bottom.Stream(), "CASE") == nullptr);
+  CHECK(FindTextCommand(scene.bottom.Stream(), "case") == nullptr);
+  CHECK(FindTextCommand(scene.bottom.Stream(), "Regular") == nullptr);
+  CHECK(FindTextCommand(scene.bottom.Stream(), "Bold") == nullptr);
+  CHECK(FindTextCommand(scene.bottom.Stream(), "Wide") == nullptr);
+  CHECK(FindTextCommand(scene.content.Stream(), "FONT BROWSER UNAVAILABLE") !=
+        nullptr);
 }
 
 TEST_CASE("UI2 Theme and Font adapters retain owned fixed-capacity text") {

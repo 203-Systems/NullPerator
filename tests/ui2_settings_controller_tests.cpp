@@ -19,6 +19,7 @@
 #include "Application/UI2/Ui2BrightnessMapping.h"
 #include "Application/UI2/Ui2ConfigSaveState.h"
 #include "Application/UI2/Ui2TransportPolicy.h"
+#include "Application/UI2/Workflows/Ui2FontWorkflow.h"
 #include "Application/UI2/Workflows/Ui2GrooveWorkflow.h"
 #include "Application/UI2/Workflows/Ui2ThemeWorkflow.h"
 
@@ -61,6 +62,22 @@ struct FakeSongTransport {
   std::uint32_t vuGeneration = 73U;
   bool lastStartFromPrevious = true;
   bool running = false;
+};
+
+class CountingFontVariable final : public Variable {
+public:
+  CountingFontVariable()
+      : Variable(FourCC::VarUIFont, kNames, 3, 0) {}
+
+  void Reset() override {
+    ++resetCalls;
+    Variable::Reset();
+  }
+
+  int resetCalls = 0;
+
+private:
+  static constexpr const char *kNames[3]{"Regular", "Bold", "Wide"};
 };
 
 constexpr std::uint32_t DeviceFieldBit(ui2::Ui2DeviceField field) {
@@ -120,35 +137,16 @@ TEST_CASE("UI2 instrument browser leaves return navigation to Shift Left") {
         "INSTRUMENT LOAD FAILED");
 }
 
-TEST_CASE("UI2 Font browser lists built-ins without selecting missing assets") {
+TEST_CASE("UI2 settings browser does not fabricate font entries") {
   using namespace ui2;
   Ui2SettingsBrowserController controller;
-  controller.OpenFont(1U);
-
-  Ui2BrowserSnapshot snapshot = controller.Snapshot();
-  CHECK(std::string(snapshot.title.data()) == "FONTS");
-  CHECK(snapshot.totalItemCount == 3U);
-  CHECK(snapshot.selectedRow == 1U);
-  CHECK(std::string(snapshot.items[0].data()) == "Regular");
-  CHECK(std::string(snapshot.items[1].data()) == "Bold");
-  CHECK(std::string(snapshot.items[2].data()) == "Wide");
-  CHECK(std::string(snapshot.footer.data()) == "FONT ASSET UNAVAILABLE");
-  CHECK(std::string(snapshot.actions[1].data()) == "UNAVAILABLE");
-  CHECK_FALSE(Tap(controller, TrackerAction::Edit).HasValue());
-
-  Tap(controller, TrackerAction::Up);
-  snapshot = controller.Snapshot();
-  CHECK(snapshot.selectedRow == 0U);
-  CHECK(std::string(snapshot.actions[1].data()) == "APPLY");
-  const Ui2SettingsBrowserCommand apply =
-      Tap(controller, TrackerAction::Edit);
-  CHECK(apply.type == Ui2SettingsBrowserCommandType::SelectFont);
-  CHECK(apply.font == 0U);
-  CHECK(Tap(controller, TrackerAction::Option).type ==
-        Ui2SettingsBrowserCommandType::None);
-  Tap(controller, TrackerAction::Left);
-  CHECK(Tap(controller, TrackerAction::Edit).type ==
-        Ui2SettingsBrowserCommandType::Back);
+  CHECK_FALSE(controller.Active());
+  CHECK(controller.Mode() == Ui2SettingsBrowserMode::None);
+  const Ui2BrowserSnapshot snapshot = controller.Snapshot();
+  CHECK(std::string(snapshot.title.data()) == "THEMES");
+  CHECK(std::string(snapshot.meta.data()) == "NPT");
+  CHECK(snapshot.totalItemCount == 0U);
+  CHECK_FALSE(snapshot.hasSelection);
 }
 
 TEST_CASE("UI2 sample instrument fields emit editor and slices activation commands") {
@@ -363,7 +361,7 @@ TEST_CASE("UI2 Theme workflow bounds RGB edits for application persistence") {
   CHECK(resetGreen.packedColor == 0x11B033U);
 }
 
-TEST_CASE("UI2 Font selects text case and exposes BROWSE as a second row") {
+TEST_CASE("UI2 Font keeps text case and exposes BROWSE DEFAULT on the font row") {
   ui2::Ui2FontController controller;
   CHECK(controller.SelectedField() == ui2::Ui2FontField::TextCase);
   CHECK(controller.TextCase() == 1U);
@@ -374,9 +372,47 @@ TEST_CASE("UI2 Font selects text case and exposes BROWSE as a second row") {
   CHECK(next.type == ui2::Ui2FontCommandType::SetTextCase);
   CHECK(next.value == 1U);
   Tap(controller, TrackerAction::Down);
-  CHECK(controller.SelectedField() == ui2::Ui2FontField::Browse);
+  CHECK(controller.SelectedField() == ui2::Ui2FontField::Font);
+  CHECK(controller.SelectedAction() == ui2::Ui2FontAction::Browse);
   CHECK(Tap(controller, TrackerAction::Edit).type ==
         ui2::Ui2FontCommandType::BrowseFont);
+  CHECK_FALSE(Tap(controller, TrackerAction::Right).HasValue());
+  CHECK(controller.SelectedAction() == ui2::Ui2FontAction::Default);
+  CHECK(Tap(controller, TrackerAction::Edit).type ==
+        ui2::Ui2FontCommandType::RestoreDefault);
+
+  controller.SetFeedback(ui2::Ui2FontFeedback::BrowserUnavailable);
+  CHECK(controller.Feedback() == ui2::Ui2FontFeedback::BrowserUnavailable);
+  Tap(controller, TrackerAction::Up);
+  CHECK(controller.SelectedField() == ui2::Ui2FontField::TextCase);
+  CHECK(controller.Feedback() == ui2::Ui2FontFeedback::None);
+}
+
+TEST_CASE("UI2 Font workflow fails BROWSE closed and restores DEFAULT") {
+  using namespace ui2;
+  CountingFontVariable font;
+  font.SetInt(2);
+  REQUIRE(font.GetInt() == 2);
+
+  CHECK(Ui2ExecuteFontCommand({.type = Ui2FontCommandType::BrowseFont}, &font) ==
+        Ui2FontWorkflowResult::BrowserUnavailable);
+  CHECK(font.GetInt() == 2);
+  CHECK(font.resetCalls == 0);
+
+  CHECK(Ui2ExecuteFontCommand({.type = Ui2FontCommandType::RestoreDefault},
+                              &font) ==
+        Ui2FontWorkflowResult::DefaultRestored);
+  CHECK(font.GetInt() == 0);
+  CHECK(font.resetCalls == 1);
+
+  Variable unrelated(FourCC::VarUITextCase, 2);
+  CHECK(Ui2ExecuteFontCommand({.type = Ui2FontCommandType::RestoreDefault},
+                              &unrelated) ==
+        Ui2FontWorkflowResult::ConfigUnavailable);
+  CHECK(unrelated.GetInt() == 2);
+  CHECK(Ui2ExecuteFontCommand({.type = Ui2FontCommandType::RestoreDefault},
+                              nullptr) ==
+        Ui2FontWorkflowResult::ConfigUnavailable);
 }
 
 TEST_CASE("UI2 Rename owns its bounded draft and full-page navigation") {
@@ -887,7 +923,7 @@ TEST_CASE("UI2 settings controllers keep fixed-capacity trivial state") {
   CHECK(std::is_trivially_copyable_v<Ui2SettingsBrowserController>);
   CHECK(sizeof(Ui2DeviceController) <= 80U);
   CHECK(sizeof(Ui2ThemeController) <= 16U);
-  CHECK(sizeof(Ui2FontController) <= 4U);
+  CHECK(sizeof(Ui2FontController) <= 8U);
   CHECK(sizeof(Ui2InstrumentController) <= 40U);
   CHECK(sizeof(Ui2GrooveController) <= 8U);
   CHECK(sizeof(Ui2RecordController) <= 16U);

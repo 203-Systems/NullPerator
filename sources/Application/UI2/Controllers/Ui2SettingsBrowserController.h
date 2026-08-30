@@ -20,34 +20,29 @@
 
 namespace ui2 {
 
-enum class Ui2SettingsBrowserMode : std::uint8_t { None, Theme, Font };
+enum class Ui2SettingsBrowserMode : std::uint8_t { None, Theme };
 
 enum class Ui2SettingsBrowserCommandType : std::uint8_t {
   None,
   Back,
   ImportTheme,
-  SelectFont,
 };
 
 struct Ui2SettingsBrowserCommand {
   Ui2SettingsBrowserCommandType type = Ui2SettingsBrowserCommandType::None;
   std::array<char, MAX_THEME_NAME_LENGTH + 5U> theme{};
-  std::uint8_t font = 0U;
 
   [[nodiscard]] bool HasValue() const {
     return type != Ui2SettingsBrowserCommandType::None;
   }
 };
 
-// Theme and Font share only the approved Browser renderer primitive. Their
-// roots, entries and commands deliberately remain separate from Project
-// lifecycle semantics. Storage is fixed-capacity and Handle/Snapshot allocate
-// no heap memory.
+// Theme uses the approved Browser renderer primitive while remaining separate
+// from Project lifecycle semantics. Font browsing is not represented here
+// until real NPF discovery and parsing exist. Storage is fixed-capacity and
+// Handle/Snapshot allocate no heap memory.
 class Ui2SettingsBrowserController {
 public:
-  static constexpr std::uint8_t FontCount = 3U;
-  static constexpr std::uint8_t SupportedFontCount = 1U;
-
   bool OpenTheme(const char *currentTheme) {
     Reset(Ui2SettingsBrowserMode::Theme);
     FileSystem *fileSystem = FileSystem::GetInstance();
@@ -82,12 +77,6 @@ public:
     KeepSelectionVisible();
     activeAction_ = themeCount_ == 0U ? 0U : 1U;
     return true;
-  }
-
-  void OpenFont(std::uint8_t configuredFont) {
-    Reset(Ui2SettingsBrowserMode::Font);
-    selected_ = std::min<std::uint16_t>(configuredFont, FontCount - 1U);
-    activeAction_ = 1U;
   }
 
   void Close() { Reset(Ui2SettingsBrowserMode::None); }
@@ -139,43 +128,25 @@ public:
           command.type = Ui2SettingsBrowserCommandType::None;
         return command;
       }
-      // Only Regular has a real glyph asset today. Bold and Wide stay visible
-      // in the approved built-in list, but never emit a selection command that
-      // would make Config claim a renderer capability it does not have.
-      if (selected_ < SupportedFontCount) {
-        return {.type = Ui2SettingsBrowserCommandType::SelectFont,
-                .font = static_cast<std::uint8_t>(selected_)};
-      }
     }
     return {};
   }
 
   [[nodiscard]] Ui2BrowserSnapshot Snapshot() const {
     Ui2BrowserSnapshot snapshot;
-    Ui2BrowserSnapshot::CopyText(
-        snapshot.title,
-        mode_ == Ui2SettingsBrowserMode::Font ? "FONTS" : "THEMES");
-    Ui2BrowserSnapshot::CopyText(
-        snapshot.meta,
-        mode_ == Ui2SettingsBrowserMode::Font ? "BUILT-IN" : "NPT");
+    Ui2BrowserSnapshot::CopyText(snapshot.title, "THEMES");
+    Ui2BrowserSnapshot::CopyText(snapshot.meta, "NPT");
     snapshot.ConfigureWindow(ItemCount(), selected_, top_);
     for (std::uint8_t row = 0U; row < snapshot.visibleItemCount; ++row) {
       const std::uint16_t item =
           static_cast<std::uint16_t>(snapshot.topIndex + row);
-      if (mode_ == Ui2SettingsBrowserMode::Font) {
-        Ui2BrowserSnapshot::CopyText(snapshot.items[row], FontName(item));
-      } else {
-        char name[Ui2BrowserSnapshot::ItemTextCapacity]{};
-        ReadThemeName(item, name, sizeof(name));
-        Ui2BrowserSnapshot::CopyText(snapshot.items[row], name);
-      }
+      char name[Ui2BrowserSnapshot::ItemTextCapacity]{};
+      ReadThemeName(item, name, sizeof(name));
+      Ui2BrowserSnapshot::CopyText(snapshot.items[row], name);
     }
 
     if (error_[0] != '\0') {
       Ui2BrowserSnapshot::CopyText(snapshot.footer, error_.data());
-    } else if (mode_ == Ui2SettingsBrowserMode::Font &&
-               selected_ >= SupportedFontCount) {
-      Ui2BrowserSnapshot::CopyText(snapshot.footer, "FONT ASSET UNAVAILABLE");
     } else {
       std::snprintf(snapshot.footer.data(), snapshot.footer.size(), "%u ITEM%s",
                     static_cast<unsigned>(ItemCount()),
@@ -185,11 +156,7 @@ public:
     Ui2BrowserSnapshot::CopyText(snapshot.actions[0], "CANCEL");
     snapshot.actionCount = 1U;
     if (snapshot.hasSelection) {
-      Ui2BrowserSnapshot::CopyText(
-          snapshot.actions[1], mode_ == Ui2SettingsBrowserMode::Theme ? "IMPORT"
-                               : selected_ < SupportedFontCount
-                                   ? "APPLY"
-                                   : "UNAVAILABLE");
+      Ui2BrowserSnapshot::CopyText(snapshot.actions[1], "IMPORT");
       snapshot.actionCount = 2U;
     }
     snapshot.activeAction =
@@ -219,13 +186,7 @@ private:
   }
 
   [[nodiscard]] std::uint16_t ItemCount() const {
-    return mode_ == Ui2SettingsBrowserMode::Font ? FontCount : themeCount_;
-  }
-
-  [[nodiscard]] static const char *FontName(std::uint16_t index) {
-    static constexpr std::array<const char *, FontCount> names{"Regular",
-                                                               "Bold", "Wide"};
-    return index < names.size() ? names[index] : "";
+    return themeCount_;
   }
 
   void ReadThemeName(std::uint16_t index, char *destination,

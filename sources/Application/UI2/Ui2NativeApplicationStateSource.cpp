@@ -898,14 +898,16 @@ Ui2NativeApplicationStateSource::CaptureTheme(UiThemeFrameState &state) {
 UiApplicationActivityState
 Ui2NativeApplicationStateSource::CaptureFont(UiFontFrameState &state) {
   state = {};
-  if (Variable *value = Config::GetInstance()->FindVariable(FourCC::VarUIFont)) {
-    if (value->GetInt() == 0) {
-      std::snprintf(state.font.data(), state.font.size(), "%s",
-                    value->GetString().c_str());
-    } else {
-      std::snprintf(state.font.data(), state.font.size(),
-                    "%s (UNAVAILABLE; USING REGULAR)",
-                    value->GetString().c_str());
+  if (Config *config = Config::GetInstance()) {
+    if (Variable *value = config->FindVariable(FourCC::VarUIFont)) {
+      if (value->GetInt() == 0) {
+        std::snprintf(state.font.data(), state.font.size(), "%s",
+                      value->GetString().c_str());
+      } else {
+        std::snprintf(state.font.data(), state.font.size(),
+                      "%s (UNAVAILABLE; USING REGULAR)",
+                      value->GetString().c_str());
+      }
     }
   }
   constexpr const char *cases[] = {"Case", "CASE", "case"};
@@ -915,6 +917,27 @@ Ui2NativeApplicationStateSource::CaptureFont(UiFontFrameState &state) {
   state.cursor = font_.SelectedField() == Ui2FontField::TextCase
                      ? UiFontCursor::TextCase
                      : UiFontCursor::Browse;
+  state.action = font_.SelectedAction() == Ui2FontAction::Browse
+                     ? UiFontAction::Browse
+                     : UiFontAction::Default;
+  const char *feedback = "";
+  switch (font_.Feedback()) {
+  case Ui2FontFeedback::BrowserUnavailable:
+    feedback = "FONT BROWSER UNAVAILABLE";
+    break;
+  case Ui2FontFeedback::ConfigUnavailable:
+    feedback = "FONT CONFIG UNAVAILABLE";
+    break;
+  case Ui2FontFeedback::SaveFailed:
+    feedback = "FONT SAVE FAILED";
+    break;
+  case Ui2FontFeedback::DefaultRestored:
+    feedback = "DEFAULT RESTORED";
+    break;
+  case Ui2FontFeedback::None:
+    break;
+  }
+  CopyText(state.feedback, feedback);
   return {.active = PlayerRunning()};
 }
 
