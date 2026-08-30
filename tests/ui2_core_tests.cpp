@@ -3411,6 +3411,7 @@ TEST_CASE("UI2 Sample Slices delta is pixel-identical to a full redraw") {
   current.slice = "03 / 08";
   current.start = "000119";
   current.zoom = "2X";
+  current.autoSliceApplyAvailable = false;
   current.selectedMarker = 3;
   current.waveformRevision += 1;
   current.cursorVisualOverride = true;

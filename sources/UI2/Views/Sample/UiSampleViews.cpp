@@ -268,7 +268,8 @@ void UiSampleSlicesView::RenderDelta(
   if (previous.slice != current.slice) render({5, 137, 230, 12});
   if (previous.start != current.start) render({5, 148, 230, 12});
   if (previous.zoom != current.zoom) render({5, 159, 230, 12});
-  if (previous.autoSliceCount != current.autoSliceCount)
+  if (previous.autoSliceCount != current.autoSliceCount ||
+      previous.autoSliceApplyAvailable != current.autoSliceApplyAvailable)
     render({5, 172, 230, 23});
   if (previous.help != current.help) render({5, 184, 230, 23});
   const RectI16 oldCursor =
@@ -330,7 +331,8 @@ UiBuildStatus UiSampleSlicesView::Build(const UiSampleSlicesViewData &data,
     builder.Text(data.help, 9, 188, UiColorToken::DerivedTextFaint);
   } else {
     DrawField(builder, "AUTO", data.autoSliceCount, 174);
-    DrawField(builder, "SLICE", "APPLY", 185);
+    DrawField(builder, "SLICE",
+              data.autoSliceApplyAvailable ? "APPLY" : "LOCKED", 185);
     builder.Text(data.help, 9, 198, UiColorToken::DerivedTextFaint);
   }
   if (!waveformFocused && !cursor.Empty())
@@ -348,7 +350,8 @@ UiBuildStatus UiSampleSlicesView::Build(const UiSampleSlicesViewData &data,
       break;
     case UiSampleSlicesCursor::AutoSlice:
       builder.Text("SLICE", 9, 185, UiColorToken::TextHighlighted);
-      builder.Text("APPLY", 92, 185, UiColorToken::TextHighlighted);
+      builder.Text(data.autoSliceApplyAvailable ? "APPLY" : "LOCKED", 92,
+                   185, UiColorToken::TextHighlighted);
       break;
     case UiSampleSlicesCursor::Waveform:
     case UiSampleSlicesCursor::None:

@@ -99,7 +99,8 @@ inline bool EqualSlicesCapture(const SampleSlicesViewUi2Snapshot &left,
          left.waveformReady == right.waveformReady &&
          left.hasSample == right.hasSample &&
          left.previewActive == right.previewActive &&
-         left.previewPlayheadVisible == right.previewPlayheadVisible;
+         left.previewPlayheadVisible == right.previewPlayheadVisible &&
+         left.autoSliceApplyAvailable == right.autoSliceApplyAvailable;
 }
 
 } // namespace detail
@@ -299,6 +300,7 @@ struct UiSampleSlicesControllerState {
     data.hasSample = capture.hasSample;
     data.previewActive = capture.previewActive;
     data.previewPlayheadVisible = capture.previewPlayheadVisible;
+    data.autoSliceApplyAvailable = capture.autoSliceApplyAvailable;
     data.power = power;
     return data;
   }
@@ -346,7 +348,9 @@ inline UiSampleSlicesControllerState MakeUiSampleSlicesControllerState(
     break;
   case SampleSlicesViewUi2Focus::AutoSlice:
     state.cursor = UiSampleSlicesCursor::AutoSlice;
-    help = "EDIT APPLY EVEN SLICES";
+    help = snapshot.autoSliceApplyAvailable
+               ? "EDIT APPLY EVEN SLICES"
+               : "EXISTING SLICES  AUTO LOCKED";
     break;
   case SampleSlicesViewUi2Focus::Unknown:
     state.cursor = UiSampleSlicesCursor::None;

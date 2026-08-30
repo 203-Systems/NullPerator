@@ -503,6 +503,31 @@ TEST_CASE("UI2 Sample Slices emits auto-slice request before replacement") {
   CHECK(controller.Snapshot().markers.count == 5U);
 }
 
+TEST_CASE("UI2 Sample Slices exposes existing-slice replacement as locked") {
+  using namespace ui2;
+  Config::SetImportResampler(0);
+  SampleWaveFileSystem fileSystem;
+  fileSystem.BuildPcm(1600U);
+  Ui2SampleWaveformBackend waveform;
+  Ui2SampleSlicesController controller(waveform);
+  REQUIRE(controller.OpenPath(fileSystem, "LOOP.WAV") ==
+          Ui2SampleWaveformLoadResult::Loaded);
+
+  std::array<std::uint32_t, Ui2SampleSlicesController::SliceCapacity> points{};
+  points[1] = 400U;
+  controller.SynchronizeSlices(points, 0x0003U);
+  controller.SetFocus(SampleSlicesViewUi2Focus::AutoSlice);
+
+  const SampleSlicesViewUi2Snapshot snapshot = controller.Snapshot();
+  CHECK_FALSE(snapshot.autoSliceApplyAvailable);
+  CHECK_FALSE(Tap(controller, TrackerAction::Edit).HasValue());
+
+  const UiSampleSlicesControllerState state =
+      MakeUiSampleSlicesControllerState(snapshot);
+  CHECK_FALSE(state.ToViewData().autoSliceApplyAvailable);
+  CHECK(std::strcmp(state.help.data(), "EXISTING SLICES  AUTO LOCKED") == 0);
+}
+
 TEST_CASE("UI2 Sample Slices clamps synchronized and moved markers") {
   using namespace ui2;
   Config::SetImportResampler(0);

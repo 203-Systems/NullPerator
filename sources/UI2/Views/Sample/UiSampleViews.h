@@ -133,6 +133,7 @@ struct UiSampleSlicesViewData {
   bool hasSample = false;
   bool previewActive = false;
   bool previewPlayheadVisible = false;
+  bool autoSliceApplyAvailable = true;
   UiPowerState power = UiPowerState::BatteryNormal;
 };
 

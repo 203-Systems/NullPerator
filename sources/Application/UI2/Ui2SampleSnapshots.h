@@ -70,6 +70,7 @@ struct SampleSlicesViewUi2Snapshot {
   bool hasSample = false;
   bool previewActive = false;
   bool previewPlayheadVisible = false;
+  bool autoSliceApplyAvailable = true;
 };
 
 static_assert(std::is_trivially_copyable_v<SampleEditorViewUi2Snapshot>);

@@ -227,6 +227,11 @@ public:
     }
     if (action == TrackerAction::Edit &&
         focus_ == SampleSlicesViewUi2Focus::AutoSlice) {
+      // Replacing existing slice points is destructive. Until the approved
+      // confirmation flow is connected, expose this as unavailable instead
+      // of emitting a request that the application silently discards.
+      if (definedMask_ != 0U)
+        return {};
       Ui2SampleSlicesCommand command =
           MakeCommand(Ui2SampleSlicesCommandType::RequestAutoSlice);
       command.count = autoSliceCount_;
@@ -303,6 +308,7 @@ public:
     snapshot.hasSample = active_ && waveform_.Ready();
     snapshot.previewActive = previewActive_;
     snapshot.previewPlayheadVisible = previewPlayheadVisible_;
+    snapshot.autoSliceApplyAvailable = definedMask_ == 0U;
 
     for (std::uint8_t index = 0U; index < SliceCapacity; ++index) {
       if (!IsDefined(index))
