@@ -33,11 +33,6 @@ UiResolvedChrome UiBarResolver::Resolve(const UiBarInputs &inputs) {
         .text = "MODE", .color = UiColorToken::TextNormal};
   }
 
-  if (inputs.navHeld) {
-    resolved.top.power = UiPowerState::Navigation;
-    resolved.top.navTarget = inputs.navTarget;
-  }
-
   if (inputs.criticalModal != nullptr) resolved.bottom = *inputs.criticalModal;
   return resolved;
 }

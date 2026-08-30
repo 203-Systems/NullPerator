@@ -748,13 +748,15 @@ TEST_CASE("UI2 bar resolver applies the documented central priority") {
   ui2::UiTrackNotesModel tracks{};
   tracks.selectedTrack = 2;
   ui2::UiBarInputs inputs{
-      .pageTop = {.title = "PHRASE", .meta = "3A"},
+      .pageTop = {.title = "PHRASE",
+                  .meta = "3A",
+                  .power = ui2::UiPowerState::Navigation,
+                  .navTarget = ui2::UiNavTarget::Phrase},
       .pageDefault = page,
       .cursorContext = &cursor,
       .criticalModal = &modal,
       .editHeldTracks = &tracks,
       .editHeldNumber = true,
-      .navHeld = true,
   };
   const ui2::UiResolvedChrome resolved = ui2::UiBarResolver::Resolve(inputs);
   CHECK(resolved.top.metaSelected);
@@ -926,7 +928,8 @@ TEST_CASE("UI2 pages without an explicit NAV target do not inherit Song map") {
   CHECK(ui2::UiChromeRenderer::NavTargetRect(ui2::UiNavTarget::None).Empty());
 
   const ui2::UiResolvedChrome resolved = ui2::UiBarResolver::Resolve(
-      {.pageTop = {.title = "THEME"}, .navHeld = true});
+      {.pageTop = {.title = "THEME",
+                   .power = ui2::UiPowerState::Navigation}});
   CHECK(resolved.top.power == ui2::UiPowerState::Navigation);
   CHECK(resolved.top.navTarget == ui2::UiNavTarget::None);
 }

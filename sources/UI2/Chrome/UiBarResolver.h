@@ -19,8 +19,6 @@ struct UiBarInputs {
   const UiAdjustmentLegendModel *enterHeldAdjustment = nullptr;
   bool selectionActive = false;
   bool editHeldNumber = false;
-  bool navHeld = false;
-  UiNavTarget navTarget = UiNavTarget::None;
 };
 
 class UiBarResolver {
