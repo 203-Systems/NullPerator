@@ -1037,24 +1037,37 @@ Ui2NativeApplicationStateSource::CaptureRecord(UiRecordFrameState &state) {
   state.snapshot.sourceIndex = source;
   state.snapshot.lineGainDb = lineGain;
   state.snapshot.micGainDb = micGain;
-  state.snapshot.recordingAvailable = false;
+  const bool available = record_.Available();
+  state.snapshot.recordingAvailable = available;
   state.snapshot.meterAvailable = false;
-  switch (record_.SelectedField()) {
-  case Ui2RecordField::Source:
-    state.snapshot.focus = RecordViewUi2Focus::Source;
-    break;
-  case Ui2RecordField::LineGain:
-    state.snapshot.focus = RecordViewUi2Focus::LineGain;
-    break;
-  case Ui2RecordField::MicGain:
-    state.snapshot.focus = RecordViewUi2Focus::MicGain;
-    break;
-  case Ui2RecordField::Count:
+  if (!available) {
     state.snapshot.focus = RecordViewUi2Focus::Unknown;
-    break;
+  } else {
+    switch (record_.SelectedField()) {
+    case Ui2RecordField::Source:
+      state.snapshot.focus = RecordViewUi2Focus::Source;
+      break;
+    case Ui2RecordField::LineGain:
+      state.snapshot.focus = RecordViewUi2Focus::LineGain;
+      break;
+    case Ui2RecordField::MicGain:
+      state.snapshot.focus = RecordViewUi2Focus::MicGain;
+      break;
+    case Ui2RecordField::Count:
+      state.snapshot.focus = RecordViewUi2Focus::Unknown;
+      break;
+    }
+    if (IsSavingRecording()) {
+      state.snapshot.state = RecordViewUi2State::Saving;
+      state.snapshot.savingPercent = GetSavingProgressPercent();
+    } else if (IsRecordingActive()) {
+      state.snapshot.state = RecordViewUi2State::Recording;
+    }
   }
-  state.cursorInkVisible = true;
-  return {.active = PlayerRunning()};
+  state.cursorInkVisible = available;
+  const bool recordingBusy =
+      available && state.snapshot.state != RecordViewUi2State::Idle;
+  return {.active = PlayerRunning() || recordingBusy};
 }
 
 } // namespace ui2

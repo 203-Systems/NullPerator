@@ -422,6 +422,7 @@ TEST_CASE("UI2 Mixer synchronizes the shared track and never aliases Master mute
 TEST_CASE("UI2 Record edits persisted fields without a legacy FieldView") {
   using namespace ui2;
   Ui2RecordController controller(-12, 12, -6, 6);
+  controller.SetAvailable(true);
   controller.Synchronize(1U, 0, 0);
   const auto source = Tap(controller, TrackerAction::Right);
   CHECK(source.type == Ui2RecordCommandType::SetSource);
@@ -441,6 +442,7 @@ TEST_CASE("UI2 Record edits persisted fields without a legacy FieldView") {
 TEST_CASE("UI2 Record gain ranges clamp synchronization and stop at bounds") {
   using namespace ui2;
   Ui2RecordController controller(-4, 4, -2, 2);
+  controller.SetAvailable(true);
   controller.Synchronize(1U, 99, -99);
   Tap(controller, TrackerAction::Down);
   CHECK(controller.SelectedField() == Ui2RecordField::LineGain);
@@ -455,6 +457,7 @@ TEST_CASE("UI2 Record gain ranges clamp synchronization and stop at bounds") {
 TEST_CASE("UI2 Record zero-range adapters cannot emit gain writes") {
   using namespace ui2;
   Ui2RecordController controller;
+  controller.SetAvailable(true);
   controller.Synchronize(1U, 99, -99);
   Tap(controller, TrackerAction::Down);
   CHECK(controller.SelectedField() == Ui2RecordField::LineGain);
@@ -468,6 +471,21 @@ TEST_CASE("UI2 Record zero-range adapters cannot emit gain writes") {
   CHECK(controller.SelectedField() == Ui2RecordField::MicGain);
   CHECK_FALSE(Tap(controller, TrackerAction::Left).HasValue());
   CHECK_FALSE(Tap(controller, TrackerAction::Right).HasValue());
+}
+
+TEST_CASE("UI2 Record unavailable capability is read-only") {
+  using namespace ui2;
+  Ui2RecordController controller(-12, 12, -6, 6);
+  controller.Synchronize(1U, 0, 0);
+  CHECK_FALSE(controller.Available());
+
+  CHECK_FALSE(Tap(controller, TrackerAction::Right).HasValue());
+  CHECK_FALSE(Tap(controller, TrackerAction::Down).HasValue());
+  CHECK_FALSE(Tap(controller, TrackerAction::Play).HasValue());
+  controller.Handle(TrackerAction::Edit, true);
+  CHECK_FALSE(Tap(controller, TrackerAction::Up).HasValue());
+  controller.Handle(TrackerAction::Edit, false);
+  CHECK(controller.SelectedField() == Ui2RecordField::Source);
 }
 
 TEST_CASE("UI2 Instrument name actions and type selector are independent") {

@@ -31,6 +31,10 @@ static_assert(AllOff == 0 && LineIn == 1 && Mic == 2 && USBIn == 3,
 void SetInputSource(RecordSource source);
 void SetLineInGain(std::uint8_t gainDb);
 void SetMicGain(std::uint8_t gainDb);
+// Capability is owned by the platform adapter so UI/application code does not
+// infer support from target names or from gain ranges. Backends must keep this
+// false until the complete record transaction is implemented.
+bool IsRecordingAvailable();
 bool IsRecordingActive();
 bool IsSavingRecording();
 void Record(void *argument);

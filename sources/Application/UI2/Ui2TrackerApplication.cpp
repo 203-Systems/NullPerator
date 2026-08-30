@@ -266,10 +266,7 @@ bool Ui2TrackerApplication::Init(Ui2StartupOptions options) {
       ~(std::uint32_t{1}
         << static_cast<std::uint8_t>(Ui2DeviceField::UpdateFirmware));
   device_.SetVisibleFields(visibleDeviceFields);
-  record_.SetGainRanges(RecordingPlatform::kLineInGainMinDb,
-                        RecordingPlatform::kLineInGainMaxDb,
-                        RecordingPlatform::kMicGainMinDb,
-                        RecordingPlatform::kMicGainMaxDb);
+  ConfigureRecordController();
   ActivatePage(UiApplicationPage::Song);
   return true;
 }
@@ -1873,6 +1870,14 @@ void Ui2TrackerApplication::HandleRecord(TrackerAction action, bool pressed) {
   ExecuteRecord(record_.Handle(action, pressed));
 }
 
+void Ui2TrackerApplication::ConfigureRecordController() {
+  record_.SetGainRanges(RecordingPlatform::kLineInGainMinDb,
+                        RecordingPlatform::kLineInGainMaxDb,
+                        RecordingPlatform::kMicGainMinDb,
+                        RecordingPlatform::kMicGainMaxDb);
+  record_.SetAvailable(IsRecordingAvailable());
+}
+
 void Ui2TrackerApplication::ExecuteRecord(Ui2RecordCommand command) {
   if (!command.HasValue())
     return;
@@ -2190,10 +2195,7 @@ void Ui2TrackerApplication::ResetControllersAfterProjectBoundary() {
   instrumentBrowserActive_ = false;
   source_.SetInstrumentBrowserActive(false);
   record_ = {};
-  record_.SetGainRanges(RecordingPlatform::kLineInGainMinDb,
-                        RecordingPlatform::kLineInGainMaxDb,
-                        RecordingPlatform::kMicGainMinDb,
-                        RecordingPlatform::kMicGainMaxDb);
+  ConfigureRecordController();
   projectInput_ = {};
   physicalHeldMask_ = 0U;
   pressOwners_.fill(UiApplicationPage::None);

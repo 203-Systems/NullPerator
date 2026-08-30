@@ -136,6 +136,7 @@ private:
   void HandleInstrumentLifecycle(TrackerAction action, bool pressed);
   void HandleRecord(TrackerAction action, bool pressed);
   void ExecuteRecord(Ui2RecordCommand command);
+  void ConfigureRecordController();
   void ExecuteInstrument(Ui2InstrumentCommand command);
   void ExecuteInstrumentLifecycle(Ui2InstrumentLifecycleCommand command);
   void SaveCurrentInstrument(bool overwrite = false);

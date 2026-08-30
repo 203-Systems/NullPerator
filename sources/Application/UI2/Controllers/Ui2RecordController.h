@@ -39,6 +39,13 @@ public:
   [[nodiscard]] constexpr Ui2RecordField SelectedField() const {
     return field_;
   }
+  [[nodiscard]] constexpr bool Available() const { return available_; }
+  constexpr void SetAvailable(bool available) {
+    if (available_ == available)
+      return;
+    available_ = available;
+    input_ = {};
+  }
   constexpr void SetGainRanges(std::int8_t lineGainMinimum,
                                std::int8_t lineGainMaximum,
                                std::int8_t micGainMinimum,
@@ -58,7 +65,9 @@ public:
   }
 
   Ui2RecordCommand Handle(TrackerAction action, bool pressed) {
-    if (!input_.Update(action, pressed) || !pressed)
+    if (!input_.Update(action, pressed))
+      return {};
+    if (!available_ || !pressed)
       return {};
     if (input_.Held(TrackerAction::Shift) || input_.Held(TrackerAction::Option))
       return {};
@@ -125,6 +134,7 @@ private:
   std::int8_t lineGainMaximum_ = 0;
   std::int8_t micGainMinimum_ = 0;
   std::int8_t micGainMaximum_ = 0;
+  bool available_ = false;
 };
 
 static_assert(std::is_trivially_copyable_v<Ui2RecordController>);

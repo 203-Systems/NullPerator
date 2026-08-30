@@ -3309,12 +3309,16 @@ TEST_CASE("UI2 Record centers semantic state text and saving progress") {
   for (const Case &test : cases) {
     ui2::UiRecordViewData data;
     data.state = test.state;
+    if (test.state == ui2::UiRecordState::Unavailable)
+      data.focus = ui2::UiRecordFocus::None;
     data.savingPercent = 42U;
     ui2::UiPalette palette;
     ui2::UiFrameScene scene;
     REQUIRE(ui2::UiRecordView::Build(data, palette, scene) ==
             ui2::UiBuildStatus::Built);
     CHECK(scene.bottomVisible == test.bottomVisible);
+    if (test.state == ui2::UiRecordState::Unavailable)
+      CHECK(ui2::UiRecordView::CursorTargetRect(data.focus).Empty());
 
     const ui2::UiCommand *instruction =
         FindTextCommand(scene.content.Stream(), test.text);

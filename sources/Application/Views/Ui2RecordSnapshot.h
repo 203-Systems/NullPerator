@@ -78,6 +78,8 @@ struct RecordViewUi2Snapshot {
 
     if (!recordingAvailable) {
       data.state = ui2::UiRecordState::Unavailable;
+      data.focus = ui2::UiRecordFocus::None;
+      data.cursorInkVisible = false;
     } else {
       switch (state) {
       case RecordViewUi2State::Idle:

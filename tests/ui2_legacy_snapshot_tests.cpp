@@ -108,6 +108,8 @@ TEST_CASE("UI2 Record snapshot projects fixed-capacity live state") {
   snapshot.meterAvailable = false;
   const ui2::UiRecordViewData unavailable = snapshot.ViewData();
   CHECK(unavailable.state == ui2::UiRecordState::Unavailable);
+  CHECK(unavailable.focus == ui2::UiRecordFocus::None);
+  CHECK_FALSE(unavailable.cursorInkVisible);
   CHECK_FALSE(unavailable.meterAvailable);
   CHECK(unavailable.safeWidth == 0U);
   CHECK(unavailable.warningWidth == 0U);
