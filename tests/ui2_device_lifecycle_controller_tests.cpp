@@ -70,6 +70,40 @@ TEST_CASE("UI2 Device firmware confirmation defaults to NO") {
   CHECK_FALSE(controller.Active());
 }
 
+TEST_CASE("UI2 Device dialogs wait for the opening EDIT release") {
+  using namespace ui2;
+  Ui2DeviceLifecycleController controller;
+
+  SUBCASE("firmware confirmation") {
+    controller.RequestUpdateFirmware(false, TrackerAction::Edit);
+    REQUIRE(controller.Active());
+    CHECK(controller.Snapshot().selectedAction == 1U);
+
+    CHECK_FALSE(controller.Handle(TrackerAction::Edit, true).HasValue());
+    CHECK_FALSE(controller.Handle(TrackerAction::Left, true).HasValue());
+    CHECK_FALSE(controller.Handle(TrackerAction::Left, false).HasValue());
+    CHECK(controller.Active());
+    CHECK(controller.Snapshot().selectedAction == 1U);
+    CHECK_FALSE(controller.Handle(TrackerAction::Edit, false).HasValue());
+
+    CHECK_FALSE(Tap(controller, TrackerAction::Left).HasValue());
+    CHECK(Tap(controller, TrackerAction::Edit).type ==
+          Ui2DeviceLifecycleCommandType::EnterBootloader);
+  }
+
+  SUBCASE("playback warning") {
+    controller.RequestUpdateFirmware(true, TrackerAction::Edit);
+    REQUIRE(controller.Active());
+
+    CHECK_FALSE(controller.Handle(TrackerAction::Edit, true).HasValue());
+    CHECK(controller.Active());
+    CHECK_FALSE(controller.Handle(TrackerAction::Edit, false).HasValue());
+
+    CHECK_FALSE(Tap(controller, TrackerAction::Edit).HasValue());
+    CHECK_FALSE(controller.Active());
+  }
+}
+
 TEST_CASE("UI2 Device firmware service runs only an explicit YES command") {
   using namespace ui2;
   DeviceLifecycleTestSystem system;

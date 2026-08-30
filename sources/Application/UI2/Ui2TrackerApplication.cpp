@@ -1512,7 +1512,7 @@ void Ui2TrackerApplication::ExecuteDevice(Ui2DeviceCommand command) {
   }
   case Ui2DeviceCommandType::UpdateFirmware:
     deviceLifecycle_.RequestUpdateFirmware(
-        Player::GetInstance()->IsRunning());
+        Player::GetInstance()->IsRunning(), TrackerAction::Edit);
     break;
   case Ui2DeviceCommandType::None:
     break;
