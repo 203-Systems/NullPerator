@@ -1208,6 +1208,9 @@ void Ui2TrackerApplication::ExecuteSampleEditor(
     else
       player->StartStreaming(command.path.data(),
                              static_cast<int>(command.start));
+    // StopSamplePreview() clears any prior controller projection as well as
+    // the audio owner. Re-arm the controller that owns this new command.
+    sampleEditor_.StartPreview(singleCycle ? 0U : command.start);
     samplePreviewKind_ = SamplePreviewKind::EditorStream;
     samplePreviewStartedMs_ = System::GetInstance()->Millis();
     samplePreviewFrames_ = sampleWaveform_.FrameCount();
@@ -1292,6 +1295,7 @@ void Ui2TrackerApplication::ExecuteSampleSlices(
                    MAX_INSTRUMENT_COUNT - 1));
     constexpr std::uint8_t previewChannel = SONG_CHANNEL_COUNT - 1U;
     player->PlayNote(instrument, previewChannel, note, 0x7FU);
+    sampleSlices_.StartPreview(command.start);
     samplePreviewKind_ = SamplePreviewKind::SliceNote;
     samplePreviewStartedMs_ = System::GetInstance()->Millis();
     samplePreviewStart_ = command.start;
@@ -1385,14 +1389,24 @@ void Ui2TrackerApplication::StopSamplePreview() {
   samplePreviewInstrument_ = 0U;
   samplePreviewNote_ = 0U;
   samplePreviewSingleCycle_ = false;
-  sampleEditor_.SetPreviewPlayhead(0U, false);
-  sampleSlices_.SetPreviewPlayhead(0U, false);
+  sampleEditor_.StopPreview();
+  sampleSlices_.StopPreview();
 }
 
 void Ui2TrackerApplication::UpdateSamplePreview(std::uint32_t nowMs) {
   if (samplePreviewKind_ == SamplePreviewKind::None ||
       samplePreviewRate_ == 0U || samplePreviewFrames_ == 0U)
     return;
+  // A non-looping editor stream can reach EOF while PLAY is still held.
+  // Legacy SampleEditorView observed Player::IsPlaying() and cleared its
+  // visual state at that point; keep UI2's power state synchronized too.
+  if (samplePreviewKind_ == SamplePreviewKind::EditorStream) {
+    Player *player = Player::GetInstance();
+    if (player == nullptr || !player->IsPlaying()) {
+      StopSamplePreview();
+      return;
+    }
+  }
   const std::uint64_t elapsed = nowMs - samplePreviewStartedMs_;
   const std::uint64_t advanced = elapsed * samplePreviewRate_ / 1000U;
   const std::uint32_t maximum = samplePreviewFrames_ - 1U;

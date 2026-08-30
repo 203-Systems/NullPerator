@@ -134,15 +134,33 @@ public:
     previewPlayheadVisible_ = visible && active_;
   }
 
+  void StartPreview(std::uint32_t sample) {
+    if (!active_)
+      return;
+    previewHeld_ = true;
+    previewActive_ = true;
+    previewPlayhead_ = sample;
+    previewPlayheadVisible_ = true;
+  }
+
+  // Preview ownership also ends on page transitions and application-level
+  // stops, not only on the matching PLAY release.
+  void StopPreview() {
+    previewHeld_ = false;
+    previewActive_ = false;
+    previewPlayhead_ = 0U;
+    previewPlayheadVisible_ = false;
+  }
+
   Ui2SampleSlicesCommand Handle(TrackerAction action, bool pressed) {
     if (!active_ || !input_.Update(action, pressed))
       return {};
     if (!pressed) {
       if (action == TrackerAction::Play && previewHeld_) {
-        previewHeld_ = false;
-        previewActive_ = false;
-        previewPlayheadVisible_ = false;
-        return MakeCommand(Ui2SampleSlicesCommandType::PreviewStop);
+        Ui2SampleSlicesCommand command =
+            MakeCommand(Ui2SampleSlicesCommandType::PreviewStop);
+        StopPreview();
+        return command;
       }
       return {};
     }
@@ -150,11 +168,8 @@ public:
     if (action == TrackerAction::Play) {
       if (previewHeld_ || waveform_.FrameCount() == 0U)
         return {};
-      previewHeld_ = true;
-      previewActive_ = true;
       const std::uint32_t start = SelectedSliceStart();
-      previewPlayhead_ = start;
-      previewPlayheadVisible_ = true;
+      StartPreview(start);
       Ui2SampleSlicesCommand command =
           MakeCommand(Ui2SampleSlicesCommandType::PreviewStart);
       command.start = start;

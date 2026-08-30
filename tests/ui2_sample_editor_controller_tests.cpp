@@ -336,6 +336,37 @@ TEST_CASE("UI2 single-cycle preview capacity counts interleaved channels") {
   CHECK_FALSE(slices.Handle(TrackerAction::Play, true).singleCycle);
 }
 
+TEST_CASE("UI2 sample controllers clear preview state after an external stop") {
+  using namespace ui2;
+  Config::SetImportResampler(0);
+  SampleWaveFileSystem fileSystem;
+  fileSystem.BuildPcm(1024U);
+  Ui2SampleWaveformBackend waveform;
+
+  Ui2SampleEditorController editor(waveform);
+  REQUIRE(editor.OpenProjectPool(fileSystem, "DEMO", "VOICE.WAV") ==
+          Ui2SampleWaveformLoadResult::Loaded);
+  REQUIRE(editor.Handle(TrackerAction::Play, true).type ==
+          Ui2SampleEditorCommandType::PreviewStart);
+  REQUIRE(editor.Snapshot().playing);
+  editor.StopPreview();
+  CHECK_FALSE(editor.Snapshot().playing);
+  CHECK(editor.Snapshot().markers.count == 2U);
+  CHECK_FALSE(editor.Handle(TrackerAction::Play, false).HasValue());
+
+  editor.Close();
+  Ui2SampleSlicesController slices(waveform);
+  REQUIRE(slices.OpenProjectPool(fileSystem, "DEMO", "VOICE.WAV") ==
+          Ui2SampleWaveformLoadResult::Loaded);
+  REQUIRE(slices.Handle(TrackerAction::Play, true).type ==
+          Ui2SampleSlicesCommandType::PreviewStart);
+  REQUIRE(slices.Snapshot().previewActive);
+  slices.StopPreview();
+  CHECK_FALSE(slices.Snapshot().previewActive);
+  CHECK_FALSE(slices.Snapshot().previewPlayheadVisible);
+  CHECK_FALSE(slices.Handle(TrackerAction::Play, false).HasValue());
+}
+
 TEST_CASE("UI2 Sample Editor keeps operation browsing read-only") {
   using namespace ui2;
   Config::SetImportResampler(0);

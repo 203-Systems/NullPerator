@@ -127,16 +127,35 @@ public:
     previewPlayheadVisible_ = visible && active_;
   }
 
+  void StartPreview(std::uint32_t sample) {
+    if (!active_)
+      return;
+    previewHeld_ = true;
+    playing_ = true;
+    previewPlayhead_ = sample;
+    previewPlayheadVisible_ = true;
+  }
+
+  // Audio can stop outside Handle() (end-of-file, page transition, shutdown).
+  // Clear the held-preview projection as one operation so a later key-up does
+  // not emit a second stop and the top bar cannot remain in PLAYING state.
+  void StopPreview() {
+    previewHeld_ = false;
+    playing_ = false;
+    previewPlayhead_ = 0U;
+    previewPlayheadVisible_ = false;
+  }
+
   Ui2SampleEditorCommand Handle(TrackerAction action, bool pressed) {
     if (!active_ || !input_.Update(action, pressed))
       return {};
 
     if (!pressed) {
       if (action == TrackerAction::Play && previewHeld_) {
-        previewHeld_ = false;
-        playing_ = false;
-        previewPlayheadVisible_ = false;
-        return MakeCommand(Ui2SampleEditorCommandType::PreviewStop);
+        Ui2SampleEditorCommand command =
+            MakeCommand(Ui2SampleEditorCommandType::PreviewStop);
+        StopPreview();
+        return command;
       }
       return {};
     }
@@ -144,10 +163,7 @@ public:
     if (action == TrackerAction::Play) {
       if (previewHeld_)
         return {};
-      previewHeld_ = true;
-      playing_ = true;
-      previewPlayhead_ = start_;
-      previewPlayheadVisible_ = true;
+      StartPreview(start_);
       Ui2SampleEditorCommand command =
           MakeCommand(Ui2SampleEditorCommandType::PreviewStart);
       command.start = start_;
