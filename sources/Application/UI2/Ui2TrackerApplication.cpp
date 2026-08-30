@@ -2009,6 +2009,8 @@ void Ui2TrackerApplication::ExecutePendingSave(std::uint32_t nowMs) {
                           conditions.recordingActive);
     autoSave_.CompleteAutoSave(nowMs, saved);
     persistenceStatus_.FinishSaving();
+    if (!saved)
+      projectLifecycle_.ReportFailure(Ui2ProjectLifecycleFailure::SaveProject);
     return;
   }
   if (kind != PendingSaveKind::Project) {
