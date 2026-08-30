@@ -480,6 +480,22 @@ TEST_CASE("UI2 model port registers pasted Chains and allocates Phrase entries")
   CHECK(port.ProjectMutationGeneration() == 3U);
 }
 
+TEST_CASE("UI2 model port registers a pasted Phrase before allocating another") {
+  TrackerApplicationSession session;
+  Ui2TrackerSessionModelPort port(session);
+  Song &song = session.ProjectModel().song_;
+
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::PasteLast,
+                                    Ui2TrackerPage::Chain, 0, 0));
+  CHECK(song.chain_.data_[0] == 0U);
+  CHECK(song.phrase_.IsUsed(0U));
+
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::AllocateNext,
+                                    Ui2TrackerPage::Chain, 1, 0));
+  CHECK(song.chain_.data_[1] == 1U);
+  CHECK(song.phrase_.IsUsed(1U));
+}
+
 TEST_CASE("UI2 model port synchronizes Phrase audition row and adjacent phrases") {
   TrackerApplicationSession session;
   Ui2TrackerSessionModelPort port(session);

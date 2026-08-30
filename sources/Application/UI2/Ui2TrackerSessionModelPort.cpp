@@ -720,10 +720,12 @@ void Ui2TrackerSessionModelPort::ApplyPasteLast(
   } else if (command.sourcePage == Ui2TrackerPage::Chain) {
     std::uint8_t &cell =
         song.chain_.data_[editor.currentChain_ * 16 + command.row];
-    if (cell == 0xFFU)
+    if (cell == 0xFFU) {
       cell = lastPhrase_;
-    else
+      song.phrase_.SetUsed(cell);
+    } else {
       lastPhrase_ = cell;
+    }
   } else if (command.sourcePage == Ui2TrackerPage::Phrase) {
     Phrase &phrase = song.phrase_;
     const int index = editor.currentPhrase_ * 16 + command.row;
