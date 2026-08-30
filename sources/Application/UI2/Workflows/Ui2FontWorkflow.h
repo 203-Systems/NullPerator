@@ -33,6 +33,8 @@ inline Ui2FontWorkflowResult Ui2ExecuteFontCommand(Ui2FontCommand command,
   case Ui2FontCommandType::RestoreDefault:
     if (font == nullptr || font->GetID() != FourCC::VarUIFont)
       return Ui2FontWorkflowResult::ConfigUnavailable;
+    if (!font->IsModified())
+      return Ui2FontWorkflowResult::None;
     font->Reset();
     return Ui2FontWorkflowResult::DefaultRestored;
   }
