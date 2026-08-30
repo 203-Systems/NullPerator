@@ -43,6 +43,10 @@ struct PlayerTransportSnapshot final {
   PlayMode mode = PM_SONG;
   int songRow[SONG_CHANNEL_COUNT]{};
   unsigned char note[SONG_CHANNEL_COUNT]{};
+  unsigned char chain[SONG_CHANNEL_COUNT]{};
+  std::int8_t chainRow[SONG_CHANNEL_COUNT]{};
+  unsigned char phrase[SONG_CHANNEL_COUNT]{};
+  std::int8_t phraseRow[SONG_CHANNEL_COUNT]{};
   QueueingMode queueMode[SONG_CHANNEL_COUNT]{};
   unsigned char queueSongRow[SONG_CHANNEL_COUNT]{};
   unsigned char queueChainRow[SONG_CHANNEL_COUNT]{};

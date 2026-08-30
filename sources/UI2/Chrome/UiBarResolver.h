@@ -17,6 +17,7 @@ struct UiBarInputs {
   const UiBottomBarModel *criticalModal = nullptr;
   const UiTrackNotesModel *editHeldTracks = nullptr;
   const UiAdjustmentLegendModel *enterHeldAdjustment = nullptr;
+  bool selectionActive = false;
   bool editHeldNumber = false;
   bool navHeld = false;
   UiNavTarget navTarget = UiNavTarget::None;

@@ -23,6 +23,16 @@ UiResolvedChrome UiBarResolver::Resolve(const UiBarInputs &inputs) {
     resolved.bottom.adjustment = *inputs.enterHeldAdjustment;
   }
 
+  if (inputs.selectionActive) {
+    resolved.bottom = {};
+    resolved.bottom.kind = UiBottomBarKind::Context;
+    resolved.bottom.context.firstLineCount = 2U;
+    resolved.bottom.context.firstLine[0] = {
+        .text = "SELECTION", .color = UiColorToken::TextColored, .x = 79};
+    resolved.bottom.context.firstLine[1] = {
+        .text = "MODE", .color = UiColorToken::TextNormal};
+  }
+
   if (inputs.navHeld) {
     resolved.top.power = UiPowerState::Navigation;
     resolved.top.navTarget = inputs.navTarget;

@@ -44,6 +44,8 @@ struct UiTableViewData {
   bool enterDigitFocus = false;
   bool numberFocus = false;
   bool adjustmentFocus = false;
+  bool selectionActive = false;
+  std::array<std::int8_t, 3> playbackRows{-1, -1, -1};
   UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
 };
@@ -62,6 +64,8 @@ public:
                                                    std::int16_t right,
                                                    std::int16_t bottom);
   [[nodiscard]] static RectI16 RowDamageRect(std::uint8_t row);
+  [[nodiscard]] static RectI16 PlaybackTickRect(std::uint8_t group,
+                                                std::uint8_t row);
 
 private:
   [[nodiscard]] static bool

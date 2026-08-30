@@ -35,6 +35,7 @@ struct UiSongViewData {
   bool showBottom = true;
   bool adjustmentFocus = false;
   bool modeFocus = false;
+  bool selectionActive = false;
   bool playing = true;
   bool liveMode = false;
   UiNavCursorModel navCursor{};

@@ -15,6 +15,7 @@
 #include "Application/Instruments/SIDInstrument.h"
 #include "Application/Instruments/SampleInstrument.h"
 #include "Application/Player/Player.h"
+#include "Application/Player/TablePlayback.h"
 #include "Application/Session/FirmwareLifecycleService.h"
 #include "Application/Session/TrackerApplicationSession.h"
 #include "Application/UI2/Ui2InstrumentParameters.h"
@@ -277,6 +278,7 @@ Ui2NativeApplicationStateSource::CaptureSong(UiSongFrameState &state) {
       (controller.HeldMask() & TrackerActionBit(TrackerAction::Edit)) != 0U;
   state.modeFocus =
       (controller.HeldMask() & TrackerActionBit(TrackerAction::Option)) != 0U;
+  state.selectionActive = controller.Selection().active;
   state.navHeld = navigationHeld_;
   for (std::uint8_t row = 0; row < 16U; ++row) {
     for (std::uint8_t track = 0; track < SONG_CHANNEL_COUNT; ++track) {
@@ -329,6 +331,7 @@ Ui2NativeApplicationStateSource::CaptureChain(UiChainFrameState &state) {
   state.adjustmentFocus =
       !state.numberFocus &&
       (controller.HeldMask() & TrackerActionBit(TrackerAction::Edit)) != 0U;
+  state.selectionActive = controller.Selection().active;
   state.navHeld = navigationHeld_;
   if (controller.Selection().active) {
     const auto &selection = controller.Selection();
@@ -341,6 +344,16 @@ Ui2NativeApplicationStateSource::CaptureChain(UiChainFrameState &state) {
   std::copy_n(song.chain_.transpose_ + base, 16, state.transposes.begin());
   FormatElapsed(state.elapsed);
   CaptureTrackNotes(state.trackNotes);
+  const PlayerTransportSnapshot transport =
+      Player::GetInstance()->CaptureTransportSnapshot();
+  const int selectedTrack = controller.SelectedTrack();
+  if (transport.running && selectedTrack >= 0 &&
+      selectedTrack < SONG_CHANNEL_COUNT &&
+      transport.chain[selectedTrack] == controller.Number()) {
+    const int playbackRow = transport.chainRow[selectedTrack];
+    if (playbackRow >= 0 && playbackRow < PHRASES_PER_CHAIN)
+      state.playbackRow = static_cast<std::int8_t>(playbackRow);
+  }
   state.vuLevelTop = MasterVu(UiChainView::kMeterHeight);
   return {.active = PlayerRunning()};
 }
@@ -362,6 +375,7 @@ Ui2NativeApplicationStateSource::CapturePhrase(UiPhraseFrameState &state) {
       !state.numberFocus && !state.enterDigitFocus &&
       controller.Column() == 0U &&
       (controller.HeldMask() & TrackerActionBit(TrackerAction::Edit)) != 0U;
+  state.selectionActive = controller.Selection().active;
   state.navHeld = navigationHeld_;
   state.activeHeader = controller.Column() == 0U   ? UiPhraseHeader::Note
                        : controller.Column() == 1U ? UiPhraseHeader::Instrument
@@ -390,6 +404,16 @@ Ui2NativeApplicationStateSource::CapturePhrase(UiPhraseFrameState &state) {
   }
   FormatElapsed(state.elapsed);
   CaptureTrackNotes(state.trackNotes);
+  const PlayerTransportSnapshot transport =
+      Player::GetInstance()->CaptureTransportSnapshot();
+  const int selectedTrack = controller.SelectedTrack();
+  if (transport.running && selectedTrack >= 0 &&
+      selectedTrack < SONG_CHANNEL_COUNT &&
+      transport.phrase[selectedTrack] == controller.Number()) {
+    const int playbackRow = transport.phraseRow[selectedTrack];
+    if (playbackRow >= 0 && playbackRow < STEPS_PER_PHRASE)
+      state.playbackRow = static_cast<std::int8_t>(playbackRow);
+  }
   const int selected = base + controller.Row();
   if (controller.Column() <= 1U) {
     const bool cellHasValue = controller.Column() == 0U
@@ -442,6 +466,7 @@ Ui2NativeApplicationStateSource::CaptureTable(UiTableFrameState &state) {
   // Table command and value cells always keep the command-specific help.
   // ENTER-held value editing is represented by the in-cell digit cursor.
   state.adjustmentFocus = false;
+  state.selectionActive = controller.Selection().active;
   state.navHeld = navigationHeld_;
   state.activeHeader = controller.Column() < 2U   ? UiTableHeader::Fx1
                        : controller.Column() < 4U ? UiTableHeader::Fx2
@@ -463,6 +488,26 @@ Ui2NativeApplicationStateSource::CaptureTable(UiTableFrameState &state) {
   }
   FormatElapsed(state.elapsed);
   CaptureTrackNotes(state.trackNotes);
+  const int selectedTrack = controller.SelectedTrack();
+  if (PlayerRunning() && selectedTrack >= 0 &&
+      selectedTrack < SONG_CHANNEL_COUNT) {
+    Table &visibleTable =
+        TableHolder::GetInstance()->GetTable(controller.Number());
+    TablePlayback *playback =
+        &TablePlayback::GetTablePlayback(selectedTrack);
+    if (playback->GetTable() != &visibleTable) {
+      playback = &TablePlayback::GetAutomationPlayback(selectedTrack);
+    }
+    if (playback->GetTable() == &visibleTable) {
+      for (std::uint8_t group = 0U; group < state.playbackRows.size();
+           ++group) {
+        const int playbackRow = playback->GetPlaybackPosition(group);
+        if (playbackRow >= 0 && playbackRow < TABLE_STEPS)
+          state.playbackRows[group] =
+              static_cast<std::int8_t>(playbackRow);
+      }
+    }
+  }
   const std::uint8_t group = controller.Column() / 2U;
   const FourCC command = group == 0U   ? table.cmd1_[controller.Row()]
                          : group == 1U ? table.cmd2_[controller.Row()]

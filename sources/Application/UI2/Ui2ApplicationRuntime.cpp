@@ -368,6 +368,7 @@ UiSongViewData UiApplicationRuntime::ViewDataFor(const SongFrameState &state) {
   data.cursorInkVisible = state.cursorInkVisible;
   data.adjustmentFocus = state.adjustmentFocus;
   data.modeFocus = state.modeFocus;
+  data.selectionActive = state.selectionActive;
   data.playing = state.playing;
   data.liveMode = state.liveMode;
   data.power = state.power;
@@ -401,6 +402,8 @@ UiApplicationRuntime::ViewDataFor(const ChainFrameState &state) {
   data.bottomTrackInkVisible = state.bottomTrackInkVisible;
   data.numberFocus = state.numberFocus;
   data.adjustmentFocus = state.adjustmentFocus;
+  data.selectionActive = state.selectionActive;
+  data.playbackRow = state.playbackRow;
   data.power = state.power;
   data.navCursor = state.navCursor;
   return data;
@@ -565,6 +568,8 @@ UiApplicationRuntime::ViewDataFor(const PhraseFrameState &state) {
   data.enterDigitFocus = state.enterDigitFocus;
   data.numberFocus = state.numberFocus;
   data.adjustmentFocus = state.adjustmentFocus;
+  data.selectionActive = state.selectionActive;
+  data.playbackRow = state.playbackRow;
   data.power = state.power;
   data.navCursor = state.navCursor;
   return data;
@@ -719,6 +724,8 @@ UiApplicationRuntime::ViewDataFor(const TableFrameState &state) {
   data.enterDigitFocus = state.enterDigitFocus;
   data.numberFocus = state.numberFocus;
   data.adjustmentFocus = state.adjustmentFocus;
+  data.selectionActive = state.selectionActive;
+  data.playbackRows = state.playbackRows;
   data.power = state.power;
   data.navCursor = state.navCursor;
   return data;

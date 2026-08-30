@@ -77,6 +77,7 @@ struct UiSongFrameState {
   bool cursorInkVisible = true;
   bool adjustmentFocus = false;
   bool modeFocus = false;
+  bool selectionActive = false;
   bool navHeld = false;
   bool playing = false;
   bool liveMode = false;
@@ -118,7 +119,9 @@ struct UiChainFrameState {
   bool bottomTrackInkVisible = true;
   bool numberFocus = false;
   bool adjustmentFocus = false;
+  bool selectionActive = false;
   bool navHeld = false;
+  std::int8_t playbackRow = -1;
   UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
 
@@ -154,7 +157,9 @@ struct UiPhraseFrameState {
   bool enterDigitFocus = false;
   bool numberFocus = false;
   bool adjustmentFocus = false;
+  bool selectionActive = false;
   bool navHeld = false;
+  std::int8_t playbackRow = -1;
   UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
 
@@ -198,7 +203,9 @@ struct UiTableFrameState {
   bool enterDigitFocus = false;
   bool numberFocus = false;
   bool adjustmentFocus = false;
+  bool selectionActive = false;
   bool navHeld = false;
+  std::array<std::int8_t, 3> playbackRows{-1, -1, -1};
   UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
 

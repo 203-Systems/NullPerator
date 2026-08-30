@@ -386,8 +386,8 @@ TEST_CASE("UI2 Instrument type change is blocked while playing and defaults NO")
   CHECK_FALSE(controller.RequestTypeChange(IT_MIDI, IT_SAMPLE, true, false)
                   .HasValue());
   const Ui2DialogSnapshot dialog = controller.Snapshot();
-  CHECK(std::string_view(dialog.title.data()) == "Change Instrument &");
-  CHECK(std::string_view(dialog.label.data()) == "lose settings?");
+  CHECK(std::string_view(dialog.title.data()) == "Change Instrument");
+  CHECK(std::string_view(dialog.label.data()) == "Lose settings?");
   CHECK(dialog.actions[0] == UiDialogAction::Yes);
   CHECK(dialog.actions[1] == UiDialogAction::No);
   CHECK(dialog.selectedAction == 1U);

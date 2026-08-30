@@ -76,6 +76,14 @@ RectI16 UiChainView::RowDamageRect(std::uint8_t row) {
   return UiTrackerGridMetrics::RowDamage(row, 213);
 }
 
+RectI16 UiChainView::PlaybackTickRect(std::uint8_t row) {
+  if (row >= 16U)
+    return {};
+  return {static_cast<std::int16_t>(kColumnX[0] - 3),
+          static_cast<std::int16_t>(UiTrackerGridMetrics::RowTextY(row) + 1),
+          2, 5};
+}
+
 RectI16 UiChainView::VuDamageRect(std::uint8_t side) {
   if (side >= 2U)
     return {};
@@ -112,6 +120,12 @@ void UiChainView::RenderDelta(const UiChainViewData &previous,
     render(RowDamageRect(previous.editRow));
     render(RowDamageRect(current.editRow));
   }
+  if (previous.playbackRow != current.playbackRow) {
+    if (previous.playbackRow >= 0 && previous.playbackRow < 16)
+      render(RowDamageRect(static_cast<std::uint8_t>(previous.playbackRow)));
+    if (current.playbackRow >= 0 && current.playbackRow < 16)
+      render(RowDamageRect(static_cast<std::uint8_t>(current.playbackRow)));
+  }
   if (!current.numberFocus) {
     const RectI16 oldCursor = ResolvedCursorRect(previous);
     const RectI16 newCursor = ResolvedCursorRect(current);
@@ -134,7 +148,8 @@ void UiChainView::RenderDelta(const UiChainViewData &previous,
       previous.bottomTrackVisualRect != current.bottomTrackVisualRect ||
       previous.bottomTrackVisualOverride != current.bottomTrackVisualOverride ||
       previous.bottomTrackInkVisible != current.bottomTrackInkVisible ||
-      previous.adjustmentFocus != current.adjustmentFocus) {
+      previous.adjustmentFocus != current.adjustmentFocus ||
+      previous.selectionActive != current.selectionActive) {
     render({0, 208, 240, 32});
   }
   for (std::uint8_t side = 0; side < 2U; ++side) {
@@ -182,6 +197,7 @@ UiBuildStatus UiChainView::Build(const UiChainViewData &data,
       .pageDefault = pageBottom,
       .editHeldTracks = &editTracks,
       .enterHeldAdjustment = data.adjustmentFocus ? &adjustment : nullptr,
+      .selectionActive = data.selectionActive,
       .editHeldNumber = data.numberFocus,
   };
   const UiResolvedChrome chrome = UiBarResolver::Resolve(barInputs);
@@ -232,9 +248,17 @@ UiBuildStatus UiChainView::Build(const UiChainViewData &data,
                           : data.transposes[row] == 0U
                                 ? UiColorToken::TextDim
                                 : UiColorToken::TextNormal);
+    if (data.playbackRow == static_cast<std::int8_t>(row))
+      builder.Fill(PlaybackTickRect(row), UiColorToken::PlaybackActive);
   }
   if (!data.numberFocus) {
-    builder.Selection(cursor);
+    const bool cursorOverPlayback =
+        data.playbackRow >= 0 && data.playbackRow < 16 &&
+        !Intersect(cursor,
+                   PlaybackTickRect(
+                       static_cast<std::uint8_t>(data.playbackRow)))
+             .Empty();
+    builder.Selection(cursor, cursorOverPlayback);
     if (data.cursorInkVisible && data.editRow < 16U &&
         data.editColumn < 2U) {
       const std::uint8_t value = data.editColumn == 0U

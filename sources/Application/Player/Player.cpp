@@ -453,6 +453,10 @@ PlayerTransportSnapshot Player::CaptureTransportSnapshot() const {
   snapshot.mode = mode_;
   for (int channel = 0; channel < SONG_CHANNEL_COUNT; ++channel) {
     snapshot.note[channel] = NO_NOTE;
+    snapshot.chain[channel] = 0xFFU;
+    snapshot.chainRow[channel] = -1;
+    snapshot.phrase[channel] = 0xFFU;
+    snapshot.phraseRow[channel] = -1;
     snapshot.queueMode[channel] = liveQueueingMode_[channel];
     snapshot.queueSongRow[channel] = liveQueuePosition_[channel];
     snapshot.queueChainRow[channel] = liveQueueChainPosition_[channel];
@@ -460,14 +464,20 @@ PlayerTransportSnapshot Player::CaptureTransportSnapshot() const {
       continue;
 
     snapshot.songRow[channel] = viewData_->songPlayPos_[channel];
-    const unsigned char phrase = viewData_->currentPlayPhrase_[channel];
+    snapshot.chain[channel] = viewData_->currentPlayChain_[channel];
+    const int chainRow = viewData_->chainPlayPos_[channel];
+    if (chainRow >= 0 && chainRow < PHRASES_PER_CHAIN)
+      snapshot.chainRow[channel] = static_cast<std::int8_t>(chainRow);
+    snapshot.phrase[channel] = viewData_->currentPlayPhrase_[channel];
     const int phraseRow = viewData_->phrasePlayPos_[channel];
-    if (phrase >= PHRASE_COUNT || phraseRow < 0 ||
+    if (snapshot.phrase[channel] >= PHRASE_COUNT || phraseRow < 0 ||
         phraseRow >= STEPS_PER_PHRASE) {
       continue;
     }
+    snapshot.phraseRow[channel] = static_cast<std::int8_t>(phraseRow);
     snapshot.note[channel] = viewData_->song_->phrase_.note_[
-        static_cast<int>(phrase) * STEPS_PER_PHRASE + phraseRow];
+        static_cast<int>(snapshot.phrase[channel]) * STEPS_PER_PHRASE +
+        phraseRow];
   }
   return snapshot;
 }

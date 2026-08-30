@@ -682,6 +682,40 @@ TEST_CASE("UI2 bar resolver applies the documented central priority") {
   CHECK(resolved.bottom.kind == ui2::UiBottomBarKind::Actions);
 }
 
+TEST_CASE("UI2 selection mode overrides page and edit bottom bars") {
+  ui2::UiBottomBarModel context{.kind = ui2::UiBottomBarKind::Context};
+  ui2::UiAdjustmentLegendModel adjustment{};
+  const ui2::UiResolvedChrome resolved = ui2::UiBarResolver::Resolve({
+      .pageTop = {.title = "PHRASE", .meta = "3A"},
+      .pageDefault = {.kind = ui2::UiBottomBarKind::Hidden},
+      .cursorContext = &context,
+      .enterHeldAdjustment = &adjustment,
+      .selectionActive = true,
+  });
+  REQUIRE(resolved.bottom.kind == ui2::UiBottomBarKind::Context);
+  REQUIRE(resolved.bottom.context.firstLineCount == 2U);
+  CHECK(resolved.bottom.context.firstLine[0].text == "SELECTION");
+  CHECK(resolved.bottom.context.firstLine[0].color ==
+        ui2::UiColorToken::TextColored);
+  CHECK(resolved.bottom.context.firstLine[1].text == "MODE");
+}
+
+TEST_CASE("UI2 tracker playback ticks share the song edge-tick geometry") {
+  const std::uint8_t row = 7U;
+  const auto chain = ui2::UiChainView::PlaybackTickRect(row);
+  const auto phrase = ui2::UiPhraseView::PlaybackTickRect(row);
+  const auto tableFx1 = ui2::UiTableView::PlaybackTickRect(0U, row);
+  const auto tableFx2 = ui2::UiTableView::PlaybackTickRect(1U, row);
+  CHECK(chain == phrase);
+  CHECK(chain == tableFx1);
+  CHECK(chain.width == 2);
+  CHECK(chain.height == 5);
+  CHECK(chain.y == ui2::UiTrackerGridMetrics::RowTextY(row) + 1);
+  CHECK(tableFx2.x > tableFx1.x);
+  CHECK(ui2::UiChainView::PlaybackTickRect(16U).Empty());
+  CHECK(ui2::UiTableView::PlaybackTickRect(3U, row).Empty());
+}
+
 TEST_CASE("UI2 NAV targets share one movable seven by nine bubble") {
   ui2::UiBarScene scene;
   CHECK(ui2::UiChromeRenderer::BuildTop({.title = "SONG",
@@ -1436,6 +1470,23 @@ TEST_CASE("UI2 Song bottom bar does not select a track by default") {
                        return command.kind ==
                               ui2::UiCommandKind::FillCoverageRoundedRect;
                      }));
+}
+
+TEST_CASE("UI2 Song selection replaces the track-note bottom bar") {
+  ui2::UiSongViewData data = ui2::test::ApprovedSongFixture();
+  data.selectionActive = true;
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiSongView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+
+  const ui2::UiCommand *selection =
+      FindTextCommand(scene.bottom.Stream(), "SELECTION");
+  const ui2::UiCommand *mode = FindTextCommand(scene.bottom.Stream(), "MODE");
+  REQUIRE(selection != nullptr);
+  REQUIRE(mode != nullptr);
+  CHECK(selection->bounds.x == 79);
+  CHECK(FindTextCommand(scene.bottom.Stream(), "T1") == nullptr);
 }
 
 TEST_CASE("UI2 Song renders chain zero as normal data rather than empty") {

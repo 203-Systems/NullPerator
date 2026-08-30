@@ -123,6 +123,15 @@ RectI16 UiTableView::RowDamageRect(std::uint8_t row) {
   return UiTrackerGridMetrics::RowDamage(row, 230);
 }
 
+RectI16 UiTableView::PlaybackTickRect(std::uint8_t group,
+                                      std::uint8_t row) {
+  if (group >= 3U || row >= 16U)
+    return {};
+  return {static_cast<std::int16_t>(kColumnX[group * 2U] - 3),
+          static_cast<std::int16_t>(UiTrackerGridMetrics::RowTextY(row) + 1),
+          2, 5};
+}
+
 bool UiTableView::RequiresFullInvalidation(const UiTableViewData &previous,
                                            const UiTableViewData &current) {
   return previous.rowOffset != current.rowOffset ||
@@ -164,6 +173,16 @@ void UiTableView::RenderDelta(const UiTableViewData &previous,
     render(RowDamageRect(previous.editRow));
     render(RowDamageRect(current.editRow));
   }
+  for (std::uint8_t group = 0U; group < current.playbackRows.size(); ++group) {
+    if (previous.playbackRows[group] == current.playbackRows[group])
+      continue;
+    if (previous.playbackRows[group] >= 0 && previous.playbackRows[group] < 16)
+      render(RowDamageRect(
+          static_cast<std::uint8_t>(previous.playbackRows[group])));
+    if (current.playbackRows[group] >= 0 && current.playbackRows[group] < 16)
+      render(RowDamageRect(
+          static_cast<std::uint8_t>(current.playbackRows[group])));
+  }
   if (oldCursor != newCursor ||
       previous.cursorInkVisible != current.cursorInkVisible) {
     render(ExpandedCursorDamage(oldCursor));
@@ -197,6 +216,7 @@ void UiTableView::RenderDelta(const UiTableViewData &previous,
       previous.bottomTrackVisualOverride != current.bottomTrackVisualOverride ||
       previous.bottomTrackInkVisible != current.bottomTrackInkVisible ||
       previous.adjustmentFocus != current.adjustmentFocus ||
+      previous.selectionActive != current.selectionActive ||
       !ContextEqual(previous.cursorBottom, current.cursorBottom)) {
     render({0, 208, 240, 32});
   }
@@ -238,6 +258,7 @@ UiBuildStatus UiTableView::Build(const UiTableViewData &data, UiPalette &,
       // Table values are command-specific. Their help remains more useful
       // than a generic +/- legend; digit focus still appears in the cell.
       .enterHeldAdjustment = nullptr,
+      .selectionActive = data.selectionActive,
       .editHeldNumber = data.numberFocus,
   };
   const UiResolvedChrome chrome = UiBarResolver::Resolve(inputs);
@@ -284,10 +305,27 @@ UiBuildStatus UiTableView::Build(const UiTableViewData &data, UiPalette &,
       }
       builder.Text(value, kColumnX[column], y, color);
     }
+    for (std::uint8_t group = 0U; group < data.playbackRows.size(); ++group) {
+      if (data.playbackRows[group] == static_cast<std::int8_t>(row))
+        builder.Fill(PlaybackTickRect(group, row),
+                     UiColorToken::PlaybackActive);
+    }
   }
   if (!data.numberFocus) {
     const RectI16 cursor = ResolvedCursorRect(data);
-    builder.Selection(cursor);
+    bool cursorOverPlayback = false;
+    for (std::uint8_t group = 0U; group < data.playbackRows.size(); ++group) {
+      const std::int8_t playbackRow = data.playbackRows[group];
+      if (playbackRow >= 0 && playbackRow < 16 &&
+          !Intersect(cursor,
+                     PlaybackTickRect(group,
+                                      static_cast<std::uint8_t>(playbackRow)))
+               .Empty()) {
+        cursorOverPlayback = true;
+        break;
+      }
+    }
+    builder.Selection(cursor, cursorOverPlayback);
     if (data.cursorInkVisible && data.editRow < 16U &&
         data.editColumn < kColumnX.size()) {
       const std::string_view value =

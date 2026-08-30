@@ -139,6 +139,14 @@ RectI16 UiPhraseView::RowDamageRect(std::uint8_t row) {
   return UiTrackerGridMetrics::RowDamage(row, 230);
 }
 
+RectI16 UiPhraseView::PlaybackTickRect(std::uint8_t row) {
+  if (row >= 16U)
+    return {};
+  return {static_cast<std::int16_t>(kColumnX[0] - 3),
+          static_cast<std::int16_t>(UiTrackerGridMetrics::RowTextY(row) + 1),
+          2, 5};
+}
+
 bool UiPhraseView::RequiresFullInvalidation(const UiPhraseViewData &previous,
                                             const UiPhraseViewData &current) {
   return previous.rowOffset != current.rowOffset ||
@@ -179,6 +187,12 @@ void UiPhraseView::RenderDelta(const UiPhraseViewData &previous,
     render(current.selectionVisualRect);
     render(RowDamageRect(previous.editRow));
     render(RowDamageRect(current.editRow));
+  }
+  if (previous.playbackRow != current.playbackRow) {
+    if (previous.playbackRow >= 0 && previous.playbackRow < 16)
+      render(RowDamageRect(static_cast<std::uint8_t>(previous.playbackRow)));
+    if (current.playbackRow >= 0 && current.playbackRow < 16)
+      render(RowDamageRect(static_cast<std::uint8_t>(current.playbackRow)));
   }
   if (previousCursor != currentCursor ||
       previous.cursorInkVisible != current.cursorInkVisible) {
@@ -224,6 +238,7 @@ void UiPhraseView::RenderDelta(const UiPhraseViewData &previous,
       previous.bottomTrackVisualOverride != current.bottomTrackVisualOverride ||
       previous.bottomTrackInkVisible != current.bottomTrackInkVisible ||
       previous.adjustmentFocus != current.adjustmentFocus ||
+      previous.selectionActive != current.selectionActive ||
       !BottomEqual(previous.cursorBottom, current.cursorBottom)) {
     render({0, 208, 240, 32});
   }
@@ -272,6 +287,7 @@ UiBuildStatus UiPhraseView::Build(const UiPhraseViewData &data, UiPalette &,
           data.adjustmentFocus && data.activeHeader == UiPhraseHeader::Note
               ? &noteAdjustment
               : nullptr,
+      .selectionActive = data.selectionActive,
       .editHeldNumber = data.numberFocus,
   };
   const UiResolvedChrome chrome = UiBarResolver::Resolve(barInputs);
@@ -316,11 +332,19 @@ UiBuildStatus UiPhraseView::Build(const UiPhraseViewData &data, UiPalette &,
                    IsDimValue(value) ? UiColorToken::DerivedTextFaint
                                      : UiColorToken::TextNormal);
     }
+    if (data.playbackRow == static_cast<std::int8_t>(row))
+      builder.Fill(PlaybackTickRect(row), UiColorToken::PlaybackActive);
   }
 
   if (!data.numberFocus) {
     const RectI16 cursor = ResolvedCursorRect(data);
-    builder.Selection(cursor);
+    const bool cursorOverPlayback =
+        data.playbackRow >= 0 && data.playbackRow < 16 &&
+        !Intersect(cursor,
+                   PlaybackTickRect(
+                       static_cast<std::uint8_t>(data.playbackRow)))
+             .Empty();
+    builder.Selection(cursor, cursorOverPlayback);
     if (data.cursorInkVisible && data.editRow < 16U &&
         data.editColumn < kColumnX.size()) {
       const std::string_view value =

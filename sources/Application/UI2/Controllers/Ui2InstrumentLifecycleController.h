@@ -110,8 +110,8 @@ public:
     } else if (purpose_ == Purpose::ConfirmExportOverwrite) {
       snapshot.SetTitle("Overwrite existing file?");
     } else {
-      snapshot.SetTitle("Change Instrument &");
-      snapshot.SetLabel("lose settings?");
+      snapshot.SetTitle("Change Instrument");
+      snapshot.SetLabel("Lose settings?");
     }
     for (std::uint8_t index = 0U; index < actionCount_; ++index)
       snapshot.PushAction(actions_[index]);

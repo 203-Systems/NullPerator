@@ -40,6 +40,8 @@ struct UiChainViewData {
   bool bottomTrackInkVisible = true;
   bool numberFocus = false;
   bool adjustmentFocus = false;
+  bool selectionActive = false;
+  std::int8_t playbackRow = -1;
   UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
 };
@@ -61,6 +63,7 @@ public:
                                                    std::int16_t right,
                                                    std::int16_t bottom);
   [[nodiscard]] static RectI16 RowDamageRect(std::uint8_t row);
+  [[nodiscard]] static RectI16 PlaybackTickRect(std::uint8_t row);
   [[nodiscard]] static RectI16 VuDamageRect(std::uint8_t side);
 };
 
