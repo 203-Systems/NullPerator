@@ -34,7 +34,6 @@ public:
   };
 
   static constexpr std::uint32_t kInputScanMs = 10U;
-  static constexpr std::uint32_t kUsbServiceMs = 1U;
   static constexpr std::uint32_t kFramePeriodMs = 33U;
   static constexpr std::size_t kApplicationStorageBytes =
       sizeof(ui2::Ui2TrackerApplication);

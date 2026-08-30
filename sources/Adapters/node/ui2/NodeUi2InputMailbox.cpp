@@ -224,15 +224,4 @@ InputMailbox::Batch InputMailbox::Drain() {
   return batch;
 }
 
-bool InputMailbox::HasPending() const {
-  if (!initialized_)
-    return false;
-  if (samplePending_ || pendingPressedMask_ != 0U ||
-      pendingReleasedMask_ != 0U ||
-      acceptedHeldMask_ != deliveredHeldMask_)
-    return true;
-  return std::any_of(repeatDebt_.begin(), repeatDebt_.end(),
-                     [](std::uint8_t value) { return value != 0U; });
-}
-
 } // namespace node::ui2

@@ -72,11 +72,7 @@ public:
   [[nodiscard]] std::uint16_t LatestPhysicalHeldMask() const {
     return latestPhysicalHeldMask_;
   }
-  [[nodiscard]] std::uint16_t AcceptedHeldMask() const {
-    return acceptedHeldMask_;
-  }
   [[nodiscard]] bool HasPublishedSample() const { return initialized_; }
-  [[nodiscard]] bool HasPending() const;
 
 private:
   static constexpr std::uint16_t kDirectionMask =
