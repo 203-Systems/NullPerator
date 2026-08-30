@@ -155,7 +155,4 @@ private:
   bool overflowed_ = false;
 };
 
-using UiSceneBuffer = UiCommandList<256, 1024>;
-static_assert(sizeof(UiSceneBuffer) < 4'700);
-
 } // namespace ui2
