@@ -121,6 +121,7 @@ target_include_directories(picoTracker_tests PRIVATE
 target_compile_definitions(picoTracker_tests PRIVATE
   HOST_TEST
 )
+add_test(NAME picoTracker_unit COMMAND picoTracker_tests)
 
 add_executable(autosave_coordinator_tests
   test_main.cpp
