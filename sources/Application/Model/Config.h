@@ -41,6 +41,7 @@ public:
   bool SaveTheme(tinyxml2::XMLPrinter *printer, const char *themeName);
   bool LoadTheme(PersistencyDocument *doc);
   bool ExportTheme(const char *themeName, bool overwrite);
+  [[nodiscard]] static bool IsValidThemeName(const char *themeName);
   // `loaded` distinguishes a parsed/applied theme whose config sync failed
   // from a file that could not be loaded at all. Existing callers can ignore
   // the detail and retain the historical boolean success contract.

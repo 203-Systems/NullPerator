@@ -435,6 +435,15 @@ TEST_CASE("theme import validates the complete stream before changing Config") {
   }
 }
 
+TEST_CASE("theme names expose the same safety policy used by export") {
+  CHECK_FALSE(Config::IsValidThemeName(nullptr));
+  CHECK_FALSE(Config::IsValidThemeName(""));
+  CHECK_FALSE(Config::IsValidThemeName("."));
+  CHECK_FALSE(Config::IsValidThemeName(".."));
+  CHECK_FALSE(Config::IsValidThemeName("nested/theme"));
+  CHECK(Config::IsValidThemeName("Night Shift"));
+}
+
 TEST_CASE("ptt themes are rejected without changing live state") {
   ThemeFixture fixture;
   Config config;

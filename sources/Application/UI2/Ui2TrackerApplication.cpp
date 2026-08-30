@@ -1586,7 +1586,7 @@ void Ui2TrackerApplication::HandleRename(TrackerAction action, bool pressed) {
 void Ui2TrackerApplication::CommitThemeName(const char *name,
                                             bool resetColors) {
   Config *config = Config::GetInstance();
-  if (config == nullptr || name == nullptr || name[0] == '\0')
+  if (config == nullptr || !Config::IsValidThemeName(name))
     return;
   if (resetColors)
     config->ResetSemanticThemeColors();
@@ -1939,7 +1939,8 @@ void Ui2TrackerApplication::ExecuteTheme(Ui2ThemeCommand command) {
   switch (command.type) {
   case Ui2ThemeCommandType::NewTheme:
     renameTarget_ = RenameTarget::NewTheme;
-    rename_.Begin("New Theme", MAX_THEME_NAME_LENGTH);
+    rename_.Begin("New Theme", MAX_THEME_NAME_LENGTH,
+                  &Config::IsValidThemeName);
     break;
   case Ui2ThemeCommandType::LoadTheme: {
     std::array<char, MAX_THEME_NAME_LENGTH + 1U> currentName{};
@@ -1982,7 +1983,7 @@ void Ui2TrackerApplication::ExecuteTheme(Ui2ThemeCommand command) {
       Variable *name = config->FindVariable(FourCC::VarThemeName);
       renameTarget_ = RenameTarget::Theme;
       rename_.Begin(name == nullptr ? "" : name->GetString().c_str(),
-                    MAX_THEME_NAME_LENGTH);
+                    MAX_THEME_NAME_LENGTH, &Config::IsValidThemeName);
     }
     break;
   case Ui2ThemeCommandType::AdjustColor:

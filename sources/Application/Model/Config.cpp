@@ -1088,6 +1088,10 @@ bool Config::ExportTheme(const char *themeName, bool overwrite) {
   return true;
 }
 
+bool Config::IsValidThemeName(const char *themeName) {
+  return IsSafeThemeName(themeName);
+}
+
 bool Config::ImportTheme(const char *themeName, bool *loaded) {
   if (loaded != nullptr)
     *loaded = false;
