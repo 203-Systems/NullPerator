@@ -84,6 +84,14 @@ void MidiService::Stop() { stopDevice(); };
 void MidiService::QueueMessage(MidiMessage &m) {
   if (!activeOutDevices_.empty()) {
     auto queue = &queues_[currentPlayQueue_];
+    if (queue->full()) {
+      // ETL's fixed-capacity emplace_back cannot signal failure through its
+      // return type. In release builds an unchecked overflow may otherwise
+      // construct beyond the container's storage, so explicitly drop the
+      // newest message and keep the already-scheduled time slice intact.
+      Trace::Error("MIDI", "MIDI message queue full; dropping newest event");
+      return;
+    }
     queue->emplace_back(m.status_, m.data1_, m.data2_);
   }
 };
