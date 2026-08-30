@@ -12,7 +12,6 @@
 #include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
-#include <sstream>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>

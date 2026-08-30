@@ -2,9 +2,8 @@
 
 #include <cstring>
 #include <errno.h>
-#include <sstream>
+#include <string_view>
 #include <sys/stat.h>
-#include <vector>
 
 namespace {
 constexpr const char *kMountPoint = "/sdcard";
@@ -23,6 +22,20 @@ int NoFollowStat(const char *path, struct stat *state) {
 #else
   return lstat(path, state);
 #endif
+}
+
+bool NextPathComponent(std::string_view path, std::size_t &cursor,
+                       std::string_view &component) {
+  while (cursor < path.size() && path[cursor] == '/')
+    ++cursor;
+  if (cursor == path.size())
+    return false;
+
+  const std::size_t begin = cursor;
+  while (cursor < path.size() && path[cursor] != '/')
+    ++cursor;
+  component = path.substr(begin, cursor - begin);
+  return true;
 }
 } // namespace
 
@@ -45,27 +58,24 @@ std::optional<std::string> Resolve(const std::string &cwd, const char *path) {
     return std::nullopt;
   }
 
-  std::vector<std::string> components;
-  std::stringstream stream(combined.substr(std::strlen(kMountPoint)));
-  std::string component;
-  while (std::getline(stream, component, '/')) {
-    if (component.empty() || component == ".") {
+  std::string resolved = kMountPoint;
+  const std::string_view suffix(combined.data() + std::strlen(kMountPoint),
+                                combined.size() - std::strlen(kMountPoint));
+  std::size_t cursor = 0;
+  std::string_view component;
+  while (NextPathComponent(suffix, cursor, component)) {
+    if (component == ".") {
       continue;
     }
     if (component == "..") {
-      if (components.empty()) {
+      if (resolved.size() == std::strlen(kMountPoint)) {
         return std::nullopt;
       }
-      components.pop_back();
+      resolved.resize(resolved.find_last_of('/'));
       continue;
     }
-    components.push_back(component);
-  }
-
-  std::string resolved = kMountPoint;
-  for (const std::string &part : components) {
     resolved.push_back('/');
-    resolved += part;
+    resolved.append(component.data(), component.size());
   }
   return resolved;
 }
@@ -88,20 +98,22 @@ bool IsContainedWithoutSymlinks(const std::string &mountPoint,
   }
 
   std::string current = mountPoint;
-  std::stringstream stream(resolvedPath.substr(mountPoint.size()));
-  std::string component;
-  while (std::getline(stream, component, '/')) {
-    if (component.empty()) {
-      continue;
-    }
+  const std::string_view suffix(resolvedPath.data() + mountPoint.size(),
+                                resolvedPath.size() - mountPoint.size());
+  std::size_t cursor = 0;
+  std::string_view component;
+  while (NextPathComponent(suffix, cursor, component)) {
     current.push_back('/');
-    current += component;
+    current.append(component.data(), component.size());
 
     if (NoFollowStat(current.c_str(), &state) == 0) {
       if (S_ISLNK(state.st_mode)) {
         return false;
       }
-      const bool isFinal = current.size() == resolvedPath.size();
+      std::size_t nextCursor = cursor;
+      std::string_view nextComponent;
+      const bool isFinal =
+          !NextPathComponent(suffix, nextCursor, nextComponent);
       if (!isFinal && !S_ISDIR(state.st_mode)) {
         return false;
       }
