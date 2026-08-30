@@ -1004,8 +1004,15 @@ bool Ui2TrackerSessionModelPort::ApplyCopySelection(
 
 bool Ui2TrackerSessionModelPort::ApplyPasteSelection(
     const Ui2TrackerCommand &command) {
-  if (selectionClipboardPage_ != command.sourcePage ||
-      selectionClipboardWidth_ == 0U || selectionClipboardHeight_ == 0U)
+  const auto isTablePage = [](Ui2TrackerPage page) {
+    return page == Ui2TrackerPage::PhraseTable ||
+           page == Ui2TrackerPage::InstrumentTable;
+  };
+  const bool compatiblePage =
+      selectionClipboardPage_ == command.sourcePage ||
+      (isTablePage(selectionClipboardPage_) && isTablePage(command.sourcePage));
+  if (!compatiblePage || selectionClipboardWidth_ == 0U ||
+      selectionClipboardHeight_ == 0U)
     return false;
   GridBounds bounds{};
   if (!ResolveGridBounds(command.sourcePage, bounds) ||

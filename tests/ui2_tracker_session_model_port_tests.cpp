@@ -550,6 +550,32 @@ TEST_CASE("UI2 model port pastes the last Phrase and Table FX values") {
   CHECK(table.param2_[4] == 0x00BBU);
 }
 
+TEST_CASE("UI2 model port shares selection clipboard between Table contexts") {
+  TableHolder *tables = TableHolder::GetInstance();
+  tables->Reset();
+  TrackerApplicationSession session;
+  Ui2TrackerSessionModelPort port(session);
+  Table &phraseTable = tables->GetTable(0);
+  phraseTable.cmd1_[2] = FourCC::InstrumentCommandVolume;
+  phraseTable.param1_[2] = 0x0042U;
+
+  port.ApplyGridCommand(SelectionCommand(
+      Ui2TrackerCommandType::CopySelection, Ui2TrackerPage::PhraseTable, 0, 2,
+      1, 2));
+  Ui2TrackerCommand selectInstrumentTable = GridCommand(
+      Ui2TrackerCommandType::SelectNumber, Ui2TrackerPage::InstrumentTable, 0,
+      0);
+  selectInstrumentTable.value = 1;
+  port.ApplyGridCommand(selectInstrumentTable);
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::PasteSelection,
+                                    Ui2TrackerPage::InstrumentTable, 4, 0));
+
+  const Table &instrumentTable = tables->GetTable(1);
+  CHECK(instrumentTable.cmd1_[4] == FourCC::InstrumentCommandVolume);
+  CHECK(instrumentTable.param1_[4] == 0x0042U);
+  CHECK(port.ProjectMutationGeneration() == 1U);
+}
+
 TEST_CASE("UI2 model port synchronizes Phrase audition row and adjacent phrases") {
   TrackerApplicationSession session;
   Ui2TrackerSessionModelPort port(session);
