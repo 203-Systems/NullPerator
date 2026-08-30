@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "Application/Model/Song.h"
 #include "Application/UI2/Controllers/Ui2ControllerPrimitives.h"
 #include "UI2/Views/Instrument/UiInstrumentCapacity.h"
 
@@ -96,7 +97,9 @@ public:
       kUiInstrumentMaximumOperatorRows;
   static constexpr std::uint8_t MaximumRows = kUiInstrumentMaximumRows;
   static constexpr std::uint8_t TrackCount = 8U;
-  static constexpr std::uint8_t DefaultInstrumentCount = 39U;
+  static_assert(MAX_INSTRUMENT_COUNT > 0 && MAX_INSTRUMENT_COUNT <= 0xFF);
+  static constexpr std::uint8_t DefaultInstrumentCount =
+      static_cast<std::uint8_t>(MAX_INSTRUMENT_COUNT);
 
   constexpr Ui2InstrumentController(
       std::uint8_t number = 0, std::uint8_t selectedTrack = 0,

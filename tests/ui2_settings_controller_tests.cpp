@@ -458,11 +458,41 @@ TEST_CASE("UI2 Instrument Edit owns top number and bottom track dual focus") {
   const auto number = controller.Handle(TrackerAction::Up, true);
   REQUIRE(number.HasValue());
   CHECK(number.type == Ui2InstrumentCommandType::SelectNumber);
-  CHECK(number.value == 38);
-  CHECK(controller.Number() == 38U);
+  CHECK(number.value == MAX_INSTRUMENT_COUNT - 1U);
+  CHECK(controller.Number() == MAX_INSTRUMENT_COUNT - 1U);
   controller.Handle(TrackerAction::Up, false);
   controller.Handle(TrackerAction::Option, false);
   CHECK_FALSE(controller.NumberFocus());
+}
+
+TEST_CASE("UI2 Instrument traverses and synchronizes every model slot") {
+  using namespace ui2;
+  CHECK(Ui2InstrumentController::DefaultInstrumentCount ==
+        MAX_INSTRUMENT_COUNT);
+
+  if constexpr (MAX_INSTRUMENT_COUNT > 0x27) {
+    Ui2InstrumentController adjacent(0x26U);
+    adjacent.Handle(TrackerAction::Option, true);
+    const auto next = Tap(adjacent, TrackerAction::Down);
+    REQUIRE(next.HasValue());
+    CHECK(next.type == Ui2InstrumentCommandType::SelectNumber);
+    CHECK(next.value == 0x27);
+    CHECK(adjacent.Number() == 0x27U);
+    adjacent.Handle(TrackerAction::Option, false);
+  }
+
+  Ui2InstrumentController high;
+  high.Synchronize(MAX_INSTRUMENT_COUNT - 1U, 0U, {5U, 0U, true}, 0U, 0U);
+  CHECK(high.Number() == MAX_INSTRUMENT_COUNT - 1U);
+  if constexpr (MAX_INSTRUMENT_COUNT == 0x40)
+    CHECK(high.Number() == 0x3FU);
+  high.Handle(TrackerAction::Option, true);
+  const auto wrapped = Tap(high, TrackerAction::Down);
+  REQUIRE(wrapped.HasValue());
+  CHECK(wrapped.type == Ui2InstrumentCommandType::SelectNumber);
+  CHECK(wrapped.value == 0x00);
+  CHECK(high.Number() == 0x00U);
+  high.Handle(TrackerAction::Option, false);
 }
 
 TEST_CASE("UI2 Instrument Enter emits typed field edits and one commit") {
