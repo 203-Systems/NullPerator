@@ -57,7 +57,6 @@ enum class SampleSlicesViewUi2Focus : std::uint8_t {
 struct SampleSlicesViewUi2Snapshot {
   static constexpr std::size_t SliceCapacity = 16;
 
-  std::array<char, 3> sliceCount{};
   std::array<char, 8> slice{};
   std::array<char, 8> start{};
   std::array<char, 8> zoom{};

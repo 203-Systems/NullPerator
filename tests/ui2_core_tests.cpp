@@ -3784,7 +3784,6 @@ TEST_CASE("UI2 Sample Slices delta is pixel-identical to a full redraw") {
   surface.ClearDirty();
 
   ui2::UiSampleSlicesViewData current = previous;
-  current.sliceCount = "08";
   current.slice = "03 / 08";
   current.start = "000119";
   current.zoom = "2X";
@@ -3816,7 +3815,6 @@ TEST_CASE("UI2 Sample pages keep the top bar free of legacy metadata") {
   CHECK(FindTextCommand(scene.top.Stream(), "EDIT") == nullptr);
 
   ui2::UiSampleSlicesViewData slices;
-  slices.sliceCount = "04";
   REQUIRE(ui2::UiSampleSlicesView::Build(slices, palette, scene) ==
           ui2::UiBuildStatus::Built);
   CHECK(FindTextCommand(scene.top.Stream(), "04") == nullptr);
@@ -3944,7 +3942,6 @@ TEST_CASE("UI2 Sample Editor adapter owns controller text waveform and modes") {
 
 TEST_CASE("UI2 Sample Slices adapter maps real markers focus and help") {
   SampleSlicesViewUi2Snapshot snapshot;
-  CopyUi2SnapshotText(snapshot.sliceCount, "03");
   CopyUi2SnapshotText(snapshot.slice, "02 / 03");
   CopyUi2SnapshotText(snapshot.start, "0000064");
   CopyUi2SnapshotText(snapshot.zoom, "4X");

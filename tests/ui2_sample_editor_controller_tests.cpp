@@ -447,7 +447,7 @@ TEST_CASE("UI2 Sample Slices selects moves previews adds and deletes") {
 
   SampleSlicesViewUi2Snapshot snapshot = controller.Snapshot();
   CHECK(snapshot.hasSample);
-  CHECK(std::strcmp(snapshot.sliceCount.data(), "03") == 0);
+  CHECK(std::strcmp(snapshot.slice.data(), "01 / 03") == 0);
   CHECK(snapshot.markers.count == 3U);
 
   Tap(controller, TrackerAction::Right);

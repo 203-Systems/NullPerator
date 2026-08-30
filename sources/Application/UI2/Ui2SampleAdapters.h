@@ -87,8 +87,8 @@ inline bool EqualEditorCapture(const SampleEditorViewUi2Snapshot &left,
 
 inline bool EqualSlicesCapture(const SampleSlicesViewUi2Snapshot &left,
                                const SampleSlicesViewUi2Snapshot &right) {
-  return left.sliceCount == right.sliceCount && left.slice == right.slice &&
-         left.start == right.start && left.zoom == right.zoom &&
+  return left.slice == right.slice && left.start == right.start &&
+         left.zoom == right.zoom &&
          left.waveform.size == right.waveform.size &&
          left.waveform.revision == right.waveform.revision &&
          left.markers.markers == right.markers.markers &&
@@ -280,7 +280,6 @@ struct UiSampleSlicesControllerState {
 
   [[nodiscard]] UiSampleSlicesViewData ToViewData() const {
     UiSampleSlicesViewData data;
-    data.sliceCount = detail::SampleCStringView(capture.sliceCount);
     data.slice = detail::SampleCStringView(capture.slice);
     data.start = detail::SampleCStringView(capture.start);
     data.zoom = detail::SampleCStringView(capture.zoom);

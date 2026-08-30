@@ -289,8 +289,6 @@ public:
   [[nodiscard]] SampleSlicesViewUi2Snapshot Snapshot() const {
     SampleSlicesViewUi2Snapshot snapshot;
     const std::uint8_t activeCount = DefinedCount();
-    std::snprintf(snapshot.sliceCount.data(), snapshot.sliceCount.size(),
-                  "%02u", static_cast<unsigned>(activeCount));
     std::snprintf(snapshot.slice.data(), snapshot.slice.size(), "%02u / %02u",
                   activeCount == 0U ? 0U
                                     : static_cast<unsigned>(selectedSlice_ + 1U),

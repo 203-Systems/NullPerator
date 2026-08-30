@@ -114,7 +114,6 @@ enum class UiSampleSlicesCursor : std::uint8_t {
 };
 
 struct UiSampleSlicesViewData {
-  std::string_view sliceCount = "04";
   std::string_view slice = "01 / 04";
   std::string_view start = "000064";
   std::string_view zoom = "1X";
