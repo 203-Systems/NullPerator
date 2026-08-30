@@ -4,7 +4,7 @@ export const VIEW_NAMES = Object.freeze([
   'Song', 'Chain', 'Phrase', 'Project', 'Device', 'Instrument',
   'Phrase Table', 'Instrument Table', 'Groove', 'Mixer', 'Sample Import',
   'Instrument Import', 'Select Project', 'Theme', 'Select Theme',
-  'Theme Import', 'Sample Editor', 'Sample Slices', 'Record',
+  'Theme Import', 'Sample Editor', 'Sample Slices', 'Record', 'Font',
 ])
 
 export const MODAL_NAMES = Object.freeze([

@@ -81,6 +81,8 @@ ui2::UiApplicationPage NativePageForDiagnostic(std::uint32_t view) {
     return Page::SampleSlices;
   case VT_RECORD:
     return Page::Record;
+  case VT_FONT:
+    return Page::Font;
   default:
     return Page::None;
   }

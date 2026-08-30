@@ -6,7 +6,8 @@ test('every registered C++ view and modal enters, draws, and processes input on 
   await page.goto('/?views-test=1')
   await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible({ timeout: 20_000 })
   const names = await page.evaluate(() => globalThis.__picoTrackerViewsTest.names)
-  expect(names).toHaveLength(19)
+  expect(names).toHaveLength(20)
+  expect(names.at(-1)).toBe('Font')
 
   for (let viewType = 0; viewType < names.length; viewType += 1) {
     const beforeDraw = await page.evaluate(() => globalThis.__picoTrackerViewsTest.generation())

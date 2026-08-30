@@ -15,7 +15,7 @@ function moduleWith(overrides = {}) {
 }
 
 describe('view acceptance diagnostics', () => {
-  it('keeps the authoritative 19 ViewType order and forwards native counters', () => {
+  it('keeps historical view ids stable, appends Font, and forwards native counters', () => {
     const request = vi.fn()
     const handle = createViewDiagnostics(moduleWith({
       _PicoTracker_Wasm_RequestDiagnosticView: request,
@@ -23,11 +23,17 @@ describe('view acceptance diagnostics', () => {
       _PicoTracker_Wasm_GetDiagnosticViewGeneration: () => 12,
       _PicoTracker_Wasm_GetDiagnosticInputGeneration: () => 34,
     }))
-    expect(VIEW_NAMES).toHaveLength(19)
-    expect(VIEW_NAMES[0]).toBe('Song')
-    expect(VIEW_NAMES.at(-1)).toBe('Record')
+    expect(VIEW_NAMES).toHaveLength(20)
+    expect(VIEW_NAMES.slice(0, 19)).toEqual([
+      'Song', 'Chain', 'Phrase', 'Project', 'Device', 'Instrument',
+      'Phrase Table', 'Instrument Table', 'Groove', 'Mixer', 'Sample Import',
+      'Instrument Import', 'Select Project', 'Theme', 'Select Theme',
+      'Theme Import', 'Sample Editor', 'Sample Slices', 'Record',
+    ])
+    expect(VIEW_NAMES.at(-1)).toBe('Font')
     handle.request(18)
-    expect(request).toHaveBeenCalledWith(18)
+    handle.request(19)
+    expect(request.mock.calls).toEqual([[18], [19]])
     expect([handle.current(), handle.generation(), handle.inputGeneration()]).toEqual([7, 12, 34])
   })
 
@@ -36,7 +42,7 @@ describe('view acceptance diagnostics', () => {
     const handle = createViewDiagnostics(moduleWith({
       _PicoTracker_Wasm_RequestDiagnosticView: request,
     }))
-    for (const value of [-1, 19, 1.5, '1']) expect(() => handle.request(value)).toThrow(RangeError)
+    for (const value of [-1, 20, 1.5, '1']) expect(() => handle.request(value)).toThrow(RangeError)
     expect(request).not.toHaveBeenCalled()
   })
 

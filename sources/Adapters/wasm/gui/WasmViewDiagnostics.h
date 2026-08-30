@@ -31,7 +31,11 @@ enum WasmDiagnosticView : std::uint32_t {
   VT_SAMPLE_EDITOR,
   VT_SAMPLE_SLICES,
   VT_RECORD,
+  VT_FONT,
 };
+
+static_assert(VT_RECORD == 18U);
+static_assert(VT_FONT == 19U);
 
 void WasmViewDiagnostics_Request(std::uint32_t viewType) noexcept;
 std::uint32_t WasmViewDiagnostics_Current() noexcept;
