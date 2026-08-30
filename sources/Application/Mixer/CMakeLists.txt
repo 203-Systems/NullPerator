@@ -5,6 +5,7 @@ add_library(application_mixer
 
 target_link_libraries(application_mixer PUBLIC
   application_audio
+  foundation
   system_console
   platform
 )

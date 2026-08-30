@@ -28,6 +28,7 @@ if(Node)
 endif()
 
 target_link_libraries(application_instruments PUBLIC
+  foundation
   foundation_services
   system_io
   crsid

@@ -12,6 +12,7 @@ add_library(application_model
 )
 
 target_link_libraries(application_model PUBLIC
+  foundation
   system_system
   foundation_variables
   application_utils

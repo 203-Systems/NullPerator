@@ -6,6 +6,10 @@ add_library(services_midi
   MidiNoteTracker.cpp
 )
 
+target_link_libraries(services_midi PUBLIC
+  foundation
+)
+
 target_include_directories(services_midi PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 include_directories(${PROJECT_SOURCE_DIR})

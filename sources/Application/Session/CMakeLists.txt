@@ -23,6 +23,7 @@ target_link_libraries(application_lifecycle PUBLIC
   application_persistency
   application_player
   application_session
+  foundation
   services_midi
   system_filesystem
   system_system

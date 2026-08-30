@@ -7,6 +7,7 @@ add_library(application_player
 )
 
 target_link_libraries(application_player PUBLIC
+  foundation
   application_mixer
   application_audio
   application_model

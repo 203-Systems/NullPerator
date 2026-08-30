@@ -9,6 +9,7 @@ add_library(services_audio
 target_link_libraries(services_audio PUBLIC
   application_instruments
   application_player
+  foundation
 )
 
 target_include_directories(services_audio PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
