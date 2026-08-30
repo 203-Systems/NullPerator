@@ -59,8 +59,9 @@ struct renderParams {
   fixed basePan_; // panning
   fixed pan_;
 
-  // Size of this struct same as max number of updaters
-  etl::vector<I_SRPUpdater *, 10> activeUpdaters_;
+  // One slot for each updater member below. No voice can activate more than
+  // these eight distinct updaters at once.
+  etl::vector<I_SRPUpdater *, 8> activeUpdaters_;
 
   VolumeRamp volumeRamp_;
   Panner panner_;

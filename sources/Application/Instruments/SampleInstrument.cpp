@@ -37,6 +37,17 @@
 #include "SampleInstrumentParameterLimits.h"
 
 namespace {
+void activateUpdater(renderParams &params, I_SRPUpdater &updater) {
+  if (params.activeUpdaters_.full()) {
+    // Keep the existing modulation set stable and reject the newest command.
+    // Disabling it also keeps Enabled() consistent with list membership.
+    updater.Disable();
+    Trace::Error("SAMPLE", "Updater list full; dropping newest command");
+    return;
+  }
+  params.activeUpdaters_.push_back(&updater);
+}
+
 void renderMonoUnityPitch(short *input, fixed *output, int frameCount,
                           fixed volume, fixed panLeft, fixed panRight) {
   for (int frame = 0; frame < frameCount; ++frame) {
@@ -1326,7 +1337,7 @@ void SampleInstrument::ProcessCommand(int channel, FourCC cc, ushort value) {
     rp->arp_.SetData(value);
     if (!rp->arp_.Enabled()) {
       rp->arp_.Enable();
-      rp->activeUpdaters_.push_back(&rp->arp_);
+      activateUpdater(*rp, rp->arp_);
     }
   } break;
 
@@ -1344,7 +1355,7 @@ void SampleInstrument::ProcessCommand(int channel, FourCC cc, ushort value) {
                             startVolume - baseVolume);
     if (!rp->volumeRamp_.Enabled()) {
       rp->volumeRamp_.Enable();
-      rp->activeUpdaters_.push_back(&rp->volumeRamp_);
+      activateUpdater(*rp, rp->volumeRamp_);
     }
   } break;
 
@@ -1363,7 +1374,7 @@ void SampleInstrument::ProcessCommand(int channel, FourCC cc, ushort value) {
     rp->panner_.SetData(targetPan - basePan, speed, startPan - basePan);
     if (!rp->panner_.Enabled()) {
       rp->panner_.Enable();
-      rp->activeUpdaters_.push_back(&rp->panner_);
+      activateUpdater(*rp, rp->panner_);
     }
   } break;
 
@@ -1379,7 +1390,7 @@ void SampleInstrument::ProcessCommand(int channel, FourCC cc, ushort value) {
     rp->cutRamp_.SetData(target - baseCut, speed, start - baseCut);
     if (!rp->cutRamp_.Enabled()) {
       rp->cutRamp_.Enable();
-      rp->activeUpdaters_.push_back(&rp->cutRamp_);
+      activateUpdater(*rp, rp->cutRamp_);
     }
   } break;
 
@@ -1395,7 +1406,7 @@ void SampleInstrument::ProcessCommand(int channel, FourCC cc, ushort value) {
     rp->resRamp_.SetData(target - baseRes, speed, start - baseRes);
     if (!rp->resRamp_.Enabled()) {
       rp->resRamp_.Enable();
-      rp->activeUpdaters_.push_back(&rp->resRamp_);
+      activateUpdater(*rp, rp->resRamp_);
     }
   } break;
   case FourCC::InstrumentCommandPitchSlide: {
@@ -1420,7 +1431,7 @@ void SampleInstrument::ProcessCommand(int channel, FourCC cc, ushort value) {
     rp->speedRamp_.SetData(targetSpeed, speed, srcSpeed);
     if (!rp->speedRamp_.Enabled()) {
       rp->speedRamp_.Enable();
-      rp->activeUpdaters_.push_back(&rp->speedRamp_);
+      activateUpdater(*rp, rp->speedRamp_);
     }
   }; break;
 
@@ -1453,7 +1464,7 @@ void SampleInstrument::ProcessCommand(int channel, FourCC cc, ushort value) {
     rp->legato_.SetData(targetSpeed, speed, initSpeed);
     if (!rp->legato_.Enabled()) {
       rp->legato_.Enable();
-      rp->activeUpdaters_.push_back(&rp->legato_);
+      activateUpdater(*rp, rp->legato_);
     }
   }; break;
 
@@ -1478,7 +1489,7 @@ void SampleInstrument::ProcessCommand(int channel, FourCC cc, ushort value) {
 
     if (!rp->pfin_.Enabled()) {
       rp->pfin_.Enable();
-      rp->activeUpdaters_.push_back(&rp->pfin_);
+      activateUpdater(*rp, rp->pfin_);
     }
   }; break;
 
