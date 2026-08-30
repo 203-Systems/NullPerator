@@ -1826,9 +1826,14 @@ void Ui2TrackerApplication::ExecuteInstrumentLifecycle(
     return;
   }
   if (result != Ui2InstrumentTypeOutcome::Changed) {
-    // The current slot is deliberately retained. Legacy's allocation dialog
-    // promises "Trying next..." and then changes to another type; UI2 needs an
-    // approved error state before it can report this without misleading text.
+    // The atomic transaction deliberately retains the current slot. Surface
+    // the real failure through UI2's non-blocking feedback layer instead of
+    // leaving the selector apparently unresponsive.
+    const char *message = Ui2InstrumentTypeFailureText(result);
+    if (message[0] != '\0') {
+      Status::Set("%s", message);
+      ShowFeedbackError(message);
+    }
     return;
   }
   MarkProjectDirty();

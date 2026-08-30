@@ -155,6 +155,23 @@ Ui2InstrumentImportFailureText(Ui2InstrumentImportOutcome outcome) {
   return "INSTRUMENT LOAD FAILED";
 }
 
+[[nodiscard]] constexpr const char *
+Ui2InstrumentTypeFailureText(Ui2InstrumentTypeOutcome outcome) {
+  switch (outcome) {
+  case Ui2InstrumentTypeOutcome::Unavailable:
+    return "INSTRUMENT TYPE UNAVAILABLE";
+  case Ui2InstrumentTypeOutcome::AllocationFailed:
+    return "NO FREE INSTRUMENT SLOT";
+  case Ui2InstrumentTypeOutcome::CommitFailed:
+    return "INSTRUMENT TYPE FAILED";
+  case Ui2InstrumentTypeOutcome::Changed:
+  case Ui2InstrumentTypeOutcome::NoChange:
+  case Ui2InstrumentTypeOutcome::PlayingBlocked:
+    return "";
+  }
+  return "INSTRUMENT TYPE FAILED";
+}
+
 [[nodiscard]] constexpr Ui2InstrumentExportFeedback
 Ui2InstrumentExportFeedbackFor(Ui2InstrumentExportOutcome outcome) {
   switch (outcome) {

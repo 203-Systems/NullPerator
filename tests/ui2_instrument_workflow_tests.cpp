@@ -195,6 +195,29 @@ TEST_CASE("UI2 Instrument workflow rechecks playback at type commit") {
   CHECK(bank.visible_->type == IT_MIDI);
 }
 
+TEST_CASE("UI2 Instrument type failures define visible feedback") {
+  using namespace ui2;
+
+  CHECK(std::strcmp(Ui2InstrumentTypeFailureText(
+                        Ui2InstrumentTypeOutcome::AllocationFailed),
+                    "NO FREE INSTRUMENT SLOT") == 0);
+  CHECK(std::strcmp(Ui2InstrumentTypeFailureText(
+                        Ui2InstrumentTypeOutcome::Unavailable),
+                    "INSTRUMENT TYPE UNAVAILABLE") == 0);
+  CHECK(std::strcmp(Ui2InstrumentTypeFailureText(
+                        Ui2InstrumentTypeOutcome::CommitFailed),
+                    "INSTRUMENT TYPE FAILED") == 0);
+  CHECK(std::strcmp(
+            Ui2InstrumentTypeFailureText(Ui2InstrumentTypeOutcome::Changed),
+            "") == 0);
+  CHECK(std::strcmp(
+            Ui2InstrumentTypeFailureText(Ui2InstrumentTypeOutcome::NoChange),
+            "") == 0);
+  CHECK(std::strcmp(Ui2InstrumentTypeFailureText(
+                        Ui2InstrumentTypeOutcome::PlayingBlocked),
+                    "") == 0);
+}
+
 TEST_CASE("UI2 Instrument workflow validates and maps exports") {
   using namespace ui2;
   FakeInstrument instrument;
