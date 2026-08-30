@@ -2504,6 +2504,21 @@ TEST_CASE("UI2 Sample Instrument supplies contextual bars for every field kind")
   CHECK(FindTextCommand(scene.bottom.Stream(), "YES") != nullptr);
 }
 
+TEST_CASE("UI2 Sample Instrument preserves sample filename case while unfocused") {
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  ui2::UiInstrumentViewData data;
+  data.kind = ui2::UiInstrumentKind::Sample;
+  data.cursor = ui2::UiInstrumentCursor::Type;
+  data.fields[0] = {"SAMPLE", "Kick_One.wav", 66, true};
+  data.fieldCount = 1U;
+
+  REQUIRE(ui2::UiInstrumentView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK(FindLiteralTextCommand(scene.content.Stream(), "Kick_One.wav") !=
+        nullptr);
+}
+
 TEST_CASE(
     "UI2 Instrument field focus delta is pixel-identical to a full redraw") {
   ui2::UiPalette palette;

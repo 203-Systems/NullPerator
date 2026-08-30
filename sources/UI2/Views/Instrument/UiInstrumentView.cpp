@@ -453,7 +453,8 @@ UiBuildStatus UiInstrumentView::Build(const UiInstrumentViewData &data,
       DrawField(builder, data.fields[index].label, data.fields[index].value,
                 data.fields[index].y,
                 data.fields[index].value == "--" ? UiColorToken::DerivedTextFaint
-                                                 : UiColorToken::TextNormal);
+                                                 : UiColorToken::TextNormal,
+                data.fields[index].userData);
     }
   }
 
