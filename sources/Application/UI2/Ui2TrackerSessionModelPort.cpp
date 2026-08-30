@@ -1008,9 +1008,19 @@ bool Ui2TrackerSessionModelPort::ApplyPasteSelection(
     return page == Ui2TrackerPage::PhraseTable ||
            page == Ui2TrackerPage::InstrumentTable;
   };
+  const auto isPhrasePage = [](Ui2TrackerPage page) {
+    return page == Ui2TrackerPage::Phrase;
+  };
+  const bool phraseTableTransfer =
+      (isPhrasePage(selectionClipboardPage_) &&
+       isTablePage(command.sourcePage)) ||
+      (isTablePage(selectionClipboardPage_) &&
+       isPhrasePage(command.sourcePage));
   const bool compatiblePage =
       selectionClipboardPage_ == command.sourcePage ||
-      (isTablePage(selectionClipboardPage_) && isTablePage(command.sourcePage));
+      (isTablePage(selectionClipboardPage_) &&
+       isTablePage(command.sourcePage)) ||
+      phraseTableTransfer;
   if (!compatiblePage || selectionClipboardWidth_ == 0U ||
       selectionClipboardHeight_ == 0U)
     return false;
@@ -1019,9 +1029,9 @@ bool Ui2TrackerSessionModelPort::ApplyPasteSelection(
       command.column > bounds.maximumColumn || command.row > bounds.maximumRow)
     return false;
   // A tracker cell's raw integer is only meaningful together with its field
-  // kind. Preserve the useful FX1->FX2 / Table-column workflows, but reject
-  // NOTE->INS and command->parameter reinterpretation instead of silently
-  // corrupting the destination.
+  // kind. Preserve the useful FX1->FX2 and Phrase<->Table workflows, but
+  // reject NOTE->INS and command->parameter reinterpretation instead of
+  // silently corrupting the destination.
   const auto fieldKind = [](Ui2TrackerPage page,
                             std::uint8_t column) -> std::uint8_t {
     if (page == Ui2TrackerPage::Song)
@@ -1035,15 +1045,16 @@ bool Ui2TrackerSessionModelPort::ApplyPasteSelection(
     }
     if (page == Ui2TrackerPage::PhraseTable ||
         page == Ui2TrackerPage::InstrumentTable)
-      return static_cast<std::uint8_t>(column & 1U);
+      return static_cast<std::uint8_t>(2U + (column & 1U));
     return column;
   };
   for (std::uint8_t x = 0U; x < selectionClipboardWidth_; ++x) {
     const unsigned destination = static_cast<unsigned>(command.column) + x;
     if (destination > bounds.maximumColumn)
       break;
-    if (fieldKind(command.sourcePage,
-                  static_cast<std::uint8_t>(selectionClipboardStartColumn_ + x)) !=
+    if (fieldKind(
+            selectionClipboardPage_,
+            static_cast<std::uint8_t>(selectionClipboardStartColumn_ + x)) !=
         fieldKind(command.sourcePage, static_cast<std::uint8_t>(destination)))
       return false;
   }

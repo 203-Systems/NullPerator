@@ -576,6 +576,61 @@ TEST_CASE("UI2 model port shares selection clipboard between Table contexts") {
   CHECK(port.ProjectMutationGeneration() == 1U);
 }
 
+TEST_CASE("UI2 model port shares FX selections between Phrase and Table") {
+  TableHolder *tables = TableHolder::GetInstance();
+  tables->Reset();
+  TrackerApplicationSession session;
+  Ui2TrackerSessionModelPort port(session);
+  Phrase &phrase = session.ProjectModel().song_.phrase_;
+  session.EditorState().currentPhrase_ = 0;
+
+  phrase.cmd1_[2] = FourCC::InstrumentCommandArpeggiator;
+  phrase.param1_[2] = 0x0037U;
+  phrase.cmd1_[3] = FourCC::InstrumentCommandKill;
+  phrase.param1_[3] = 0x00BBU;
+  port.ApplyGridCommand(SelectionCommand(
+      Ui2TrackerCommandType::CopySelection, Ui2TrackerPage::Phrase, 2, 2, 3,
+      3));
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::PasteSelection,
+                                    Ui2TrackerPage::PhraseTable, 4, 0));
+
+  Table &table = tables->GetTable(0);
+  CHECK(table.cmd1_[4] == FourCC::InstrumentCommandArpeggiator);
+  CHECK(table.param1_[4] == 0x0037U);
+  CHECK(table.cmd1_[5] == FourCC::InstrumentCommandKill);
+  CHECK(table.param1_[5] == 0x00BBU);
+  CHECK(port.ProjectMutationGeneration() == 1U);
+
+  table.cmd2_[6] = FourCC::InstrumentCommandVolume;
+  table.param2_[6] = 0x0042U;
+  port.ApplyGridCommand(SelectionCommand(
+      Ui2TrackerCommandType::CopySelection, Ui2TrackerPage::PhraseTable, 2, 6,
+      3, 6));
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::PasteSelection,
+                                    Ui2TrackerPage::Phrase, 8, 4));
+
+  CHECK(phrase.cmd2_[8] == FourCC::InstrumentCommandVolume);
+  CHECK(phrase.param2_[8] == 0x0042U);
+  CHECK(port.ProjectMutationGeneration() == 2U);
+}
+
+TEST_CASE("UI2 model port rejects Phrase note selections in Table") {
+  TableHolder *tables = TableHolder::GetInstance();
+  tables->Reset();
+  TrackerApplicationSession session;
+  Ui2TrackerSessionModelPort port(session);
+  Phrase &phrase = session.ProjectModel().song_.phrase_;
+  phrase.note_[0] = 60U;
+
+  port.ApplyGridCommand(SelectionCommand(Ui2TrackerCommandType::CopySelection,
+                                         Ui2TrackerPage::Phrase, 0, 0, 0, 0));
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::PasteSelection,
+                                    Ui2TrackerPage::PhraseTable, 0, 0));
+
+  CHECK(tables->GetTable(0).cmd1_[0] == FourCC::InstrumentCommandNone);
+  CHECK(port.ProjectMutationGeneration() == 0U);
+}
+
 TEST_CASE("UI2 model port synchronizes Phrase audition row and adjacent phrases") {
   TrackerApplicationSession session;
   Ui2TrackerSessionModelPort port(session);
