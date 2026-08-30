@@ -4,6 +4,9 @@ project(picoTrackerHostTests C CXX)
 
 enable_testing()
 
+option(PICOTRACKER_ENABLE_UI2_GOLDEN_TESTS
+  "Register UI2 golden snapshot tests (requires Node.js)" OFF)
+
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -521,8 +524,13 @@ target_include_directories(ui2_dialog_snapshot_tool PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}
   ${CMAKE_CURRENT_LIST_DIR}/../sources)
 
-find_program(NODE_EXECUTABLE node)
-if(NODE_EXECUTABLE)
+if(PICOTRACKER_ENABLE_UI2_GOLDEN_TESTS)
+  find_program(NODE_EXECUTABLE node)
+  if(NOT NODE_EXECUTABLE)
+    message(FATAL_ERROR
+      "PICOTRACKER_ENABLE_UI2_GOLDEN_TESTS requires Node.js")
+  endif()
+
   add_test(NAME ui2_song_snapshot
     COMMAND ui2_snapshot_tool "${CMAKE_CURRENT_BINARY_DIR}/song-actual.ppm")
   add_test(NAME ui2_song_golden
