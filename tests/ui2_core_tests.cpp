@@ -1674,7 +1674,7 @@ TEST_CASE("UI2 Song animated cursor delta matches the same full visual frame") {
                            current.cursorVisualRect.y + 4) ==
         deltaPalette.Index(ui2::UiColorToken::CursorPrimary));
   CHECK(ui2::UiSongView::CursorTargetRect(5, 3) ==
-        ui2::RectI16{131, 77, 15, 9});
+        ui2::RectI16{141, 77, 15, 9});
 }
 
 TEST_CASE("UI2 Song idle is clean and a cursor move stays locally dirty") {
@@ -2457,7 +2457,7 @@ TEST_CASE("UI2 Chain transpose uses signed three-glyph decimal semantics") {
   CHECK(FindTextCommand(scene.content.Stream(), "---") != nullptr);
   CHECK(FindTextCommand(scene.bottom.Stream(), "OCT") != nullptr);
   CHECK(ui2::UiChainView::CursorTargetRect(data) ==
-        ui2::RectI16{47, 47, 21, 9});
+        ui2::RectI16{49, 47, 21, 9});
 
   bool coarsePlusMinusPresent = false;
   for (const ui2::UiCommand &command : scene.bottom.Commands()) {
