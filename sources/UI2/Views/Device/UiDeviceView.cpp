@@ -94,11 +94,15 @@ RectI16 ExpandedCursorDamage(RectI16 rect) {
 void DrawField(UiSceneBuilder<256, 1024> &builder, std::string_view label,
                std::string_view value, std::int16_t y,
                UiColorToken labelColor = UiColorToken::TextDim,
-               UiColorToken valueColor = UiColorToken::TextNormal) {
+               UiColorToken valueColor = UiColorToken::TextNormal,
+               bool userValue = false) {
   if (y < 0)
     return;
   builder.Text(label, 9, y, labelColor);
-  builder.Text(value, 92, y, valueColor);
+  if (userValue)
+    builder.UserText(value, 92, y, valueColor);
+  else
+    builder.Text(value, 92, y, valueColor);
 }
 
 void DrawSection(UiSceneBuilder<256, 1024> &builder, std::string_view label,
@@ -148,12 +152,12 @@ void DrawSelectedInk(UiSceneBuilder<256, 1024> &builder,
   case UiDeviceCursor::Theme:
     DrawField(builder, "THEME", data.theme, layout.theme,
               UiColorToken::TextHighlighted,
-              UiColorToken::TextHighlighted);
+              UiColorToken::TextHighlighted, true);
     break;
   case UiDeviceCursor::Font:
     DrawField(builder, "FONT", data.font, layout.font,
               UiColorToken::TextHighlighted,
-              UiColorToken::TextHighlighted);
+              UiColorToken::TextHighlighted, true);
     break;
   case UiDeviceCursor::UpdateFirmware:
     DrawField(builder, "UPDATE FIRMWARE", {}, layout.updateFirmware,
@@ -357,8 +361,10 @@ UiBuildStatus UiDeviceView::Build(const UiDeviceViewData &data, UiPalette &,
   DrawField(builder, "VOLUME", data.volume, layout.volume);
   DrawSection(builder, "DISPLAY", layout.display);
   DrawField(builder, "BRIGHTNESS", data.brightness, layout.brightness);
-  DrawField(builder, "THEME", data.theme, layout.theme);
-  DrawField(builder, "FONT", data.font, layout.font);
+  DrawField(builder, "THEME", data.theme, layout.theme, UiColorToken::TextDim,
+            UiColorToken::TextNormal, true);
+  DrawField(builder, "FONT", data.font, layout.font, UiColorToken::TextDim,
+            UiColorToken::TextNormal, true);
   builder.Text(data.version, 9, layout.version, UiColorToken::DerivedTextFaint);
   if (layout.maintenance >= 0) {
     DrawSection(builder, "MAINTENANCE", layout.maintenance);

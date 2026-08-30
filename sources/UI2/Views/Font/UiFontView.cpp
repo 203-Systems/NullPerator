@@ -108,7 +108,7 @@ UiBuildStatus UiFontView::Build(const UiFontViewData &data, UiPalette &,
   builder.LiteralText(data.textCase, 92, 54, UiColorToken::TextNormal);
   DrawSection(builder, "FACE", 74);
   builder.Text("FONT", 9, 86, UiColorToken::TextDim);
-  builder.Text(data.font, 92, 86, UiColorToken::TextNormal);
+  builder.UserText(data.font, 92, 86, UiColorToken::TextNormal);
   if (!data.feedback.empty())
     builder.Text(data.feedback, 9, 101, UiColorToken::TextColored);
   DrawSection(builder, "PREVIEW", 120);
@@ -124,7 +124,7 @@ UiBuildStatus UiFontView::Build(const UiFontViewData &data, UiPalette &,
                           UiColorToken::TextHighlighted);
     } else {
       builder.Text("FONT", 9, 86, UiColorToken::TextHighlighted);
-      builder.Text(data.font, 92, 86, UiColorToken::TextHighlighted);
+      builder.UserText(data.font, 92, 86, UiColorToken::TextHighlighted);
     }
   }
   return builder.Ok() ? UiBuildStatus::Built : UiBuildStatus::CommandOverflow;
