@@ -1,4 +1,5 @@
 #include "doctest/doctest.h"
+#include "etl/vector.h"
 
 #include <array>
 #include <cstdint>
@@ -390,7 +391,7 @@ public:
   bool GetTableAutomation() override { return false; }
   void GetTableState(TableSaveState &) override {}
   void SetTableState(TableSaveState &) override {}
-  etl::ilist<Variable *> *Variables() override { return &variables_; }
+  etl::ivector<Variable *> *Variables() override { return &variables_; }
 
   int SidOsc() { return sidOsc_.GetInt(); }
   int SidWave() { return sidWave_.GetInt(); }
@@ -400,7 +401,7 @@ public:
   void SetMidiChannel(int channel) { midiChannel_.SetInt(channel); }
 
 private:
-  etl::list<Variable *, 7> variables_;
+  etl::vector<Variable *, 7> variables_;
   InstrumentType type_;
   Variable sidOsc_;
   Variable sidWave_;

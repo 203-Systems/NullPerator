@@ -4,6 +4,7 @@
 #include "Application/Instruments/SIDInstrument.h"
 #include "Application/Utils/FourCCSerialization.h"
 #include "Foundation/Variables/VariableContainer.h"
+#include "etl/vector.h"
 
 #include <array>
 #include <cstring>
@@ -59,7 +60,7 @@ TEST_CASE("FourCC wrapper preserves identifiers at and above bit seven") {
 TEST_CASE("VariableContainer finds variables with high FourCC identifiers") {
   Variable outputVolume(FourCC::VarOutputVolume, 40);
   Variable textCase(FourCC::VarUITextCase, 0);
-  etl::list<Variable *, 2> variables;
+  etl::vector<Variable *, 2> variables;
   variables.push_back(&outputVolume);
   variables.push_back(&textCase);
   VariableContainer container(&variables);
