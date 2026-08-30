@@ -1,5 +1,4 @@
 add_library(application_mixer
-  MixBus.cpp
   MixerService.cpp
 )
 
