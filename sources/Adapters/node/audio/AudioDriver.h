@@ -41,8 +41,6 @@ private:
   static NodeAudioDriver *instance_;
   AudioSettings settings_;
   static uint8_t miniBlank_[MINI_BLANK_SIZE * 2U * sizeof(int16_t)];
-  TaskHandle_t audioBufferTaskHandle_ = NULL;
-  TaskHandle_t i2sTaskHandle_ = NULL;
   int volume_;
   int renderBufferIndex_ = -1;
   bool renderBufferQueued_ = false;

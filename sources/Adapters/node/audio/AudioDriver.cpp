@@ -33,7 +33,7 @@ static uint8_t freeAudioBuffersStorage[SOUND_BUFFER_COUNT * sizeof(uint8_t)]
 static uint8_t filledAudioBuffersStorage[SOUND_BUFFER_COUNT * sizeof(uint8_t)]
     PICOTRACKER_FAST_DATA;
 
-static volatile unsigned long esp32_sound_pausei, esp32_exit;
+static volatile unsigned long esp32_sound_pausei;
 
 namespace {
 constexpr uint32_t kI2SWriteTimeoutMs = 20;
@@ -203,10 +203,9 @@ void NodeAudioDriver::AddBuffer(short *buffer, int samplecount) {
 NodeAudioDriver::NodeAudioDriver(AudioSettings &settings)
     : AudioDriver(settings) {
   isPlaying_ = false;
-  esp32_exit = 0;
 }
 
-NodeAudioDriver::~NodeAudioDriver() { esp32_exit = 1; }
+NodeAudioDriver::~NodeAudioDriver() = default;
 
 bool NodeAudioDriver::InitDriver() {
   instance_ = this;

@@ -50,7 +50,6 @@ protected:
   virtual void Update(Observable &o, I_ObservableData *d);
 
   void prepareMixBuffers();
-  void mixToPrimary();
   void clipToMix();
 
 private:
