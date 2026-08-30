@@ -1,5 +1,4 @@
 #include "opal.h"
-#include "System/Profiler/Profiler.h"
 #include <math.h>
 
 const uint16_t Opal::RateTables[4][8] = {
