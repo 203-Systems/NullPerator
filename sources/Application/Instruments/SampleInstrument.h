@@ -39,28 +39,28 @@ class SampleInstrument : public I_Instrument, I_Observer {
 
 public:
   SampleInstrument();
-  virtual ~SampleInstrument();
+  ~SampleInstrument() override;
   // I_Instrument implementation
-  virtual bool Init();
-  virtual bool Start(int channel, unsigned char note, bool trigger = true);
-  virtual void Stop(int channel);
-  virtual bool Render(int channel, fixed *buffer, int size, bool updateTick);
-  virtual bool IsInitialized();
-  virtual bool IsEmpty();
+  bool Init() override;
+  bool Start(int channel, unsigned char note, bool trigger = true) override;
+  void Stop(int channel) override;
+  bool Render(int channel, fixed *buffer, int size, bool updateTick) override;
+  bool IsInitialized() override;
+  bool IsEmpty() override;
 
-  virtual InstrumentType GetType() { return IT_SAMPLE; };
-  virtual void ProcessCommand(int channel, FourCC cc, ushort value);
-  virtual int GetTable();
-  virtual bool GetTableAutomation();
-  virtual void GetTableState(TableSaveState &state);
-  virtual void SetTableState(TableSaveState &state);
-  etl::ivector<Variable *> *Variables() { return &variables_; };
+  InstrumentType GetType() override { return IT_SAMPLE; };
+  void ProcessCommand(int channel, FourCC cc, ushort value) override;
+  int GetTable() override;
+  bool GetTableAutomation() override;
+  void GetTableState(TableSaveState &state) override;
+  void SetTableState(TableSaveState &state) override;
+  etl::ivector<Variable *> *Variables() override { return &variables_; };
 
   bool IsMulti();
 
   // Engine playback  start callback
 
-  virtual void OnStart();
+  void OnStart() override;
   static constexpr size_t MaxSlices = 16;
   static constexpr unsigned char SliceNoteBase = 48;
 
@@ -74,7 +74,7 @@ public:
   bool GetSliceNoteRange(uint8_t &first, uint8_t &last) const;
 
   // I_Observer
-  virtual void Update(Observable &o, I_ObservableData *d);
+  void Update(Observable &o, I_ObservableData *d) override;
   // Additional
   void AssignSample(int i);
   int GetSampleIndex();
@@ -83,14 +83,14 @@ public:
   int GetSampleSize(int channel = -1);
   float GetLengthInSec();
 
-  virtual etl::string<MAX_INSTRUMENT_NAME_LENGTH> GetUserSetName();
-  virtual etl::string<MAX_INSTRUMENT_NAME_LENGTH> GetDisplayName() override;
+  etl::string<MAX_INSTRUMENT_NAME_LENGTH> GetUserSetName() override;
+  etl::string<MAX_INSTRUMENT_NAME_LENGTH> GetDisplayName() override;
   virtual etl::string<MAX_INSTRUMENT_FILENAME_LENGTH> GetSampleFileName();
 
   static void EnableDownsamplingLegacy();
-  virtual void SaveContent(tinyxml2::XMLPrinter *printer) override;
-  virtual void RestoreContent(PersistencyDocument *doc) override;
-  void Purge();
+  void SaveContent(tinyxml2::XMLPrinter *printer) override;
+  void RestoreContent(PersistencyDocument *doc) override;
+  void Purge() override;
 
 protected:
   void updateInstrumentData(bool search);

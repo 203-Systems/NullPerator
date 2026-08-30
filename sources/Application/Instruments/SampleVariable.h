@@ -17,7 +17,7 @@
 class SampleVariable : public WatchedVariable, public I_Observer {
 public:
   SampleVariable(FourCC id);
-  ~SampleVariable();
+  ~SampleVariable() override;
 
   void SetInt(int value, bool notify = true) override;
   void SetString(const char *string, bool notify = true) override;
@@ -28,7 +28,7 @@ public:
   }
 
 protected:
-  virtual void Update(Observable &o, I_ObservableData *d);
+  void Update(Observable &o, I_ObservableData *d) override;
 
 private:
   SampleBindingState binding_;
