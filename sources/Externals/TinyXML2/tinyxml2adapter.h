@@ -4,6 +4,7 @@
 #include "System/FileSystem/FileHandle.h"
 #include "System/FileSystem/FileSystem.h"
 #include "System/FileSystem/I_File.h"
+#include <stdarg.h>
 #include <stdio.h>
 
 #ifdef FILE
@@ -27,5 +28,6 @@
 #define fgetc(a) a->GetC()
 #define ferror(a) a->Error()
 extern void fprintf(FILE *f, const char *fmt, ...);
-#define vfprintf(a, b, c) fprintf(a, b, c)
+extern void i_file_vfprintf(FILE *f, const char *fmt, va_list args);
+#define vfprintf(a, b, c) i_file_vfprintf(a, b, c)
 #endif
