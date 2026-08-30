@@ -9,6 +9,7 @@
 #include "Application/Input/ITrackerInputSink.h"
 #include "Application/Persistency/PersistenceConstants.h"
 #include "Application/Persistency/PersistencyService.h"
+#include "Application/UI2/Controllers/Ui2ControllerPrimitives.h"
 #include "Application/Views/Ui2BrowserSnapshot.h"
 #include "System/FileSystem/FileSystem.h"
 
@@ -45,7 +46,7 @@ Ui2ProjectBrowserProjectAction(bool optionHeld, std::uint8_t activeAction) {
 class Ui2ProjectBrowserController : private FileSystemDirectorySnapshot {
 public:
   bool Refresh(const char *currentProject = nullptr) {
-    heldMask_ = 0U;
+    input_ = {};
     SetCurrentProject(currentProject);
     depth_ = 1U;
     for (auto &part : path_)
@@ -93,15 +94,8 @@ public:
   }
 
   Ui2ProjectBrowserCommand Handle(TrackerAction action, bool pressed) {
-    const std::uint16_t bit = TrackerActionBit(action);
-    if (pressed) {
-      if ((heldMask_ & bit) != 0U)
-        return {};
-      heldMask_ |= bit;
-    } else {
-      heldMask_ &= static_cast<std::uint16_t>(~bit);
+    if (!input_.Update(action, pressed) || !pressed)
       return {};
-    }
 
     if (action == TrackerAction::Up) {
       if (selected_ > 0U)
@@ -131,7 +125,7 @@ public:
       }
       Ui2ProjectBrowserCommand command{
           .type = Ui2ProjectBrowserProjectAction(
-              (heldMask_ & TrackerActionBit(TrackerAction::Option)) != 0U,
+              input_.Held(TrackerAction::Option),
               activeAction_)};
       ReadName(directoryIndex, command.project.data(), command.project.size());
       // DELETE is deliberately unavailable for the active project both in the
@@ -347,7 +341,7 @@ private:
   std::uint16_t count_ = 0U;
   std::uint16_t selected_ = 0U;
   std::uint16_t top_ = 0U;
-  std::uint16_t heldMask_ = 0U;
+  Ui2ControllerInputState input_{};
   std::array<std::array<char, Ui2BrowserSnapshot::ItemTextCapacity>, 8U>
       path_{};
   std::array<char, MAX_PROJECT_NAME_LENGTH + 1U> currentProject_{};

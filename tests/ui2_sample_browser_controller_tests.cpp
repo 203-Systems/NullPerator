@@ -297,6 +297,22 @@ TEST_CASE("UI2 Sample Browser previews, imports, and restores pool mode") {
   controller.Handle(TrackerAction::Shift, false);
 }
 
+TEST_CASE("UI2 Sample Browser accepts held-direction repeat pulses") {
+  using namespace ui2;
+  SampleBrowserFileSystem fileSystem;
+  Ui2SampleBrowserController controller;
+  REQUIRE(controller.Open("DEMO", 3U));
+
+  controller.Handle(TrackerAction::Right, true);
+  controller.Handle(TrackerAction::Right, true);
+  controller.Handle(TrackerAction::Right, false);
+
+  const Ui2BrowserSnapshot snapshot = controller.Snapshot(40);
+  REQUIRE(snapshot.actionCount == 3U);
+  CHECK(snapshot.activeAction == 2U);
+  CHECK(std::strcmp(snapshot.actions[2].data(), "DELETE") == 0);
+}
+
 TEST_CASE("UI2 Sample Browser exposes actions for empty states") {
   using namespace ui2;
   SampleBrowserFileSystem fileSystem(true);

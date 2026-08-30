@@ -8,6 +8,7 @@
 #include "Application/Input/ITrackerInputSink.h"
 #include "Application/Persistency/InstrumentExportRecovery.h"
 #include "Application/Persistency/PersistenceConstants.h"
+#include "Application/UI2/Controllers/Ui2ControllerPrimitives.h"
 #include "Application/Views/Ui2BrowserSnapshot.h"
 #include "System/FileSystem/FileSystem.h"
 
@@ -34,7 +35,7 @@ struct Ui2InstrumentBrowserCommand {
 class Ui2InstrumentBrowserController {
 public:
   bool Refresh() {
-    heldMask_ = 0U;
+    input_ = {};
     count_ = selected_ = top_ = 0U;
     error_.fill('\0');
     FileSystem *fileSystem = FileSystem::GetInstance();
@@ -54,15 +55,8 @@ public:
   }
 
   Ui2InstrumentBrowserCommand Handle(TrackerAction action, bool pressed) {
-    const std::uint16_t bit = TrackerActionBit(action);
-    if (pressed) {
-      if ((heldMask_ & bit) != 0U)
-        return {};
-      heldMask_ |= bit;
-    } else {
-      heldMask_ &= static_cast<std::uint16_t>(~bit);
+    if (!input_.Update(action, pressed) || !pressed)
       return {};
-    }
     if (action == TrackerAction::Up && selected_ > 0U) {
       --selected_;
       error_.fill('\0');
@@ -128,7 +122,7 @@ private:
   std::uint16_t count_ = 0U;
   std::uint16_t selected_ = 0U;
   std::uint16_t top_ = 0U;
-  std::uint16_t heldMask_ = 0U;
+  Ui2ControllerInputState input_{};
   std::array<char, 32> error_{};
 };
 

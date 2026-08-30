@@ -76,7 +76,7 @@ public:
     active_ = false;
     previewHeld_ = false;
     toggleChordLatched_ = false;
-    heldMask_ = 0U;
+    input_ = {};
     dialogInput_ = {};
     dialogActive_ = false;
     count_ = selected_ = top_ = 0U;
@@ -98,24 +98,20 @@ public:
     if (!active_ || dialogActive_)
       return {};
 
-    const std::uint16_t bit = TrackerActionBit(action);
-    if (pressed) {
-      if ((heldMask_ & bit) != 0U)
-        return {};
-      heldMask_ |= bit;
-    } else {
-      heldMask_ &= static_cast<std::uint16_t>(~bit);
+    if (!input_.Update(action, pressed))
+      return {};
+    if (!pressed) {
       if (action == TrackerAction::Play && previewHeld_) {
         previewHeld_ = false;
         return {.type = Ui2SampleBrowserCommandType::PreviewStop};
       }
-      if ((heldMask_ & ToggleChordMask()) != ToggleChordMask())
+      if ((input_.Mask() & ToggleChordMask()) != ToggleChordMask())
         toggleChordLatched_ = false;
       return {};
     }
 
     const bool toggleChord =
-        (heldMask_ & ToggleChordMask()) == ToggleChordMask();
+        (input_.Mask() & ToggleChordMask()) == ToggleChordMask();
     if (toggleChord && !toggleChordLatched_) {
       toggleChordLatched_ = true;
       mode_ = mode_ == Ui2SampleBrowserMode::ProjectPool
@@ -134,7 +130,7 @@ public:
     if (action == TrackerAction::Play) {
       if (!HasFileSelection())
         return {};
-      if ((heldMask_ & TrackerActionBit(TrackerAction::Shift)) != 0U &&
+      if (input_.Held(TrackerAction::Shift) &&
           mode_ == Ui2SampleBrowserMode::Library)
         return MakeSelected(Ui2SampleBrowserCommandType::Import);
       Ui2SampleBrowserCommand command =
@@ -148,13 +144,13 @@ public:
     // browser. SHIFT+LEFT remains the application-level return chord.
     if (mode_ == Ui2SampleBrowserMode::Library &&
         action == TrackerAction::Left &&
-        (heldMask_ & TrackerActionBit(TrackerAction::Option)) != 0U) {
+        input_.Held(TrackerAction::Option)) {
       NavigateParent();
       return {};
     }
 
-    if ((heldMask_ & (TrackerActionBit(TrackerAction::Shift) |
-                      TrackerActionBit(TrackerAction::Option))) != 0U)
+    if (input_.Held(TrackerAction::Shift) ||
+        input_.Held(TrackerAction::Option))
       return {};
 
     if (action == TrackerAction::Up) {
@@ -559,7 +555,7 @@ private:
   std::uint16_t count_ = 0U;
   std::uint16_t selected_ = 0U;
   std::uint16_t top_ = 0U;
-  std::uint16_t heldMask_ = 0U;
+  Ui2ControllerInputState input_{};
   std::uint8_t instrument_ = 0U;
   std::uint8_t depth_ = 0U;
   std::uint8_t selectedAction_ = 0U;

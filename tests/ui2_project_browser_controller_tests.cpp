@@ -155,6 +155,21 @@ TEST_CASE("UI2 Project Browser owns names without changing filesystem cwd") {
   CHECK(std::strcmp(command.project.data(), "OLD") == 0);
 }
 
+TEST_CASE("UI2 Project Browser accepts held-direction repeat pulses") {
+  using namespace ui2;
+  ProjectBrowserFileSystem fileSystem;
+  Ui2ProjectBrowserController controller;
+  REQUIRE(controller.Refresh("ACTIVE"));
+
+  controller.Handle(TrackerAction::Down, true);
+  controller.Handle(TrackerAction::Down, true);
+  controller.Handle(TrackerAction::Down, false);
+
+  const Ui2BrowserSnapshot snapshot = controller.Snapshot();
+  CHECK(snapshot.selectedRow == 2U);
+  CHECK(std::strcmp(snapshot.items[2].data(), ".saveas-stage.X") == 0);
+}
+
 TEST_CASE("UI2 Project Browser keeps projects as its product root") {
   using namespace ui2;
   ProjectBrowserFileSystem fileSystem;

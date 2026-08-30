@@ -8,6 +8,7 @@
 
 #include "Application/Input/ITrackerInputSink.h"
 #include "Application/Persistency/PersistenceConstants.h"
+#include "Application/UI2/Controllers/Ui2ControllerPrimitives.h"
 #include "Application/Views/Ui2BrowserSnapshot.h"
 #include "System/FileSystem/FileSystem.h"
 
@@ -93,15 +94,8 @@ public:
   }
 
   Ui2SettingsBrowserCommand Handle(TrackerAction action, bool pressed) {
-    const std::uint16_t bit = TrackerActionBit(action);
-    if (pressed) {
-      if ((heldMask_ & bit) != 0U)
-        return {};
-      heldMask_ |= bit;
-    } else {
-      heldMask_ &= static_cast<std::uint16_t>(~bit);
+    if (!input_.Update(action, pressed) || !pressed)
       return {};
-    }
     if (!Active())
       return {};
     if (action == TrackerAction::Up) {
@@ -170,7 +164,7 @@ private:
     themeCount_ = 0U;
     selected_ = 0U;
     top_ = 0U;
-    heldMask_ = 0U;
+    input_ = {};
     activeAction_ = 0U;
     error_.fill('\0');
   }
@@ -209,7 +203,7 @@ private:
   std::uint16_t themeCount_ = 0U;
   std::uint16_t selected_ = 0U;
   std::uint16_t top_ = 0U;
-  std::uint16_t heldMask_ = 0U;
+  Ui2ControllerInputState input_{};
   Ui2SettingsBrowserMode mode_ = Ui2SettingsBrowserMode::None;
   std::uint8_t activeAction_ = 0U;
 };
