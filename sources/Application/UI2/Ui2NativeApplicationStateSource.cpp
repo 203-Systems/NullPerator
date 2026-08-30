@@ -292,12 +292,12 @@ Ui2NativeApplicationStateSource::CaptureSong(UiSongFrameState &state) {
         selection.Left(), selection.Top(), selection.Right(),
         selection.Bottom(), controller.RowOffset());
   }
+  Player *player = Player::GetInstance();
   state.playing = PlayerRunning();
   state.liveMode = controller.LiveMode();
   FormatElapsed(state.elapsed);
   CaptureTrackNotes(state.notes);
-  const PlayerTransportSnapshot transport =
-      Player::GetInstance()->CaptureTransportSnapshot();
+  const PlayerTransportSnapshot transport = player->CaptureTransportSnapshot();
   // Browser previews deliberately support audio=disabled. Player still owns
   // transport and publishes the current pattern note even before a mixer
   // callback supplies the post-effect played-note text.
@@ -309,10 +309,12 @@ Ui2NativeApplicationStateSource::CaptureSong(UiSongFrameState &state) {
   }
   for (std::uint8_t track = 0; track < SONG_CHANNEL_COUNT; ++track) {
     const int visible = transport.songRow[track] - controller.RowOffset();
+    const bool visiblePlayback =
+        state.playing && transport.mode != PM_AUDITION &&
+        player->IsChannelPlaying(track) && transport.chain[track] != 0xFFU &&
+        visible >= 0 && visible < 16;
     state.playbackRows[track] =
-        state.playing && visible >= 0 && visible < 16
-            ? static_cast<std::int8_t>(visible)
-            : -1;
+        visiblePlayback ? static_cast<std::int8_t>(visible) : -1;
   }
   state.vuLevelTop = MasterVu();
   return {.active = state.playing};
@@ -344,11 +346,12 @@ Ui2NativeApplicationStateSource::CaptureChain(UiChainFrameState &state) {
   std::copy_n(song.chain_.transpose_ + base, 16, state.transposes.begin());
   FormatElapsed(state.elapsed);
   CaptureTrackNotes(state.trackNotes);
-  const PlayerTransportSnapshot transport =
-      Player::GetInstance()->CaptureTransportSnapshot();
+  Player *player = Player::GetInstance();
+  const PlayerTransportSnapshot transport = player->CaptureTransportSnapshot();
   const int selectedTrack = controller.SelectedTrack();
   if (transport.running && selectedTrack >= 0 &&
-      selectedTrack < SONG_CHANNEL_COUNT &&
+      selectedTrack < SONG_CHANNEL_COUNT && transport.mode != PM_AUDITION &&
+      player->IsChannelPlaying(selectedTrack) &&
       transport.chain[selectedTrack] == controller.Number()) {
     const int playbackRow = transport.chainRow[selectedTrack];
     if (playbackRow >= 0 && playbackRow < PHRASES_PER_CHAIN)
@@ -404,11 +407,12 @@ Ui2NativeApplicationStateSource::CapturePhrase(UiPhraseFrameState &state) {
   }
   FormatElapsed(state.elapsed);
   CaptureTrackNotes(state.trackNotes);
-  const PlayerTransportSnapshot transport =
-      Player::GetInstance()->CaptureTransportSnapshot();
+  Player *player = Player::GetInstance();
+  const PlayerTransportSnapshot transport = player->CaptureTransportSnapshot();
   const int selectedTrack = controller.SelectedTrack();
   if (transport.running && selectedTrack >= 0 &&
-      selectedTrack < SONG_CHANNEL_COUNT &&
+      selectedTrack < SONG_CHANNEL_COUNT && transport.mode != PM_AUDITION &&
+      player->IsChannelPlaying(selectedTrack) &&
       transport.phrase[selectedTrack] == controller.Number()) {
     const int playbackRow = transport.phraseRow[selectedTrack];
     if (playbackRow >= 0 && playbackRow < STEPS_PER_PHRASE)
@@ -489,8 +493,10 @@ Ui2NativeApplicationStateSource::CaptureTable(UiTableFrameState &state) {
   FormatElapsed(state.elapsed);
   CaptureTrackNotes(state.trackNotes);
   const int selectedTrack = controller.SelectedTrack();
-  if (PlayerRunning() && selectedTrack >= 0 &&
-      selectedTrack < SONG_CHANNEL_COUNT) {
+  const PlayerTransportSnapshot transport =
+      Player::GetInstance()->CaptureTransportSnapshot();
+  if (transport.running && transport.mode != PM_AUDITION &&
+      selectedTrack >= 0 && selectedTrack < SONG_CHANNEL_COUNT) {
     Table &visibleTable =
         TableHolder::GetInstance()->GetTable(controller.Number());
     TablePlayback *playback =
