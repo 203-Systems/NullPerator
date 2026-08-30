@@ -261,11 +261,6 @@ private:
   std::uint8_t column_ = 0;
 };
 
-[[nodiscard]] constexpr bool IsUi2TrackerDirection(TrackerAction action) {
-  return action == TrackerAction::Left || action == TrackerAction::Down ||
-         action == TrackerAction::Right || action == TrackerAction::Up;
-}
-
 [[nodiscard]] constexpr Ui2TrackerEditDirection
 Ui2TrackerDirectionFor(TrackerAction action) {
   switch (action) {

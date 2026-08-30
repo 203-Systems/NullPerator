@@ -148,9 +148,6 @@ public:
   [[nodiscard]] constexpr std::uint8_t FieldCount() const {
     return fieldCount_;
   }
-  [[nodiscard]] constexpr std::uint8_t OperatorCount() const {
-    return operatorCount_;
-  }
   [[nodiscard]] constexpr Ui2SelectorState TypeSelector() const {
     return typeSelector_;
   }
@@ -170,9 +167,6 @@ public:
   [[nodiscard]] constexpr bool EnterSubfieldFocus() const {
     return !NumberFocus() && subfieldMode_ != Ui2InstrumentSubfieldMode::None &&
            subfieldCount_ > 0U && input_.Held(TrackerAction::Edit);
-  }
-  [[nodiscard]] constexpr Ui2InstrumentSubfieldMode SubfieldMode() const {
-    return subfieldMode_;
   }
   [[nodiscard]] constexpr std::uint8_t Subfield() const {
     return subfield_;

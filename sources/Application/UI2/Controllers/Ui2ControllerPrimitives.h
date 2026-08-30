@@ -144,12 +144,6 @@ public:
   [[nodiscard]] constexpr std::uint8_t FirstVisibleOrdinal() const {
     return firstVisibleOrdinal_;
   }
-  [[nodiscard]] constexpr std::uint8_t FirstVisible() const {
-    return IndexAtOrdinal(firstVisibleOrdinal_);
-  }
-  [[nodiscard]] constexpr std::uint8_t ViewportRows() const {
-    return viewportRows_;
-  }
   [[nodiscard]] constexpr std::uint8_t EnabledCount() const {
     std::uint8_t count = 0;
     for (std::uint8_t index = 0; index < Capacity; ++index) {
@@ -164,14 +158,6 @@ public:
   }
   [[nodiscard]] constexpr std::uint32_t EnabledMask() const {
     return enabledMask_;
-  }
-
-  constexpr bool SetSelected(std::uint8_t selected) {
-    if (!IsEnabled(selected) || selected_ == selected)
-      return false;
-    selected_ = selected;
-    EnsureVisible();
-    return true;
   }
 
   constexpr void SetEnabledMask(std::uint32_t enabledMask) {

@@ -99,7 +99,6 @@ public:
   [[nodiscard]] SampleEditorViewUi2Focus Focus() const { return focus_; }
   [[nodiscard]] std::uint32_t Start() const { return start_; }
   [[nodiscard]] std::uint32_t End() const { return end_; }
-  [[nodiscard]] std::uint8_t FocusDigit() const { return focusDigit_; }
   [[nodiscard]] std::uint16_t HeldMask() const { return input_.Mask(); }
   [[nodiscard]] Ui2SampleEditorOperation Operation() const {
     return operation_;
