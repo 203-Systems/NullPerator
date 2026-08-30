@@ -50,8 +50,6 @@ public:
            height_.Active(nowMs);
   }
 
-  [[nodiscard]] bool Initialized() const { return initialized_; }
-
 private:
   UiMotionTrack x_;
   UiMotionTrack y_;

@@ -91,7 +91,6 @@ private:
 class UiTransitionTimeline {
 public:
   static constexpr std::uint16_t kContentDurationMs = 180;
-  static constexpr std::uint16_t kCursorDurationMs = 120;
 
   void StartContent(UiSlideDirection direction, std::uint32_t nowMs) {
     PointI16 entry{};
@@ -112,11 +111,6 @@ public:
              static_cast<std::int16_t>(outgoingY_.Sample(nowMs))},
             {static_cast<std::int16_t>(incomingX_.Sample(nowMs)),
              static_cast<std::int16_t>(incomingY_.Sample(nowMs))}};
-  }
-
-  [[nodiscard]] bool ContentActive(std::uint32_t nowMs) const {
-    return outgoingX_.Active(nowMs) || outgoingY_.Active(nowMs) ||
-           incomingX_.Active(nowMs) || incomingY_.Active(nowMs);
   }
 
 private:
