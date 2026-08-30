@@ -266,13 +266,29 @@ TEST_CASE("UI2 Theme owns NAME actions and all nineteen palette rows") {
   CHECK(color.type == Ui2ThemeCommandType::AdjustColor);
   CHECK(color.color == 18);
   CHECK(color.component == 2U);
-  CHECK(color.delta == 1);
+  CHECK(color.delta == 10);
   const auto repeated = controller.Handle(TrackerAction::Up, true);
   CHECK(repeated.type == Ui2ThemeCommandType::AdjustColor);
+  CHECK(repeated.delta == 10);
   controller.Handle(TrackerAction::Up, false);
   const auto decrement = controller.Handle(TrackerAction::Down, true);
-  CHECK(decrement.delta == -1);
+  CHECK(decrement.delta == -10);
   controller.Handle(TrackerAction::Down, false);
+
+  const auto fineDecrement = controller.Handle(TrackerAction::Left, true);
+  CHECK(fineDecrement.type == Ui2ThemeCommandType::AdjustColor);
+  CHECK(fineDecrement.delta == -1);
+  controller.Handle(TrackerAction::Left, false);
+  const auto fineIncrement = controller.Handle(TrackerAction::Right, true);
+  CHECK(fineIncrement.type == Ui2ThemeCommandType::AdjustColor);
+  CHECK(fineIncrement.delta == 1);
+  controller.Handle(TrackerAction::Right, false);
+
+  const auto reset = controller.Handle(TrackerAction::Option, true);
+  CHECK(reset.type == Ui2ThemeCommandType::ResetColorComponent);
+  CHECK(reset.color == 18);
+  CHECK(reset.component == 2U);
+  controller.Handle(TrackerAction::Option, false);
   controller.Handle(TrackerAction::Edit, false);
 
   Tap(controller, TrackerAction::Right);
@@ -286,7 +302,9 @@ TEST_CASE("UI2 Theme workflow bounds RGB edits for application persistence") {
   static_assert(Ui2ThemeWorkflow::Colors{}.size() == 19U);
 
   Ui2ThemeWorkflow::Colors colors{};
+  Ui2ThemeWorkflow::Colors defaults{};
   colors[0] = 0x102030U;
+  defaults[0] = 0xA0B0C0U;
   Ui2ThemeController controller(0);
   controller.Handle(TrackerAction::Edit, true);
   const Ui2ThemeCommand command = controller.Handle(TrackerAction::Up, true);
@@ -294,12 +312,12 @@ TEST_CASE("UI2 Theme workflow bounds RGB edits for application persistence") {
   controller.Handle(TrackerAction::Edit, false);
 
   const Ui2ThemeColorEditResult edit =
-      Ui2ThemeWorkflow::Execute(command, colors);
+      Ui2ThemeWorkflow::Execute(command, colors, defaults);
   REQUIRE(edit.accepted);
   REQUIRE(edit.changed);
   CHECK(edit.color == 0U);
-  CHECK(edit.packedColor == 0x112030U);
-  const std::array<std::uint8_t, 3> expected{0x11U, 0x20U, 0x30U};
+  CHECK(edit.packedColor == 0x1A2030U);
+  const std::array<std::uint8_t, 3> expected{0x1AU, 0x20U, 0x30U};
   CHECK(Ui2ThemeWorkflow::Components(edit.packedColor) == expected);
 
   Ui2ConfigSaveState persistence;
@@ -308,7 +326,7 @@ TEST_CASE("UI2 Theme workflow bounds RGB edits for application persistence") {
   CHECK(persistence.Dirty());
 
   colors[0] = 0xFF2030U;
-  const auto clamped = Ui2ThemeWorkflow::Execute(command, colors);
+  const auto clamped = Ui2ThemeWorkflow::Execute(command, colors, defaults);
   CHECK(clamped.accepted);
   CHECK_FALSE(clamped.changed);
   CHECK(clamped.packedColor == 0xFF2030U);
@@ -318,21 +336,31 @@ TEST_CASE("UI2 Theme workflow bounds RGB edits for application persistence") {
        .color = 0,
        .component = 1U,
        .delta = -1000},
-      colors);
+      colors, defaults);
   CHECK(greenFloor.accepted);
   CHECK(greenFloor.changed);
   CHECK(greenFloor.packedColor == 0xFF0030U);
 
   CHECK_FALSE(Ui2ThemeWorkflow::Execute(
                   {.type = Ui2ThemeCommandType::AdjustColor, .color = 19},
-                  colors)
+                  colors, defaults)
                   .accepted);
   CHECK_FALSE(Ui2ThemeWorkflow::Execute(
                   {.type = Ui2ThemeCommandType::AdjustColor,
                    .color = 0,
                    .component = 3U},
-                  colors)
+                  colors, defaults)
                   .accepted);
+
+  colors[0] = 0x112233U;
+  const auto resetGreen = Ui2ThemeWorkflow::Execute(
+      {.type = Ui2ThemeCommandType::ResetColorComponent,
+       .color = 0,
+       .component = 1U},
+      colors, defaults);
+  CHECK(resetGreen.accepted);
+  CHECK(resetGreen.changed);
+  CHECK(resetGreen.packedColor == 0x11B033U);
 }
 
 TEST_CASE("UI2 Font selects text case and exposes BROWSE as a second row") {

@@ -38,8 +38,11 @@ public:
   }
 
   [[nodiscard]] static constexpr Ui2ThemeColorEditResult
-  Execute(Ui2ThemeCommand command, const Colors &colors) {
-    if (command.type != Ui2ThemeCommandType::AdjustColor || command.color < 0 ||
+  Execute(Ui2ThemeCommand command, const Colors &colors,
+          const Colors &defaults) {
+    if ((command.type != Ui2ThemeCommandType::AdjustColor &&
+         command.type != Ui2ThemeCommandType::ResetColorComponent) ||
+        command.color < 0 ||
         static_cast<std::size_t>(command.color) >= colors.size() ||
         command.component >= 3U) {
       return {};
@@ -50,8 +53,12 @@ public:
         static_cast<std::uint8_t>((2U - command.component) * 8U);
     const std::uint32_t current = colors[color] & 0x00FFFFFFU;
     const int previous = static_cast<int>((current >> shift) & 0xFFU);
-    const std::uint32_t adjusted = static_cast<std::uint32_t>(
-        std::clamp(previous + static_cast<int>(command.delta), 0, 255));
+    const bool reset =
+        command.type == Ui2ThemeCommandType::ResetColorComponent;
+    const std::uint32_t adjusted =
+        reset ? (defaults[color] >> shift) & 0xFFU
+              : static_cast<std::uint32_t>(std::clamp(
+                    previous + static_cast<int>(command.delta), 0, 255));
     const std::uint32_t packed =
         (current & ~(std::uint32_t{0xFFU} << shift)) | (adjusted << shift);
     return {.packedColor = packed,

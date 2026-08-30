@@ -504,7 +504,7 @@ TEST_CASE("UI2 RGB workflow commits one semantic slot through Config save") {
          .color = 18,
          .component = 2U,
          .delta = 1},
-        config.GetSemanticThemeColors());
+        config.GetSemanticThemeColors(), Config::DefaultSemanticThemeColors());
     REQUIRE(edit.accepted);
     REQUIRE(edit.changed);
     CHECK(edit.packedColor == 0x0102FFU);

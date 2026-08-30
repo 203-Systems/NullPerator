@@ -1972,10 +1972,11 @@ void Ui2TrackerApplication::ExecuteTheme(Ui2ThemeCommand command) {
     }
     break;
   case Ui2ThemeCommandType::AdjustColor:
+  case Ui2ThemeCommandType::ResetColorComponent:
     if (config != nullptr) {
       const Ui2ThemeColorEditResult edit =
-          Ui2ThemeWorkflow::Execute(command,
-                                    config->GetSemanticThemeColors());
+          Ui2ThemeWorkflow::Execute(command, config->GetSemanticThemeColors(),
+                                    Config::DefaultSemanticThemeColors());
       if (!edit.changed)
         break;
       config->SetSemanticThemeColor(edit.color, edit.packedColor);

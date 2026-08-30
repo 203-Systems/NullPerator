@@ -28,6 +28,7 @@ enum class Ui2ThemeCommandType : std::uint8_t {
   SaveTheme,
   RenameTheme,
   AdjustColor,
+  ResetColorComponent,
 };
 
 enum class Ui2ThemeBottomKind : std::uint8_t { Hidden, NameActions, Rgb };
@@ -116,13 +117,24 @@ public:
       if (NameSelected() && action == TrackerAction::Edit &&
           input_.Mask() == TrackerActionBit(TrackerAction::Edit))
         return Enter();
+      if (!NameSelected() && action == TrackerAction::Option) {
+        return {.type = Ui2ThemeCommandType::ResetColorComponent,
+                .color = SelectedColor(),
+                .component = colorComponent_};
+      }
       if (!NameSelected() &&
-          (action == TrackerAction::Up || action == TrackerAction::Down)) {
+          (action == TrackerAction::Up || action == TrackerAction::Down ||
+           action == TrackerAction::Left || action == TrackerAction::Right)) {
+        const bool increase = action == TrackerAction::Up ||
+                              action == TrackerAction::Right;
+        const std::int16_t magnitude =
+            action == TrackerAction::Up || action == TrackerAction::Down ? 10
+                                                                         : 1;
         return {.type = Ui2ThemeCommandType::AdjustColor,
                 .color = SelectedColor(),
                 .component = colorComponent_,
-                .delta = static_cast<std::int16_t>(
-                    action == TrackerAction::Up ? 1 : -1)};
+                .delta = static_cast<std::int16_t>(increase ? magnitude
+                                                            : -magnitude)};
       }
       return {};
     }
