@@ -674,6 +674,58 @@ TEST_CASE("UI2 empty cuts and identical pastes do not mark storage dirty") {
   CHECK(port.ProjectMutationGeneration() == 0U);
 }
 
+TEST_CASE("UI2 context grids distinguish local PLAY from global SHIFT PLAY") {
+  struct PlaybackCase {
+    Ui2TrackerPage page;
+    std::uint8_t row;
+    std::uint8_t chainRow;
+    PlayMode localOrigin;
+    std::uint8_t localChainPosition;
+  };
+  constexpr PlaybackCase cases[] = {
+      {Ui2TrackerPage::Chain, 7U, 11U, PM_CHAIN, 7U},
+      {Ui2TrackerPage::Phrase, 2U, 11U, PM_PHRASE, 11U},
+      {Ui2TrackerPage::PhraseTable, 15U, 4U, PM_PHRASE, 4U},
+      {Ui2TrackerPage::InstrumentTable, 9U, 6U, PM_PHRASE, 6U},
+  };
+
+  for (const PlaybackCase &playbackCase : cases) {
+    CAPTURE(static_cast<int>(playbackCase.page));
+    TrackerApplicationSession session;
+    Ui2TrackerSessionModelPort port(session);
+    Player *player = Player::GetInstance();
+    session.EditorState().songX_ = 6;
+    session.EditorState().songY_ = 9;
+    session.EditorState().songOffset_ = 32;
+    session.EditorState().chainRow_ = playbackCase.chainRow;
+
+    Ui2TrackerCommand command = GridCommand(
+        Ui2TrackerCommandType::StartPlayback, playbackCase.page,
+        playbackCase.row, 0U);
+    command.track = 2U;
+
+    player->Reset();
+    port.ApplyGridCommand(command);
+    CHECK(player->startCalls == 1);
+    CHECK(player->lastOrigin == playbackCase.localOrigin);
+    CHECK(player->lastFrom == 2U);
+    CHECK_FALSE(player->lastStartFromPrevious);
+    CHECK(player->lastChainPosition == playbackCase.localChainPosition);
+
+    player->Reset();
+    command.flag = true;
+    port.ApplyGridCommand(command);
+    CHECK(player->startCalls == 1);
+    CHECK(player->lastOrigin == PM_SONG);
+    CHECK(player->lastFrom == 6U);
+    // Player::Start reads songY_ + songOffset_ only when this is false.
+    CHECK_FALSE(player->lastStartFromPrevious);
+    CHECK(player->lastChainPosition == 6U);
+    CHECK(session.EditorState().songY_ == 9);
+    CHECK(session.EditorState().songOffset_ == 32);
+  }
+}
+
 TEST_CASE("UI2 model port preserves playback and solo command semantics") {
   TrackerApplicationSession session;
   Ui2TrackerSessionModelPort port(session);
@@ -693,12 +745,11 @@ TEST_CASE("UI2 model port preserves playback and solo command semantics") {
   Ui2TrackerCommand chain = GridCommand(Ui2TrackerCommandType::StartPlayback,
                                         Ui2TrackerPage::Chain, 7, 0);
   chain.track = 4U;
-  chain.flag = true;
   port.ApplyGridCommand(chain);
   CHECK(player->startCalls == 1);
   CHECK(player->lastOrigin == PM_CHAIN);
   CHECK(player->lastFrom == 4U);
-  CHECK(player->lastStartFromPrevious);
+  CHECK_FALSE(player->lastStartFromPrevious);
   CHECK(player->lastChainPosition == 7U);
 
   session.EditorState().chainRow_ = 11;
@@ -715,12 +766,11 @@ TEST_CASE("UI2 model port preserves playback and solo command semantics") {
   Ui2TrackerCommand table = GridCommand(Ui2TrackerCommandType::StartPlayback,
                                         Ui2TrackerPage::PhraseTable, 15, 0);
   table.track = 1U;
-  table.flag = true;
   port.ApplyGridCommand(table);
   CHECK(player->startCalls == 3);
   CHECK(player->lastOrigin == PM_PHRASE);
   CHECK(player->lastFrom == 1U);
-  CHECK(player->lastStartFromPrevious);
+  CHECK_FALSE(player->lastStartFromPrevious);
   CHECK(player->lastChainPosition == 4U);
 
   Ui2TrackerCommand immediate = GridCommand(

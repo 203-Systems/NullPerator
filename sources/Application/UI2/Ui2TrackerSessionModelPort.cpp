@@ -11,6 +11,7 @@
 #include "Application/Model/Table.h"
 #include "Application/Player/Player.h"
 #include "Application/UI2/Ui2ChainTranspose.h"
+#include "Application/UI2/Ui2TransportPolicy.h"
 
 #include <algorithm>
 
@@ -1130,6 +1131,13 @@ void Ui2TrackerSessionModelPort::ApplyTransport(
       const std::uint8_t to =
           command.selection.active ? command.selection.Right() : command.track;
       player->OnSongStartButton(from, to, command.flag, false);
+    } else if (command.flag) {
+      // SHIFT+PLAY is global on M8-style context pages. Reuse the same global
+      // transport boundary as Project/Mixer so Player reads the visible Song
+      // cursor instead of its legacy lastSongPos_ continuation register.
+      Ui2ToggleSongTransportAtCursor(
+          *player, PM_SONG, session_.EditorState().songX_,
+          static_cast<std::uint8_t>(SONG_CHANNEL_COUNT));
     } else {
       // Phrase and both Table views edit a step inside the current phrase,
       // but Player::OnStartButton expects the position of that phrase inside
@@ -1144,7 +1152,7 @@ void Ui2TrackerSessionModelPort::ApplyTransport(
                     PHRASES_PER_CHAIN - 1));
       player->OnStartButton(
           command.sourcePage == Ui2TrackerPage::Chain ? PM_CHAIN : PM_PHRASE,
-          command.track, command.flag, chainPosition);
+          command.track, false, chainPosition);
     }
     break;
   case Ui2TrackerCommandType::StartImmediate:
