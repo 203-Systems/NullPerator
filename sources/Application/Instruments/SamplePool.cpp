@@ -182,6 +182,15 @@ struct ImportResampleScratchDeleter {
 using ImportResampleScratchPtr =
     std::unique_ptr<ImportResampleScratch, ImportResampleScratchDeleter>;
 
+struct SrcStateDeleter {
+  void operator()(SRC_STATE *state) const {
+    if (state != nullptr)
+      src_delete(state);
+  }
+};
+
+using SrcStatePtr = std::unique_ptr<SRC_STATE, SrcStateDeleter>;
+
 ImportResampleScratchPtr allocateImportResampleScratch() {
 #ifdef ESP_PLATFORM
   void *storage = heap_caps_malloc(sizeof(ImportResampleScratch),
@@ -266,7 +275,7 @@ int SamplePool::ImportSample(const char *name, const char *projectName) {
   importName = name;
 
   wav.Rewind();
-  SRC_STATE *resampler = nullptr;
+  SrcStatePtr resampler;
   if (shouldResample) {
     int32_t converterType = SRC_LINEAR;
     if (importResampler == 2) {
@@ -276,12 +285,12 @@ int SamplePool::ImportSample(const char *name, const char *projectName) {
     }
 
     int srcError = 0;
-    resampler = src_new(converterType, channelCount, &srcError);
+    resampler.reset(src_new(converterType, channelCount, &srcError));
     if (!resampler || srcError != SRC_ERR_NO_ERROR) {
       Trace::Error("Failed to initialize resampler (%d)", srcError);
       return -1;
     }
-    src_reset(resampler);
+    src_reset(resampler.get());
   }
 
   const double srcRatio =
@@ -331,7 +340,7 @@ int SamplePool::ImportSample(const char *name, const char *projectName) {
         data.src_ratio = srcRatio;
         data.end_of_input = 0;
 
-        int err = src_process(resampler, &data);
+        int err = src_process(resampler.get(), &data);
         if (err != SRC_ERR_NO_ERROR) {
           Trace::Error("Resample failed: %s", src_strerror(err));
           return -1;
@@ -379,7 +388,7 @@ int SamplePool::ImportSample(const char *name, const char *projectName) {
       data.src_ratio = srcRatio;
       data.end_of_input = 1;
 
-      int err = src_process(resampler, &data);
+      int err = src_process(resampler.get(), &data);
       if (err != SRC_ERR_NO_ERROR) {
         Trace::Error("Resample flush failed: %s", src_strerror(err));
         return -1;
@@ -403,7 +412,6 @@ int SamplePool::ImportSample(const char *name, const char *projectName) {
       }
       totalWrittenFrames += data.output_frames_gen;
     }
-    src_delete(resampler);
   }
 
   if (!WavHeaderWriter::UpdateFileSize(
