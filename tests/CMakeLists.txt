@@ -157,6 +157,22 @@ target_include_directories(project_file_journal_tests PRIVATE
 target_compile_definitions(project_file_journal_tests PRIVATE HOST_TEST)
 add_test(NAME project_file_journal COMMAND project_file_journal_tests)
 
+# Player storage sentinels are intentionally one past the valid Phrase range.
+# Keep the audio-thread bounds contract in a narrow dependency-free host test.
+add_executable(player_storage_bounds_tests
+  test_main.cpp
+  player_storage_bounds_tests.cpp
+)
+
+target_include_directories(player_storage_bounds_tests PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals/SRC/include
+  ${CMAKE_CURRENT_LIST_DIR}/../sources
+)
+
+target_compile_definitions(player_storage_bounds_tests PRIVATE HOST_TEST)
+add_test(NAME player_storage_bounds COMMAND player_storage_bounds_tests)
+
 add_executable(ui2_status_bridge_tests
   test_main.cpp
   nanoprintf_test.cpp

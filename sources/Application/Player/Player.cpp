@@ -18,6 +18,7 @@
 #include "Application/Instruments/SampleInstrument.h"
 #include "Application/Mixer/MixerService.h"
 #include "Application/Model/Groove.h"
+#include "Application/Player/PlayerStorageBounds.h"
 #include "Application/Player/TablePlayback.h"
 #include "Application/Utils/char.h"
 #include "PlayerMixer.h"
@@ -833,24 +834,30 @@ void Player::updateChainPos(int pos, int channel, int hop) {
 
 void Player::updatePhrasePos(int pos, int channel) {
 
+  const uchar phrase = viewData_->currentPlayPhrase_[channel];
+  const int phraseStep = player_storage::PhraseStepOffset(phrase, pos);
+  if (phraseStep < 0) {
+    viewData_->phrasePlayPos_[channel] = -1;
+    timeToStart_[channel] = 0;
+    return;
+  }
+
   viewData_->phrasePlayPos_[channel] = pos;
 
   // See if we need to delay the trigger
   timeToStart_[channel] = 1;
 
-  uchar phrase = viewData_->currentPlayPhrase_[channel];
-
   // Check both param colum 1 & 2
 
-  FourCC cc = viewData_->song_->phrase_.cmd1_[phrase * 16 + pos];
+  FourCC cc = viewData_->song_->phrase_.cmd1_[phraseStep];
   if (cc == FourCC::InstrumentCommandDelay) {
-    ushort param = viewData_->song_->phrase_.param1_[phrase * 16 + pos];
+    ushort param = viewData_->song_->phrase_.param1_[phraseStep];
     timeToStart_[channel] = (param & 0x0F) + 1;
   }
 
-  cc = viewData_->song_->phrase_.cmd2_[phrase * 16 + pos];
+  cc = viewData_->song_->phrase_.cmd2_[phraseStep];
   if (cc == FourCC::InstrumentCommandDelay) {
-    ushort param = viewData_->song_->phrase_.param2_[phrase * 16 + pos];
+    ushort param = viewData_->song_->phrase_.param2_[phraseStep];
     timeToStart_[channel] = (param & 0x0F) + 1;
   }
 }
