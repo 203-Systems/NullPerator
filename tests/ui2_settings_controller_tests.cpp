@@ -122,7 +122,7 @@ TEST_CASE("UI2 instrument browser leaves return navigation to Shift Left") {
   using namespace ui2;
   Ui2InstrumentBrowserController controller;
   const Ui2BrowserSnapshot snapshot = controller.Snapshot();
-  CHECK(std::string(snapshot.title.data()) == "LOAD INSTRUMENT");
+  CHECK(std::string(snapshot.title.data()) == "IMPORT");
   CHECK(std::string(snapshot.meta.data()).empty());
   CHECK(snapshot.totalItemCount == 0U);
   CHECK_FALSE(snapshot.hasSelection);

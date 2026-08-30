@@ -83,7 +83,7 @@ public:
 
   [[nodiscard]] Ui2BrowserSnapshot Snapshot() const {
     Ui2BrowserSnapshot snapshot;
-    Ui2BrowserSnapshot::CopyText(snapshot.title, "LOAD INSTRUMENT");
+    Ui2BrowserSnapshot::CopyText(snapshot.title, "IMPORT");
     snapshot.ConfigureWindow(count_, selected_, top_);
     for (std::uint8_t row = 0U; row < snapshot.visibleItemCount; ++row)
       ReadName(static_cast<std::uint16_t>(snapshot.topIndex + row),
