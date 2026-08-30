@@ -1239,12 +1239,14 @@ void Player::moveToNextChain(int channel, int hop) {
 
   if (searchNext) {
     int pos = (viewData_->songPlayPos_[channel]) + 1;
-    unsigned char *data =
-        viewData_->song_->data_ + channel + SONG_CHANNEL_COUNT * pos;
-    bool loopBack = (*data == 0xFF);
+    const int nextCell = player_storage::SongCellOffset(pos, channel);
+    bool loopBack = nextCell < 0;
     // Check if first step of chain contains somethin, if not we loop back
     if (!loopBack) {
-      unsigned char step = viewData_->song_->chain_.data_[*data * 16];
+      const unsigned char chain = viewData_->song_->data_[nextCell];
+      loopBack = chain == 0xFF;
+      const unsigned char step =
+          loopBack ? 0xFF : viewData_->song_->chain_.data_[chain * 16];
       loopBack = (step == 0xFF);
     };
     if (loopBack) {
@@ -1267,18 +1269,20 @@ void Player::moveToNextChain(int channel, int hop) {
       }
 
       // Otherwise proceed with normal loop back behavior
-      data -= SONG_CHANNEL_COUNT;
-      pos--;
+      // The next row may be the one-past-end sentinel. Start the backward
+      // section scan from the last addressable row instead of constructing an
+      // invalid Song pointer first.
+      pos = std::min(pos - 1, SONG_ROW_COUNT - 1);
       while (pos >= 0) {
-        if (*data == 0xFF) { // we stop searching if there's a blank
+        const int songCell = player_storage::SongCellOffset(pos, channel);
+        const unsigned char chain = viewData_->song_->data_[songCell];
+        if (chain == 0xFF) { // we stop searching if there's a blank
           break;
         } else { // Or if first phrase of chain is empty
-          if (viewData_->song_->chain_.data_[(*data) * 16] == 0xFF) {
+          if (viewData_->song_->chain_.data_[chain * 16] == 0xFF) {
             break;
           }
         }
-        if (pos != 0)
-          data -= SONG_CHANNEL_COUNT;
         pos--;
       };
       pos++;

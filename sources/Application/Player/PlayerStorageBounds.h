@@ -7,6 +7,7 @@
 #pragma once
 
 #include "Application/Model/Phrase.h"
+#include "Application/Model/Song.h"
 
 #include <cstdint>
 
@@ -18,6 +19,14 @@ constexpr int PhraseStepOffset(std::uint8_t phrase, int step) {
   if (phrase >= PHRASE_COUNT || step < 0 || step >= STEPS_PER_PHRASE)
     return -1;
   return static_cast<int>(phrase) * STEPS_PER_PHRASE + step;
+}
+
+constexpr int SongCellOffset(int row, int channel) {
+  if (row < 0 || row >= SONG_ROW_COUNT || channel < 0 ||
+      channel >= SONG_CHANNEL_COUNT) {
+    return -1;
+  }
+  return row * SONG_CHANNEL_COUNT + channel;
 }
 
 } // namespace player_storage
