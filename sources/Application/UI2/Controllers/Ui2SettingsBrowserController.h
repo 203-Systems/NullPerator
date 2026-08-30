@@ -56,7 +56,10 @@ public:
       return false;
     }
     etl::vector<int, MAX_FILE_INDEX_SIZE> listed;
-    fileSystem->list(&listed, THEME_FILE_EXTENSION, false);
+    if (!fileSystem->listChecked(&listed, THEME_FILE_EXTENSION, false)) {
+      SetError("TOO MANY THEMES");
+      return false;
+    }
     for (const int fileIndex : listed) {
       if (themeCount_ >= themeIndices_.size() ||
           fileSystem->getFileType(fileIndex) == PFT_DIR)

@@ -815,7 +815,10 @@ bool PersistencyService::DeleteDirectoryContents_(uint8_t depth) {
 
   while (true) {
     fileIndexes_.clear();
-    fs->list(&fileIndexes_, "", false, true);
+    if (!fs->listChecked(&fileIndexes_, "", false, true)) {
+      Trace::Error("PERSISTENCYSERVICE: Directory listing truncated");
+      return false;
+    }
 
     bool foundEntry = false;
     bool deletedEntry = false;

@@ -243,7 +243,10 @@ public:
     if (fileSystem == nullptr)
       return false;
     etl::vector<int, MAX_FILE_INDEX_SIZE> listed;
-    fileSystem->list(&listed, ".wav", false);
+    if (!fileSystem->listChecked(&listed, ".wav", false)) {
+      SetError("TOO MANY FILES");
+      return false;
+    }
     for (const int fileIndex : listed) {
       if (count_ >= indices_.size())
         break;

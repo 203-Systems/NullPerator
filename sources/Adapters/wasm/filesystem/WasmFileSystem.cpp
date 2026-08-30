@@ -331,7 +331,7 @@ bool WasmFileSystem::List_(etl::ivector<int> *fileIndexes, const char *filter,
        index < entries_.size() && !fileIndexes->full(); ++index) {
     fileIndexes->push_back(static_cast<int>(index));
   }
-  return scanned;
+  return scanned && fileIndexes->size() == entries_.size();
 }
 
 void WasmFileSystem::getFileName(int index, char *name, int length) {

@@ -284,15 +284,17 @@ bool NodeFileSystem::List_(etl::ivector<int> *fileIndexes, const char *filter,
     fileIndexes->clear();
   }
   const bool scanned = RefreshDir(filter, subDirOnly, includeHidden);
+  size_t listedCount = 0;
   if (fileIndexes != nullptr) {
     for (size_t i = 0; i < entries_.size(); ++i) {
       if (fileIndexes->full()) {
         break;
       }
       fileIndexes->push_back(static_cast<int>(i));
+      ++listedCount;
     }
   }
-  return scanned && fileIndexes != nullptr;
+  return scanned && fileIndexes != nullptr && listedCount == entries_.size();
 }
 
 void NodeFileSystem::getFileName(int index, char *name, int length) {
