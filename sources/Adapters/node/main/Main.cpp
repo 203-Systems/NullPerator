@@ -1,5 +1,4 @@
 #include "Adapters/node/platform/platform.h"
-#include "DisplayGammaCalibration.h"
 
 #include "Adapters/node/system/Ui2System.h"
 #include "Adapters/node/ui2/NodeUi2Platform.h"
@@ -20,7 +19,6 @@ constexpr char kLogTag[] = "NODE_UI2_MAIN";
 int RunUi2Product(int argc, char **argv) {
   board_init();
   platform_init();
-  RunDisplayGammaCalibrationIfRequested();
 
   if (!NodeUi2System::Boot(argc, argv)) {
     ESP_LOGE(kLogTag, "Native service boot failed");
