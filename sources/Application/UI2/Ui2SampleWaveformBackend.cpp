@@ -53,7 +53,7 @@ Ui2SampleWaveformBackend::LoadPath(FileSystem &fileSystem, const char *path) {
     Reset();
     return Ui2SampleWaveformLoadResult::OpenFailed;
   }
-  const auto header = WavHeaderWriter::ReadHeader(file.get());
+  auto header = WavHeaderWriter::ReadHeader(file.get());
   if (!header.has_value()) {
     Reset();
     return Ui2SampleWaveformLoadResult::InvalidWav;
