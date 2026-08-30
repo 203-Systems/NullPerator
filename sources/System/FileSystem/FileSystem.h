@@ -57,6 +57,15 @@ public:
     list(fileIndexes, filter, subDirOnly, includeHidden);
     return true;
   }
+  // Browser scans apply the filter to leaf files while retaining directories
+  // so users can descend into folders whose names do not contain the file
+  // extension. Legacy adapters fall back to listChecked(); adapters used by
+  // an interactive browser should override this form.
+  virtual bool listBrowserChecked(etl::ivector<int> *fileIndexes,
+                                  const char *filter,
+                                  bool includeHidden = false) {
+    return listChecked(fileIndexes, filter, false, includeHidden);
+  }
   // Enumerates an absolute logical path without changing the process-global
   // working directory or the legacy index cache used by list()/getFileName().
   // Directory entries never synthesize "." or ".."; browser owners model

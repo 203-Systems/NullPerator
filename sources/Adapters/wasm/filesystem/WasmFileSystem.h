@@ -24,6 +24,8 @@ public:
             bool subDirOnly, bool includeHidden = false) override;
   bool listChecked(etl::ivector<int> *fileIndexes, const char *filter,
                    bool subDirOnly, bool includeHidden = false) override;
+  bool listBrowserChecked(etl::ivector<int> *fileIndexes, const char *filter,
+                          bool includeHidden = false) override;
   bool listPathChecked(const char *path, FileSystemDirectorySnapshot &snapshot,
                        const char *filter, bool subDirOnly,
                        bool includeHidden = false) override;
@@ -52,9 +54,10 @@ private:
                                       std::vector<std::string> &created);
   static bool RollbackCreatedDirectories(const std::vector<std::string> &created);
   bool RefreshDirectory(const char *filter, bool subDirOnly,
-                        bool includeHidden);
+                        bool includeHidden, bool retainDirectories = false);
   bool List_(etl::ivector<int> *fileIndexes, const char *filter,
-             bool subDirOnly, bool includeHidden);
+             bool subDirOnly, bool includeHidden,
+             bool retainDirectories = false);
 
   mutable std::recursive_mutex mutex_;
   std::string root_;

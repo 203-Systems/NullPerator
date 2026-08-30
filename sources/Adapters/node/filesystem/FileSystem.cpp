@@ -84,6 +84,17 @@ bool MountCard() {
   }
   return true;
 }
+
+bool MatchesFilter(const std::string &name, const char *filter) {
+  if (filter == nullptr || filter[0] == '\0')
+    return true;
+  std::string lowerName = name;
+  for (char &character : lowerName) {
+    character = static_cast<char>(
+        tolower(static_cast<unsigned char>(character)));
+  }
+  return lowerName.find(filter) != std::string::npos;
+}
 } // namespace
 
 NodeFileSystem::NodeFileSystem() {
@@ -153,7 +164,8 @@ bool NodeFileSystem::chdir(const char *path) {
 }
 
 bool NodeFileSystem::RefreshDir(const char *filter, bool subDirOnly,
-                                bool includeHidden) {
+                                bool includeHidden,
+                                bool retainDirectories) {
   entries_.clear();
   if (!IsSafeExistingPath(cwd_)) {
     return false;
@@ -183,15 +195,10 @@ bool NodeFileSystem::RefreshDir(const char *filter, bool subDirOnly,
     if (!includeHidden && isHidden) {
       continue;
     }
-    if (filter && *filter) {
-      // Convert name to lowercase for case-insensitive match
-      std::string lowerName = name;
-      for (auto &c : lowerName) {
-        c = tolower(c);
-      }
-      if (lowerName.find(filter) == std::string::npos) {
-        continue;
-      }
+    // Preserve the cheap filename rejection used by non-browser scans. A
+    // browser needs the stat first so it can retain non-matching directories.
+    if (!retainDirectories && !MatchesFilter(name, filter)) {
+      continue;
     }
     std::string full = cwd_ + "/" + name;
     struct stat st {};
@@ -201,6 +208,9 @@ bool NodeFileSystem::RefreshDir(const char *filter, bool subDirOnly,
     }
     const uint64_t sz = st.st_size;
     const bool isDir = S_ISDIR(st.st_mode);
+    if (retainDirectories && !isDir && !MatchesFilter(name, filter)) {
+      continue;
+    }
     if (subDirOnly && !isDir) {
       continue;
     }
@@ -220,6 +230,13 @@ bool NodeFileSystem::listChecked(etl::ivector<int> *fileIndexes,
                                  bool includeHidden) {
   std::lock_guard<std::mutex> lock(mutex_);
   return List_(fileIndexes, filter, subDirOnly, includeHidden);
+}
+
+bool NodeFileSystem::listBrowserChecked(etl::ivector<int> *fileIndexes,
+                                        const char *filter,
+                                        bool includeHidden) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  return List_(fileIndexes, filter, false, includeHidden, true);
 }
 
 bool NodeFileSystem::listPathChecked(
@@ -278,11 +295,13 @@ bool NodeFileSystem::listPathChecked(
 }
 
 bool NodeFileSystem::List_(etl::ivector<int> *fileIndexes, const char *filter,
-                           bool subDirOnly, bool includeHidden) {
+                           bool subDirOnly, bool includeHidden,
+                           bool retainDirectories) {
   if (fileIndexes != nullptr) {
     fileIndexes->clear();
   }
-  const bool scanned = RefreshDir(filter, subDirOnly, includeHidden);
+  const bool scanned =
+      RefreshDir(filter, subDirOnly, includeHidden, retainDirectories);
   size_t listedCount = 0;
   if (fileIndexes != nullptr) {
     for (size_t i = 0; i < entries_.size(); ++i) {

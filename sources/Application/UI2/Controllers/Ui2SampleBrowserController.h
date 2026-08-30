@@ -235,7 +235,11 @@ public:
     if (fileSystem == nullptr)
       return false;
     etl::vector<int, MAX_FILE_INDEX_SIZE> listed;
-    if (!fileSystem->listChecked(&listed, ".wav", false)) {
+    const bool listedSuccessfully =
+        mode_ == Ui2SampleBrowserMode::Library
+            ? fileSystem->listBrowserChecked(&listed, ".wav")
+            : fileSystem->listChecked(&listed, ".wav", false);
+    if (!listedSuccessfully) {
       SetError("TOO MANY FILES");
       return false;
     }

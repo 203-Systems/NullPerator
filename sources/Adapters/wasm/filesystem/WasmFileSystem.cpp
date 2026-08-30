@@ -195,7 +195,8 @@ bool WasmFileSystem::chdir(const char *path) {
 }
 
 bool WasmFileSystem::RefreshDirectory(const char *filter, bool subDirOnly,
-                                      bool includeHidden) {
+                                      bool includeHidden,
+                                      bool retainDirectories) {
   WASM_TRACE_SCOPE(WasmTraceCategory::Files, WasmTraceName::FileScan);
   entries_.clear();
   if (cwd_ != root_) {
@@ -229,7 +230,7 @@ bool WasmFileSystem::RefreshDirectory(const char *filter, bool subDirOnly,
                    [](unsigned char character) {
                      return static_cast<char>(std::tolower(character));
                    });
-    if (!loweredFilter.empty() &&
+    if (!loweredFilter.empty() && !(retainDirectories && directory) &&
         loweredName.find(loweredFilter) == std::string::npos) {
       iterator.increment(error);
       continue;
@@ -264,6 +265,13 @@ bool WasmFileSystem::listChecked(etl::ivector<int> *fileIndexes,
                                  bool includeHidden) {
   std::lock_guard<std::recursive_mutex> lock(mutex_);
   return List_(fileIndexes, filter, subDirOnly, includeHidden);
+}
+
+bool WasmFileSystem::listBrowserChecked(etl::ivector<int> *fileIndexes,
+                                        const char *filter,
+                                        bool includeHidden) {
+  std::lock_guard<std::recursive_mutex> lock(mutex_);
+  return List_(fileIndexes, filter, false, includeHidden, true);
 }
 
 bool WasmFileSystem::listPathChecked(
@@ -321,8 +329,10 @@ bool WasmFileSystem::listPathChecked(
 }
 
 bool WasmFileSystem::List_(etl::ivector<int> *fileIndexes, const char *filter,
-                           bool subDirOnly, bool includeHidden) {
-  const bool scanned = RefreshDirectory(filter, subDirOnly, includeHidden);
+                           bool subDirOnly, bool includeHidden,
+                           bool retainDirectories) {
+  const bool scanned = RefreshDirectory(filter, subDirOnly, includeHidden,
+                                        retainDirectories);
   if (fileIndexes == nullptr) {
     return false;
   }

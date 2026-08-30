@@ -1,5 +1,6 @@
 #include "doctest/doctest.h"
 
+#include <cctype>
 #include <cstdio>
 #include <cstring>
 
@@ -59,27 +60,39 @@ public:
     return false;
   }
 
-  void list(etl::ivector<int> *indices, const char *, bool,
+  void list(etl::ivector<int> *indices, const char *filter, bool,
             bool = false) override {
+    Populate(indices, filter, false);
+  }
+
+  bool listBrowserChecked(etl::ivector<int> *indices, const char *filter,
+                          bool = false) override {
+    Populate(indices, filter, true);
+    return true;
+  }
+
+  void Populate(etl::ivector<int> *indices, const char *filter,
+                bool retainDirectories) {
     indices->clear();
     if (empty_)
       return;
     if (directory_ == Directory::Pool) {
-      indices->push_back(10);
-      indices->push_back(20); // .. must not be exposed by ProjectPool.
-      indices->push_back(24); // Nor may a real nested directory be exposed.
+      PushIfVisible(indices, 10, filter, retainDirectories);
+      PushIfVisible(indices, 20, filter,
+                    retainDirectories); // .. is synthesized by adapters.
+      PushIfVisible(indices, 24, filter, retainDirectories);
     } else if (directory_ == Directory::Nested) {
-      indices->push_back(20);
+      PushIfVisible(indices, 20, filter, retainDirectories);
       // Deliberately duplicates the root leaf. Entering this directory used to
       // make EDIT/DELETE resolve the nested leaf against the root pool path.
-      indices->push_back(25);
+      PushIfVisible(indices, 25, filter, retainDirectories);
     } else if (directory_ == Directory::Library) {
-      indices->push_back(20);
-      indices->push_back(21);
-      indices->push_back(22);
+      PushIfVisible(indices, 20, filter, retainDirectories);
+      PushIfVisible(indices, 21, filter, retainDirectories);
+      PushIfVisible(indices, 22, filter, retainDirectories);
     } else if (directory_ == Directory::Drums) {
-      indices->push_back(20);
-      indices->push_back(23);
+      PushIfVisible(indices, 20, filter, retainDirectories);
+      PushIfVisible(indices, 23, filter, retainDirectories);
     }
   }
 
@@ -122,6 +135,25 @@ public:
   }
 
 private:
+  void PushIfVisible(etl::ivector<int> *indices, int index,
+                     const char *filter, bool retainDirectories) {
+    char name[PFILENAME_SIZE]{};
+    getFileName(index, name, sizeof(name));
+    const bool directory = getFileType(index) == PFT_DIR;
+    if (std::strcmp(name, "..") != 0 && filter != nullptr && filter[0] != '\0' &&
+        !(directory && retainDirectories)) {
+      char lowerName[PFILENAME_SIZE]{};
+      for (std::size_t i = 0U; name[i] != '\0' && i + 1U < sizeof(lowerName);
+           ++i) {
+        lowerName[i] = static_cast<char>(
+            std::tolower(static_cast<unsigned char>(name[i])));
+      }
+      if (std::strstr(lowerName, filter) == nullptr)
+        return;
+    }
+    indices->push_back(index);
+  }
+
   enum class Directory {
     Root,
     Projects,

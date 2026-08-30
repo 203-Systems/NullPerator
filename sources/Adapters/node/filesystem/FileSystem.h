@@ -27,6 +27,8 @@ public:
             bool subDirOnly, bool includeHidden = false) override;
   bool listChecked(etl::ivector<int> *fileIndexes, const char *filter,
                    bool subDirOnly, bool includeHidden = false) override;
+  bool listBrowserChecked(etl::ivector<int> *fileIndexes, const char *filter,
+                          bool includeHidden = false) override;
   bool listPathChecked(const char *path, FileSystemDirectorySnapshot &snapshot,
                        const char *filter, bool subDirOnly,
                        bool includeHidden = false) override;
@@ -44,9 +46,11 @@ public:
   bool isExFat() override;
 
 private:
-  bool RefreshDir(const char *filter, bool subDirOnly, bool includeHidden);
+  bool RefreshDir(const char *filter, bool subDirOnly, bool includeHidden,
+                  bool retainDirectories = false);
   bool List_(etl::ivector<int> *fileIndexes, const char *filter,
-             bool subDirOnly, bool includeHidden);
+             bool subDirOnly, bool includeHidden,
+             bool retainDirectories = false);
 
   std::mutex mutex_;
   std::string cwd_;
