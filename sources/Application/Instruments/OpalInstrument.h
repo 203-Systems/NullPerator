@@ -47,7 +47,7 @@ public:
   virtual bool GetTableAutomation();
   virtual void GetTableState(TableSaveState &state);
   virtual void SetTableState(TableSaveState &state);
-  etl::ilist<Variable *> *Variables() { return &variables_; };
+  etl::ivector<Variable *> *Variables() { return &variables_; };
 
   void setChannel(uint8_t channel);
 
@@ -56,7 +56,7 @@ private:
 
   uint8_t breg;
 
-  etl::list<Variable *, 16> variables_;
+  etl::vector<Variable *, 15> variables_;
 
   Variable algorithm_;
   Variable feedback_;

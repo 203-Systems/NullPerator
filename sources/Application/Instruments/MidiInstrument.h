@@ -61,7 +61,7 @@ public:
   virtual bool GetTableAutomation();
   virtual void GetTableState(TableSaveState &state);
   virtual void SetTableState(TableSaveState &state);
-  etl::ilist<Variable *> *Variables() { return &variables_; };
+  etl::ivector<Variable *> *Variables() { return &variables_; };
 
   void SetChannel(int i);
   void SendProgramChange(int channel, int program);
@@ -78,7 +78,7 @@ public:
   };
 
 private:
-  etl::list<Variable *, 7> variables_;
+  etl::vector<Variable *, 6> variables_;
 
   etl::array<uint8_t, MAX_MIDI_CHORD_NOTES + 1> lastNotes_[SONG_CHANNEL_COUNT];
   int remainingTicks_;

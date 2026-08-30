@@ -68,7 +68,7 @@ public:
   }
 
 private:
-  etl::list<Variable *, 26> variables_;
+  etl::vector<Variable *, 24> variables_;
   // Config variables (kept as members to avoid heap allocation)
   WatchedVariable background_;
   WatchedVariable foreground_;

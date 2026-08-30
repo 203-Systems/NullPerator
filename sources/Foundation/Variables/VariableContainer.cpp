@@ -10,14 +10,14 @@
 #include "VariableContainer.h"
 #include <string.h>
 
-VariableContainer::VariableContainer(etl::ilist<Variable *> *list)
-    : list_(list){};
+VariableContainer::VariableContainer(etl::ivector<Variable *> *variables)
+    : variables_(variables){};
 
 VariableContainer::~VariableContainer(){};
 
 Variable *VariableContainer::FindVariable(FourCC id) {
-  auto it = list_->begin();
-  for (size_t i = 0; i < list_->size(); i++) {
+  auto it = variables_->begin();
+  for (size_t i = 0; i < variables_->size(); i++) {
     if ((*it)->GetID() == id) {
       return *it;
     }
@@ -27,8 +27,8 @@ Variable *VariableContainer::FindVariable(FourCC id) {
 };
 
 Variable *VariableContainer::FindVariable(const char *name) {
-  auto it = list_->begin();
-  for (size_t i = 0; i < list_->size(); i++) {
+  auto it = variables_->begin();
+  for (size_t i = 0; i < variables_->size(); i++) {
     if (!strcmp((*it)->GetName(), name)) {
       return *it;
     }
