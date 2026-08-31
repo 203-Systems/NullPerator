@@ -10,6 +10,7 @@
 #include "Application/UI2/Ui2FixedText.h"
 #include "Application/Utils/char.h"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -64,6 +65,30 @@ void CaptureUiTrackNotes(PlayerLike *player, bool playing, Notes &notes) {
       continue;
     }
     FormatUiNote(static_cast<std::uint8_t>(value), notes[track]);
+  }
+}
+
+// Mixer note telemetry is intentionally empty when audio rendering is
+// disabled, but Player still publishes coherent transport state. Fill only
+// missing Song Live cells from that snapshot: inactive, empty-chain, muted or
+// non-note tracks must stay blank so stale transport bytes cannot appear as
+// ghost notes.
+template <typename PlayerLike, typename TransportLike, typename Notes>
+void CaptureUiLiveTransportFallback(PlayerLike *player, bool liveMode,
+                                    bool playing,
+                                    const TransportLike &transport,
+                                    Notes &notes) {
+  if (!liveMode || !playing || player == nullptr)
+    return;
+  const std::size_t count =
+      std::min<std::size_t>(notes.size(), SONG_CHANNEL_COUNT);
+  for (std::size_t track = 0U; track < count; ++track) {
+    if (notes[track][0] != '-' || player->IsChannelMuted(track) ||
+        !transport.IsChannelPlaying(track) || transport.chain[track] == 0xFFU)
+      continue;
+    const std::uint8_t note = transport.note[track];
+    if (note <= HIGHEST_NOTE)
+      FormatUiNote(note, notes[track]);
   }
 }
 

@@ -240,12 +240,8 @@ Ui2NativeApplicationStateSource::CaptureSong(UiSongFrameState &state) {
   // Browser previews deliberately support audio=disabled. Player still owns
   // transport and publishes the current pattern note even before a mixer
   // callback supplies the post-effect played-note text.
-  if (state.liveMode && state.playing &&
-      state.notes[controller.Track()][0] == '-') {
-    const std::uint8_t note = transport.note[controller.Track()];
-    if (note <= HIGHEST_NOTE)
-      FormatUiNote(note, state.notes[controller.Track()]);
-  }
+  CaptureUiLiveTransportFallback(player, state.liveMode, state.playing,
+                                 transport, state.notes);
   for (std::uint8_t track = 0; track < SONG_CHANNEL_COUNT; ++track) {
     const int visible = transport.songRow[track] - controller.RowOffset();
     const bool visiblePlayback =

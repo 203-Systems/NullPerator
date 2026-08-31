@@ -378,6 +378,63 @@ TEST_CASE("UI2 track notes avoid the legacy shared text buffer alias") {
   CHECK(player.rawReads == 7U);
 }
 
+TEST_CASE("UI2 Song Live transport fallback rejects ghost notes") {
+  struct Player {
+    std::array<bool, SONG_CHANNEL_COUNT> muted{};
+    bool IsChannelMuted(std::size_t track) const { return muted[track]; }
+  } player;
+  struct Transport {
+    std::uint8_t playingMask = 0U;
+    std::array<std::uint8_t, SONG_CHANNEL_COUNT> chain{};
+    std::array<std::uint8_t, SONG_CHANNEL_COUNT> note{};
+    bool IsChannelPlaying(std::size_t track) const {
+      return (playingMask & (std::uint8_t{1U} << track)) != 0U;
+    }
+  } transport;
+
+  transport.playingMask = 0xFFU;
+  transport.chain.fill(0U);
+  transport.note = {48U, 49U, 50U, 51U, NO_NOTE, 53U, 54U, 55U};
+  transport.playingMask &= static_cast<std::uint8_t>(~(1U << 2U));
+  transport.chain[3] = 0xFFU;
+  player.muted[5] = true;
+
+  std::array<std::array<char, 5>, SONG_CHANNEL_COUNT> notes{};
+  for (auto &note : notes)
+    ui2::CopyUiText(note, "--");
+  ui2::CopyUiText(notes[6], "A4");
+
+  ui2::CaptureUiLiveTransportFallback(&player, true, true, transport, notes);
+  CHECK(std::string_view(notes[0].data()) == "C2");
+  CHECK(std::string_view(notes[1].data()) == "C#2");
+  CHECK(std::string_view(notes[2].data()) == "--"); // inactive channel
+  CHECK(std::string_view(notes[3].data()) == "--"); // no chain
+  CHECK(std::string_view(notes[4].data()) == "--"); // no valid note
+  CHECK(std::string_view(notes[5].data()) == "--"); // muted channel
+  CHECK(std::string_view(notes[6].data()) == "A4"); // mixer data wins
+  CHECK(std::string_view(notes[7].data()) == "G2");
+}
+
+TEST_CASE("UI2 transport notes remain blank outside playing Song Live") {
+  struct Player {
+    bool IsChannelMuted(std::size_t) const { return false; }
+  } player;
+  struct Transport {
+    std::array<std::uint8_t, SONG_CHANNEL_COUNT> chain{};
+    std::array<std::uint8_t, SONG_CHANNEL_COUNT> note{};
+    bool IsChannelPlaying(std::size_t) const { return true; }
+  } transport;
+  transport.note.fill(48U);
+
+  std::array<std::array<char, 5>, SONG_CHANNEL_COUNT> notes{};
+  for (auto &note : notes)
+    ui2::CopyUiText(note, "--");
+  ui2::CaptureUiLiveTransportFallback(&player, false, true, transport, notes);
+  ui2::CaptureUiLiveTransportFallback(&player, true, false, transport, notes);
+  for (const auto &note : notes)
+    CHECK(std::string_view(note.data()) == "--");
+}
+
 TEST_CASE("UI2 elapsed clock preserves fixed wrapping display semantics") {
   constexpr std::array<int, 10> seconds{
       -1, 0, 5, 59, 60, 61, 5999, 6000, 6001,
