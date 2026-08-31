@@ -20,12 +20,30 @@
 #include <math.h>
 #include <stdlib.h>
 
+namespace {
+
+static_assert(std::atomic<std::uint32_t>::is_always_lock_free,
+              "audio telemetry requires lock-free 32-bit atomics");
+
+std::int8_t PlayedSliceFor(std::uint8_t note, I_Instrument *instrument) {
+  if (instrument == nullptr || instrument->GetType() != IT_SAMPLE ||
+      note == NO_NOTE) {
+    return -1;
+  }
+  auto *sampleInstrument = static_cast<SampleInstrument *>(instrument);
+  if (!sampleInstrument->ShouldDisplaySliceForNote(note))
+    return -1;
+  return static_cast<std::int8_t>(note - SampleInstrument::SliceNoteBase);
+}
+
+} // namespace
+
 PlayerMixer::PlayerMixer() {
 
   for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {
     lastInstrument_[i] = 0;
-    isChannelPlaying_[i] = false;
-    notes_[i] = NO_NOTE;
+    channelTelemetry_[i].store(PlayerMixerTelemetry::Pack(NO_NOTE, -1, false),
+                               std::memory_order_relaxed);
   };
 
   alignas(PlayerChannel) static char
@@ -74,8 +92,8 @@ void PlayerMixer::BindProject(Project *project) {
 
   for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {
     lastInstrument_[i] = 0;
-    isChannelPlaying_[i] = false;
-    notes_[i] = 0xFF;
+    channelTelemetry_[i].store(PlayerMixerTelemetry::Pack(NO_NOTE, -1, false),
+                               std::memory_order_relaxed);
   }
 }
 
@@ -94,7 +112,10 @@ bool PlayerMixer::Start() {
   ms->AddObserver(*this);
 
   for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {
-    notes_[i] = NO_NOTE;
+    const PlayerMixerChannelTelemetry current = CaptureChannelTelemetry(i);
+    channelTelemetry_[i].store(
+        PlayerMixerTelemetry::Pack(NO_NOTE, -1, current.playing),
+        std::memory_order_relaxed);
   };
 
   return ms->Start();
@@ -107,17 +128,19 @@ void PlayerMixer::Stop() {
 };
 
 void PlayerMixer::StartChannel(int channel) {
-  isChannelPlaying_[channel] = true;
+  channelTelemetry_[channel].fetch_or(PlayerMixerTelemetry::PlayingBit,
+                                      std::memory_order_relaxed);
 };
 
 void PlayerMixer::StopChannel(int channel) {
 
   StopInstrument(channel);
-  isChannelPlaying_[channel] = false;
+  channelTelemetry_[channel].fetch_and(~PlayerMixerTelemetry::PlayingBit,
+                                       std::memory_order_relaxed);
 };
 
 bool PlayerMixer::IsChannelPlaying(int channel) const {
-  return isChannelPlaying_[channel];
+  return CaptureChannelTelemetry(channel).playing;
 };
 
 I_Instrument *PlayerMixer::GetLastInstrument(int channel) {
@@ -156,12 +179,19 @@ void PlayerMixer::StartInstrument(int channel, I_Instrument *instrument,
                                   unsigned char note, bool newInstrument) {
   channel_[channel]->StartInstrument(instrument, note, newInstrument);
   lastInstrument_[channel] = instrument;
-  notes_[channel] = note;
+  const bool playing = CaptureChannelTelemetry(channel).playing;
+  channelTelemetry_[channel].store(
+      PlayerMixerTelemetry::Pack(note, PlayedSliceFor(note, instrument),
+                                 playing),
+      std::memory_order_relaxed);
 };
 
 void PlayerMixer::StopInstrument(int channel) {
   channel_[channel]->StopInstrument();
-  notes_[channel] = NO_NOTE;
+  const bool playing = CaptureChannelTelemetry(channel).playing;
+  channelTelemetry_[channel].store(
+      PlayerMixerTelemetry::Pack(NO_NOTE, -1, playing),
+      std::memory_order_relaxed);
 }
 
 I_Instrument *PlayerMixer::GetInstrument(int channel) {
@@ -223,28 +253,23 @@ void PlayerMixer::OnPlayerStop() {
   ms->OnPlayerStop();
 }
 
-static bool shouldShowSlice(int channel, uint8_t &sliceIndex,
-                            I_Instrument *instrument,
-                            const unsigned char *notes) {
-  if (!instrument || instrument->GetType() != IT_SAMPLE) {
-    return false;
-  }
-  if (notes[channel] == 0xFF) {
-    return false;
-  }
-  SampleInstrument *sampleInstr = static_cast<SampleInstrument *>(instrument);
-  if (!sampleInstr->ShouldDisplaySliceForNote(notes[channel])) {
-    return false;
-  }
-  sliceIndex =
-      static_cast<uint8_t>(notes[channel] - SampleInstrument::SliceNoteBase);
-  return true;
+PlayerMixerChannelTelemetry
+PlayerMixer::CaptureChannelTelemetry(int channel) const {
+  return PlayerMixerTelemetry::Decode(
+      channelTelemetry_[channel].load(std::memory_order_relaxed));
 }
 
-int PlayerMixer::GetChannelNote(int channel) { return notes_[channel]; }
+int PlayerMixer::GetChannelNote(int channel) {
+  return CaptureChannelTelemetry(channel).note;
+}
 
 bool PlayerMixer::GetPlayedSliceIndex(int channel, uint8_t &sliceIndex) {
-  return shouldShowSlice(channel, sliceIndex, lastInstrument_[channel], notes_);
+  const PlayerMixerChannelTelemetry telemetry =
+      CaptureChannelTelemetry(channel);
+  if (telemetry.slice < 0)
+    return false;
+  sliceIndex = static_cast<std::uint8_t>(telemetry.slice);
+  return true;
 }
 
 AudioOut *PlayerMixer::GetAudioOut() {

@@ -266,6 +266,20 @@ target_compile_definitions(player_transport_snapshot_tests PRIVATE HOST_TEST)
 target_link_libraries(player_transport_snapshot_tests PRIVATE Threads::Threads)
 add_test(NAME player_transport_snapshot COMMAND player_transport_snapshot_tests)
 
+add_executable(player_mixer_telemetry_tests
+  test_main.cpp
+  player_mixer_telemetry_tests.cpp
+)
+
+target_include_directories(player_mixer_telemetry_tests PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals/SRC/include
+  ${CMAKE_CURRENT_LIST_DIR}/../sources
+)
+
+target_compile_definitions(player_mixer_telemetry_tests PRIVATE HOST_TEST)
+add_test(NAME player_mixer_telemetry COMMAND player_mixer_telemetry_tests)
+
 add_executable(ui2_status_bridge_tests
   test_main.cpp
   nanoprintf_test.cpp

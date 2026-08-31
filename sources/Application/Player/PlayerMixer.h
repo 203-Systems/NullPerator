@@ -18,7 +18,11 @@
 #include "Foundation/Observable.h"
 #include "Foundation/T_Singleton.h"
 #include "PlayerChannel.h"
+#include "PlayerMixerTelemetry.h"
 #include "Services/Audio/AudioOut.h"
+
+#include <atomic>
+#include <cstdint>
 
 #define STREAM_MIX_BUS 8
 
@@ -70,6 +74,8 @@ public:
   bool IsChannelMuted(int channel);
 
   bool GetPlayedSliceIndex(int channel, uint8_t &sliceIndex);
+  [[nodiscard]] PlayerMixerChannelTelemetry
+  CaptureChannelTelemetry(int channel) const;
 
   AudioOut *GetAudioOut();
 
@@ -86,15 +92,15 @@ private:
   etl::array<stereosample, SONG_CHANNEL_COUNT> mixerLevels_;
 
   I_Instrument *lastInstrument_[SONG_CHANNEL_COUNT];
-  bool isChannelPlaying_[SONG_CHANNEL_COUNT];
+  // Note, slice and channel-running state are sampled by UI2 on another core.
+  // One packed word keeps the three values race-free and prevents a slice from
+  // being paired with a note from a different trigger.
+  std::atomic<std::uint32_t> channelTelemetry_[SONG_CHANNEL_COUNT]{};
 
   AudioFileStreamer fileStreamer_;
   RecordStreamer recordStreamer_;
   PlayerChannel *channel_[SONG_CHANNEL_COUNT];
 
-  // store trigger notes, 0xFF = none
-
-  unsigned char notes_[SONG_CHANNEL_COUNT];
 };
 
 #endif
