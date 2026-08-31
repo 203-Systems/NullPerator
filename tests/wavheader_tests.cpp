@@ -351,3 +351,29 @@ TEST_CASE("ReadHeader rejects data chunk beyond EOF") {
   REQUIRE_FALSE(result.has_value());
   CHECK(result.error() == INVALID_HEADER);
 }
+
+TEST_CASE("ReadHeader rejects data chunk size whose padding wraps") {
+  Config::SetImportResampler(0);
+  ByteWriter wav = BuildPcmWav(2, 44100, 16, 4);
+
+  const uint32_t oversizedData = std::numeric_limits<uint32_t>::max();
+  std::memcpy(wav.data + 40, &oversizedData, sizeof(oversizedData));
+
+  TestFile file(wav.data, wav.size);
+  auto result = WavHeaderWriter::ReadHeader(&file);
+  REQUIRE_FALSE(result.has_value());
+  CHECK(result.error() == INVALID_HEADER);
+}
+
+TEST_CASE("ReadHeader rejects data chunk size whose end wraps") {
+  Config::SetImportResampler(0);
+  ByteWriter wav = BuildPcmWav(2, 44100, 16, 4);
+
+  const uint32_t oversizedData = std::numeric_limits<uint32_t>::max() - 1;
+  std::memcpy(wav.data + 40, &oversizedData, sizeof(oversizedData));
+
+  TestFile file(wav.data, wav.size);
+  auto result = WavHeaderWriter::ReadHeader(&file);
+  REQUIRE_FALSE(result.has_value());
+  CHECK(result.error() == INVALID_HEADER);
+}

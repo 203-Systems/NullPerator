@@ -20,6 +20,29 @@ constexpr uint16_t WAV_FORMAT_PCM = 0x0001;
 constexpr uint16_t WAV_FORMAT_IEEE_FLOAT = 0x0003;
 constexpr uint16_t WAV_FORMAT_EXTENSIBLE = 0xFFFE;
 
+bool ReadOffset(I_File *file, uint64_t &offset) {
+  const long position = file->Tell();
+  if (position < 0) {
+    return false;
+  }
+  offset = static_cast<uint64_t>(position);
+  return true;
+}
+
+bool SeekTo(I_File *file, uint64_t offset) {
+  if (offset > static_cast<uint64_t>(std::numeric_limits<long>::max())) {
+    return false;
+  }
+
+  file->Seek(static_cast<long>(offset), SEEK_SET);
+  uint64_t position = 0;
+  return ReadOffset(file, position) && position == offset;
+}
+
+uint64_t PaddedChunkEnd(uint64_t dataStart, uint32_t chunkSize) {
+  return dataStart + static_cast<uint64_t>(chunkSize) + (chunkSize & 1U);
+}
+
 } // namespace
 
 bool WavHeaderWriter::WriteHeader(I_File *file, uint32_t sampleRate,
@@ -119,15 +142,29 @@ WavHeaderWriter::ReadHeader(I_File *file) {
   }
 
   const long afterWavePos = file->Tell();
+  if (afterWavePos < 0) {
+    return etl::unexpected(INVALID_HEADER);
+  }
   file->Seek(0, SEEK_END);
-  const uint32_t fileEnd = static_cast<uint32_t>(file->Tell());
+  uint64_t fileEnd = 0;
+  if (!ReadOffset(file, fileEnd) || fileEnd == 0) {
+    return etl::unexpected(INVALID_HEADER);
+  }
   file->Seek(afterWavePos, SEEK_SET);
-  if (fileEnd <= 0) {
+  uint64_t restoredOffset = 0;
+  if (!ReadOffset(file, restoredOffset) ||
+      restoredOffset != static_cast<uint64_t>(afterWavePos)) {
     return etl::unexpected(INVALID_HEADER);
   }
 
-  const uint32_t riffEnd = info.riffChunkSize + 8;
+  const uint64_t riffEnd = static_cast<uint64_t>(info.riffChunkSize) + 8U;
+  if (riffEnd < static_cast<uint64_t>(afterWavePos) || riffEnd > fileEnd) {
+    Trace::Error("WavHeaderWriter: Invalid RIFF chunk size");
+    return etl::unexpected(INVALID_HEADER);
+  }
+
   bool fmtFound = false;
+  uint64_t fmtNextOffset = 0;
 
   while (!fmtFound) {
     if (file->Read(&chunk, 4) != 4) {
@@ -140,23 +177,25 @@ WavHeaderWriter::ReadHeader(I_File *file) {
     }
     info.fmtChunkSize = chunkSize;
 
-    uint32_t chunkDataOffset = file->Tell();
-    uint32_t paddedChunkSize = info.fmtChunkSize + (info.fmtChunkSize & 1);
-    uint32_t nextOffset = chunkDataOffset + paddedChunkSize;
-    if (nextOffset > riffEnd) {
+    uint64_t chunkDataOffset = 0;
+    if (!ReadOffset(file, chunkDataOffset)) {
+      return etl::unexpected(INVALID_HEADER);
+    }
+    const uint64_t nextOffset =
+        PaddedChunkEnd(chunkDataOffset, info.fmtChunkSize);
+    if (nextOffset > riffEnd || nextOffset > fileEnd) {
       Trace::Error("WavHeaderWriter: fmt chunk exceeds RIFF bounds");
       return etl::unexpected(INVALID_HEADER);
     }
 
     if (chunk == 0x20746D66) { // "fmt "
       fmtFound = true;
+      fmtNextOffset = nextOffset;
       break;
     }
 
-    file->Seek(info.fmtChunkSize, SEEK_CUR);
-
-    if (info.fmtChunkSize & 1) {
-      file->Seek(1, SEEK_CUR);
+    if (!SeekTo(file, nextOffset)) {
+      return etl::unexpected(INVALID_HEADER);
     }
   }
 
@@ -268,23 +307,13 @@ WavHeaderWriter::ReadHeader(I_File *file) {
       static_cast<uint32_t>(info.numChannels) * info.bytesPerSample;
   if (expectedBlockAlign > std::numeric_limits<uint16_t>::max() ||
       info.blockAlign != expectedBlockAlign) {
-    Trace::Error(
-        "WavHeaderWriter: Invalid block alignment %u (expected %u)",
-        info.blockAlign, expectedBlockAlign);
+    Trace::Error("WavHeaderWriter: Invalid block alignment %u (expected %u)",
+                 info.blockAlign, expectedBlockAlign);
     return etl::unexpected(INVALID_HEADER);
   }
 
-  const uint32_t fmtBytesConsumed = isExtensible ? 40U : 16U;
-  if (info.fmtChunkSize > fmtBytesConsumed) {
-    uint32_t toSkip = info.fmtChunkSize - fmtBytesConsumed;
-    if (file->Tell() + toSkip > riffEnd) {
-      Trace::Error("WavHeaderWriter: fmt extra data exceeds RIFF bounds");
-      return etl::unexpected(INVALID_HEADER);
-    }
-    file->Seek(toSkip, SEEK_CUR);
-  }
-  if (info.fmtChunkSize & 1) {
-    file->Seek(1, SEEK_CUR);
+  if (!SeekTo(file, fmtNextOffset)) {
+    return etl::unexpected(INVALID_HEADER);
   }
 
   while (true) {
@@ -297,17 +326,21 @@ WavHeaderWriter::ReadHeader(I_File *file) {
       return etl::unexpected(INVALID_HEADER);
     }
 
-    uint32_t dataStart = file->Tell();
-    uint32_t paddedChunkSize = chunkSize + (chunkSize & 1);
-    uint32_t chunkEnd = dataStart + paddedChunkSize;
+    uint64_t dataStart = 0;
+    if (!ReadOffset(file, dataStart)) {
+      return etl::unexpected(INVALID_HEADER);
+    }
+    const uint64_t chunkEnd = PaddedChunkEnd(dataStart, chunkSize);
     if (chunkEnd > riffEnd) {
       // Some exporters write a too-small RIFF size while keeping a valid data
       // chunk that ends at/before EOF. Accept only this narrow mismatch.
       if (chunk == 0x61746164 && chunkEnd <= fileEnd) { // "data"
         Trace::Log("WAVHEADER",
-                   "Accepting data chunk beyond RIFF bounds (riffEnd=%u, "
-                   "chunkEnd=%u, fileEnd=%u)",
-                   riffEnd, chunkEnd, fileEnd);
+                   "Accepting data chunk beyond RIFF bounds (riffEnd=%llu, "
+                   "chunkEnd=%llu, fileEnd=%llu)",
+                   static_cast<unsigned long long>(riffEnd),
+                   static_cast<unsigned long long>(chunkEnd),
+                   static_cast<unsigned long long>(fileEnd));
       } else {
         Trace::Error("WavHeaderWriter: data chunk exceeds RIFF bounds");
         return etl::unexpected(INVALID_HEADER);
@@ -315,18 +348,19 @@ WavHeaderWriter::ReadHeader(I_File *file) {
     }
 
     if (chunk == 0x61746164) { // "data"
+      if (dataStart > std::numeric_limits<uint32_t>::max()) {
+        return etl::unexpected(INVALID_HEADER);
+      }
       info.dataChunkSize = chunkSize;
-      info.dataOffset = dataStart;
+      info.dataOffset = static_cast<uint32_t>(dataStart);
       break;
     }
 
-    file->Seek(chunkSize, SEEK_CUR);
-
-    if (chunkSize & 1) {
-      file->Seek(1, SEEK_CUR);
+    if (!SeekTo(file, chunkEnd)) {
+      return etl::unexpected(INVALID_HEADER);
     }
 
-    if (static_cast<uint32_t>(file->Tell()) >= riffEnd) {
+    if (chunkEnd >= riffEnd) {
       Trace::Error("WavHeaderWriter: data chunk not found within RIFF bounds");
       return etl::unexpected(INVALID_HEADER);
     }
@@ -337,7 +371,9 @@ WavHeaderWriter::ReadHeader(I_File *file) {
     return etl::unexpected(INVALID_HEADER);
   }
 
-  file->Seek(info.dataOffset, SEEK_SET);
+  if (!SeekTo(file, info.dataOffset)) {
+    return etl::unexpected(INVALID_HEADER);
+  }
   return info;
 }
 bool WavHeaderWriter::UpdateFileSize(I_File *file, uint32_t sampleCount,
