@@ -54,12 +54,12 @@
   [data-storage-dirty='true'] .status-dot { background:#f7c266; box-shadow:0 0 6px rgba(247,194,102,.4); }
   [data-audio-state='disabled'] .status-dot { background:#737984; box-shadow:none; }
   [data-runtime-state='failed'] .status-dot,[data-storage-state='failed'] .status-dot,[data-midi-state='failed'] .status-dot,[data-midi-state='denied'] .status-dot,[data-audio-state='failed'] .status-dot { background:#ff6b6b; box-shadow:0 0 6px rgba(255,107,107,.5); }
-  .developer-toggle { display:flex; min-height:34px; align-items:center; gap:8px; padding:5px 8px; border:1px solid var(--border); border-radius:999px; color:var(--muted); background:rgba(255,255,255,.025); font-size:.72rem; }
+  .developer-toggle { display:flex; min-height:44px; align-items:center; gap:8px; padding:5px 8px; border:1px solid var(--border); border-radius:999px; color:var(--muted); background:rgba(255,255,255,.025); font-size:.72rem; }
   .developer-toggle:hover { color:var(--text); border-color:rgba(76,201,240,.35); }
   .toggle-track { position:relative; width:27px; height:15px; flex:0 0 auto; border:1px solid rgba(255,255,255,.17); border-radius:999px; background:#0c0d10; }
   .toggle-track span { position:absolute; left:2px; top:2px; width:9px; height:9px; border-radius:50%; background:#737984; transition:translate .18s cubic-bezier(.2,.8,.2,1),background .18s; }
   .developer-toggle.enabled { color:var(--accent); border-color:rgba(76,201,240,.32); background:var(--accent-soft); }
   .enabled .toggle-track span { translate:12px 0; background:var(--accent); }
   @media(max-width:1000px){ .compact { display:none; } }
-  @media(max-width:720px){ .top-bar { height:48px; padding:0 10px; } .top-bar-logo{width:48px}.top-bar-title{font-size:.86rem}.top-status{display:none}.developer-toggle{min-width:64px;min-height:38px;justify-content:center}.toggle-label{font-size:0}.toggle-label::after{content:'DEV';font-size:.65rem;letter-spacing:.08em} }
+  @media(max-width:720px){ .top-bar { height:48px; padding:0 10px; } .top-bar-logo{width:48px}.top-bar-title{font-size:.86rem}.top-status{display:none}.developer-toggle{min-width:64px;justify-content:center}.toggle-label{font-size:0}.toggle-label::after{content:'DEV';font-size:.65rem;letter-spacing:.08em} }
 </style>

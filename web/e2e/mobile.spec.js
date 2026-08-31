@@ -98,6 +98,10 @@ for (const viewport of mobileViewports) {
     await expect(dashboard).toHaveAttribute('data-developer-mode', 'true')
     const navigation = page.getByRole('navigation', { name: 'Workbench sections' })
     await expect(navigation).toBeVisible()
+    const developerToggle = page.getByRole('button', { name: 'Developer mode' })
+    const developerToggleBox = await developerToggle.boundingBox()
+    expect(developerToggleBox).not.toBeNull()
+    expect(developerToggleBox.height).toBeGreaterThanOrEqual(44)
     const developerSettings = page.getByRole('button', { name: 'Settings', exact: true })
     await expect(developerSettings).toHaveCount(1)
     if (viewport.height < 400) {
