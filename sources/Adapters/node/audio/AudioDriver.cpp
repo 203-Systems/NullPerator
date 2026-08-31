@@ -33,8 +33,6 @@ static uint8_t freeAudioBuffersStorage[SOUND_BUFFER_COUNT * sizeof(uint8_t)]
 static uint8_t filledAudioBuffersStorage[SOUND_BUFFER_COUNT * sizeof(uint8_t)]
     PICOTRACKER_FAST_DATA;
 
-static volatile unsigned long esp32_sound_pausei;
-
 namespace {
 constexpr uint32_t kI2SWriteTimeoutMs = 20;
 constexpr uint32_t kQueueUnderrunTimeoutMs = 2;
@@ -72,8 +70,6 @@ void return_free_buffer(uint8_t index) {
   }
 }
 } // namespace
-
-void esp32_sound_pause(int yes) { esp32_sound_pausei = yes; }
 
 void NodeAudioDriver::AudioThread(void *arg) {
   NodeTaskStackTelemetry stackTelemetry("AudioThread");
@@ -307,13 +303,11 @@ bool NodeAudioDriver::StartDriver() {
   // Publish the initialized buffer and queue state before either worker may
   // begin producing or consuming audio on its pinned core.
   driverPlaying_.store(true, std::memory_order_release);
-  esp32_sound_pause(0);
   startTime_ = millis();
   return true;
 };
 
 void NodeAudioDriver::StopDriver() {
-  esp32_sound_pause(1);
   // Close the cross-core gate before queue wakeups can release either worker.
   driverPlaying_.store(false, std::memory_order_release);
   isPlaying_ = false;

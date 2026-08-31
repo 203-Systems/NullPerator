@@ -37,7 +37,6 @@ private:
   static void AudioThread(void* arg);
   static void I2SThread(void* arg);
   static NodeAudioDriver *instance_;
-  AudioSettings settings_;
   static uint8_t miniBlank_[MINI_BLANK_SIZE * 2U * sizeof(int16_t)];
   int volume_;
   // AudioDriver::isPlaying_ belongs to the application-facing base class.
