@@ -81,7 +81,6 @@ public:
   Rgb565Colors() const {
     return rgb565_;
   }
-  [[nodiscard]] std::uint32_t Rgba8888(PaletteIndex index) const;
   [[nodiscard]] PaletteIndex CoverageIndex(UiCoverage coverage,
                                             PaletteIndex destination) const;
   [[nodiscard]] PaletteIndex AntialiasIndex(UiCoverage coverage,

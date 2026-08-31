@@ -91,13 +91,4 @@ struct Rgb888 {
   friend constexpr bool operator==(Rgb888, Rgb888) = default;
 };
 
-struct Rgba8888 {
-  std::uint8_t red = 0;
-  std::uint8_t green = 0;
-  std::uint8_t blue = 0;
-  std::uint8_t alpha = 255;
-
-  friend constexpr bool operator==(Rgba8888, Rgba8888) = default;
-};
-
 } // namespace ui2

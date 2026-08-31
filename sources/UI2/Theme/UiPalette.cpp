@@ -168,11 +168,4 @@ std::uint16_t UiPalette::Rgb565(PaletteIndex index) const {
   return rgb565_[index];
 }
 
-std::uint32_t UiPalette::Rgba8888(PaletteIndex index) const {
-  const Rgb888 color = colors_[index];
-  return (static_cast<std::uint32_t>(color.red) << 24U) |
-         (static_cast<std::uint32_t>(color.green) << 16U) |
-         (static_cast<std::uint32_t>(color.blue) << 8U) | 0xFFU;
-}
-
 } // namespace ui2
