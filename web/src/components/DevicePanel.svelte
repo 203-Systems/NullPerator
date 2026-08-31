@@ -10,6 +10,10 @@
 
   let panel
   let scene
+  let unlockDialog
+  let unlockButton
+  let audioRestoreTarget = null
+  let audioPromptRevision = 0
   let actionMask = 0
   let actionGeneration = 0
   let lastAction = -1
@@ -33,8 +37,45 @@
     target.scrollTop = 0
     target.scrollLeft = 0
   }
-  function unlockAudio() { runtime.audio?.unlockAudio?.().catch(() => {}) }
+  async function unlockAudio() {
+    try { await runtime.audio?.unlockAudio?.() } catch {}
+  }
+  function restoreAudioPromptFocus(target) {
+    if (target && target !== document.body && target.isConnected
+      && !target.matches?.(':disabled') && !target.closest?.('[inert],[hidden]')) {
+      target.focus?.({ preventScroll: true })
+      if (document.activeElement === target) return
+    }
+    focusCanvas()
+  }
+  async function synchronizeAudioPrompt(blocked, target, button) {
+    const revision = ++audioPromptRevision
+    if (blocked && target) {
+      if (!target.open) {
+        audioRestoreTarget = document.activeElement
+        target.showModal()
+      }
+      await tick()
+      if (revision === audioPromptRevision && audioBlocked && unlockDialog === target && target.open) {
+        button?.focus({ preventScroll: true })
+      }
+      return
+    }
+    if (blocked) return
+    const restoreTarget = audioRestoreTarget
+    audioRestoreTarget = null
+    if (target?.open) target.close()
+    if (!restoreTarget) return
+    await tick()
+    if (revision === audioPromptRevision && !audioBlocked) restoreAudioPromptFocus(restoreTarget)
+  }
+  function trapAudioPromptFocus(event) {
+    if (event.key !== 'Tab') return
+    event.preventDefault()
+    unlockButton?.focus({ preventScroll: true })
+  }
   function isTrackerActive(event) {
+    if (audioBlocked) return false
     if (!panel || panel.getClientRects().length === 0) return false
     const active = document.activeElement
     if (!active) return true
@@ -52,7 +93,9 @@
   }
   function diagnosticsEnabled() { return new URLSearchParams(window.location.search).get('inputDiagnostics') === '1' }
 
-  $: if (runtime.state !== 'ready') { input.releaseAll(); actionMask = 0; actionGeneration = 0; lastAction = -1 }
+  $: audioBlocked = audio.state === 'locked' || audio.state === 'suspended'
+  $: if (runtime.state !== 'ready' || audioBlocked) { input.releaseAll(); actionMask = 0; actionGeneration = 0; lastAction = -1 }
+  $: synchronizeAudioPrompt(audioBlocked, unlockDialog, unlockButton)
   $: resetModeScroll(compact, scene)
 
   onMount(() => {
@@ -63,13 +106,21 @@
     requestAnimationFrame(focusCanvas)
     return () => { if (timer !== null) window.clearInterval(timer); detach(); detachSettings() }
   })
-  onDestroy(() => { detachInput(); input.releaseAll() })
+  onDestroy(() => {
+    audioPromptRevision += 1
+    const restoreTarget = audioRestoreTarget
+    audioRestoreTarget = null
+    if (unlockDialog?.open) unlockDialog.close()
+    if (restoreTarget) queueMicrotask(() => restoreAudioPromptFocus(restoreTarget))
+    detachInput()
+    input.releaseAll()
+  })
 </script>
 
 <div class="device-input-host" class:compact bind:this={panel} onfocusout={(event) => { if (!panel?.contains(event.relatedTarget)) input.releaseAll() }}>
   <h1 class="sr-only">PicoTracker Device</h1>
   <div class="device-scene" bind:this={scene}>
-    <div class="operator-device" data-display-scale={displayScale} style={`--device-scale:${scaleFor(displayScale, compact)}`}>
+    <div class="operator-device" inert={audioBlocked} data-display-scale={displayScale} style={`--device-scale:${scaleFor(displayScale, compact)}`}>
       <div class="operator-screen-housing">
         <div class="screen-bezel">
           <canvas id="canvas" aria-hidden="true" tabindex="-1"></canvas>
@@ -82,16 +133,13 @@
       </div>
       <VirtualControls {input} {heldActions} disabled={runtime.state !== 'ready'} {compact} />
     </div>
-    {#if audio.state === 'locked' || audio.state === 'suspended'}
-      <div class="audio-gate">
-        <div class="audio-unlock" role="dialog" aria-modal="true" aria-labelledby="audio-unlock-title">
-          <p class="eyebrow">Audio</p>
-          <h2 id="audio-unlock-title">Enable sound</h2>
-          <p>Your browser needs one click before PicoTracker can play audio.</p>
-          <button type="button" onclick={unlockAudio}>Enable sound</button>
-        </div>
-      </div>
-    {/if}
+    <dialog bind:this={unlockDialog} class="audio-gate audio-unlock" aria-labelledby="audio-unlock-title"
+      oncancel={(event) => event.preventDefault()} onkeydown={trapAudioPromptFocus}>
+      <p class="eyebrow">Audio</p>
+      <h2 id="audio-unlock-title">Enable sound</h2>
+      <p>Your browser needs one click before PicoTracker can play audio.</p>
+      <button bind:this={unlockButton} type="button" onclick={unlockAudio}>Enable sound</button>
+    </dialog>
   </div>
 
   {#if !compact}<footer class="keyboard-helper" aria-label="Keyboard shortcuts">
@@ -114,8 +162,9 @@
   #picotracker-canvas:focus-visible { box-shadow:0 0 0 1px var(--accent); }
   #canvas { display:none; }
   .screen-glass { position:absolute; inset:11px; pointer-events:none; }
-  .audio-gate { position:absolute; inset:0; z-index:4; display:grid; place-items:center; padding:16px; background:rgba(8,9,12,.48); }
-  .audio-unlock { width:min(300px,100%); padding:16px; border:1px solid #454a54; border-radius:8px; color:var(--text); background:rgba(18,20,25,.98); box-shadow:0 18px 50px rgba(0,0,0,.48); }
+  .audio-gate { position:fixed; inset:0; box-sizing:border-box; width:min(300px,calc(100% - 32px)); height:max-content; max-height:calc(100dvh - 32px); margin:auto; overflow:auto; }
+  .audio-gate::backdrop { background:rgba(8,9,12,.72); }
+  .audio-unlock { padding:16px; border:1px solid #454a54; border-radius:8px; color:var(--text); background:rgba(18,20,25,.98); box-shadow:0 18px 50px rgba(0,0,0,.48); }
   .audio-unlock .eyebrow { margin:0 0 5px; color:var(--accent); font:600 9px/1 var(--mono); letter-spacing:.14em; text-transform:uppercase; }
   .audio-unlock h2 { margin:0; font-size:15px; }
   .audio-unlock p:not(.eyebrow) { margin:7px 0 13px; color:var(--muted); font-size:11px; line-height:1.45; }

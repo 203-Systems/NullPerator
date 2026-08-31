@@ -20,7 +20,7 @@ function actionGeneration(canvas) {
 }
 
 test('every virtual control reaches its specific C++ UI action path', async ({ page }) => {
-  await page.goto('/?inputDiagnostics=1')
+  await page.goto('/?audio=disabled&inputDiagnostics=1')
   await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible()
   const canvas = page.locator('#picotracker-canvas')
 
@@ -38,7 +38,7 @@ test('every virtual control reaches its specific C++ UI action path', async ({ p
 })
 
 test('blur and pointer cancellation clear C++ state and stop further input dispatch', async ({ page }) => {
-  await page.goto('/?inputDiagnostics=1')
+  await page.goto('/?audio=disabled&inputDiagnostics=1')
   await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible()
   const canvas = page.locator('#picotracker-canvas')
 
@@ -71,7 +71,7 @@ test('blur and pointer cancellation clear C++ state and stop further input dispa
 })
 
 test('focused virtual buttons activate with keyboard click semantics without global tracker keys', async ({ page }) => {
-  await page.goto('/?inputDiagnostics=1')
+  await page.goto('/?audio=disabled&inputDiagnostics=1')
   await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible()
   const canvas = page.locator('#picotracker-canvas')
   const edit = page.getByRole('button', { name: 'EDIT', exact: true })
@@ -87,7 +87,7 @@ test('focused virtual buttons activate with keyboard click semantics without glo
 })
 
 test('Operator fixed WASD, J/K, and X/C controls reach C++ with direct M8 semantics', async ({ page }) => {
-  await page.goto('/?inputDiagnostics=1')
+  await page.goto('/?audio=disabled&inputDiagnostics=1')
   await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible()
   const canvas = page.locator('#picotracker-canvas')
   // Device input remains active after using the workbench chrome. This mirrors
