@@ -18,6 +18,7 @@
 #include "Application/Instruments/SampleInstrument.h"
 #include "Application/Mixer/MixerService.h"
 #include "Application/Model/Groove.h"
+#include "Application/Player/PlayerDirectNoteBounds.h"
 #include "Application/Player/PlayerStartPlan.h"
 #include "Application/Player/PlayerStorageBounds.h"
 #include "Application/Player/PlayerTransportPolicy.h"
@@ -1525,7 +1526,8 @@ etl::array<stereosample, SONG_CHANNEL_COUNT> *Player::GetMixerLevels() {
 
 void Player::PlayNote(unsigned short instrumentIndex, unsigned short channel,
                       unsigned char note, unsigned char velocity) {
-  if (!project_)
+  if (!audioReadiness_.IsReady() || project_ == nullptr ||
+      !player_direct_note::IsPlayableTarget(instrumentIndex, note))
     return;
 
   InstrumentBank *bank = project_->GetInstrumentBank();
@@ -1547,6 +1549,9 @@ void Player::PlayNote(unsigned short instrumentIndex, unsigned short channel,
 }
 
 void Player::StopNote(unsigned short instrumentIndex, unsigned short channel) {
+  if (!audioReadiness_.IsReady())
+    return;
+
   // Use the channel modulo SONG_CHANNEL_COUNT to ensure it's within range
   int playerChannel = channel % SONG_CHANNEL_COUNT;
   mixer_.Lock();

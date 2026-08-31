@@ -295,6 +295,20 @@ target_include_directories(player_audio_readiness_tests PRIVATE
 target_compile_definitions(player_audio_readiness_tests PRIVATE HOST_TEST)
 add_test(NAME player_audio_readiness COMMAND player_audio_readiness_tests)
 
+add_executable(player_direct_note_bounds_tests
+  test_main.cpp
+  player_direct_note_bounds_tests.cpp
+)
+
+target_include_directories(player_direct_note_bounds_tests PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals/SRC/include
+  ${CMAKE_CURRENT_LIST_DIR}/../sources
+)
+
+target_compile_definitions(player_direct_note_bounds_tests PRIVATE HOST_TEST)
+add_test(NAME player_direct_note_bounds COMMAND player_direct_note_bounds_tests)
+
 # Cross-core Table telemetry is fixed-size. Keep its no-tearing publication
 # contract in a focused threaded binary suitable for ASan/UBSan and TSan
 # without booting the full audio graph.
