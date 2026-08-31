@@ -19,6 +19,10 @@ struct OpalOutputLevelRegisters {
                                    (algorithm & 0x01));
 }
 
+[[nodiscard]] constexpr std::uint8_t EncodeOpalDepthControl(int depth) {
+  return static_cast<std::uint8_t>((depth & 0x03) << 6);
+}
+
 [[nodiscard]] constexpr OpalOutputLevelRegisters EncodeOpalOutputLevels(
     int operator1KeyScale, int operator1Level, int operator2KeyScale,
     int operator2Level) {

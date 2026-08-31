@@ -136,6 +136,13 @@ TEST_CASE("OPAL channel control includes feedback and algorithm") {
   CHECK(EncodeOpalChannelControl(1, 5) == 0x3BU);
 }
 
+TEST_CASE("OPAL depth flags retain the UI tremolo and vibrato bit order") {
+  CHECK(EncodeOpalDepthControl(0) == 0x00U);
+  CHECK(EncodeOpalDepthControl(1) == 0x40U);
+  CHECK(EncodeOpalDepthControl(2) == 0x80U);
+  CHECK(EncodeOpalDepthControl(3) == 0xC0U);
+}
+
 TEST_CASE("Sample size queries keep the default sentinel outside render state") {
   CHECK_FALSE(IsSampleRenderChannel(-1, SONG_CHANNEL_COUNT));
   CHECK(IsSampleRenderChannel(0, SONG_CHANNEL_COUNT));

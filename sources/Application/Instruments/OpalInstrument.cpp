@@ -83,6 +83,10 @@ bool OpalInstrument::Init() {
 void OpalInstrument::OnStart(){};
 
 bool OpalInstrument::Start(int channel, unsigned char note, bool retrigger) {
+  // Global depth flags: the UI's left TREM bit maps to DAM (D7) and its right
+  // VIB bit maps to DVB (D6).
+  opl_.Port(0xBD, EncodeOpalDepthControl(deepTremeloVibrato_.GetInt()));
+
   // channel wide settings
   // enable left/right output (D4, D5) & set algorithm D0
   // for now only 2 op so just Additive or FM
