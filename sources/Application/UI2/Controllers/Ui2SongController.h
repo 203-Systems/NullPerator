@@ -98,6 +98,19 @@ public:
       output.Push(Command(Ui2TrackerCommandType::CloneCell));
       return output;
     }
+    if (action == TrackerAction::Play && liveMode_ &&
+        input_.Held(TrackerAction::Left) &&
+        !input_.Held(TrackerAction::Shift) &&
+        !input_.Held(TrackerAction::Edit)) {
+      Ui2TrackerCommand command = Command(Ui2TrackerCommandType::StartPlayback);
+      // M8's LEFT+PLAY chord cues the selected Song row across every track.
+      // LEFT keeps its existing press-edge cursor/selection motion; the PLAY
+      // edge contributes only this temporary transport range.
+      command.selection.Begin(0U, AbsoluteRow());
+      command.selection.Follow(kUi2TrackerTrackCount - 1U, AbsoluteRow());
+      output.Push(command);
+      return output;
+    }
     if (selection_.active) {
       HandleSelection(action, output);
       return output;

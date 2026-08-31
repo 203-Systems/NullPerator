@@ -15,7 +15,8 @@ void WasmApplicationSnapshot::Publish(const char *projectName,
                                       std::uint32_t tempo,
                                       std::uint32_t sampleCount,
                                       bool playerRunning,
-                                      std::uint32_t masterLevel) noexcept {
+                                      std::uint32_t masterLevel,
+                                      std::uint32_t playingTrackMask) noexcept {
   std::array<std::uint8_t, ProjectNameStorageBytes> nameBytes{};
   std::size_t nameLength = 0U;
   if (projectName != nullptr) {
@@ -50,6 +51,8 @@ void WasmApplicationSnapshot::Publish(const char *projectName,
         (static_cast<std::uint32_t>(nameBytes[offset + 3U]) << 24U);
     words_[ProjectNameWord + index].store(word, std::memory_order_release);
   }
+  words_[PlayingTrackMaskWord].store(playingTrackMask,
+                                     std::memory_order_release);
   words_[SequenceWord].store(writing + 1U, std::memory_order_release);
 }
 
@@ -93,6 +96,7 @@ bool WasmApplicationSnapshot::Copy(
         (word >> ((index % sizeof(std::uint32_t)) * 8U)) & 0xFFU);
   }
   result.projectName[result.projectNameLength] = '\0';
+  result.playingTrackMask = copy[PlayingTrackMaskWord];
   values = result;
   return true;
 }

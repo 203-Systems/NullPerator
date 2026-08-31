@@ -40,9 +40,16 @@ void PublishApplicationSnapshot(
   Player *player = Player::GetInstance();
   const bool running = application.Session().PlayerInitialized() &&
                        player != nullptr && player->IsRunning();
+  std::uint32_t playingTrackMask = 0U;
+  if (running) {
+    for (std::uint8_t track = 0U; track < SONG_CHANNEL_COUNT; ++track) {
+      if (player->IsChannelPlaying(track))
+        playingTrackMask |= std::uint32_t{1U} << track;
+    }
+  }
   Wasm_ApplicationSnapshot().Publish(
       projectName, static_cast<std::uint32_t>(project.GetTempo()), sampleCount,
-      running, running ? player->GetMasterLevel() : 0U);
+      running, running ? player->GetMasterLevel() : 0U, playingTrackMask);
 }
 
 ui2::UiApplicationPage NativePageForDiagnostic(std::uint32_t view) {

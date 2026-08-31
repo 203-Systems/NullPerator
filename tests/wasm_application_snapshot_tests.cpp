@@ -10,7 +10,7 @@
 
 TEST_CASE("WASM application snapshot exposes the stable browser ABI layout") {
   WasmApplicationSnapshot snapshot;
-  snapshot.Publish("oneCycAc", 164U, 23U, true, 0x12345678U);
+  snapshot.Publish("oneCycAc", 164U, 23U, true, 0x12345678U, 0xA5U);
 
   WasmApplicationSnapshotValues values{};
   REQUIRE(snapshot.Copy(values));
@@ -20,23 +20,25 @@ TEST_CASE("WASM application snapshot exposes the stable browser ABI layout") {
   CHECK(values.sampleCount == 23U);
   CHECK(values.playerRunning == 1U);
   CHECK(values.masterLevel == 0x12345678U);
+  CHECK(values.playingTrackMask == 0xA5U);
   CHECK(values.projectNameLength == 8U);
   CHECK(std::string_view(values.projectName.data(), values.projectNameLength) ==
         "oneCycAc");
 
   const std::uint32_t *words = snapshot.Address();
-  CHECK(words[WasmApplicationSnapshot::VersionWord] == 1U);
-  CHECK(words[WasmApplicationSnapshot::ByteSizeWord] == 52U);
+  CHECK(words[WasmApplicationSnapshot::VersionWord] == 2U);
+  CHECK(words[WasmApplicationSnapshot::ByteSizeWord] == 56U);
   CHECK(words[WasmApplicationSnapshot::TempoWord] == 164U);
   CHECK(words[WasmApplicationSnapshot::SampleCountWord] == 23U);
   CHECK(words[WasmApplicationSnapshot::PlayerRunningWord] == 1U);
   CHECK(words[WasmApplicationSnapshot::MasterLevelWord] == 0x12345678U);
   CHECK(words[WasmApplicationSnapshot::ProjectNameLengthWord] == 8U);
+  CHECK(words[WasmApplicationSnapshot::PlayingTrackMaskWord] == 0xA5U);
 }
 
 TEST_CASE("WASM application snapshot truncates and NUL terminates project names") {
   WasmApplicationSnapshot snapshot;
-  snapshot.Publish("1234567890abcdefghijklmnop", 138U, 0U, false, 0U);
+  snapshot.Publish("1234567890abcdefghijklmnop", 138U, 0U, false, 0U, 0U);
 
   WasmApplicationSnapshotValues values{};
   REQUIRE(snapshot.Copy(values));
@@ -48,14 +50,14 @@ TEST_CASE("WASM application snapshot truncates and NUL terminates project names"
 
 TEST_CASE("WASM application snapshot seqlock never mixes publications") {
   WasmApplicationSnapshot snapshot;
-  snapshot.Publish("odd", 1U, 3U, true, 0xA5A50001U);
+  snapshot.Publish("odd", 1U, 3U, true, 0xA5A50001U, 1U);
 
   std::atomic<bool> done{false};
   std::thread writer([&] {
     for (std::uint32_t value = 2U; value <= 20000U; ++value) {
       snapshot.Publish((value & 1U) != 0U ? "odd" : "even", value,
                        value * 3U, (value & 1U) != 0U,
-                       0xA5A50000U | value);
+                       0xA5A50000U | value, value & 0xFFU);
     }
     done.store(true, std::memory_order_release);
   });
@@ -76,7 +78,8 @@ TEST_CASE("WASM application snapshot seqlock never mixes publications") {
     if (values.sampleCount != values.tempo * 3U ||
         values.playerRunning != static_cast<std::uint32_t>(odd) ||
         values.masterLevel != (0xA5A50000U | values.tempo) ||
-        name != expected || (values.sequence & 1U) != 0U) {
+        values.playingTrackMask != (values.tempo & 0xFFU) || name != expected ||
+        (values.sequence & 1U) != 0U) {
       consistent = false;
       failed = values;
       break;

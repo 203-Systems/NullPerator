@@ -8,11 +8,12 @@ describe('application snapshot reader', () => {
     const words = new Uint32Array(memory)
     const pointer = 16
     const base = pointer >>> 2
-    words.set([2, 1, 52, 164, 23, 1, 0x12345678, 8], base)
+    words.set([2, 2, 56, 164, 23, 1, 0x12345678, 8], base)
     const name = new TextEncoder().encode('oneCycAc')
     for (let index = 0; index < name.length; index += 1) {
       words[base + 8 + (index >>> 2)] |= name[index] << ((index & 3) * 8)
     }
+    words[base + 13] = 0xA5
 
     expect(readApplicationSnapshot({
       HEAPU32: words,
@@ -24,6 +25,7 @@ describe('application snapshot reader', () => {
       sampleCount: 23,
       playerRunning: true,
       masterLevel: 0x12345678,
+      playingTrackMask: 0xA5,
     })
   })
 
@@ -33,10 +35,10 @@ describe('application snapshot reader', () => {
     const memory = new SharedArrayBuffer(256)
     const words = new Uint32Array(memory)
     const pointer = 16
-    words.set([2, 2, 52, 0, 0, 0, 0, 0], pointer >>> 2)
+    words.set([2, 1, 52, 0, 0, 0, 0, 0], pointer >>> 2)
     expect(() => readApplicationSnapshot({ HEAPU32: words, __picoTrackerApplicationSnapshot: { data: pointer } })).toThrow(/incompatible/i)
 
-    words.set([4, 1, 52, 0, 0, 0, 0, 17], pointer >>> 2)
+    words.set([4, 2, 56, 0, 0, 0, 0, 17], pointer >>> 2)
     expect(() => readApplicationSnapshot({ HEAPU32: words, __picoTrackerApplicationSnapshot: { data: pointer } })).toThrow(/project name/i)
   })
 })

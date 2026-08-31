@@ -372,6 +372,42 @@ TEST_CASE("UI2 Song EDIT PLAY launches immediately only in LIVE mode") {
   CHECK(selectedLiveController.Selection().active);
 }
 
+TEST_CASE("UI2 Song LIVE Left Play cues the current row across all tracks") {
+  Ui2SongController liveController(4, 3, 8, true);
+
+  const auto left = liveController.Handle(TrackerAction::Left, true);
+  CHECK(left.Empty());
+  CHECK(liveController.Track() == 3U);
+
+  const auto rowCue = liveController.Handle(TrackerAction::Play, true);
+  REQUIRE(rowCue.count == 1U);
+  CHECK(rowCue[0].type == Ui2TrackerCommandType::StartPlayback);
+  CHECK(rowCue[0].track == 3U);
+  CHECK(rowCue[0].row == 11U);
+  REQUIRE(rowCue[0].selection.active);
+  CHECK(rowCue[0].selection.Left() == 0U);
+  CHECK(rowCue[0].selection.Right() == ui2::kUi2TrackerTrackCount - 1U);
+  CHECK(rowCue[0].selection.Top() == 11U);
+  CHECK(rowCue[0].selection.Bottom() == 11U);
+
+  Ui2SongController selectedLiveController(4, 3, 8, true);
+  BeginSelection(selectedLiveController);
+  CHECK(selectedLiveController.Handle(TrackerAction::Left, true).Empty());
+  const auto selectedRowCue =
+      selectedLiveController.Handle(TrackerAction::Play, true);
+  REQUIRE(selectedRowCue.count == 1U);
+  CHECK(selectedRowCue[0].selection.Left() == 0U);
+  CHECK(selectedRowCue[0].selection.Right() == ui2::kUi2TrackerTrackCount - 1U);
+  CHECK(selectedRowCue[0].selection.Top() == 11U);
+  CHECK(selectedRowCue[0].selection.Bottom() == 11U);
+
+  Ui2SongController songController(4, 3, 8, false);
+  CHECK(songController.Handle(TrackerAction::Left, true).Empty());
+  const auto ordinaryPlay = songController.Handle(TrackerAction::Play, true);
+  REQUIRE(ordinaryPlay.count == 1U);
+  CHECK_FALSE(ordinaryPlay[0].selection.active);
+}
+
 TEST_CASE("UI2 grid playback chords match the M8 command matrix") {
   CheckCommonPlaybackChords<Ui2SongController>();
   CheckCommonPlaybackChords<Ui2ChainController>();

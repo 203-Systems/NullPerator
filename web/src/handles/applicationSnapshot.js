@@ -1,5 +1,5 @@
-const APPLICATION_SNAPSHOT_VERSION = 1
-const APPLICATION_SNAPSHOT_BYTES = 52
+const APPLICATION_SNAPSHOT_VERSION = 2
+const APPLICATION_SNAPSHOT_BYTES = 56
 const APPLICATION_SNAPSHOT_WORDS = APPLICATION_SNAPSHOT_BYTES / 4
 const APPLICATION_PROJECT_NAME_CAPACITY = 16
 const utf8Decoder = new TextDecoder()
@@ -38,6 +38,7 @@ export function readApplicationSnapshot(module) {
       sampleCount: words[4],
       playerRunning: words[5] !== 0,
       masterLevel: words[6],
+      playingTrackMask: words[13],
     })
   }
   throw new Error('WASM application snapshot remained busy')

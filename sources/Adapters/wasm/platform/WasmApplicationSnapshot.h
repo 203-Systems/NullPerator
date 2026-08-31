@@ -23,6 +23,7 @@
 //   6 packed stereo master level (left high 16, right low 16)
 //   7 project-name byte length
 //   8..12 UTF-8 project name (20 bytes, NUL padded; at most 16 bytes)
+//   13 bit mask of currently playing tracker channels
 struct WasmApplicationSnapshotValues {
   std::uint32_t sequence = 0U;
   std::uint32_t version = 0U;
@@ -32,11 +33,12 @@ struct WasmApplicationSnapshotValues {
   std::uint32_t masterLevel = 0U;
   std::uint32_t projectNameLength = 0U;
   std::array<char, 17U> projectName{};
+  std::uint32_t playingTrackMask = 0U;
 };
 
 class WasmApplicationSnapshot {
 public:
-  static constexpr std::uint32_t Version = 1U;
+  static constexpr std::uint32_t Version = 2U;
   static constexpr std::size_t ProjectNameCapacity = 16U;
   static constexpr std::size_t ProjectNameStorageBytes = 20U;
   static constexpr std::size_t ProjectNameWords =
@@ -51,17 +53,20 @@ public:
   static constexpr std::size_t MasterLevelWord = 6U;
   static constexpr std::size_t ProjectNameLengthWord = 7U;
   static constexpr std::size_t ProjectNameWord = 8U;
-  static constexpr std::size_t WordCount = ProjectNameWord + ProjectNameWords;
+  static constexpr std::size_t PlayingTrackMaskWord =
+      ProjectNameWord + ProjectNameWords;
+  static constexpr std::size_t WordCount = PlayingTrackMaskWord + 1U;
   static constexpr std::uint32_t ByteSize =
       static_cast<std::uint32_t>(WordCount * sizeof(std::uint32_t));
-  static_assert(WordCount == 13U);
-  static_assert(ByteSize == 52U);
+  static_assert(WordCount == 14U);
+  static_assert(ByteSize == 56U);
 
   WasmApplicationSnapshot() noexcept;
 
   void Publish(const char *projectName, std::uint32_t tempo,
                std::uint32_t sampleCount, bool playerRunning,
-               std::uint32_t masterLevel) noexcept;
+               std::uint32_t masterLevel,
+               std::uint32_t playingTrackMask) noexcept;
 
   [[nodiscard]] bool Copy(WasmApplicationSnapshotValues &values) const noexcept;
   [[nodiscard]] const std::uint32_t *Address() const noexcept;
