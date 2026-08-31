@@ -30,8 +30,8 @@ enum class Ui2ProjectContentCursor : std::uint8_t {
 
 enum class Ui2ProjectNameAction : std::uint8_t {
   New = 0,
-  Save,
   Load,
+  Save,
   Rename,
   Count,
 };

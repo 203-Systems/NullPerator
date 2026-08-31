@@ -3028,6 +3028,21 @@ TEST_CASE("UI2 Project resolves cursor-specific bottom bars") {
                                     palette,
                                     scene) == ui2::UiBuildStatus::Built);
   CHECK(scene.bottomVisible);
+  const ui2::UiCommand *newAction =
+      FindTextCommand(scene.bottom.Stream(), "NEW");
+  const ui2::UiCommand *loadAction =
+      FindTextCommand(scene.bottom.Stream(), "LOAD");
+  const ui2::UiCommand *saveAction =
+      FindTextCommand(scene.bottom.Stream(), "SAVE");
+  const ui2::UiCommand *renameAction =
+      FindTextCommand(scene.bottom.Stream(), "RENAME");
+  REQUIRE(newAction != nullptr);
+  REQUIRE(loadAction != nullptr);
+  REQUIRE(saveAction != nullptr);
+  REQUIRE(renameAction != nullptr);
+  CHECK(newAction->bounds.x < loadAction->bounds.x);
+  CHECK(loadAction->bounds.x < saveAction->bounds.x);
+  CHECK(saveAction->bounds.x < renameAction->bounds.x);
   REQUIRE(
       ui2::UiProjectView::Build(ui2::test::ApprovedProjectFixture("playback"),
                                 palette, scene) == ui2::UiBuildStatus::Built);
