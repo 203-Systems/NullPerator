@@ -270,6 +270,25 @@ TEST_CASE("MIDI note zero receives a matching note off") {
   std::destroy_at(instrument);
 }
 
+TEST_CASE("MIDI instant pitch bend emits once for targets above 127") {
+  InstallFakeMidiService();
+  MidiInstrument instrument;
+  REQUIRE(instrument.Init());
+  REQUIRE(instrument.Start(0, 60));
+  std::array<fixed, 8> buffer{};
+  instrument.Render(0, buffer.data(), 4, false);
+  capturedMidiMessages.clear();
+
+  instrument.ProcessCommand(0, FourCC::InstrumentCommandPitchSlide, 0x00FF);
+  instrument.Render(0, buffer.data(), 4, true);
+  instrument.Render(0, buffer.data(), 4, true);
+
+  REQUIRE(capturedMidiMessages.size() == 1U);
+  CHECK(capturedMidiMessages[0].status_ == MidiMessage::MIDI_PITCH_BEND);
+  CHECK(capturedMidiMessages[0].data1_ == 0x7FU);
+  CHECK(capturedMidiMessages[0].data2_ == 0x7FU);
+}
+
 TEST_CASE("Macro render starts its gain envelope from silence") {
   alignas(MacroInstrument)
       std::array<std::byte, sizeof(MacroInstrument)> layoutStorage{};

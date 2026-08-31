@@ -154,9 +154,10 @@ bool MidiInstrument::Render(int channel, fixed *buffer, int size,
   // Update pitch bend logic if a pitch bend is active.
   if (updateTick) {
     if (pitchBend_) {
-      int8_t prev = pitchBendCurrent_;
+      const float prev = pitchBendCurrent_;
       if (pitchBendSpeed_ == 0) {
         pitchBendCurrent_ = pitchBendTarget_;
+        pitchBend_ = false;
       } else {
         // Calculate the difference and sign for pitch bend direction.
         float diff = pitchBendTarget_ - pitchBendCurrent_;
