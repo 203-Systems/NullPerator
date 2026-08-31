@@ -24,6 +24,14 @@ constexpr std::array<TrackerAction, 4U> kDirectionOrder = {
     TrackerAction::Left, TrackerAction::Down, TrackerAction::Right,
     TrackerAction::Up};
 
+constexpr std::size_t OrdinaryIndex(TrackerAction action) {
+  for (std::size_t index = 0U; index < kOrdinaryOrder.size(); ++index) {
+    if (kOrdinaryOrder[index] == action)
+      return index;
+  }
+  return kOrdinaryOrder.size();
+}
+
 } // namespace
 
 bool InputMailbox::Batch::Push(TrackerAction action, bool pressed,
@@ -51,6 +59,14 @@ void InputMailbox::AcceptPresses(std::uint16_t mask, std::uint32_t nowMs) {
   if (mask == 0U)
     return;
 
+  const std::uint16_t acceptedWithPresses =
+      static_cast<std::uint16_t>(acceptedHeldMask_ | mask);
+  for (const TrackerAction action : kOrdinaryOrder) {
+    if ((mask & Bit(action)) == 0U)
+      continue;
+    pendingModifierContext_[OrdinaryIndex(action)] =
+        static_cast<std::uint16_t>(acceptedWithPresses & kModifierMask);
+  }
   acceptedHeldMask_ |= mask;
   pendingPressedMask_ |= mask;
   lastAcceptedTransitionMs_ = nowMs;
@@ -151,15 +167,45 @@ InputMailbox::Batch InputMailbox::Drain() {
       !headphoneDelivered_ ||
       latestHeadphoneConnected_ != deliveredHeadphoneConnected_;
 
+  const std::uint16_t tappedMask = static_cast<std::uint16_t>(
+      pendingPressedMask_ & pendingReleasedMask_ & ~acceptedHeldMask_ &
+      ~deliveredHeldMask_);
+
+  // A common short chord (for example SHIFT+LEFT navigation) can be pressed
+  // and released while the UI task is transferring LCD rows. When exactly one
+  // ordinary action completed, its sampled modifier context is unambiguous;
+  // keep those modifiers down around the action tap. More complex coalesced
+  // histories retain the conservative legacy ordering because bit masks alone
+  // cannot recover their chronology without guessing.
+  TrackerAction completedChordAction = TrackerAction::Count;
+  std::uint16_t completedChordModifiers = 0U;
+  std::uint8_t tappedOrdinaryCount = 0U;
+  for (const TrackerAction action : kOrdinaryOrder) {
+    if ((tappedMask & Bit(action)) == 0U)
+      continue;
+    ++tappedOrdinaryCount;
+    completedChordAction = action;
+    completedChordModifiers = pendingModifierContext_[OrdinaryIndex(action)];
+  }
+  if (tappedOrdinaryCount != 1U || completedChordModifiers == 0U ||
+      (acceptedHeldMask_ & kModifierMask & ~completedChordModifiers) != 0U) {
+    completedChordAction = TrackerAction::Count;
+    completedChordModifiers = 0U;
+  }
+
   // Existing logical holds must be released before any new chord is pressed.
   const std::uint16_t previouslyDeliveredMask = deliveredHeldMask_;
   const std::uint16_t releaseMask = static_cast<std::uint16_t>(
       deliveredHeldMask_ &
       (pendingReleasedMask_ |
        static_cast<std::uint16_t>(~acceptedHeldMask_)));
+  const std::uint16_t deferredChordReleases =
+      static_cast<std::uint16_t>(releaseMask & completedChordModifiers);
+  const std::uint16_t immediateReleaseMask =
+      static_cast<std::uint16_t>(releaseMask & ~deferredChordReleases);
   for (const TrackerAction action : kAllActionOrder) {
     const std::uint16_t bit = Bit(action);
-    if ((releaseMask & bit) == 0U)
+    if ((immediateReleaseMask & bit) == 0U)
       continue;
     (void)batch.Push(action, false);
     deliveredHeldMask_ &= static_cast<std::uint16_t>(~bit);
@@ -189,22 +235,42 @@ InputMailbox::Batch InputMailbox::Drain() {
   pressStage(kModifierOrder);
   pressStage(kOrdinaryOrder);
 
-  // Preserve a complete tap that started and ended while the application task
-  // was busy. These pairs cannot take part in a held chord, so they follow the
-  // release/held-press priority phases as self-contained actions.
-  const std::uint16_t tappedMask = static_cast<std::uint16_t>(
-      pendingPressedMask_ & pendingReleasedMask_ & ~acceptedHeldMask_ &
-      ~deliveredHeldMask_);
+  // Preserve complete taps that started and ended while the application task
+  // was busy. The single-action chord case below retains its sampled modifier
+  // context; all remaining pairs follow the conservative self-contained order.
   const auto tapStage = [&](const auto &order) {
     for (const TrackerAction action : order) {
       const std::uint16_t bit = Bit(action);
-      if ((tappedMask & bit) == 0U)
+      if ((tappedMask & bit) == 0U || action == completedChordAction ||
+          (completedChordModifiers & bit) != 0U)
         continue;
       (void)batch.Push(action, true);
       (void)batch.Push(action, false);
     }
   };
   tapStage(kModifierOrder);
+
+  if (completedChordAction != TrackerAction::Count) {
+    for (const TrackerAction modifier : kModifierOrder) {
+      const std::uint16_t bit = Bit(modifier);
+      if ((completedChordModifiers & bit) == 0U ||
+          (deliveredHeldMask_ & bit) != 0U)
+        continue;
+      (void)batch.Push(modifier, true);
+      deliveredHeldMask_ |= bit;
+    }
+    (void)batch.Push(completedChordAction, true);
+    (void)batch.Push(completedChordAction, false);
+    for (auto iterator = kModifierOrder.rbegin();
+         iterator != kModifierOrder.rend(); ++iterator) {
+      const std::uint16_t bit = Bit(*iterator);
+      if ((completedChordModifiers & bit) == 0U ||
+          (acceptedHeldMask_ & bit) != 0U)
+        continue;
+      (void)batch.Push(*iterator, false);
+      deliveredHeldMask_ &= static_cast<std::uint16_t>(~bit);
+    }
+  }
   tapStage(kOrdinaryOrder);
 
   for (const TrackerAction action : kDirectionOrder) {
@@ -218,6 +284,7 @@ InputMailbox::Batch InputMailbox::Drain() {
 
   pendingPressedMask_ = 0U;
   pendingReleasedMask_ = 0U;
+  pendingModifierContext_.fill(0U);
   deliveredHeadphoneConnected_ = latestHeadphoneConnected_;
   headphoneDelivered_ = true;
   samplePending_ = false;

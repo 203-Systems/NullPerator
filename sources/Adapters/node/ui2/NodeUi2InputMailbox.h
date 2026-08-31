@@ -66,7 +66,7 @@ public:
   // Called by the sole UI2 application task. Events are ordered as releases,
   // modifier presses, direction/ordinary presses, then aggregated repeats.
   // A press+release completed entirely between drains is emitted as a compact
-  // tap after the priority phases rather than silently discarded.
+  // tap; a single completed modifier chord retains its sampled context.
   [[nodiscard]] Batch Drain();
 
   [[nodiscard]] std::uint16_t LatestPhysicalHeldMask() const {
@@ -107,6 +107,10 @@ private:
 
   std::array<std::uint32_t, 4U> nextRepeatMs_{};
   std::array<std::uint8_t, 4U> repeatDebt_{};
+  // Modifier state observed when each ordinary action was accepted. This lets
+  // Drain reconstruct a short modifier chord that completed entirely between
+  // UI-task drains instead of serializing it as two unrelated taps.
+  std::array<std::uint16_t, 6U> pendingModifierContext_{};
   std::uint16_t latestPhysicalHeldMask_ = 0U;
   std::uint16_t acceptedHeldMask_ = 0U;
   std::uint16_t deliveredHeldMask_ = 0U;

@@ -114,7 +114,7 @@ TEST_CASE("Node UI2 mailbox keeps a complete tap between drains") {
   CHECK(batch.heldMask == 0U);
 }
 
-TEST_CASE("Node UI2 mailbox orders completed modifier tap before direction") {
+TEST_CASE("Node UI2 mailbox preserves completed modifier direction chords") {
   InputMailbox mailbox;
   mailbox.PublishSample(0U, false, 100U);
   (void)mailbox.Drain();
@@ -127,9 +127,45 @@ TEST_CASE("Node UI2 mailbox orders completed modifier tap before direction") {
 
   REQUIRE(batch.size == 4U);
   CheckEvent(batch, 0U, TrackerAction::Shift, true);
+  CheckEvent(batch, 1U, TrackerAction::Left, true);
+  CheckEvent(batch, 2U, TrackerAction::Left, false);
+  CheckEvent(batch, 3U, TrackerAction::Shift, false);
+}
+
+TEST_CASE("Node UI2 mailbox does not combine separate completed taps") {
+  InputMailbox mailbox;
+  mailbox.PublishSample(0U, false, 100U);
+  (void)mailbox.Drain();
+
+  mailbox.PublishSample(Mask({TrackerAction::Shift}), false, 110U);
+  mailbox.PublishSample(0U, false, 120U);
+  mailbox.PublishSample(Mask({TrackerAction::Left}), false, 130U);
+  mailbox.PublishSample(0U, false, 140U);
+  const InputMailbox::Batch batch = mailbox.Drain();
+
+  REQUIRE(batch.size == 4U);
+  CheckEvent(batch, 0U, TrackerAction::Shift, true);
   CheckEvent(batch, 1U, TrackerAction::Shift, false);
   CheckEvent(batch, 2U, TrackerAction::Left, true);
   CheckEvent(batch, 3U, TrackerAction::Left, false);
+}
+
+TEST_CASE("Node UI2 mailbox releases a held modifier after its queued tap") {
+  InputMailbox mailbox;
+  const std::uint16_t shift = Mask({TrackerAction::Shift});
+  mailbox.PublishSample(shift, false, 100U);
+  (void)mailbox.Drain();
+
+  mailbox.PublishSample(Mask({TrackerAction::Shift, TrackerAction::Left}),
+                        false, 110U);
+  mailbox.PublishSample(shift, false, 120U);
+  mailbox.PublishSample(0U, false, 130U);
+  const InputMailbox::Batch batch = mailbox.Drain();
+
+  REQUIRE(batch.size == 3U);
+  CheckEvent(batch, 0U, TrackerAction::Left, true);
+  CheckEvent(batch, 1U, TrackerAction::Left, false);
+  CheckEvent(batch, 2U, TrackerAction::Shift, false);
 }
 
 TEST_CASE("Node UI2 mailbox defers killed press but never release") {
