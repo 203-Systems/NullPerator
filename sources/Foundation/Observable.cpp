@@ -9,6 +9,8 @@
 
 #include "Observable.h"
 
+#include <cstddef>
+
 Observable::Observable() { _hasChanged = false; }
 
 Observable::Observable(etl::ivector<I_Observer *> *list) : _list(list) {
@@ -54,10 +56,15 @@ void Observable::RemoveAllObservers() {
 void Observable::NotifyObservers(I_ObservableData *d) {
   if (_hasChanged) {
     if (_list != NULL) {
-      etl::ivector<I_Observer *>::iterator it = _list->begin();
-      while (it != _list->end()) {
-        I_Observer *o = *it++;
+      std::size_t index = 0;
+      while (index < _list->size()) {
+        I_Observer *o = (*_list)[index];
         o->Update(*this, d);
+        // A callback may remove itself (or an earlier observer), shifting the
+        // next entry into this slot. Advance only while this entry survived.
+        if (index < _list->size() && (*_list)[index] == o) {
+          ++index;
+        }
       }
     } else if (_variable != NULL) {
       _variable->Update(*this, d);

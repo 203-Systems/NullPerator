@@ -35,6 +35,16 @@ public:
   int updates = 0;
 };
 
+class SelfRemovingFoundationObserver final : public I_Observer {
+public:
+  void Update(Observable &observable, I_ObservableData *) override {
+    ++updates;
+    observable.RemoveObserver(*this);
+  }
+
+  int updates = 0;
+};
+
 int ClassifyHighFourCC(FourCC id) {
   switch (id) {
   case FourCC::VarOutputVolume:
@@ -65,6 +75,27 @@ TEST_CASE("Observable ignores removal of a different single observer") {
 
   observable.RemoveObserver(attached);
   CHECK(observable.CountObservers() == 0);
+}
+
+TEST_CASE("Observable keeps notifying after an observer removes itself") {
+  etl::vector<I_Observer *, 2> observers;
+  Observable observable(&observers);
+  SelfRemovingFoundationObserver first;
+  CountingFoundationObserver second;
+
+  observable.AddObserver(first);
+  observable.AddObserver(second);
+  observable.SetChanged();
+  observable.NotifyObservers();
+
+  CHECK(first.updates == 1);
+  CHECK(second.updates == 1);
+  CHECK(observable.CountObservers() == 1);
+
+  observable.SetChanged();
+  observable.NotifyObservers();
+  CHECK(first.updates == 1);
+  CHECK(second.updates == 2);
 }
 
 TEST_CASE("FourCC wrapper preserves identifiers at and above bit seven") {
