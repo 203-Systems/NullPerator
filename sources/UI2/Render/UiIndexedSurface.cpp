@@ -138,50 +138,6 @@ void UiIndexedSurface::SetPixel(std::int16_t x, std::int16_t y,
   storage_.dirty.Mark({x, y, 1, 1});
 }
 
-void UiIndexedSurface::RemapRect(
-    RectI16 rect,
-    const std::array<PaletteIndex, UiPalette::kColorCount> &mapping) {
-  rect = Intersect(rect, RectI16::Screen());
-  if (rect.Empty()) return;
-  bool changed = false;
-  for (std::int16_t y = rect.y; y < rect.Bottom(); ++y) {
-    for (std::int16_t x = rect.x; x < rect.Right(); ++x) {
-      PaletteIndex &pixel = storage_.pixels[Offset(x, y)];
-      const PaletteIndex replacement = mapping[pixel];
-      changed = changed || replacement != pixel;
-      pixel = replacement;
-    }
-  }
-  if (changed) storage_.dirty.Mark(rect);
-}
-
-void UiIndexedSurface::ScrollRect(RectI16 rect, std::int16_t deltaX,
-                                  std::int16_t deltaY, PaletteIndex fill) {
-  rect = Intersect(rect, RectI16::Screen());
-  if (rect.Empty() || (deltaX == 0 && deltaY == 0))
-    return;
-  const int yBegin = deltaY > 0 ? rect.Bottom() - 1 : rect.y;
-  const int yEnd = deltaY > 0 ? rect.y - 1 : rect.Bottom();
-  const int yStep = deltaY > 0 ? -1 : 1;
-  const int xBegin = deltaX > 0 ? rect.Right() - 1 : rect.x;
-  const int xEnd = deltaX > 0 ? rect.x - 1 : rect.Right();
-  const int xStep = deltaX > 0 ? -1 : 1;
-  for (int y = yBegin; y != yEnd; y += yStep) {
-    for (int x = xBegin; x != xEnd; x += xStep) {
-      const int sourceX = x - deltaX;
-      const int sourceY = y - deltaY;
-      storage_.pixels[Offset(static_cast<std::int16_t>(x),
-                             static_cast<std::int16_t>(y))] =
-          sourceX >= rect.x && sourceX < rect.Right() && sourceY >= rect.y &&
-                  sourceY < rect.Bottom()
-              ? storage_.pixels[Offset(static_cast<std::int16_t>(sourceX),
-                                       static_cast<std::int16_t>(sourceY))]
-              : fill;
-    }
-  }
-  storage_.dirty.Mark(rect);
-}
-
 PaletteIndex UiIndexedSurface::Pixel(std::int16_t x, std::int16_t y) const {
   if (x < 0 || y < 0 || x >= kScreenWidth || y >= kScreenHeight) return 0;
   return storage_.pixels[Offset(x, y)];

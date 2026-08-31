@@ -12,11 +12,7 @@ namespace ui2 {
 
 void UiRasterizer::Render(UiCommandStream stream, UiIndexedSurface &surface,
                           const UiPalette *palette, PointI16 origin,
-                          RectI16 clip, UiTextCaseMode textCase,
-                          const UiRasterColorMap *colorMap) {
-  const auto mapped = [colorMap](PaletteIndex color) {
-    return colorMap == nullptr ? color : colorMap->Apply(color);
-  };
+                          RectI16 clip, UiTextCaseMode textCase) {
   for (const UiCommand &command : stream.commands) {
     RectI16 bounds = command.bounds;
     bounds.x = static_cast<std::int16_t>(bounds.x + origin.x);
@@ -25,31 +21,21 @@ void UiRasterizer::Render(UiCommandStream stream, UiIndexedSurface &surface,
       continue;
     switch (command.kind) {
     case UiCommandKind::FillRect:
-      surface.FillRect(bounds, mapped(command.color), clip);
+      surface.FillRect(bounds, command.color, clip);
       break;
     case UiCommandKind::FillRoundedRect:
-      surface.FillRoundedRect(bounds, mapped(command.color),
-                              mapped(command.auxiliaryColor),
+      surface.FillRoundedRect(bounds, command.color,
+                              command.auxiliaryColor,
                               command.parameter, clip);
       break;
     case UiCommandKind::FillCoverageRoundedRect:
       if (palette != nullptr) {
-        const PaletteIndex fill = mapped(command.color);
-        if (fill != command.color) {
-          // A transitional opacity color is already precomposited over the
-          // bar. Applying the cursor coverage cache a second time would make
-          // its corners brighter than its body, so flatten only this
-          // short-lived frame; the final static render restores normal AA.
-          surface.FillRoundedRect(bounds, fill, fill, command.parameter, clip);
-        } else {
-          surface.FillCoverageRoundedRect(
-              bounds, command.color, *palette,
-              static_cast<UiCoverage>(command.auxiliaryColor),
-              command.parameter, clip);
-        }
+        surface.FillCoverageRoundedRect(
+            bounds, command.color, *palette,
+            static_cast<UiCoverage>(command.auxiliaryColor),
+            command.parameter, clip);
       } else {
-        surface.FillRoundedRect(bounds, mapped(command.color),
-                                mapped(command.color),
+        surface.FillRoundedRect(bounds, command.color, command.color,
                                 command.parameter, clip);
       }
       break;
@@ -68,7 +54,7 @@ void UiRasterizer::Render(UiCommandStream stream, UiIndexedSurface &surface,
         surface.FillRect(
             {bounds.x, static_cast<std::int16_t>(bounds.y + row), bounds.width,
              1},
-            mapped(static_cast<PaletteIndex>(command.color + row)), clip);
+            static_cast<PaletteIndex>(command.color + row), clip);
       }
       break;
     }
@@ -144,7 +130,7 @@ void UiRasterizer::Render(UiCommandStream stream, UiIndexedSurface &surface,
           wordStart = true;
         }
         surface.DrawGlyph5x7(glyphOrigin, UiFont5x7::Glyph(displayed),
-                             mapped(command.color), scale, clip);
+                             command.color, scale, clip);
         glyphOrigin.x = static_cast<std::int16_t>(
             glyphOrigin.x + UiFont5x7::kAdvance * scale);
       }
