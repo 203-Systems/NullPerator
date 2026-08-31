@@ -86,7 +86,8 @@ bool OpalInstrument::Start(int channel, unsigned char note, bool retrigger) {
   // channel wide settings
   // enable left/right output (D4, D5) & set algorithm D0
   // for now only 2 op so just Additive or FM
-  opl_.Port(0xC0 + CHANNEL, 0x30 + algorithm_.GetInt());
+  opl_.Port(0xC0 + CHANNEL,
+            EncodeOpalChannelControl(algorithm_.GetInt(), feedback_.GetInt()));
 
   // set note in OPAL
   uint8_t block = note / 12;

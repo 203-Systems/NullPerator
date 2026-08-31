@@ -131,6 +131,11 @@ TEST_CASE("OPAL output levels retain each operator keyscale") {
   CHECK(encoded.operator2 == 0xC5U);
 }
 
+TEST_CASE("OPAL channel control includes feedback and algorithm") {
+  CHECK(EncodeOpalChannelControl(0, 0) == 0x30U);
+  CHECK(EncodeOpalChannelControl(1, 5) == 0x3BU);
+}
+
 TEST_CASE("Sample size queries keep the default sentinel outside render state") {
   CHECK_FALSE(IsSampleRenderChannel(-1, SONG_CHANNEL_COUNT));
   CHECK(IsSampleRenderChannel(0, SONG_CHANNEL_COUNT));

@@ -13,6 +13,12 @@ struct OpalOutputLevelRegisters {
   std::uint8_t operator2 = 0U;
 };
 
+[[nodiscard]] constexpr std::uint8_t EncodeOpalChannelControl(int algorithm,
+                                                              int feedback) {
+  return static_cast<std::uint8_t>(0x30U | ((feedback & 0x07) << 1) |
+                                   (algorithm & 0x01));
+}
+
 [[nodiscard]] constexpr OpalOutputLevelRegisters EncodeOpalOutputLevels(
     int operator1KeyScale, int operator1Level, int operator2KeyScale,
     int operator2Level) {
