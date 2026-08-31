@@ -283,13 +283,19 @@ export function createHostFolderManager(options = {}) {
       return snapshot
     }
     const unchanged = await sameEntry(root, candidate)
-    if (!unchanged && coordinatorRoot) {
+    // A denied selection becomes the visible root without replacing the
+    // active coordinator. Compare a later grant with that coordinator's root,
+    // not only with the denied candidate now stored in `root`.
+    const rebind = coordinatorRoot
+      ? !(await sameEntry(coordinatorRoot, candidate))
+      : !unchanged
+    if (rebind && coordinatorRoot) {
       coordinatorUnsubscribe(); coordinatorUnsubscribe = () => {}
       coordinator = null
       coordinatorRoot = null
     }
     root = candidate
-    if (!restore && !unchanged) await getMetadata().deleteBase?.()
+    if (!restore && rebind) await getMetadata().deleteBase?.()
     await getMetadata().put(root)
     ensureCoordinator()
     publish({ state: 'mounted', permission: current, error: null, name: root.name ?? null })

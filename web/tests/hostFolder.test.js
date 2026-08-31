@@ -147,6 +147,49 @@ describe('host folder handles and manifests', () => {
     expect(metadata.deleteBase).toHaveBeenCalledTimes(2)
   })
 
+  it('rebinds after a different folder is denied once and then granted', async () => {
+    const first = directory('first')
+    const second = directory('second')
+    first.queryPermission = vi.fn(async () => 'granted')
+    let secondPermission = 'denied'
+    second.queryPermission = vi.fn(async () => secondPermission)
+    second.requestPermission = vi.fn(async () => secondPermission)
+    const picker = vi.fn()
+      .mockResolvedValueOnce(first)
+      .mockResolvedValueOnce(second)
+      .mockResolvedValueOnce(second)
+    let base = createManifest()
+    const metadata = {
+      put: vi.fn(async () => {}),
+      deleteBase: vi.fn(async () => { base = createManifest() }),
+      getBase: vi.fn(async () => base),
+      putBase: vi.fn(async (next) => { base = next }),
+    }
+    const browserBytes = new TextEncoder().encode('PT')
+    const browserManifest = createManifest([{
+      path: 'project.dat', kind: 'file', size: browserBytes.byteLength,
+      hash: await hashBytesIncrementally(browserBytes),
+    }])
+    const browser = {
+      manifest: async () => browserManifest,
+      apply: async () => {},
+      copyFile: async (_path, sink) => sink.write(browserBytes),
+    }
+    const manager = createHostFolderManager({ picker, metadata, browser })
+
+    await manager.mountHostFolder()
+    await manager.syncHostFolder('push')
+    await manager.mountHostFolder()
+    expect(manager.snapshot()).toMatchObject({ state: 'denied', name: 'second' })
+
+    secondPermission = 'granted'
+    await manager.mountHostFolder()
+    await manager.syncHostFolder('push')
+
+    expect(await (await second.getFileHandle('project.dat')).getFile().then((value) => value.text())).toBe('PT')
+    expect(metadata.deleteBase).toHaveBeenCalledTimes(2)
+  })
+
   it('copies host writes in bounded chunks and closes before reporting progress', async () => {
     const root = directory('factory')
     const endpoint = createHostFolderEndpoint(root, { chunkBytes: 2 })
