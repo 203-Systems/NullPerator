@@ -1,0 +1,7 @@
+#pragma once
+
+#define ETL_NO_STL 0
+#define ETL_USING_STL 1
+#define ETL_TARGET_DEVICE_GENERIC 1
+#define ETL_TARGET_OS_NONE 1
+#define ETL_COMPILER_CLANG 1

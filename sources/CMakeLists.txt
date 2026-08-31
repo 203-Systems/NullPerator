@@ -20,8 +20,18 @@ if(NOT DEFINED WASM)
   set(WASM false)
 endif()
 
-if(Node AND WASM)
-  message(FATAL_ERROR "Node and WASM are mutually exclusive build targets")
+if(NOT DEFINED IOS)
+  set(IOS false)
+endif()
+
+set(NULLPERATOR_PRODUCT_COUNT 0)
+foreach(NULLPERATOR_PRODUCT Node WASM IOS)
+  if(${NULLPERATOR_PRODUCT})
+    math(EXPR NULLPERATOR_PRODUCT_COUNT "${NULLPERATOR_PRODUCT_COUNT} + 1")
+  endif()
+endforeach()
+if(NULLPERATOR_PRODUCT_COUNT GREATER 1)
+  message(FATAL_ERROR "Node, WASM and IOS are mutually exclusive build targets")
 endif()
 
 # ESP-IDF node build (vanilla style). Invoke with -DNode=true from sources/.
@@ -39,6 +49,14 @@ if(WASM)
   return()
 endif()
 
+# Native iOS core. The Swift/Objective-C++ application remains an Xcode target;
+# CMake only builds the portable tracker graph and its isolated iOS adapters.
+if(IOS)
+  project(nullPeratorIOSCore LANGUAGES C CXX)
+  add_subdirectory(Adapters/ios)
+  return()
+endif()
+
 message(FATAL_ERROR
   "No product selected. Configure the ESP32-S3 Node target with -DNode=true "
-  "or the browser target with -DWASM=true.")
+  "the browser target with -DWASM=true, or the iOS core with -DIOS=true.")
