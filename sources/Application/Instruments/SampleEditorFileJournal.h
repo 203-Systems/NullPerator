@@ -9,6 +9,8 @@
 #include <cstdint>
 #include <cstring>
 
+class FileSystem;
+
 // Sample edit generations are hidden siblings whose leaf is exactly as long
 // as the source WAV leaf:
 //
@@ -61,26 +63,42 @@ public:
 
   static bool DecodeBackupPath(const char *backup, char *destination,
                                std::size_t capacity) {
+    return DecodePath(backup, Generation::Backup, destination, capacity);
+  }
+
+  static bool DecodeWorkingPath(const char *working, char *destination,
+                                std::size_t capacity) {
+    return DecodePath(working, Generation::Working, destination, capacity);
+  }
+
+  static bool ValidateWav(FileSystem &fileSystem, const char *path);
+  static bool RecoverDestination(FileSystem &fileSystem,
+                                 const char *destination);
+  static bool RecoverCurrentDirectory(FileSystem &fileSystem);
+
+private:
+  static bool DecodePath(const char *journal, Generation generation,
+                         char *destination, std::size_t capacity) {
     if (destination == nullptr || capacity == 0U)
       return false;
     destination[0] = '\0';
-    if (backup == nullptr || backup[0] == '\0')
+    if (journal == nullptr || journal[0] == '\0')
       return false;
-    const std::size_t backupLength = std::strlen(backup);
-    if (backupLength + 1U > capacity)
+    const std::size_t journalLength = std::strlen(journal);
+    if (journalLength + 1U > capacity)
       return false;
-    const char *leaf = Leaf(backup);
-    const std::size_t parentLength = static_cast<std::size_t>(leaf - backup);
-    const std::size_t leafLength = backupLength - parentLength;
+    const char *leaf = Leaf(journal);
+    const std::size_t parentLength = static_cast<std::size_t>(leaf - journal);
+    const std::size_t leafLength = journalLength - parentLength;
     if (leafLength < 4U || leaf[0] != '.' || leaf[leafLength - 3U] != '.' ||
-        leaf[leafLength - 2U] != static_cast<char>(Generation::Backup) ||
+        leaf[leafLength - 2U] != static_cast<char>(generation) ||
         leaf[leafLength - 1U] < '0' || leaf[leafLength - 1U] > '7')
       return false;
 
     const std::uint8_t caseMask =
         static_cast<std::uint8_t>(leaf[leafLength - 1U] - '0');
     const std::size_t baseLength = leafLength - 4U;
-    std::memcpy(destination, backup, parentLength);
+    std::memcpy(destination, journal, parentLength);
     std::memcpy(destination + parentLength, leaf + 1U, baseLength);
     const std::size_t extension = parentLength + baseLength;
     destination[extension] = '.';
@@ -91,11 +109,10 @@ public:
               ? static_cast<char>(wav[index] - ('a' - 'A'))
               : wav[index];
     }
-    destination[backupLength] = '\0';
+    destination[journalLength] = '\0';
     return true;
   }
 
-private:
   static const char *Leaf(const char *path) {
     const char *leaf = path;
     for (const char *cursor = path; *cursor != '\0'; ++cursor) {

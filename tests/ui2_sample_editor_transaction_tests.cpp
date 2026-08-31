@@ -1,5 +1,6 @@
 #include "doctest/doctest.h"
 
+#include "Application/Instruments/SamplePoolLoading.h"
 #include "Application/UI2/Ui2SampleEditorTransaction.h"
 
 #include <algorithm>
@@ -116,10 +117,31 @@ public:
         found->second, writable, failSync_, syncCalls_, failSyncAfter_));
   }
 
-  bool chdir(const char *) override { return false; }
-  void list(etl::ivector<int> *, const char *, bool, bool = false) override {}
-  void getFileName(int, char *, int) override {}
-  PicoFileType getFileType(int) override { return PFT_UNKNOWN; }
+  bool chdir(const char *) override { return true; }
+  void list(etl::ivector<int> *entries, const char *, bool,
+            bool = false) override {
+    listed_.clear();
+    entries->clear();
+    for (const auto &[name, bytes] : files_) {
+      (void)bytes;
+      if (name.find('/') != std::string::npos)
+        continue;
+      listed_.push_back(name);
+      entries->push_back(static_cast<int>(listed_.size() - 1U));
+    }
+  }
+  void getFileName(int index, char *destination, int capacity) override {
+    if (destination == nullptr || capacity <= 0 || index < 0 ||
+        static_cast<std::size_t>(index) >= listed_.size())
+      return;
+    std::snprintf(destination, static_cast<std::size_t>(capacity), "%s",
+                  listed_[static_cast<std::size_t>(index)].c_str());
+  }
+  PicoFileType getFileType(int index) override {
+    return index >= 0 && static_cast<std::size_t>(index) < listed_.size()
+               ? PFT_FILE
+               : PFT_UNKNOWN;
+  }
   bool isParentRoot() override { return false; }
   bool isCurrentRoot() override { return false; }
 
@@ -187,6 +209,7 @@ public:
 private:
   FileSystem *previous_ = nullptr;
   std::map<std::string, std::vector<std::uint8_t>> files_{};
+  std::vector<std::string> listed_{};
   std::pair<std::string, std::string> failMove_{};
   std::pair<std::string, std::string> failMove2_{};
   std::string failDelete_{};
@@ -469,6 +492,46 @@ TEST_CASE("UI2 sample editor backup path reversibly preserves extension case") {
                                                       sizeof(decoded)));
     CHECK(std::strcmp(decoded, source) == 0);
   }
+}
+
+TEST_CASE("sample pool load restores a backup-only generation") {
+  using namespace ui2;
+  constexpr const char *source = "VOICE.wav";
+  SampleEditMemoryFileSystem fileSystem;
+  const std::vector<std::uint8_t> original = MakeWav();
+  fileSystem.Put(source, original);
+  Ui2SampleEditorTransaction interrupted;
+  REQUIRE(interrupted.Begin(fileSystem, source) ==
+          Ui2SampleEditorTransactionResult::Ready);
+  REQUIRE(interrupted.ApplyTrim(1U, 3U) ==
+          Ui2SampleEditorTransactionResult::Applied);
+  const std::string working = interrupted.WorkingPath();
+  const std::string backup = interrupted.BackupPath();
+  REQUIRE(fileSystem.MoveFile(source, backup.c_str()));
+  REQUIRE(fileSystem.exists(working.c_str()));
+  REQUIRE_FALSE(fileSystem.exists(source));
+
+  etl::vector<int, 8> loaded;
+  REQUIRE(SamplePoolLoading::EnterAndList(fileSystem, "DEMO", loaded));
+  CHECK(fileSystem.Bytes(source) == original);
+  CHECK_FALSE(fileSystem.exists(backup.c_str()));
+  CHECK_FALSE(fileSystem.exists(working.c_str()));
+}
+
+TEST_CASE("sample directory scan removes an interrupted working-only copy") {
+  constexpr const char *source = "VOICE.wav";
+  SampleEditMemoryFileSystem fileSystem;
+  const std::vector<std::uint8_t> original = MakeWav();
+  fileSystem.Put(source, original);
+  char working[PFILENAME_SIZE]{};
+  REQUIRE(SampleEditorFileJournal::BuildPath(
+      source, SampleEditorFileJournal::Generation::Working, working,
+      sizeof(working)));
+  fileSystem.Put(working, {0x52U, 0x49U});
+
+  REQUIRE(SampleEditorFileJournal::RecoverCurrentDirectory(fileSystem));
+  CHECK(fileSystem.Bytes(source) == original);
+  CHECK_FALSE(fileSystem.exists(working));
 }
 
 TEST_CASE("UI2 sample normalize rejects encodings it cannot transform") {

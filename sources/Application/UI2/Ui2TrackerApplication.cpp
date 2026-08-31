@@ -1277,9 +1277,8 @@ bool Ui2TrackerApplication::RecoverSampleEditorDestination() {
       static_cast<std::size_t>(written) >= destination.size())
     return failClosed();
 
-  if (sampleEditorTransaction_.Discard() !=
-      Ui2SampleEditorTransactionResult::Discarded)
-    return failClosed();
+  // Reopen the journal before deleting anything. In the rollback-failure
+  // state the backup and working files may be the only recovery evidence.
   if (sampleEditorTransaction_.Begin(*fileSystem, destination.data()) !=
           Ui2SampleEditorTransactionResult::Ready ||
       !sampleEditor_.ReloadPath(*fileSystem, destination.data())) {

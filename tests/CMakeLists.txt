@@ -104,6 +104,7 @@ add_executable(picoTracker_tests
   ../sources/Adapters/wasm/filesystem/WasmStorageBridge.cpp
   ../sources/Adapters/node/filesystem/PathResolver.cpp
   ../sources/Application/Instruments/SamplePoolLoading.cpp
+  ../sources/Application/Instruments/SampleEditorFileJournal.cpp
   ../sources/Adapters/wasm/gui/WasmUiPresenter.cpp
   ../sources/Application/UI2/Ui2ApplicationRuntime.cpp
   ../sources/Foundation/Observable.cpp

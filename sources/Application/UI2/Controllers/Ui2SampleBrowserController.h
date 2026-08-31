@@ -6,6 +6,7 @@
 #pragma once
 
 #include "Application/Input/ITrackerInputSink.h"
+#include "Application/Instruments/SampleEditorFileJournal.h"
 #include "Application/Persistency/PersistenceConstants.h"
 #include "Application/UI2/Controllers/Ui2ControllerPrimitives.h"
 #include "Application/UI2/Ui2SamplePathPolicy.h"
@@ -274,6 +275,10 @@ public:
     FileSystem *fileSystem = FileSystem::GetInstance();
     if (fileSystem == nullptr)
       return false;
+    if (!SampleEditorFileJournal::RecoverCurrentDirectory(*fileSystem)) {
+      SetError("SAMPLE RECOVERY FAILED");
+      return false;
+    }
     etl::vector<int, MAX_FILE_INDEX_SIZE> listed;
     const bool listedSuccessfully =
         mode_ == Ui2SampleBrowserMode::Library

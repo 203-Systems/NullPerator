@@ -4,6 +4,7 @@
 
 #include "SamplePoolLoading.h"
 
+#include "Application/Instruments/SampleEditorFileJournal.h"
 #include "Application/Persistency/PersistenceConstants.h"
 
 #include <cstring>
@@ -35,7 +36,8 @@ bool EnterAndList(FileSystem &fileSystem, const char *projectName,
     }
   }
 
-  if (!fileSystem.listChecked(&fileIndexes, ".wav", false)) {
+  if (!SampleEditorFileJournal::RecoverCurrentDirectory(fileSystem) ||
+      !fileSystem.listChecked(&fileIndexes, ".wav", false)) {
     fileIndexes.clear();
     return false;
   }

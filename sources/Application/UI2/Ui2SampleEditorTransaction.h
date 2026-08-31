@@ -5,9 +5,8 @@
 
 #pragma once
 
-#include "Application/Instruments/WavFileWriter.h"
-#include "Application/Instruments/WavHeader.h"
 #include "Application/Instruments/SampleEditorFileJournal.h"
+#include "Application/Instruments/WavFileWriter.h"
 #include "System/FileSystem/FileSystem.h"
 
 #include <array>
@@ -189,39 +188,15 @@ private:
   }
 
   [[nodiscard]] bool Validate(const char *path) const {
-    if (fileSystem_ == nullptr || path == nullptr || path[0] == '\0' ||
-        !fileSystem_->exists(path))
-      return false;
-    FileHandle file = fileSystem_->Open(path, "r");
-    if (!file)
-      return false;
-    const auto header = WavHeaderWriter::ReadHeader(file.get());
-    if (!header.has_value() || header->numChannels == 0U ||
-        header->numChannels > 2U || header->blockAlign == 0U ||
-        header->dataChunkSize / header->blockAlign == 0U)
-      return false;
-    const bool supportedPcm =
-        header->audioFormat == 1U && header->bytesPerSample >= 1U &&
-        header->bytesPerSample <= 4U;
-    const bool supportedFloat =
-        header->audioFormat == 3U &&
-        (header->bytesPerSample == 4U || header->bytesPerSample == 8U);
-    return supportedPcm || supportedFloat;
+    return fileSystem_ != nullptr &&
+           SampleEditorFileJournal::ValidateWav(*fileSystem_, path);
   }
 
   [[nodiscard]] bool Recover() {
     if (fileSystem_ == nullptr)
       return false;
-    if (!fileSystem_->exists(backup_.data()))
-      return true;
-    if (Validate(destination_.data()))
-      return fileSystem_->DeleteFile(backup_.data());
-    if (!Validate(backup_.data()))
-      return false;
-    if (fileSystem_->exists(destination_.data()) &&
-        !fileSystem_->DeleteFile(destination_.data()))
-      return false;
-    return fileSystem_->MoveFile(backup_.data(), destination_.data());
+    return SampleEditorFileJournal::RecoverDestination(*fileSystem_,
+                                                       destination_.data());
   }
 
   [[nodiscard]] bool EnsureWorkingCopy() {
