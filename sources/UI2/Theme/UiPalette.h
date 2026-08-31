@@ -122,7 +122,7 @@ private:
   std::array<std::uint16_t, kColorCount> rgb565_{};
   std::array<std::array<PaletteIndex, kThemeColorCount>, 2> coverage_{};
   // The VU ramp owns the fixed dynamic palette bank. Public palette writes
-  // invalidate this element-specific cache.
+  // invalidate this owner-specific cache.
   std::uint16_t vuGradientHeight_ = 0;
   bool vuGradientValid_ = false;
 

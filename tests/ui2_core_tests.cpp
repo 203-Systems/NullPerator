@@ -1084,15 +1084,15 @@ TEST_CASE("UI2 VU gradient uses fixed palette slots without RGB framebuffer") {
   CHECK_FALSE(ui2::UiVuGradient::Configure(palette, 154));
 }
 
-TEST_CASE("UI2 VU gradient is restored after shared dynamic palette writes") {
+TEST_CASE("UI2 VU gradient is restored after direct dynamic palette writes") {
   ui2::UiPalette palette;
   REQUIRE(ui2::UiVuGradient::Configure(palette, 153));
   const auto middle = ui2::UiVuGradient::IndexAt(60);
   const ui2::Rgb888 expected = palette.Get(middle);
 
-  // Page-bar fades share the dynamic bank with the VU ramp. A cached gradient
-  // must notice any direct dynamic write and rebuild before the next meter
-  // frame instead of presenting the transition color as audio level ink.
+  // A cached gradient must notice any direct dynamic write and rebuild before
+  // the next meter frame instead of presenting an unrelated color as audio
+  // level ink.
   palette.Set(middle, {0x12, 0x34, 0x56});
   REQUIRE(palette.Get(middle) != expected);
   REQUIRE(ui2::UiVuGradient::Configure(palette, 153));
