@@ -170,8 +170,10 @@ bool AudioMixer::Render(fixed *buffer, int samplecount) {
 
   // Always update peakMixerLevel_ regardless of whether we got data
   // This ensures VU meters update properly in all scenarios
-  peakMixerLevel_ = static_cast<stereosample>(PeakLevel(peakL)) << 16U |
-                    static_cast<stereosample>(PeakLevel(peakR));
+  const stereosample peakLevel =
+      static_cast<stereosample>(PeakLevel(peakL)) << 16U |
+      static_cast<stereosample>(PeakLevel(peakR));
+  peakMixerLevel_.store(peakLevel, std::memory_order_relaxed);
 
   if (enableRendering_ && writer_.IsOpen()) {
     if (!gotData) {

@@ -18,6 +18,8 @@
 #include "config/MemorySections.h"
 #include "config/StringLimits.h"
 
+#include <atomic>
+
 class AudioMixer : public AudioModule {
 public:
   AudioMixer(const char *name);
@@ -31,7 +33,9 @@ public:
   void SetVolume(fixed volume);
   void SetName(etl::string<12> name) { name_ = name; };
 
-  stereosample GetMixerLevels() { return peakMixerLevel_; }
+  stereosample GetMixerLevels() {
+    return peakMixerLevel_.load(std::memory_order_relaxed);
+  }
   void AddModule(AudioModule &module);
   void RemoveModule(AudioModule &module);
   void ClearModules();
@@ -47,7 +51,11 @@ private:
 
   // hold the avg volume of a buffer worth of samples for each audiomodule in
   // the mix
-  stereosample peakMixerLevel_ = 0;
+  // Audio rendering publishes meters from its worker task while UI2 samples
+  // them on the application task. This packed scalar needs atomicity but does
+  // not publish any dependent state, so relaxed ordering avoids a hot-path
+  // memory barrier.
+  std::atomic<stereosample> peakMixerLevel_{0};
 
   PICOTRACKER_FAST_AUDIO_BUFFER static fixed
       renderBuffer_[MAX_SAMPLE_COUNT * 2];
