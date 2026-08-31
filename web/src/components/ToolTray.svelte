@@ -12,7 +12,8 @@
 <aside class="tool-tray" class:expanded aria-label="Tool tray" onmouseenter={() => (expanded=true)} onmouseleave={() => (expanded=false)}>
   {#each DEVICE_TOOLS as tool}
     {@const Icon = icons[tool.id]}
-    <button type="button" class:tray-active={openTools.includes(tool.id)} aria-label={`Toggle ${tool.label} tool`} title={tool.label} onclick={() => onToggle(tool.id)}>
+    <button type="button" class:tray-active={openTools.includes(tool.id)} aria-label={`Toggle ${tool.label} tool`}
+      aria-pressed={openTools.includes(tool.id)} data-tool-id={tool.id} title={tool.label} onclick={() => onToggle(tool.id)}>
       <Icon size={20}/><span>{tool.label}</span>
     </button>
   {/each}

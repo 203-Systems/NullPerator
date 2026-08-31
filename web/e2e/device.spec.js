@@ -27,3 +27,18 @@ test('stops the application thread before restarting the tracker canvas', async 
   await expect(ready).toBeVisible({ timeout: 15_000 })
   await expect(page.locator('#picotracker-canvas')).toHaveAttribute('data-frame-content', 'rendered')
 })
+
+test('developer tool toggles expose state and regain focus after panel close', async ({ page }) => {
+  await page.goto('/?audio=disabled&dev=1')
+  await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible()
+
+  const toggle = page.getByRole('button', { name: 'Toggle Files tool' })
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false')
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+
+  await page.getByRole('button', { name: 'Close Files tool' }).click()
+  await expect(page.getByRole('region', { name: 'Files tool panel' })).toHaveCount(0)
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false')
+  await expect(toggle).toBeFocused()
+})

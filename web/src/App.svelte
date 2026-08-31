@@ -41,6 +41,11 @@
   async function applySettingsRestart(){ const enabled=settingsStore.snapshot().lowLatencyAudio; const url=new URL(location.href); const active=url.searchParams.get('audio')==='worklet'; if(active!==enabled){enabled?url.searchParams.set('audio','worklet'):url.searchParams.delete('audio');location.assign(url);return} await restart() }
   function selectSection(section){ activeSection=section }
   function toggleDock(tool){ openTools=toggleTool(openTools,tool) }
+  async function closeDock(tool){
+    toggleDock(tool)
+    await tick()
+    document.querySelector(`.tool-tray [data-tool-id="${tool}"]`)?.focus({ preventScroll: true })
+  }
   function synchronizeDeveloperMode(preference = developerPreference) {
     developerPreference = preference
     developerMode = resolveDeveloperMode(preference)
@@ -107,7 +112,7 @@
       </ErrorBoundary>
     </main>
     {#if developerMode && activeSection==='Device'}
-      <ToolPanelStack {openTools} {runtime} onClose={(tool)=>toggleDock(tool)}/>
+      <ToolPanelStack {openTools} {runtime} onClose={closeDock}/>
       <ToolTray {openTools} onToggle={toggleDock} onRestart={()=>restart().catch(()=>{})} disabled={runtime.state!=='ready'}/>
     {/if}
     <div class="audio-diagnostics" hidden aria-hidden="true" data-audio-capability={audio.capability?(audio.capability.available?'available':'unavailable'):'unknown'} data-audio-capability-reason={audio.capability?.reason??''} data-audio-worklet-callbacks={audio.metrics?.callbackCount??0} data-audio-underruns={audio.metrics?.underrunFrames??0} data-audio-setup-phase={audio.metrics?.setupPhase??0} data-audio-unlock-main-thread={audio.metrics?.unlockOnBrowserMainThread??0} data-audio-render-micros={audio.metrics?.renderMicros??0} data-audio-callback-micros={audio.metrics?.callbackMicros??0} data-audio-callback-max-micros={audio.metrics?.callbackMaxMicros??0} data-audio-processing-deadline-micros={audio.metrics?.callbackDeadlineMicros??0} data-audio-processing-deadline-misses={audio.metrics?.callbackDeadlineMisses??0}></div>
