@@ -109,6 +109,20 @@ TEST_CASE("UI2 config save state retains failed writes for retry") {
   CHECK(attempts == 2);
 }
 
+TEST_CASE("UI2 input repeats only directional movement") {
+  using namespace ui2;
+  constexpr std::uint16_t up = TrackerActionBit(TrackerAction::Up);
+  constexpr std::uint16_t edit = TrackerActionBit(TrackerAction::Edit);
+  constexpr std::uint16_t play = TrackerActionBit(TrackerAction::Play);
+
+  CHECK(Ui2AcceptInputEvent(TrackerAction::Up, true, 0U));
+  CHECK(Ui2AcceptInputEvent(TrackerAction::Up, true, up));
+  CHECK(Ui2AcceptInputEvent(TrackerAction::Edit, true, 0U));
+  CHECK_FALSE(Ui2AcceptInputEvent(TrackerAction::Edit, true, edit));
+  CHECK_FALSE(Ui2AcceptInputEvent(TrackerAction::Play, true, play));
+  CHECK(Ui2AcceptInputEvent(TrackerAction::Edit, false, edit));
+}
+
 TEST_CASE("UI2 brightness percentage preserves a visible hardware floor") {
   CHECK(ui2::Ui2BrightnessRawFromPercent(0U) == 0x0FU);
   CHECK(ui2::Ui2BrightnessRawFromPercent(100U) == 0xFFU);

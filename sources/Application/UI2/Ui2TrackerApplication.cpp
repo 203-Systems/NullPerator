@@ -307,10 +307,15 @@ void Ui2TrackerApplication::DispatchTrackerAction(TrackerAction action,
     return;
 
   const std::uint16_t bit = TrackerActionBit(action);
+  const bool acceptInput =
+      Ui2AcceptInputEvent(action, pressed, physicalHeldMask_);
   if (pressed)
     physicalHeldMask_ |= bit;
   else
     physicalHeldMask_ &= static_cast<std::uint16_t>(~bit);
+
+  if (!acceptInput)
+    return;
 
   if (action == TrackerAction::Power) {
     System *system = System::GetInstance();

@@ -49,6 +49,21 @@ private:
   std::uint16_t mask_ = 0;
 };
 
+// Platform key-repeat sources resend key-down while the physical key remains
+// held. Direction repeats are intentional for navigation and value editing;
+// action/modifier repeats must remain a single edge so SAVE, IMPORT, PLAY,
+// and modal openers cannot fire again before their matching key-up.
+[[nodiscard]] constexpr bool
+Ui2AcceptInputEvent(TrackerAction action, bool pressed,
+                    std::uint16_t heldBefore) {
+  if (action >= TrackerAction::Count)
+    return false;
+  if (!pressed || (heldBefore & TrackerActionBit(action)) == 0U)
+    return true;
+  return action == TrackerAction::Left || action == TrackerAction::Right ||
+         action == TrackerAction::Up || action == TrackerAction::Down;
+}
+
 // A newly opened controller must not consume the press (or held companion
 // inputs) that opened it. The gate stays closed until that trigger is
 // released, without timers, allocation, or knowledge of platform repeat
@@ -290,6 +305,10 @@ static_assert(std::is_trivially_copyable_v<Ui2InputReleaseGate>);
 static_assert(std::is_trivially_copyable_v<Ui2SelectorState>);
 static_assert(sizeof(Ui2ControllerInputState) == 2U);
 static_assert(sizeof(Ui2InputReleaseGate) == 2U);
+static_assert(Ui2AcceptInputEvent(TrackerAction::Up, true,
+                                 TrackerActionBit(TrackerAction::Up)));
+static_assert(!Ui2AcceptInputEvent(TrackerAction::Edit, true,
+                                  TrackerActionBit(TrackerAction::Edit)));
 static_assert(Ui2MoveListIndex(3U, 12U, -8) == 0U);
 static_assert(Ui2MoveListIndex(3U, 12U, 8) == 11U);
 static_assert(Ui2MoveListIndex(0U, 0U, 8) == 0U);
