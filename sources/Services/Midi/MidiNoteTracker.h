@@ -55,6 +55,14 @@ public:
   int getNextAvailableChannel() const;
 
   /**
+   * Return a bit for every audio voice currently owned by live MIDI input.
+   *
+   * Device lifecycle code uses this snapshot to stop the voices before
+   * clearing their note metadata.
+   */
+  uint8_t activeVoiceMask() const;
+
+  /**
    * Clear all tracked notes
    */
   void clear();

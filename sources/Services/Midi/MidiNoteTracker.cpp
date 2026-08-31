@@ -52,6 +52,16 @@ int MidiNoteTracker::getNextAvailableChannel() const {
   return -1;
 }
 
+uint8_t MidiNoteTracker::activeVoiceMask() const {
+  uint8_t mask = 0U;
+  for (size_t i = 0; i < playingNotes_.size(); ++i) {
+    if (playingNotes_[i].active) {
+      mask |= static_cast<uint8_t>(1U << i);
+    }
+  }
+  return mask;
+}
+
 int MidiNoteTracker::unregisterNote(uint8_t note, uint8_t midiChannel) {
   // Find the note in the active notes list
   for (size_t i = 0; i < playingNotes_.size(); i++) {

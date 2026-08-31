@@ -39,14 +39,14 @@ bool MidiInDevice::Init() { return initDriver(); };
 void MidiInDevice::Close() { closeDriver(); };
 
 bool MidiInDevice::Start() {
+  // Starting an already-used device must not discard ownership metadata for
+  // notes that are still sounding.
+  stopTrackedNotes();
   isRunning_ = true;
 
   // Reset the MIDI parser state
   midiStatus = 0;
   midiDataCount = 0;
-
-  // Clear the note tracker when starting
-  noteTracker_.clear();
 
   return startDriver();
 };
@@ -54,7 +54,25 @@ bool MidiInDevice::Start() {
 void MidiInDevice::Stop() {
   isRunning_ = false;
   stopDriver();
+  stopTrackedNotes();
 };
+
+void MidiInDevice::stopTrackedNotes() {
+  const uint8_t activeVoices = noteTracker_.activeVoiceMask();
+  noteTracker_.clear();
+
+  Player *player = Player::GetInstance();
+  if (player == nullptr) {
+    return;
+  }
+
+  for (uint8_t voice = 0U; voice < MidiNoteTracker::kVoiceCount; ++voice) {
+    if ((activeVoices & static_cast<uint8_t>(1U << voice)) != 0U) {
+      // StopNote addresses a mixer voice; its instrument argument is unused.
+      player->StopNote(0U, voice);
+    }
+  }
+}
 
 bool MidiInDevice::IsRunning() { return isRunning_; };
 

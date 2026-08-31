@@ -64,6 +64,8 @@ protected:
   void processMidiData(uint8_t data);
 
 private:
+  void stopTrackedNotes();
+
   static bool dumpEvents_;
 
   // New direct mapping from MIDI channels to instrument indices

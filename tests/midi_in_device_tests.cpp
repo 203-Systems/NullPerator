@@ -63,3 +63,38 @@ TEST_CASE("Unassigned MIDI input channels do not consume a live voice") {
   CHECK(Player::GetInstance()->playedNotes[0].instrument == 5U);
   CHECK(Player::GetInstance()->playedNotes[0].voice == 0U);
 }
+
+TEST_CASE("Stopping MIDI input releases every tracked live voice") {
+  Player::ResetTestState();
+  TestMidiInDevice device;
+  MidiInDevice::AssignInstrumentToChannel(0, 4);
+  MidiInDevice::AssignInstrumentToChannel(1, 5);
+  REQUIRE(device.Start());
+
+  device.Send(MidiMessage::MIDI_NOTE_ON, 60U, 100U);
+  device.Send(MidiMessage::MIDI_NOTE_ON + 1U, 64U, 100U);
+  REQUIRE(Player::GetInstance()->playedNotes.size() == 2U);
+
+  device.Stop();
+  REQUIRE(Player::GetInstance()->stoppedNotes.size() == 2U);
+  CHECK(Player::GetInstance()->stoppedNotes[0].voice == 0U);
+  CHECK(Player::GetInstance()->stoppedNotes[1].voice == 1U);
+  CHECK(device.driverStops == 1);
+
+  REQUIRE(device.Start());
+  device.Send(MidiMessage::MIDI_NOTE_ON, 67U, 100U);
+  REQUIRE(Player::GetInstance()->playedNotes.size() == 3U);
+  CHECK(Player::GetInstance()->playedNotes.back().voice == 0U);
+}
+
+TEST_CASE("Restarting MIDI input cannot orphan a tracked voice") {
+  Player::ResetTestState();
+  TestMidiInDevice device;
+  MidiInDevice::AssignInstrumentToChannel(0, 4);
+  REQUIRE(device.Start());
+  device.Send(MidiMessage::MIDI_NOTE_ON, 60U, 100U);
+
+  REQUIRE(device.Start());
+  REQUIRE(Player::GetInstance()->stoppedNotes.size() == 1U);
+  CHECK(Player::GetInstance()->stoppedNotes[0].voice == 0U);
+}
