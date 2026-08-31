@@ -34,9 +34,31 @@
   let midi = runtime.midi?.snapshot?.() ?? { state:'unavailable' }
   let storage = runtime.storage?.snapshot?.() ?? { state:'unavailable' }
   let canvasGeneration = 0
+  let recoveryButton
+  let recoveryFocusRevision = 0
   let detachAudio=()=>{}, detachMidi=()=>{}, detachStorage=()=>{}, detachSettings=()=>{}
 
-  async function restart(){ await runtimeStore.stop(); canvasGeneration+=1; await tick(); await runtimeStore.start() }
+  function restoreRuntimeFocus(target) {
+    if (target && target !== document.body && target.isConnected
+      && !target.matches?.(':disabled') && !target.closest?.('[inert],[hidden]')) {
+      target.focus?.({ preventScroll: true })
+      if (document.activeElement === target) return
+    }
+    document.querySelector('.device-stage:not([hidden]) #picotracker-canvas')?.focus({ preventScroll: true })
+  }
+  async function restart(){
+    const focusTarget = document.activeElement
+    await runtimeStore.stop(); canvasGeneration+=1; await tick(); await runtimeStore.start(); await tick()
+    restoreRuntimeFocus(focusTarget)
+  }
+  async function synchronizeRecoveryFocus(state, button) {
+    const revision = ++recoveryFocusRevision
+    if (state !== 'failed' || !button) return
+    await tick()
+    if (revision === recoveryFocusRevision && runtime.state === 'failed' && recoveryButton === button) {
+      button.focus({ preventScroll: true })
+    }
+  }
   async function stopRuntime(){ await runtimeStore.stop() }
   async function applySettingsRestart(){ const enabled=settingsStore.snapshot().lowLatencyAudio; const url=new URL(location.href); const active=url.searchParams.get('audio')==='worklet'; if(active!==enabled){enabled?url.searchParams.set('audio','worklet'):url.searchParams.delete('audio');location.assign(url);return} await restart() }
   function selectSection(section){ activeSection=section }
@@ -68,6 +90,8 @@
     if (!developerMode) { activeSection='Device'; openTools=[] }
     await focusModeControl()
   }
+
+  $: synchronizeRecoveryFocus(runtime.state, recoveryButton)
 
   onMount(()=>{
     const workbenchHandle = Object.freeze({ restart, stop: stopRuntime })
@@ -103,11 +127,12 @@
       {#if runtime.state==='failed'}
         <section class="recovery-card" role="alert" data-recovery-kind={runtime.error?.includes('Cross-origin isolation')?'isolation':'runtime'}>
           <p class="eyebrow">Runtime recovery</p><h1>{runtime.error?.includes('Cross-origin isolation')?'Cross-origin isolation is missing':'PicoTracker runtime stopped'}</h1><p>{runtime.error}</p>
-          {#if runtime.error?.includes('Cross-origin isolation')}<code>Cross-Origin-Opener-Policy: same-origin<br/>Cross-Origin-Embedder-Policy: require-corp</code><button type="button" onclick={()=>location.reload()}>Reload after fixing headers</button>{:else}<button type="button" onclick={()=>restart().catch(()=>{})}>Retry runtime</button>{/if}
+          {#if runtime.error?.includes('Cross-origin isolation')}<code>Cross-Origin-Opener-Policy: same-origin<br/>Cross-Origin-Embedder-Policy: require-corp</code><button bind:this={recoveryButton} type="button" onclick={()=>location.reload()}>Reload after fixing headers</button>{:else}<button bind:this={recoveryButton} type="button" onclick={()=>restart().catch(()=>{})}>Retry runtime</button>{/if}
         </section>
       {/if}
       <ErrorBoundary label={`${activeSection} panel`}>
-        <section class="device-stage" aria-label="Operator simulator" hidden={developerMode && activeSection!=='Device'}>
+        <section class="device-stage" aria-label="Operator simulator" hidden={developerMode && activeSection!=='Device'}
+          inert={runtime.state === 'failed' || runtime.state === 'stopping'}>
           {#key canvasGeneration}<DevicePanel {runtime} {audio} settings={settingsStore} compact={!developerMode}/>{/key}
         </section>
         {#if developerMode && activeSection==='Files'}<div class="page-panel"><FilesPanel files={runtime.files} storage={runtime.storage} hostFolder={runtime.hostFolder} disabled={runtime.state!=='ready'}/></div>

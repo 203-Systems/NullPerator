@@ -28,6 +28,18 @@ test('stops the application thread before restarting the tracker canvas', async 
   await expect(page.locator('#picotracker-canvas')).toHaveAttribute('data-frame-content', 'rendered')
 })
 
+test('tool tray restart returns focus to its invoking control', async ({ page }) => {
+  await page.goto('/?audio=disabled&dev=1')
+  const ready = page.locator('[data-runtime-state="ready"]')
+  const reset = page.locator('.tool-tray .reset')
+  await expect(ready).toBeVisible()
+
+  await reset.click()
+  await ready.waitFor({ state: 'hidden', timeout: 10_000 })
+  await expect(ready).toBeVisible({ timeout: 15_000 })
+  await expect(reset).toBeFocused()
+})
+
 test('developer tool toggles expose state and regain focus after panel close', async ({ page }) => {
   await page.goto('/?audio=disabled&dev=1')
   await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible()
