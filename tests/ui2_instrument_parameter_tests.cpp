@@ -425,6 +425,24 @@ TEST_CASE("MIDI note zero receives a matching note off") {
   std::destroy_at(instrument);
 }
 
+TEST_CASE("MIDI kill before first render cancels the pending note on") {
+  InstallFakeMidiService();
+  MidiInstrument instrument;
+  REQUIRE(instrument.Init());
+  capturedMidiMessages.clear();
+
+  REQUIRE(instrument.Start(0, 60));
+  instrument.ProcessCommand(0, FourCC::InstrumentCommandKill, 0);
+
+  REQUIRE(capturedMidiMessages.size() == 1U);
+  CHECK(capturedMidiMessages[0].status_ == MidiMessage::MIDI_NOTE_OFF);
+  CHECK(capturedMidiMessages[0].data1_ == 60U);
+
+  std::array<fixed, 8> buffer{};
+  instrument.Render(0, buffer.data(), 4, false);
+  CHECK(capturedMidiMessages.size() == 1U);
+}
+
 TEST_CASE("MIDI instant pitch bend emits once for targets above 127") {
   InstallFakeMidiService();
   MidiInstrument instrument;

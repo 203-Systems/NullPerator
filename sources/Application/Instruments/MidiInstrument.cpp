@@ -114,6 +114,9 @@ void MidiInstrument::Stop(int c) {
     svc_->QueueMessage(msg);
     Trace::Debug("MIDI chord note OFF[%d]:%d", i, msg.data1_);
   }
+  // Stop may be reached through a KILL command before the first Render call.
+  // Cancel that deferred note-on before clearing its note value.
+  first_[c] = false;
   // clear last notes array
   lastNotes_[c].fill(NO_NOTE);
 };
