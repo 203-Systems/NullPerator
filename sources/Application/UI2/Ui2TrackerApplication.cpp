@@ -907,6 +907,7 @@ void Ui2TrackerApplication::HandleBrowser(TrackerAction action, bool pressed) {
     PersistencyService *persistence = PersistencyService::GetInstance();
     const Ui2InstrumentImportOutcome result = Ui2InstrumentWorkflow::Import(
         bank, number, command.filename.data(), persistence != nullptr,
+        Player::GetInstance()->IsRunning(),
         [persistence](const char *filename) {
           return persistence->DetectInstrumentType(filename);
         },

@@ -107,15 +107,22 @@ TEST_CASE("UI2 Instrument workflow rejects unavailable and invalid imports") {
     return true;
   };
 
-  CHECK(Ui2InstrumentWorkflow::Import(&bank, 0U, "lead.pti", false,
+  CHECK(Ui2InstrumentWorkflow::Import(&bank, 0U, "lead.pti", false, false,
                                       detector, loader) ==
         Ui2InstrumentImportOutcome::Unavailable);
   CHECK(detectorCalls == 0U);
   CHECK(loaderCalls == 0U);
   CHECK(bank.replacementAttempts_ == 0U);
 
+  CHECK(Ui2InstrumentWorkflow::Import(&bank, 0U, "lead.pti", true, true,
+                                      detector, loader) ==
+        Ui2InstrumentImportOutcome::PlayingBlocked);
+  CHECK(detectorCalls == 0U);
+  CHECK(loaderCalls == 0U);
+  CHECK(bank.replacementAttempts_ == 0U);
+
   CHECK(Ui2InstrumentWorkflow::Import(
-            &bank, 0U, "bad.pti", true,
+            &bank, 0U, "bad.pti", true, false,
             [&](const char *) {
               ++detectorCalls;
               return IT_NONE;
@@ -133,14 +140,14 @@ TEST_CASE("UI2 Instrument workflow maps every atomic import boundary") {
 
   bank.allocationFailed_ = true;
   CHECK(Ui2InstrumentWorkflow::Import(
-            &bank, 0U, "lead.pti", true, detector,
+            &bank, 0U, "lead.pti", true, false, detector,
             [](FakeInstrument *) { return true; }) ==
         Ui2InstrumentImportOutcome::AllocationFailed);
   CHECK(bank.visible_ == &bank.original_);
 
   bank.allocationFailed_ = false;
   CHECK(Ui2InstrumentWorkflow::Import(
-            &bank, 0U, "lead.pti", true, detector,
+            &bank, 0U, "lead.pti", true, false, detector,
             [](FakeInstrument *candidate) {
               candidate->value = 11;
               return false;
@@ -150,7 +157,7 @@ TEST_CASE("UI2 Instrument workflow maps every atomic import boundary") {
 
   bank.commitAllowed_ = false;
   CHECK(Ui2InstrumentWorkflow::Import(
-            &bank, 0U, "lead.pti", true, detector,
+            &bank, 0U, "lead.pti", true, false, detector,
             [](FakeInstrument *candidate) {
               candidate->value = 11;
               return true;
@@ -160,7 +167,7 @@ TEST_CASE("UI2 Instrument workflow maps every atomic import boundary") {
 
   bank.commitAllowed_ = true;
   CHECK(Ui2InstrumentWorkflow::Import(
-            &bank, 0U, "lead.pti", true, detector,
+            &bank, 0U, "lead.pti", true, false, detector,
             [](FakeInstrument *candidate) {
               candidate->value = 11;
               return true;
@@ -295,4 +302,7 @@ TEST_CASE("UI2 Instrument workflow keeps browser failure copy stable") {
   CHECK(std::strcmp(ui2::Ui2InstrumentImportFailureText(
                         ui2::Ui2InstrumentImportOutcome::CommitFailed),
                     "INSTRUMENT LOAD FAILED") == 0);
+  CHECK(std::strcmp(ui2::Ui2InstrumentImportFailureText(
+                        ui2::Ui2InstrumentImportOutcome::PlayingBlocked),
+                    "NOT WHILE PLAYING") == 0);
 }

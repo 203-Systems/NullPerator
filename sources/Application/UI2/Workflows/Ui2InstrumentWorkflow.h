@@ -20,6 +20,7 @@ enum class Ui2InstrumentImportOutcome : std::uint8_t {
   Imported,
   Unavailable,
   InvalidFile,
+  PlayingBlocked,
   AllocationFailed,
   RestoreFailed,
   CommitFailed,
@@ -71,11 +72,17 @@ public:
   template <typename Bank, typename Detector, typename Loader>
   [[nodiscard]] static Ui2InstrumentImportOutcome
   Import(Bank *bank, unsigned short slot, const char *filename,
-         bool storageAvailable, Detector &&detector, Loader &&loader) {
+         bool storageAvailable, bool playerRunning, Detector &&detector,
+         Loader &&loader) {
     if (bank == nullptr || !storageAvailable)
       return Ui2InstrumentImportOutcome::Unavailable;
     if (filename == nullptr || filename[0] == '\0')
       return Ui2InstrumentImportOutcome::InvalidFile;
+    // Replacing a fixed-pool instrument while Player may still render it can
+    // invalidate the active voice. Match type-change safety and stop before
+    // file detection, allocation, or restore performs any work.
+    if (playerRunning)
+      return Ui2InstrumentImportOutcome::PlayingBlocked;
 
     const InstrumentType importedType =
         std::forward<Detector>(detector)(filename);
@@ -152,6 +159,8 @@ Ui2InstrumentImportFailureText(Ui2InstrumentImportOutcome outcome) {
     return "INSTRUMENT LOAD UNAVAILABLE";
   case Ui2InstrumentImportOutcome::InvalidFile:
     return "INVALID INSTRUMENT FILE";
+  case Ui2InstrumentImportOutcome::PlayingBlocked:
+    return "NOT WHILE PLAYING";
   case Ui2InstrumentImportOutcome::AllocationFailed:
     return "NO FREE INSTRUMENT SLOT";
   case Ui2InstrumentImportOutcome::RestoreFailed:
