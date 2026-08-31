@@ -8,6 +8,7 @@
 #include "Application/Instruments/WavFileWriter.h"
 #include "Application/Instruments/WavHeader.h"
 #include "System/FileSystem/FileSystem.h"
+#include "System/FileSystem/CopyFileJournal.h"
 
 #include <array>
 #include <cstddef>
@@ -40,16 +41,18 @@ enum class Ui2SampleEditorTransactionResult : std::uint8_t {
 // corrupting the user's authoritative sample.
 class Ui2SampleEditorTransaction final {
 public:
-  static constexpr const char *WorkingLeaf = ".sampledit_tmp.wav";
-  static constexpr const char *BackupLeaf = ".sampledit_bak.wav";
+  static constexpr const char *WorkingPrefix =
+      ".sample-editor-working-copy-";
+  static constexpr const char *BackupPrefix =
+      ".sample-editor-backup-copy-";
   static constexpr std::size_t ScratchBytes = 2048U;
 
   [[nodiscard]] Ui2SampleEditorTransactionResult
   Begin(FileSystem &fileSystem, const char *destination) {
     Reset();
     if (!CopyPath(destination, destination_) ||
-        !BuildSiblingPath(destination, WorkingLeaf, working_) ||
-        !BuildSiblingPath(destination, BackupLeaf, backup_) ||
+        !BuildSiblingPath(destination, WorkingPrefix, working_) ||
+        !BuildSiblingPath(destination, BackupPrefix, backup_) ||
         std::strcmp(destination_.data(), working_.data()) == 0 ||
         std::strcmp(destination_.data(), backup_.data()) == 0 ||
         std::strcmp(working_.data(), backup_.data()) == 0) {
@@ -173,27 +176,11 @@ private:
   }
 
   template <std::size_t Capacity>
-  static bool BuildSiblingPath(const char *source, const char *leaf,
+  static bool BuildSiblingPath(const char *source, const char *prefix,
                                std::array<char, Capacity> &destination) {
     destination.fill('\0');
-    if (source == nullptr || source[0] == '\0' || leaf == nullptr ||
-        leaf[0] == '\0')
-      return false;
-    const char *sourceLeaf = source;
-    for (const char *cursor = source; *cursor != '\0'; ++cursor) {
-      if (*cursor == '/' || *cursor == '\\')
-        sourceLeaf = cursor + 1;
-    }
-    if (sourceLeaf[0] == '\0')
-      return false;
-    const std::size_t parentLength =
-        static_cast<std::size_t>(sourceLeaf - source);
-    if (parentLength + std::strlen(leaf) >= destination.size())
-      return false;
-    std::memcpy(destination.data(), source, parentLength);
-    std::memcpy(destination.data() + parentLength, leaf,
-                std::strlen(leaf) + 1U);
-    return true;
+    return FileCopyJournal::BuildSiblingPath(
+        source, prefix, destination.data(), destination.size());
   }
 
   [[nodiscard]] bool Validate(const char *path) const {

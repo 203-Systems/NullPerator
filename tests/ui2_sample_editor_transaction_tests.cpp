@@ -291,6 +291,39 @@ TEST_CASE("UI2 sample editor recovers an interrupted backup before opening") {
   CHECK_FALSE(fileSystem.exists(backup.c_str()));
 }
 
+TEST_CASE("UI2 sample editor journals are isolated per sample") {
+  using namespace ui2;
+  constexpr const char *sampleA = "/samples/A.wav";
+  constexpr const char *sampleB = "/samples/B.wav";
+  SampleEditMemoryFileSystem fileSystem;
+  const std::vector<std::uint8_t> originalA = MakeWav();
+  fileSystem.Put(sampleA, originalA);
+  fileSystem.Put(sampleB, MakeWav());
+
+  Ui2SampleEditorTransaction interruptedA;
+  REQUIRE(interruptedA.Begin(fileSystem, sampleA) ==
+          Ui2SampleEditorTransactionResult::Ready);
+  const std::string backupA = interruptedA.BackupPath();
+  const std::string workingA = interruptedA.WorkingPath();
+  REQUIRE(interruptedA.Discard() ==
+          Ui2SampleEditorTransactionResult::Discarded);
+  REQUIRE(fileSystem.MoveFile(sampleA, backupA.c_str()));
+
+  Ui2SampleEditorTransaction transactionB;
+  REQUIRE(transactionB.Begin(fileSystem, sampleB) ==
+          Ui2SampleEditorTransactionResult::Ready);
+  CHECK(std::strcmp(transactionB.BackupPath(), backupA.c_str()) != 0);
+  CHECK(std::strcmp(transactionB.WorkingPath(), workingA.c_str()) != 0);
+  CHECK(fileSystem.exists(backupA.c_str()));
+  CHECK_FALSE(fileSystem.exists(sampleA));
+
+  Ui2SampleEditorTransaction recoveredA;
+  REQUIRE(recoveredA.Begin(fileSystem, sampleA) ==
+          Ui2SampleEditorTransactionResult::Ready);
+  CHECK(fileSystem.Bytes(sampleA) == originalA);
+  CHECK_FALSE(fileSystem.exists(backupA.c_str()));
+}
+
 TEST_CASE("UI2 sample editor copy failure never mutates the source") {
   using namespace ui2;
   constexpr const char *source = "/samples/VOICE.wav";
