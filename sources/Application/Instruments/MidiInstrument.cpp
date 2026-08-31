@@ -193,7 +193,7 @@ bool MidiInstrument::Render(int channel, fixed *buffer, int size,
     }
   }
 
-  if (remainingTicks_ > 0) {
+  if (updateTick && remainingTicks_ > 0) {
     remainingTicks_--;
     if (remainingTicks_ == 0) {
       if (!retrig_) {

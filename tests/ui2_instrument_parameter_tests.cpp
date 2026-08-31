@@ -363,6 +363,28 @@ TEST_CASE("MIDI instant pitch bend emits once for targets above 127") {
   CHECK(capturedMidiMessages[0].data2_ == 0x7FU);
 }
 
+TEST_CASE("MIDI note length advances on tracker ticks, not audio buffers") {
+  InstallFakeMidiService();
+  MidiInstrument instrument;
+  REQUIRE(instrument.Init());
+  capturedMidiMessages.clear();
+  instrument.FindVariable(FourCC::MidiInstrumentNoteLength)->SetInt(2);
+  REQUIRE(instrument.Start(0, 60));
+  std::array<fixed, 8> buffer{};
+
+  for (int bufferIndex = 0; bufferIndex < 8; ++bufferIndex)
+    instrument.Render(0, buffer.data(), 4, false);
+  REQUIRE(capturedMidiMessages.size() == 1U);
+  CHECK(capturedMidiMessages[0].status_ == MidiMessage::MIDI_NOTE_ON);
+
+  instrument.Render(0, buffer.data(), 4, true);
+  CHECK(capturedMidiMessages.size() == 1U);
+  instrument.Render(0, buffer.data(), 4, true);
+  REQUIRE(capturedMidiMessages.size() == 2U);
+  CHECK(capturedMidiMessages[1].status_ == MidiMessage::MIDI_NOTE_OFF);
+  CHECK(capturedMidiMessages[1].data1_ == 60U);
+}
+
 TEST_CASE("Macro render starts its gain envelope from silence") {
   alignas(MacroInstrument)
       std::array<std::byte, sizeof(MacroInstrument)> layoutStorage{};
