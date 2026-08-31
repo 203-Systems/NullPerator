@@ -40,7 +40,10 @@ bool MidiInDevice::Start() {
 
   // Reset the MIDI parser state
   midiStatus = 0;
+  midiData1 = 0;
   midiDataCount = 0;
+  midiDataBytes = 0;
+  midiInSysEx = false;
 
   isRunning_ = startDriver();
   return isRunning_;
@@ -298,27 +301,30 @@ void MidiInDevice::ClearChannelAssignment(int midiChannel) {
 }
 
 void MidiInDevice::processMidiData(uint8_t data) {
-  // Handle MIDI data byte
+  // Status bytes always have bit 7 set. System Real-Time bytes are the one
+  // exception that may be interleaved anywhere without disturbing either a
+  // partially received message or channel running status.
   if (data & 0x80) {
-    // This is a status byte
-
-    // System Real-Time messages can appear anywhere and have no data bytes
     if (data >= 0xF8) {
       MidiMessage msg;
       msg.status_ = data;
       msg.data1_ = MidiMessage::UNUSED_BYTE;
       msg.data2_ = MidiMessage::UNUSED_BYTE;
       onDriverMessage(msg);
-      return; // Don't change the running status
+      return;
     }
 
-    // For all other status bytes, reset the data count
+    // Any non-real-time status terminates the ignored SysEx payload. An EOX
+    // is still delivered below to preserve the parser's existing observable
+    // behavior; the payload itself is intentionally unsupported.
+    midiInSysEx = false;
     midiStatus = data;
     midiDataCount = 0;
+    midiDataBytes = 0;
 
-    // Determine how many data bytes to expect based solely on the status byte
     if (data >= 0xF0) {
-      // System Common messages
+      // System Common messages cancel channel running status. midiStatus is
+      // therefore cleared as soon as the one current message completes.
       switch (data) {
       case 0xF1: // MIDI Time Code Quarter Frame
       case 0xF3: // Song Select
@@ -328,21 +334,17 @@ void MidiInDevice::processMidiData(uint8_t data) {
         midiDataBytes = 2;
         break;
       case 0xF0: // Start of System Exclusive
-        // SysEx messages are variable length and end with 0xF7
-        // For simplicity, we're not fully handling SysEx here
-        midiDataBytes = 0; // Special case, handled differently
-        break;
+        midiStatus = 0;
+        midiInSysEx = true;
+        return;
       default:
-        // All other System Common messages have no data bytes
-        midiDataBytes = 0;
-
-        // For messages with no data bytes, send them immediately
         MidiMessage msg;
         msg.status_ = midiStatus;
         msg.data1_ = MidiMessage::UNUSED_BYTE;
         msg.data2_ = MidiMessage::UNUSED_BYTE;
         onDriverMessage(msg);
-        break;
+        midiStatus = 0;
+        return;
       }
     } else {
       // Channel messages - determine bytes by status byte range
@@ -357,7 +359,10 @@ void MidiInDevice::processMidiData(uint8_t data) {
       }
     }
   } else {
-    // This is a data byte
+    if (midiInSysEx) {
+      return;
+    }
+
     if (midiStatus == 0) {
       // Ignore data bytes without status
       Trace::Debug("MIDI", "Ignored data byte without status: 0x%02X", data);
@@ -375,6 +380,11 @@ void MidiInDevice::processMidiData(uint8_t data) {
         msg.data1_ = midiData1;
         msg.data2_ = MidiMessage::UNUSED_BYTE;
         onDriverMessage(msg);
+
+        midiDataCount = 0;
+        if (midiStatus >= 0xF0) {
+          midiStatus = 0;
+        }
       }
     } else if (midiDataCount == 1 && midiDataBytes == 2) {
       // We have all the data we need for a 2-byte message
@@ -386,6 +396,9 @@ void MidiInDevice::processMidiData(uint8_t data) {
 
       // Reset data count but keep status for running status
       midiDataCount = 0;
+      if (midiStatus >= 0xF0) {
+        midiStatus = 0;
+      }
     }
   }
 }

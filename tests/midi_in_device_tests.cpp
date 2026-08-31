@@ -3,6 +3,8 @@
 #include "Application/Player/Player.h"
 #include "Services/Midi/MidiInDevice.h"
 
+#include <vector>
+
 namespace {
 
 class TestMidiInDevice final : public MidiInDevice {
@@ -18,6 +20,8 @@ public:
     treatChannelEvent(message);
   }
 
+  void Feed(uint8_t byte) { processMidiData(byte); }
+
   int driverStarts = 0;
   int driverStops = 0;
   bool startSucceeds = true;
@@ -30,6 +34,21 @@ protected:
     return startSucceeds;
   }
   void stopDriver() override { ++driverStops; }
+};
+
+} // namespace
+
+namespace {
+
+class MidiEventRecorder final : public I_Observer {
+public:
+  void Update(Observable &, I_ObservableData *data) override {
+    if (data != nullptr) {
+      messages.push_back(*static_cast<MidiMessage *>(data));
+    }
+  }
+
+  std::vector<MidiMessage> messages;
 };
 
 } // namespace
@@ -116,4 +135,160 @@ TEST_CASE("MIDI input stays stopped when its driver fails to start") {
   CHECK_FALSE(device.Start());
   CHECK_FALSE(device.IsRunning());
   CHECK(device.driverStarts == 1);
+}
+
+TEST_CASE("One-data-byte channel messages support running status") {
+  TestMidiInDevice device;
+  MidiEventRecorder recorder;
+  device.AddObserver(recorder);
+
+  device.Feed(0xC2U);
+  device.Feed(10U);
+  device.Feed(11U);
+  device.Feed(12U);
+  device.Feed(0xD3U);
+  device.Feed(20U);
+  device.Feed(21U);
+
+  REQUIRE(recorder.messages.size() == 5U);
+  CHECK(recorder.messages[0].status_ == 0xC2U);
+  CHECK(recorder.messages[0].data1_ == 10U);
+  CHECK(recorder.messages[1].status_ == 0xC2U);
+  CHECK(recorder.messages[1].data1_ == 11U);
+  CHECK(recorder.messages[2].status_ == 0xC2U);
+  CHECK(recorder.messages[2].data1_ == 12U);
+  CHECK(recorder.messages[3].status_ == 0xD3U);
+  CHECK(recorder.messages[3].data1_ == 20U);
+  CHECK(recorder.messages[4].status_ == 0xD3U);
+  CHECK(recorder.messages[4].data1_ == 21U);
+}
+
+TEST_CASE("System Real-Time bytes preserve partial and running status") {
+  TestMidiInDevice device;
+  MidiEventRecorder recorder;
+  device.AddObserver(recorder);
+
+  device.Feed(0x92U);
+  device.Feed(60U);
+  device.Feed(0xF8U);
+  device.Feed(100U);
+  device.Feed(61U);
+  device.Feed(0xFEU);
+  device.Feed(101U);
+
+  REQUIRE(recorder.messages.size() == 4U);
+  CHECK(recorder.messages[0].status_ == 0xF8U);
+  CHECK(recorder.messages[1].status_ == 0x92U);
+  CHECK(recorder.messages[1].data1_ == 60U);
+  CHECK(recorder.messages[1].data2_ == 100U);
+  CHECK(recorder.messages[2].status_ == 0xFEU);
+  CHECK(recorder.messages[3].status_ == 0x92U);
+  CHECK(recorder.messages[3].data1_ == 61U);
+  CHECK(recorder.messages[3].data2_ == 101U);
+}
+
+TEST_CASE("System Common messages cancel channel running status") {
+  TestMidiInDevice device;
+  MidiEventRecorder recorder;
+  device.AddObserver(recorder);
+
+  device.Feed(0x90U);
+  device.Feed(60U);
+  device.Feed(100U);
+  device.Feed(0xF1U);
+  device.Feed(7U);
+  device.Feed(61U);
+  device.Feed(101U);
+
+  REQUIRE(recorder.messages.size() == 2U);
+  CHECK(recorder.messages[0].status_ == 0x90U);
+  CHECK(recorder.messages[1].status_ == 0xF1U);
+  CHECK(recorder.messages[1].data1_ == 7U);
+
+  device.Feed(0x90U);
+  device.Feed(61U);
+  device.Feed(101U);
+  REQUIRE(recorder.messages.size() == 3U);
+  CHECK(recorder.messages[2].status_ == 0x90U);
+  CHECK(recorder.messages[2].data1_ == 61U);
+  CHECK(recorder.messages[2].data2_ == 101U);
+}
+
+TEST_CASE("System Common data may be interrupted by System Real-Time") {
+  TestMidiInDevice device;
+  MidiEventRecorder recorder;
+  device.AddObserver(recorder);
+
+  device.Feed(0xF2U);
+  device.Feed(1U);
+  device.Feed(0xF8U);
+  device.Feed(2U);
+
+  REQUIRE(recorder.messages.size() == 2U);
+  CHECK(recorder.messages[0].status_ == 0xF8U);
+  CHECK(recorder.messages[1].status_ == 0xF2U);
+  CHECK(recorder.messages[1].data1_ == 1U);
+  CHECK(recorder.messages[1].data2_ == 2U);
+}
+
+TEST_CASE("Zero-data System Common messages cancel channel running status") {
+  TestMidiInDevice device;
+  MidiEventRecorder recorder;
+  device.AddObserver(recorder);
+
+  device.Feed(0x90U);
+  device.Feed(60U);
+  device.Feed(100U);
+  device.Feed(0xF6U);
+  device.Feed(61U);
+  device.Feed(101U);
+
+  REQUIRE(recorder.messages.size() == 2U);
+  CHECK(recorder.messages[0].status_ == 0x90U);
+  CHECK(recorder.messages[1].status_ == 0xF6U);
+}
+
+TEST_CASE("Ignored SysEx payload cannot leak into channel running status") {
+  TestMidiInDevice device;
+  MidiEventRecorder recorder;
+  device.AddObserver(recorder);
+
+  device.Feed(0x90U);
+  device.Feed(60U);
+  device.Feed(100U);
+  device.Feed(0xF0U);
+  device.Feed(1U);
+  device.Feed(0xF8U);
+  device.Feed(2U);
+  device.Feed(0xF7U);
+  device.Feed(61U);
+  device.Feed(101U);
+
+  REQUIRE(recorder.messages.size() == 3U);
+  CHECK(recorder.messages[0].status_ == 0x90U);
+  CHECK(recorder.messages[1].status_ == 0xF8U);
+  CHECK(recorder.messages[2].status_ == 0xF7U);
+
+  device.Feed(0x90U);
+  device.Feed(61U);
+  device.Feed(101U);
+  REQUIRE(recorder.messages.size() == 4U);
+  CHECK(recorder.messages[3].status_ == 0x90U);
+}
+
+TEST_CASE("A channel status terminates an ignored SysEx payload") {
+  TestMidiInDevice device;
+  MidiEventRecorder recorder;
+  device.AddObserver(recorder);
+
+  device.Feed(0xF0U);
+  device.Feed(1U);
+  device.Feed(0x91U);
+  device.Feed(64U);
+  device.Feed(110U);
+
+  REQUIRE(recorder.messages.size() == 1U);
+  CHECK(recorder.messages[0].status_ == 0x91U);
+  CHECK(recorder.messages[0].data1_ == 64U);
+  CHECK(recorder.messages[0].data2_ == 110U);
 }
