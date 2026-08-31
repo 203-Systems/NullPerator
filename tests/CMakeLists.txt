@@ -144,6 +144,25 @@ target_compile_definitions(picoTracker_tests PRIVATE
 )
 add_test(NAME picoTracker_unit COMMAND picoTracker_tests)
 
+add_executable(midi_in_device_tests
+  test_main.cpp
+  midi_in_device_tests.cpp
+  ../sources/Services/Midi/MidiInDevice.cpp
+  ../sources/Services/Midi/MidiNoteTracker.cpp
+  ../sources/Foundation/Observable.cpp
+)
+
+target_include_directories(midi_in_device_tests PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/midi_in_device_stubs
+  ${CMAKE_CURRENT_LIST_DIR}/stubs
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals/SRC/include
+  ${CMAKE_CURRENT_LIST_DIR}/../sources
+)
+
+target_compile_definitions(midi_in_device_tests PRIVATE HOST_TEST)
+add_test(NAME midi_in_device COMMAND midi_in_device_tests)
+
 add_executable(autosave_coordinator_tests
   test_main.cpp
   autosave_coordinator_tests.cpp

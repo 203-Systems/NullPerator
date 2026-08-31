@@ -158,8 +158,11 @@ void MidiInDevice::treatChannelEvent(MidiMessage &event) {
   case MidiMessage::MIDI_NOTE_OFF: {
     int note = event.data1_ & MIDI_DATA_MASK;
 
-    // Map MIDI channel directly to instrument index
-    short instrumentIndex = midiChannel;
+    const int instrumentIndex = GetInstrumentForChannel(midiChannel);
+    if (instrumentIndex < 0) {
+      Trace::Debug("No instrument assigned for MIDI channel %d", midiChannel);
+      break;
+    }
 
     Player *player = Player::GetInstance();
     if (player) {
@@ -179,8 +182,11 @@ void MidiInDevice::treatChannelEvent(MidiMessage &event) {
     int note = event.data1_ & MIDI_DATA_MASK;
     int value = event.data2_ & MIDI_DATA_MASK;
 
-    // Map MIDI channel directly to instrument index
-    short instrumentIndex = midiChannel;
+    const int instrumentIndex = GetInstrumentForChannel(midiChannel);
+    if (instrumentIndex < 0) {
+      Trace::Debug("No instrument assigned for MIDI channel %d", midiChannel);
+      break;
+    }
 
     Player *player = Player::GetInstance();
     if (player) {
