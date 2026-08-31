@@ -23,6 +23,10 @@ for (const viewport of mobileViewports) {
     await expect(canvas).toHaveAttribute('data-frame-content', 'rendered', { timeout: 20_000 })
     await expect(controls).toHaveCount(8)
     await expect(settings).toHaveCount(1)
+    const settingsBox = await settings.boundingBox()
+    expect(settingsBox).not.toBeNull()
+    expect(settingsBox.width).toBeGreaterThanOrEqual(44)
+    expect(settingsBox.height).toBeGreaterThanOrEqual(44)
 
     const canvasBox = await canvas.boundingBox()
     expect(canvasBox).not.toBeNull()
@@ -84,6 +88,10 @@ for (const viewport of mobileViewports) {
     await settings.click()
     const dialog = page.getByRole('dialog', { name: 'Settings' })
     await expect(dialog).toBeVisible()
+    const closeBox = await dialog.getByRole('button', { name: 'Close settings' }).boundingBox()
+    expect(closeBox).not.toBeNull()
+    expect(closeBox.width).toBeGreaterThanOrEqual(44)
+    expect(closeBox.height).toBeGreaterThanOrEqual(44)
     await expect(dialog.getByRole('button', { name: 'Developer mode' })).toHaveCount(1)
     await dialog.getByRole('button', { name: 'Developer mode' }).click()
 

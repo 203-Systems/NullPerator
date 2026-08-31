@@ -57,14 +57,14 @@
 <style>
   .play-bar{display:flex;height:44px;flex:0 0 auto;align-items:center;justify-content:flex-end;padding:0 8px;border-bottom:1px solid var(--border);background:var(--bg-0);z-index:10}
   button{color:var(--muted);background:transparent;cursor:pointer}
-  .settings-trigger{display:grid;width:40px;height:40px;padding:0;place-items:center;border:0;border-radius:10px}
+  .settings-trigger{display:grid;width:44px;height:44px;padding:0;place-items:center;border:0;border-radius:10px}
   .settings-trigger:hover,.settings-trigger:focus-visible{color:var(--accent);background:var(--accent-soft)}
   .scrim{position:fixed;inset:0;z-index:30;width:100%;height:100%;padding:0;border:0;background:rgba(0,0,0,.58)}
   .settings-sheet{position:fixed;z-index:31;left:50%;bottom:max(12px,env(safe-area-inset-bottom));width:min(calc(100% - 24px),380px);translate:-50% 0;padding:14px;border:1px solid rgba(255,255,255,.12);border-radius:16px;background:#15161a;box-shadow:0 18px 60px rgba(0,0,0,.55)}
   .settings-sheet header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
   .settings-sheet p{margin:0 0 4px;color:var(--accent);font:600 9px/1 var(--mono);letter-spacing:.14em}
   .settings-sheet h2{margin:0;font-size:17px}
-  .close{display:grid;width:36px;height:36px;padding:0;place-items:center;border:1px solid var(--border);border-radius:9px}
+  .close{display:grid;width:44px;height:44px;padding:0;place-items:center;border:1px solid var(--border);border-radius:9px}
   .developer-entry{display:flex;width:100%;min-height:66px;align-items:center;justify-content:space-between;gap:12px;padding:12px;border:1px solid var(--border);border-radius:11px;text-align:left;background:rgba(255,255,255,.025)}
   .developer-entry:hover{border-color:rgba(76,201,240,.35);background:var(--accent-soft)}
   .developer-entry span:first-child{display:grid;gap:4px}.developer-entry strong{color:var(--text);font-size:13px}.developer-entry small{color:var(--muted);font-size:10px;line-height:1.35}
