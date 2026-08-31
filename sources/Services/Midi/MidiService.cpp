@@ -9,7 +9,6 @@
 
 #include "MidiService.h"
 #include "Application/Model/Config.h"
-#include "Application/Player/Player.h"
 #include "Application/Player/SyncMaster.h"
 #include "Services/Audio/AudioDriver.h"
 #include "System/Console/Trace.h"
@@ -147,23 +146,6 @@ void MidiService::Update(Observable &o, I_ObservableData *d) {
 void MidiService::onAudioTick() { flushOutQueue(); }
 
 void MidiService::Flush() { flushOutQueue(); };
-
-void MidiService::OnMidiStart() {
-  // Start the Player in song mode
-  Trace::Log("MIDI", "Received MIDI Start message");
-  Player::GetInstance()->Start(PM_SONG, true, MSM_AUDIO, false);
-}
-
-void MidiService::OnMidiStop() {
-  // Stop the Player
-  Trace::Log("MIDI", "Received MIDI Stop message");
-  Player::GetInstance()->Stop();
-}
-
-void MidiService::OnMidiClock() {
-  // Handle MIDI clock messages if needed
-  // This could be used for tempo synchronization
-}
 
 void MidiService::flushOutQueue() {
   auto flushQueue = &queues_[currentOutQueue_];

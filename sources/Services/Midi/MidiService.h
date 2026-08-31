@@ -47,11 +47,6 @@ public:
   //! Flush current queue to the output
   void Flush();
 
-  //! Handle MIDI transport messages
-  void OnMidiStart();
-  void OnMidiStop();
-  void OnMidiClock();
-
 protected:
   etl::vector<MidiInDevice *, 2> inList_;
   etl::vector<MidiOutDevice *, 2> outList_;
