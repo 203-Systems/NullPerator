@@ -13,7 +13,8 @@ namespace {
 
 class ProjectBrowserFileSystem final : public FileSystem {
 public:
-  ProjectBrowserFileSystem() {
+  explicit ProjectBrowserFileSystem(int projectCount = 0)
+      : projectCount_(projectCount) {
     previous_ = FileSystem::GetInstance();
     FileSystem::Install(this);
   }
@@ -55,6 +56,15 @@ public:
         ".FOO",
     };
     if (std::strcmp(path, PROJECTS_DIR) == 0) {
+      if (projectCount_ > 0) {
+        for (int index = 0; index < projectCount_; ++index) {
+          char name[MAX_PROJECT_NAME_LENGTH + 1U]{};
+          std::snprintf(name, sizeof(name), "PROJECT%03d", index);
+          if (!snapshot.Add(name, PFT_DIR, 0U))
+            break;
+        }
+        return true;
+      }
       for (const char *name : projects) {
         if (!snapshot.Add(name, PFT_DIR, 0U))
           break;
@@ -100,6 +110,7 @@ private:
   bool includedHidden_ = false;
   bool legacyIncludedHidden_ = false;
   bool legacyListingOverwritten_ = false;
+  int projectCount_ = 0;
 };
 
 template <typename Controller>
@@ -229,6 +240,25 @@ TEST_CASE("UI2 Project Browser restores a failed load selection after refresh") 
   CHECK(snapshot.selectedRow == 0U);
   CHECK(std::strcmp(snapshot.items[0].data(), "OLD") == 0);
   CHECK(std::strcmp(snapshot.items[1].data(), "*ACTIVE") == 0);
+}
+
+TEST_CASE("UI2 Project Browser rejects a potentially truncated project scan") {
+  using namespace ui2;
+  SUBCASE("exact capacity remains a complete scan") {
+    ProjectBrowserFileSystem fileSystem(MAX_FILE_INDEX_SIZE);
+    Ui2ProjectBrowserController controller;
+
+    CHECK(controller.Refresh("ACTIVE"));
+    CHECK(controller.Snapshot().totalItemCount == MAX_FILE_INDEX_SIZE);
+  }
+
+  SUBCASE("one project beyond capacity fails closed") {
+    ProjectBrowserFileSystem fileSystem(MAX_FILE_INDEX_SIZE + 1);
+    Ui2ProjectBrowserController controller;
+
+    CHECK_FALSE(controller.Refresh("ACTIVE"));
+    CHECK(controller.Snapshot().totalItemCount == 0U);
+  }
 }
 
 TEST_CASE("UI2 Project Browser owner releases clear a modal-opening chord") {

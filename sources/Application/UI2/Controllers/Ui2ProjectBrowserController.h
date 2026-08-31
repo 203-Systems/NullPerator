@@ -78,6 +78,7 @@ public:
     selected_ = 0U;
     top_ = 0U;
     activeAction_ = 0U;
+    capacityReached_ = false;
     FileSystem *fileSystem = FileSystem::GetInstance();
     if (fileSystem == nullptr)
       return false;
@@ -88,8 +89,13 @@ public:
     std::array<char, MAX_PROJECT_SAMPLE_PATH_LENGTH> absolutePath{};
     if (!BuildAbsolutePath(absolutePath))
       return false;
-    return fileSystem->listPathChecked(absolutePath.data(), *this, "", true,
-                                       InProjectDirectory());
+    const bool listed = fileSystem->listPathChecked(
+        absolutePath.data(), *this, "", true, InProjectDirectory());
+    if (!listed || capacityReached_) {
+      count_ = 0U;
+      return false;
+    }
+    return true;
   }
 
   Ui2ProjectBrowserCommand Handle(TrackerAction action, bool pressed) {
@@ -295,7 +301,10 @@ private:
     destination[capacity - 1U] = '\0';
   }
 
-  void Reset() override { count_ = 0U; }
+  void Reset() override {
+    count_ = 0U;
+    capacityReached_ = false;
+  }
 
   bool Add(const char *name, PicoFileType type, std::uint64_t) override {
     if (name == nullptr || name[0] == '\0' || type != PFT_DIR ||
@@ -305,12 +314,17 @@ private:
         std::strlen(name) > MAX_PROJECT_NAME_LENGTH) {
       return true;
     }
-    if (count_ >= entries_.size())
+    if (count_ >= entries_.size()) {
+      capacityReached_ = true;
       return false;
+    }
     std::snprintf(entries_[count_].name.data(), entries_[count_].name.size(),
                   "%s", name);
     ++count_;
-    return count_ < entries_.size();
+    // Stay in the scan at exact capacity. A following valid entry can then set
+    // the explicit overflow sentinel, distinguishing 256 complete projects
+    // from a truncated 257-project directory without allocating a spare row.
+    return true;
   }
 
   template <std::size_t Size>
@@ -346,6 +360,7 @@ private:
   std::array<char, MAX_PROJECT_NAME_LENGTH + 1U> currentProject_{};
   std::uint8_t depth_ = 0U;
   std::uint8_t activeAction_ = 0U;
+  bool capacityReached_ = false;
 };
 
 } // namespace ui2
