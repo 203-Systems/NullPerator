@@ -196,6 +196,7 @@ private:
       pressOwners_{};
   std::array<char, MAX_PROJECT_NAME_LENGTH + 1U> savedProjectName_{};
   bool projectSaveAsPending_ = false;
+  Ui2DeferredProjectSave deferredProjectSave_{};
   enum class RenameTarget : std::uint8_t {
     None,
     Project,

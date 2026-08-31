@@ -82,6 +82,36 @@ TEST_CASE("UI2 Project presentation preserves user project name casing") {
   CHECK(rename.Snapshot().saveEnabled);
 }
 
+TEST_CASE("UI2 untitled save resumes only after a successful rename") {
+  ui2::Ui2DeferredProjectSave deferred;
+
+  CHECK(deferred.Request(UNNAMED_PROJECT_NAME) ==
+        ui2::Ui2ProjectSaveStart::RenameFirst);
+  CHECK(deferred.PendingRename());
+  CHECK(deferred.CompleteRename());
+  CHECK_FALSE(deferred.PendingRename());
+  CHECK_FALSE(deferred.CompleteRename());
+
+  CHECK(deferred.Request("NAMED") == ui2::Ui2ProjectSaveStart::SaveNow);
+  CHECK_FALSE(deferred.PendingRename());
+  CHECK_FALSE(deferred.CompleteRename());
+}
+
+TEST_CASE("UI2 untitled deferred save clears on cancel or project boundary") {
+  ui2::Ui2DeferredProjectSave deferred;
+
+  REQUIRE(deferred.Request(UNNAMED_PROJECT_NAME) ==
+          ui2::Ui2ProjectSaveStart::RenameFirst);
+  deferred.Cancel();
+  CHECK_FALSE(deferred.PendingRename());
+  CHECK_FALSE(deferred.CompleteRename());
+
+  REQUIRE(deferred.Request(UNNAMED_PROJECT_NAME) ==
+          ui2::Ui2ProjectSaveStart::RenameFirst);
+  deferred.Cancel(); // project switch and shutdown share the same reset
+  CHECK_FALSE(deferred.CompleteRename());
+}
+
 TEST_CASE("UI2 Project rename disables names rejected by persistence") {
   ui2::Ui2RenameController rename;
   constexpr auto validator = &PersistencyService::IsValidProjectName;

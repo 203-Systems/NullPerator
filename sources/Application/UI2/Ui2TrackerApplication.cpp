@@ -171,6 +171,7 @@ bool Ui2TrackerApplication::Init(Ui2StartupOptions options) {
   persistenceStatus_.FinishSaving();
   pendingSave_ = PendingSaveKind::None;
   pendingSaveOverwrite_ = false;
+  deferredProjectSave_.Cancel();
 
   FileSystem *fileSystem = FileSystem::GetInstance();
   EnsureDirectory(fileSystem, PROJECTS_DIR);
@@ -289,6 +290,7 @@ bool Ui2TrackerApplication::Init(Ui2StartupOptions options) {
 }
 
 void Ui2TrackerApplication::Shutdown() {
+  deferredProjectSave_.Cancel();
   // Shutdown is also called directly by host/adapter teardown, without a page
   // transition. Do not drop coalesced settings just because that path never
   // reached ActivatePage().
@@ -692,6 +694,8 @@ bool Ui2TrackerApplication::ActivatePage(UiApplicationPage page) {
     return false;
   }
   const bool changed = activePage_ != page;
+  if (changed)
+    deferredProjectSave_.Cancel();
   if (changed && activePage_ == UiApplicationPage::SampleEditor &&
       page != UiApplicationPage::SampleEditor && sampleEditor_.Active()) {
     StopSamplePreview();
@@ -1612,11 +1616,16 @@ void Ui2TrackerApplication::HandleRename(TrackerAction action, bool pressed) {
         MarkProjectDirty();
       }
     } else if (renameTarget_ == RenameTarget::Project) {
+      const bool saveAfterRename = deferredProjectSave_.CompleteRename();
       projectSaveAsPending_ =
           std::strcmp(savedProjectName_.data(), rename_.Value()) != 0;
       session_.ProjectModel().SetProjectName(rename_.Value());
       autoSave_.SetSaveAsPending(projectSaveAsPending_);
       MarkProjectDirty();
+      renameTarget_ = RenameTarget::None;
+      if (saveAfterRename)
+        SaveCurrentProject();
+      return;
     } else if (renameTarget_ == RenameTarget::Theme ||
                renameTarget_ == RenameTarget::NewTheme) {
       CommitThemeName(rename_.Value(),
@@ -1624,6 +1633,7 @@ void Ui2TrackerApplication::HandleRename(TrackerAction action, bool pressed) {
     }
     renameTarget_ = RenameTarget::None;
   } else if (command == Ui2RenameCommand::Cancel) {
+    deferredProjectSave_.Cancel();
     renameTarget_ = RenameTarget::None;
   }
 }
@@ -2283,6 +2293,8 @@ void Ui2TrackerApplication::ResetControllersAfterProjectBoundary() {
   font_ = {};
   font_.SetTextCase(textCase);
   rename_ = {};
+  renameTarget_ = RenameTarget::None;
+  deferredProjectSave_.Cancel();
   mixer_ = {};
   instrument_ = {};
   instrumentLifecycle_ = {};
@@ -2339,6 +2351,15 @@ bool Ui2TrackerApplication::FlushConfig() {
 void Ui2TrackerApplication::ExecuteProject(Ui2ProjectCommand command) {
   switch (command.type) {
   case Ui2ProjectCommandType::SaveProject:
+    if (deferredProjectSave_.Request(session_.ProjectName()) ==
+        Ui2ProjectSaveStart::RenameFirst) {
+      renameTarget_ = RenameTarget::Project;
+      const Ui2ProjectNamePresentation presentation(session_.ProjectName());
+      rename_.Begin(presentation.RenameDraft(), MAX_PROJECT_NAME_LENGTH,
+                    &PersistencyService::IsValidProjectName,
+                    TrackerAction::Edit);
+      break;
+    }
     SaveCurrentProject();
     break;
   case Ui2ProjectCommandType::RemoveUnusedSamples:
@@ -2371,6 +2392,7 @@ void Ui2TrackerApplication::ExecuteProject(Ui2ProjectCommand command) {
         TrackerAction::Edit));
     break;
   case Ui2ProjectCommandType::RenameProject:
+    deferredProjectSave_.Cancel();
     renameTarget_ = RenameTarget::Project;
     rename_.Begin(
         Ui2ProjectNamePresentation(session_.ProjectName()).RenameDraft(),

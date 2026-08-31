@@ -31,6 +31,10 @@ public:
     return IsInternalUntitled() ? "" : storageName_;
   }
 
+  [[nodiscard]] bool NeedsNameBeforeSave() const {
+    return IsInternalUntitled();
+  }
+
   template <std::size_t Size>
   void CopyHeaderTo(std::array<char, Size> &destination) const {
     destination.fill('\0');

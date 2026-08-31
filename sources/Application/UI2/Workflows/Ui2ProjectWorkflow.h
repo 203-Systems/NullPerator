@@ -9,9 +9,11 @@
 #include "Application/Model/ProjectDefaults.h"
 #include "Application/Model/Scale.h"
 #include "Application/UI2/Controllers/Ui2ProjectController.h"
+#include "Application/UI2/Ui2ProjectNamePresentation.h"
 #include "Foundation/Types/Types.h"
 
 #include <algorithm>
+#include <cstdint>
 
 namespace ui2 {
 
@@ -22,6 +24,35 @@ struct Ui2ProjectValuePlan final {
   int delta = 0;
   bool wraps = false;
   bool valid = false;
+};
+
+enum class Ui2ProjectSaveStart : std::uint8_t { SaveNow, RenameFirst };
+
+// Tracks only the transient intent created when SAVE is requested for the
+// reserved `.untitled` staging project. Persistence still owns Save As and
+// overwrite semantics; this value merely joins the existing rename page back
+// to the original SAVE action without allocating or leaking the internal name
+// into the draft.
+class Ui2DeferredProjectSave final {
+public:
+  [[nodiscard]] Ui2ProjectSaveStart Request(const char *storageName) {
+    pendingRename_ =
+        Ui2ProjectNamePresentation(storageName).NeedsNameBeforeSave();
+    return pendingRename_ ? Ui2ProjectSaveStart::RenameFirst
+                          : Ui2ProjectSaveStart::SaveNow;
+  }
+
+  [[nodiscard]] bool CompleteRename() {
+    const bool shouldSave = pendingRename_;
+    pendingRename_ = false;
+    return shouldSave;
+  }
+
+  void Cancel() { pendingRename_ = false; }
+  [[nodiscard]] bool PendingRename() const { return pendingRename_; }
+
+private:
+  bool pendingRename_ = false;
 };
 
 // Pure project-domain policy extracted from Ui2TrackerApplication. Keeping the
@@ -71,5 +102,7 @@ public:
 
 static_assert(sizeof(Ui2ProjectValuePlan) <= 24U,
               "project value plans must remain small embedded values");
+static_assert(sizeof(Ui2DeferredProjectSave) == 1U,
+              "deferred project save state must remain a one-byte flag");
 
 } // namespace ui2
