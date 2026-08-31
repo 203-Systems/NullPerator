@@ -120,7 +120,8 @@ RectI16 UiTableView::SelectionTargetRect(std::int16_t left, std::int16_t top,
 RectI16 UiTableView::RowDamageRect(std::uint8_t row) {
   if (row >= 16U)
     return {};
-  return UiTrackerGridMetrics::RowDamage(row, 230);
+  return UiTrackerGridMetrics::RowDamage(
+      row, UiTrackerGridMetrics::kGridRightFull);
 }
 
 RectI16 UiTableView::PlaybackTickRect(std::uint8_t group,
@@ -300,9 +301,8 @@ UiBuildStatus UiTableView::Build(const UiTableViewData &data, UiPalette &,
   if (!data.numberFocus && !data.selectionVisualRect.Empty()) {
     builder.SelectionHighlight(data.selectionVisualRect);
   } else if (!data.numberFocus && data.editRow < 16U) {
-    builder.RowHighlight(
-        {5, UiTrackerGridMetrics::RowHighlightY(data.editRow), 230,
-         UiTrackerGridMetrics::kRowHeight});
+    builder.RowHighlight(UiTrackerGridMetrics::RowHighlightRect(
+        data.editRow, UiTrackerGridMetrics::kGridRightFull));
   }
   for (std::uint8_t row = 0; row < 16U; ++row) {
     const std::int16_t y = UiTrackerGridMetrics::RowTextY(row);

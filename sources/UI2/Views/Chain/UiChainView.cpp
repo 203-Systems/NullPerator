@@ -73,7 +73,8 @@ RectI16 UiChainView::SelectionTargetRect(std::int16_t left, std::int16_t top,
 RectI16 UiChainView::RowDamageRect(std::uint8_t row) {
   if (row >= 16U)
     return {};
-  return UiTrackerGridMetrics::RowDamage(row, 213);
+  return UiTrackerGridMetrics::RowDamage(
+      row, UiTrackerGridMetrics::kGridRightWithVu);
 }
 
 RectI16 UiChainView::PlaybackTickRect(std::uint8_t row) {
@@ -87,8 +88,8 @@ RectI16 UiChainView::PlaybackTickRect(std::uint8_t row) {
 RectI16 UiChainView::VuDamageRect(std::uint8_t side) {
   if (side >= 2U)
     return {};
-  return {static_cast<std::int16_t>(219 + side * 9), kMeterTop, 7,
-          kMeterHeight};
+  return {UiTrackerGridMetrics::VuX(side), kMeterTop,
+          UiTrackerGridMetrics::kVuChannelWidth, kMeterHeight};
 }
 
 void UiChainView::RenderDelta(const UiChainViewData &previous,
@@ -113,7 +114,7 @@ void UiChainView::RenderDelta(const UiChainViewData &previous,
     render({184, 0, 56, 34});
 
   if (previous.editColumn != current.editColumn)
-    render({28, 34, 64, 14});
+    render({UiTrackerGridMetrics::kChainColumnX[0], 34, 64, 14});
   if (previous.selectionVisualRect != current.selectionVisualRect) {
     render(previous.selectionVisualRect);
     render(current.selectionVisualRect);
@@ -231,8 +232,8 @@ UiBuildStatus UiChainView::Build(const UiChainViewData &data,
   if (!data.numberFocus && !data.selectionVisualRect.Empty()) {
     builder.SelectionHighlight(data.selectionVisualRect);
   } else if (!data.numberFocus && data.editRow < 16U) {
-    builder.RowHighlight({5, UiTrackerGridMetrics::RowHighlightY(data.editRow),
-                          213, UiTrackerGridMetrics::kRowHeight});
+    builder.RowHighlight(UiTrackerGridMetrics::RowHighlightRect(
+        data.editRow, UiTrackerGridMetrics::kGridRightWithVu));
   }
   for (std::uint8_t row = 0; row < 16U; ++row) {
     const std::int16_t y = UiTrackerGridMetrics::RowTextY(row);

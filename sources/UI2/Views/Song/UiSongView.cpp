@@ -90,7 +90,8 @@ RectI16 UiSongView::PlaybackTickRect(std::uint8_t track, std::uint8_t row) {
 RectI16 UiSongView::RowDamageRect(std::uint8_t row) {
   if (row >= 16U)
     return {};
-  return UiTrackerGridMetrics::RowDamage(row, 213);
+  return UiTrackerGridMetrics::RowDamage(
+      row, UiTrackerGridMetrics::kGridRightWithVu);
 }
 
 RectI16 UiSongView::TrackHeaderDamageRect(std::uint8_t track) {
@@ -108,7 +109,8 @@ RectI16 UiSongView::BottomTrackDamageRect(std::uint8_t track) {
 RectI16 UiSongView::VuDamageRect(std::uint8_t channel) {
   if (channel >= 2U)
     return {};
-  return {static_cast<std::int16_t>(219 + channel * 9), 47, 7, 153};
+  return {UiTrackerGridMetrics::VuX(channel), 47,
+          UiTrackerGridMetrics::kVuChannelWidth, 153};
 }
 
 bool UiSongView::RequiresFullInvalidation(const UiSongViewData &previous,
@@ -187,7 +189,7 @@ void UiSongView::RenderDelta(const UiSongViewData &previous,
     }
   }
   if (changedCells > 24U) {
-    render({0, 34, 219, 174});
+    render({0, 34, UiTrackerGridMetrics::kGridRightWithVu, 174});
     rowRendered.fill(true);
   } else {
     for (std::uint8_t row = 0; row < 16U; ++row) {
@@ -314,8 +316,8 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data, UiPalette &palette,
   if (!data.selectionVisualRect.Empty()) {
     builder.SelectionHighlight(data.selectionVisualRect);
   } else {
-    builder.RowHighlight({5, UiTrackerGridMetrics::RowHighlightY(data.editRow),
-                          213, UiTrackerGridMetrics::kRowHeight});
+    builder.RowHighlight(UiTrackerGridMetrics::RowHighlightRect(
+        data.editRow, UiTrackerGridMetrics::kGridRightWithVu));
   }
   const RectI16 cursorRect = ResolvedCursorRect(data);
   const RectI16 targetRect = CursorTargetRect(data.editTrack, data.editRow);
@@ -383,12 +385,15 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data, UiPalette &palette,
       return UiBuildStatus::CommandOverflow;
     }
     for (std::uint8_t channel = 0; channel < 2; ++channel) {
-      const std::int16_t x = static_cast<std::int16_t>(219 + channel * 9);
-      builder.Fill({x, 47, 7, 153}, UiColorToken::DerivedVuTrack);
+      const std::int16_t x = UiTrackerGridMetrics::VuX(channel);
+      builder.Fill({x, 47, UiTrackerGridMetrics::kVuChannelWidth, 153},
+                   UiColorToken::DerivedVuTrack);
       const std::uint8_t level = data.vuLevelTop[channel];
-      builder.VerticalPaletteRamp({x, static_cast<std::int16_t>(47 + level), 7,
-                                   static_cast<std::int16_t>(153 - level)},
-                                  UiVuGradient::IndexAt(level));
+      builder.VerticalPaletteRamp(
+          {x, static_cast<std::int16_t>(47 + level),
+           UiTrackerGridMetrics::kVuChannelWidth,
+           static_cast<std::int16_t>(153 - level)},
+          UiVuGradient::IndexAt(level));
     }
   }
 

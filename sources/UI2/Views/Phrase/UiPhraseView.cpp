@@ -136,7 +136,8 @@ RectI16 UiPhraseView::SelectionTargetRect(std::int16_t left,
 RectI16 UiPhraseView::RowDamageRect(std::uint8_t row) {
   if (row >= 16U)
     return {};
-  return UiTrackerGridMetrics::RowDamage(row, 230);
+  return UiTrackerGridMetrics::RowDamage(
+      row, UiTrackerGridMetrics::kGridRightFull);
 }
 
 RectI16 UiPhraseView::PlaybackTickRect(std::uint8_t row) {
@@ -319,9 +320,8 @@ UiBuildStatus UiPhraseView::Build(const UiPhraseViewData &data, UiPalette &,
   if (!data.numberFocus && !data.selectionVisualRect.Empty()) {
     builder.SelectionHighlight(data.selectionVisualRect);
   } else if (!data.numberFocus && data.editRow < 16U) {
-    builder.RowHighlight(
-        {5, UiTrackerGridMetrics::RowHighlightY(data.editRow), 230,
-         UiTrackerGridMetrics::kRowHeight});
+    builder.RowHighlight(UiTrackerGridMetrics::RowHighlightRect(
+        data.editRow, UiTrackerGridMetrics::kGridRightFull));
   }
   for (std::uint8_t row = 0; row < 16U; ++row) {
     const std::int16_t y = UiTrackerGridMetrics::RowTextY(row);

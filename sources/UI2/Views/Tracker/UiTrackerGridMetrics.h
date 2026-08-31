@@ -37,8 +37,17 @@ PackColumns(const std::array<std::uint8_t, Count> &characters,
 // metrics here prevents one tracker page from silently packing its 16 rows
 // more tightly than the others.
 struct UiTrackerGridMetrics {
+  // Horizontal page bounds remain explicit so row-band damage, content and
+  // stereo VU geometry cannot drift apart through unrelated magic numbers.
+  static constexpr std::int16_t kRowBandLeftX = 6;
+  static constexpr std::int16_t kGridRightWithVu = 218;
+  static constexpr std::int16_t kGridRightFull = 235;
+  static constexpr std::int16_t kVuFirstX = 218;
+  static constexpr std::int16_t kVuChannelPitch = 9;
+  static constexpr std::int16_t kVuChannelWidth = 7;
+
   // All tracker pages anchor hexadecimal row labels to this exact column.
-  static constexpr std::int16_t kRowLabelX = 7;
+  static constexpr std::int16_t kRowLabelX = 8;
   static constexpr std::int16_t kHeaderTextY = 38;
   // Two visible pixels separate the 5x7 header glyphs from row 00.
   static constexpr std::int16_t kFirstRowTextY = 48;
@@ -50,7 +59,7 @@ struct UiTrackerGridMetrics {
   // Phrase and Table have opposite 4/3-character cadences, so reusing one
   // page's absolute anchors makes the other page alternate between cramped
   // and oversized gaps.
-  static constexpr std::int16_t kContentStartX = 28;
+  static constexpr std::int16_t kContentStartX = 29;
   static constexpr std::int16_t kColumnGap = 12;
 
   static constexpr std::array<std::uint8_t, 8> kSongColumnCharacters{
@@ -70,7 +79,8 @@ struct UiTrackerGridMetrics {
   static constexpr auto kTableColumnX = tracker_grid_detail::PackColumns(
       kTableColumnCharacters, kContentStartX, kColumnGap);
 
-  static_assert(kSongTrackX.back() + UiFont5x7::TextWidth(2) < 219,
+  static_assert(kSongTrackX.back() + UiFont5x7::TextWidth(2) <
+                    kGridRightWithVu,
                 "Song tracks must leave room for the dual VU meter");
   static_assert(kPhraseColumnX.back() + UiFont5x7::TextWidth(4) + 2 <= 240,
                 "Phrase cursor must remain on screen");
@@ -95,9 +105,21 @@ struct UiTrackerGridMetrics {
     return static_cast<std::int16_t>(RowTextY(row) - 2);
   }
 
-  [[nodiscard]] static constexpr RectI16 RowDamage(std::uint8_t row,
-                                                   std::int16_t width) {
-    return {5, RowHighlightY(row), width, 12};
+  [[nodiscard]] static constexpr RectI16
+  RowHighlightRect(std::uint8_t row, std::int16_t rightExclusive) {
+    return {kRowBandLeftX, RowHighlightY(row),
+            static_cast<std::int16_t>(rightExclusive - kRowBandLeftX),
+            kRowHeight};
+  }
+
+  [[nodiscard]] static constexpr RectI16
+  RowDamage(std::uint8_t row, std::int16_t rightExclusive) {
+    const RectI16 highlight = RowHighlightRect(row, rightExclusive);
+    return {highlight.x, highlight.y, highlight.width, 12};
+  }
+
+  [[nodiscard]] static constexpr std::int16_t VuX(std::uint8_t channel) {
+    return static_cast<std::int16_t>(kVuFirstX + channel * kVuChannelPitch);
   }
 };
 
