@@ -1250,7 +1250,7 @@ TEST_CASE("UI2 vertical list reveals items and reconciles contextual bars") {
   current.selectedRgb = {1U, 128U, 255U};
   current.colorComponent = 2U;
   current.scrollOffset = ui2::UiThemeView::RevealCursor(0, current);
-  CHECK(current.scrollOffset == 122);
+  CHECK(current.scrollOffset == 123);
 
   ui2::UiPalette palette;
   ui2::UiFrameScene previousScene;
@@ -1264,7 +1264,7 @@ TEST_CASE("UI2 vertical list reveals items and reconciles contextual bars") {
   ui2::UiFrameScene currentScene;
   REQUIRE(ui2::UiThemeView::Build(current, palette, currentScene) ==
           ui2::UiBuildStatus::Built);
-  CHECK(currentScene.contentOffsetY == 122);
+  CHECK(currentScene.contentOffsetY == 123);
   CHECK(currentScene.bottomVisible);
   CHECK(FindTextCommand(currentScene.bottom.Stream(), "R") != nullptr);
   CHECK(FindTextCommand(currentScene.bottom.Stream(), "G") != nullptr);
@@ -1311,6 +1311,34 @@ TEST_CASE("UI2 Theme reveal keeps the final color row above its bottom bar") {
   REQUIRE(ui2::UiThemeView::Build(data, palette, scene) ==
           ui2::UiBuildStatus::Built);
   CHECK(scene.contentOffsetY == data.scrollOffset);
+}
+
+TEST_CASE("UI2 Theme labels align with twenty color-row cursors") {
+  CHECK(ui2::UiThemeView::kContentBottom == 335);
+  CHECK(ui2::UiThemeView::ColorCursorTargetRect(0U) ==
+        ui2::RectI16{7, 58, 226, 11});
+  const ui2::RectI16 last = ui2::UiThemeView::ColorCursorTargetRect(
+      static_cast<std::uint8_t>(ui2::UiPalette::kUserColorCount - 1U));
+  CHECK(last == ui2::RectI16{7, 324, 226, 11});
+  CHECK(last.Bottom() == ui2::UiThemeView::kContentBottom);
+
+  ui2::UiThemeViewData data;
+  data.selectedColor = 0;
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiThemeView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  const ui2::UiCommand *label =
+      FindTextCommand(scene.content.Stream(), "BACKGROUND");
+  REQUIRE(label != nullptr);
+  CHECK(label->bounds.y == 60);
+  CHECK(std::any_of(scene.content.Stream().commands.begin(),
+                    scene.content.Stream().commands.end(),
+                    [](const ui2::UiCommand &command) {
+                      return command.kind ==
+                                 ui2::UiCommandKind::FillCoverageRoundedRect &&
+                             command.bounds == ui2::RectI16{7, 58, 226, 11};
+                    }));
 }
 
 TEST_CASE("UI2 sparse coverage masks copy bounded data and decode columns") {

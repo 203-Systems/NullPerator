@@ -114,9 +114,10 @@ UiBuildStatus UiThemeView::Build(const UiThemeViewData &data, UiPalette &,
   builder.Text("NAME", 9, 42, UiColorToken::TextDim);
   builder.UserText(data.name, 92, 42, UiColorToken::TextNormal);
   for (std::uint8_t index = 0; index < kUiThemeColors.size(); ++index) {
-    const std::int16_t topY = static_cast<std::int16_t>(58 + index * 14);
+    const std::int16_t topY = static_cast<std::int16_t>(
+        kColorFirstTop + index * kColorRowPitch);
     builder.Text(kUiThemeColors[index].label, 9,
-                 static_cast<std::int16_t>(topY + 3),
+                 static_cast<std::int16_t>(topY + 2),
                  UiColorToken::TextDim);
     builder.Fill({151, topY, 78, 10}, kUiThemeColors[index].token);
   }
@@ -128,9 +129,10 @@ UiBuildStatus UiThemeView::Build(const UiThemeViewData &data, UiPalette &,
     } else if (static_cast<std::size_t>(data.selectedColor) <
                kUiThemeColors.size()) {
       const std::uint8_t index = static_cast<std::uint8_t>(data.selectedColor);
-      const std::int16_t topY = static_cast<std::int16_t>(58 + index * 14);
+      const std::int16_t topY = static_cast<std::int16_t>(
+          kColorFirstTop + index * kColorRowPitch);
       builder.Text(kUiThemeColors[index].label, 9,
-                   static_cast<std::int16_t>(topY + 3),
+                   static_cast<std::int16_t>(topY + 2),
                    UiColorToken::TextHighlighted);
       builder.Fill({151, topY, 78, 10}, kUiThemeColors[index].token);
     }

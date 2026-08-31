@@ -22,7 +22,7 @@ namespace ui2 {
 
 struct UiThemeViewData {
   std::string_view name = "DEFAULT";
-  // -1 selects NAME; 0..18 select the configurable palette entries.
+  // -1 selects NAME; 0..19 select the twenty configurable palette entries.
   std::int8_t selectedColor = -1;
   std::array<std::uint8_t, 3> selectedRgb{};
   std::uint8_t colorComponent = 0;
@@ -61,6 +61,10 @@ static_assert(std::is_trivially_destructible_v<UiThemeViewState>);
 
 class UiThemeView {
 public:
+  static constexpr std::int16_t kColorFirstTop = 58;
+  static constexpr std::int16_t kColorRowPitch = 14;
+  static constexpr std::int16_t kColorCursorHeight = 11;
+
   [[nodiscard]] static UiBuildStatus
   Build(const UiThemeViewData &data, UiPalette &palette, UiFrameScene &scene);
   static void RenderDelta(const UiThemeViewData &previous,
@@ -73,8 +77,10 @@ public:
   [[nodiscard]] static constexpr RectI16 ColorCursorTargetRect(
       std::uint8_t color) {
     return color < UiPalette::kUserColorCount
-               ? RectI16{7, static_cast<std::int16_t>(57 + color * 14), 226,
-                         11}
+               ? RectI16{7,
+                         static_cast<std::int16_t>(kColorFirstTop +
+                                                   color * kColorRowPitch),
+                         226, kColorCursorHeight}
                : RectI16{};
   }
   [[nodiscard]] static RectI16 CursorTargetRect(const UiThemeViewData &data);
@@ -82,8 +88,12 @@ public:
   RevealCursor(std::int16_t currentOffset, const UiThemeViewData &data);
 
   static constexpr std::int16_t kContentBottom = static_cast<std::int16_t>(
-      57U + (UiPalette::kUserColorCount - 1U) * 14U + 11U);
+      kColorFirstTop + (UiPalette::kUserColorCount - 1U) * kColorRowPitch +
+      kColorCursorHeight);
   static constexpr std::int16_t kRevealBottom = 198;
+
+  static_assert(kContentBottom == 335,
+                "twenty theme colors must end at the approved boundary");
 };
 
 } // namespace ui2
