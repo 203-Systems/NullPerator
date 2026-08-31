@@ -29,6 +29,7 @@ UiRgb565Presenter::Present(const UiIndexedSurface &surface,
   }
 
   const auto pixels = surface.Pixels();
+  const auto &rgb565 = palette.Rgb565Colors();
   for (const DirtyStrip strip : strips) {
     const std::uint16_t left =
         std::min<std::uint16_t>(strip.x, kScreenWidth);
@@ -55,7 +56,7 @@ UiRgb565Presenter::Present(const UiIndexedSurface &surface,
             static_cast<std::size_t>(row) * width;
         for (std::uint16_t x = 0; x < width; ++x) {
           transfer_[destination + x] =
-              TransportColor(palette.Rgb565(pixels[source + x]));
+              TransportColor(rgb565[pixels[source + x]]);
         }
       }
       if (!writeChunk_(context_, left, y, width, height, transfer_)) {

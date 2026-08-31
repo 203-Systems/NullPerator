@@ -77,6 +77,10 @@ public:
     return static_cast<PaletteIndex>(token);
   }
   [[nodiscard]] std::uint16_t Rgb565(PaletteIndex index) const;
+  [[nodiscard]] const std::array<std::uint16_t, kColorCount> &
+  Rgb565Colors() const {
+    return rgb565_;
+  }
   [[nodiscard]] std::uint32_t Rgba8888(PaletteIndex index) const;
   [[nodiscard]] PaletteIndex CoverageIndex(UiCoverage coverage,
                                             PaletteIndex destination) const;
