@@ -1,0 +1,22 @@
+/*
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Embedder-Policy: require-corp
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+
+/index.html
+  Cache-Control: no-cache
+
+/oracle.html
+  Cache-Control: no-cache
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/wasm/*.wasm
+  Content-Type: application/wasm
+  Cache-Control: public, max-age=0, must-revalidate
+
+/wasm/*.js
+  Content-Type: text/javascript; charset=utf-8
+  Cache-Control: public, max-age=0, must-revalidate

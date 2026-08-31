@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" fill="#000"/>
+  <g fill="none" stroke-miterlimit="10" stroke-width="15">
+    <g stroke="#fff">
+      <rect x="426.02" y="123.35" width="225" height="300" rx="22.5" ry="22.5" transform="translate(-35.56 460.85) rotate(-45)"/>
+      <rect x="478.52" y="183.35" width="120" height="180" rx="60" ry="60" transform="translate(-35.56 460.85) rotate(-45)"/>
+    </g>
+    <g stroke="#03c3f8">
+      <rect x="638.15" y="388.52" width="225" height="300" rx="22.5" ry="22.5" transform="translate(600.65 -373.06) rotate(45)"/>
+      <rect x="690.65" y="448.52" width="120" height="180" rx="60" ry="60" transform="translate(600.65 -373.06) rotate(45)"/>
+    </g>
+    <g stroke="#fff">
+      <rect x="372.98" y="600.65" width="225" height="300" rx="22.5" ry="22.5" transform="translate(1359.56 938.15) rotate(135)"/>
+      <rect x="425.48" y="660.65" width="120" height="180" rx="60" ry="60" transform="translate(1359.56 938.15) rotate(135)"/>
+    </g>
+    <g stroke="#fff">
+      <rect x="160.85" y="335.48" width="225" height="300" rx="22.5" ry="22.5" transform="translate(123.35 1022.06) rotate(-135)"/>
+      <rect x="213.35" y="395.48" width="120" height="180" rx="60" ry="60" transform="translate(123.35 1022.06) rotate(-135)"/>
+    </g>
+  </g>
+</svg>

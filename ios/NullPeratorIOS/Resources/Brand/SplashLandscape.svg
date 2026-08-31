@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1600 900">
+  <rect width="1600" height="900" fill="#000"/>
+  <image x="170" y="220" width="460" height="460"
+         xlink:href="NP-Icon.svg" preserveAspectRatio="xMidYMid meet"/>
+  <image x="660" y="373" width="790" height="129"
+         xlink:href="../Assets.xcassets/BrandWordmark.imageset/BrandWordmark@2x.png"
+         preserveAspectRatio="xMidYMid meet"/>
+</svg>
