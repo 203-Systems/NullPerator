@@ -134,6 +134,39 @@ for (const viewport of mobileViewports) {
   })
 }
 
+test('play settings is a global native modal and restores its trigger', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/?audio=disabled')
+
+  const settings = page.getByRole('button', { name: 'Settings', exact: true })
+  await settings.click()
+
+  const dialog = page.getByRole('dialog', { name: 'Settings' })
+  const close = dialog.getByRole('button', { name: 'Close settings' })
+  const developer = dialog.getByRole('button', { name: 'Developer mode' })
+  await expect(dialog).toBeVisible()
+  await expect(page.locator('.settings-sheet:modal')).toHaveCount(1)
+  await expect(close).toBeFocused()
+
+  // Native modal inertness must reject focus attempts from the background.
+  await settings.evaluate((element) => element.focus())
+  await expect(close).toBeFocused()
+
+  await page.keyboard.press('Shift+Tab')
+  await expect(developer).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(close).toBeFocused()
+
+  await page.mouse.click(2, 2)
+  await expect(dialog).toHaveCount(0)
+  await expect(settings).toBeFocused()
+
+  await settings.click()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+  await expect(settings).toBeFocused()
+})
+
 test('automatic mode follows live viewport changes and clears a departing settings sheet', async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 768 })
   await page.goto('/?audio=disabled')
