@@ -133,10 +133,7 @@ public:
   const char *GetLiveIndicator(int channel);
   double GetPlayTime();
 
-  const char *GetPlayedNote(int channel);
-  const char *GetPlayedOctive(int channel);
   int GetPlayedNoteValue(int channel);
-  const char *GetPlayedInstrument(int channel);
   bool GetPlayedSliceIndex(int channel, uint8_t &sliceIndex);
 
   // info
@@ -205,8 +202,6 @@ private:
   bool triggerLiveChains_;
 
   double startTime_;
-
-  char instrumentOnChannel_[SONG_CHANNEL_COUNT][3];
 
   // Live queuing system
 

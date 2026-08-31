@@ -11,7 +11,6 @@
 #include "Application/Instruments/SampleInstrument.h"
 #include "Application/Mixer/MixerService.h"
 #include "Application/Model/Mixer.h"
-#include "Application/Utils/char.h"
 #include "Application/Utils/fixed.h"
 #include "Services/Midi/MidiService.h"
 #include "SyncMaster.h"
@@ -220,8 +219,6 @@ void PlayerMixer::OnPlayerStop() {
   ms->OnPlayerStop();
 }
 
-static char noteBuffer[5];
-
 static bool shouldShowSlice(int channel, uint8_t &sliceIndex,
                             I_Instrument *instrument,
                             const unsigned char *notes) {
@@ -241,27 +238,6 @@ static bool shouldShowSlice(int channel, uint8_t &sliceIndex,
 }
 
 int PlayerMixer::GetChannelNote(int channel) { return notes_[channel]; }
-
-const char *PlayerMixer::GetPlayedNote(int channel) {
-
-  if (notes_[channel] <= HIGHEST_NOTE) {
-    note2visualizer(notes_[channel], noteBuffer);
-    return noteBuffer;
-  }
-  return "  ";
-};
-
-const char *PlayerMixer::GetPlayedOctive(int channel) {
-  if (notes_[channel] <= HIGHEST_NOTE) {
-    if (!IsChannelMuted(channel)) {
-      oct2visualizer(notes_[channel], noteBuffer);
-      return noteBuffer;
-    } else {
-      return "--";
-    }
-  }
-  return "  ";
-};
 
 bool PlayerMixer::GetPlayedSliceIndex(int channel, uint8_t &sliceIndex) {
   return shouldShowSlice(channel, sliceIndex, lastInstrument_[channel], notes_);

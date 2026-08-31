@@ -21,7 +21,6 @@
 #include "Application/Player/PlayerStartPlan.h"
 #include "Application/Player/PlayerStorageBounds.h"
 #include "Application/Player/TablePlayback.h"
-#include "Application/Utils/char.h"
 #include "PlayerMixer.h"
 #include "Services/Midi/MidiService.h"
 #include "System/Console/n_assert.h"
@@ -48,9 +47,6 @@ Player::Player() : mixer_() {
   retrigAllImmediate_ = false;
 
   for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {
-    instrumentOnChannel_[i][0] = ' ';
-    instrumentOnChannel_[i][1] = ' ';
-    instrumentOnChannel_[i][2] = '\0';
     liveQueuePosition_[i] = 0U;
     liveQueueingMode_[i] = QM_NONE;
     liveQueueChainPosition_[i] = 0U;
@@ -251,28 +247,8 @@ void Player::Stop() {
   mixer_.Unlock();
 }
 
-const char *Player::GetPlayedNote(int channel) {
-  return mixer_.GetPlayedNote(channel);
-}
-
-const char *Player::GetPlayedOctive(int channel) {
-  return mixer_.GetPlayedOctive(channel);
-}
-
 int Player::GetPlayedNoteValue(int channel) {
   return mixer_.GetChannelNote(channel);
-}
-
-const char *Player::GetPlayedInstrument(int channel) {
-  if ((mixer_.GetPlayedOctive(channel))[1] == ' ') {
-    return mixer_.GetPlayedOctive(channel);
-  } else {
-    if (!IsChannelMuted(channel)) {
-      return (char *)(&(instrumentOnChannel_[channel][0]));
-    } else {
-      return "--";
-    }
-  }
 }
 
 bool Player::GetPlayedSliceIndex(int channel, uint8_t &sliceIndex) {
@@ -935,12 +911,6 @@ void Player::playCursorPosition(int channel) {
           note += *trsp;
           note += project_->GetTranspose();
         }
-        instrumentOnChannel_[channel][0] =
-            (instr / 16) > 9 ? 'A' - 10 + (instr / 16) : '0' + (instr / 16);
-        instrumentOnChannel_[channel][1] =
-            (instr % 16) > 9 ? 'A' - 10 + (instr % 16) : '0' + (instr % 16);
-        instrumentOnChannel_[channel][2] = '\0';
-
         // Check if note is in acceptable midi range
 
         if (note < 128) {

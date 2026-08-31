@@ -54,24 +54,4 @@ inline void note2char(unsigned char d, char *s) {
   s[3] = '0' + oct;
 };
 
-inline void note2visualizer(unsigned char d, char *s) {
-  int note = d % 12;
-  strcpy(s, noteNames[note]);
-  s[2] = '\0'; // sloppy, can we make the array shorter?
-  s[3] = '\0'; // sloppy, can we make the array shorter?
-};
-
-inline void oct2visualizer(unsigned char d, char *s) {
-  int oct = d / 12 - 2;
-  if (oct < 0) {
-    s[0] = '-';
-    oct = -oct;
-  } else {
-    s[0] = ' ';
-  }
-  s[1] = '0' + oct;
-  s[2] = '\0'; // sloppy, can we make the array shorter?
-  s[3] = '\0'; // sloppy, can we make the array shorter?
-};
-
 #endif
