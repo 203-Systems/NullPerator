@@ -918,6 +918,28 @@ TEST_CASE("UI2 Instrument descriptors preserve approved field layout") {
         FourCC::SIDInstrumentFilterOn);
 }
 
+TEST_CASE("UI2 Instrument sample OPEN policy reports blocked actions") {
+  using namespace ui2;
+
+  CHECK(Ui2InstrumentSampleOpenOutcomeFor(-1, true, false) ==
+        Ui2InstrumentSampleOpenOutcome::MissingSample);
+  CHECK(Ui2InstrumentSampleOpenOutcomeFor(0, false, false) ==
+        Ui2InstrumentSampleOpenOutcome::MissingSample);
+  CHECK(Ui2InstrumentSampleOpenOutcomeFor(0, true, true) ==
+        Ui2InstrumentSampleOpenOutcome::PlayingBlocked);
+  CHECK(Ui2InstrumentSampleOpenOutcomeFor(0, true, false) ==
+        Ui2InstrumentSampleOpenOutcome::Available);
+
+  CHECK(std::string_view(Ui2InstrumentSampleOpenFailureText(
+            Ui2InstrumentSampleOpenOutcome::MissingSample)) ==
+        "NO SAMPLE LOADED");
+  CHECK(std::string_view(Ui2InstrumentSampleOpenFailureText(
+            Ui2InstrumentSampleOpenOutcome::PlayingBlocked)) ==
+        "NOT WHILE PLAYING");
+  CHECK(std::string_view(Ui2InstrumentSampleOpenFailureText(
+            Ui2InstrumentSampleOpenOutcome::Available)) == "");
+}
+
 TEST_CASE("UI2 Instrument TABLE activation allocates only Sample and MIDI "
           "table fields") {
   using namespace ui2;

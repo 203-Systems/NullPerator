@@ -73,6 +73,34 @@ enum class Ui2InstrumentEditSideEffect : std::uint8_t {
   SendMidiProgramChange,
 };
 
+enum class Ui2InstrumentSampleOpenOutcome : std::uint8_t {
+  Available,
+  MissingSample,
+  PlayingBlocked,
+};
+
+[[nodiscard]] constexpr Ui2InstrumentSampleOpenOutcome
+Ui2InstrumentSampleOpenOutcomeFor(int sampleIndex, bool filenameAvailable,
+                                  bool playerRunning) {
+  if (sampleIndex < 0 || !filenameAvailable)
+    return Ui2InstrumentSampleOpenOutcome::MissingSample;
+  return playerRunning ? Ui2InstrumentSampleOpenOutcome::PlayingBlocked
+                       : Ui2InstrumentSampleOpenOutcome::Available;
+}
+
+[[nodiscard]] constexpr const char *Ui2InstrumentSampleOpenFailureText(
+    Ui2InstrumentSampleOpenOutcome outcome) {
+  switch (outcome) {
+  case Ui2InstrumentSampleOpenOutcome::MissingSample:
+    return "NO SAMPLE LOADED";
+  case Ui2InstrumentSampleOpenOutcome::PlayingBlocked:
+    return "NOT WHILE PLAYING";
+  case Ui2InstrumentSampleOpenOutcome::Available:
+    return "";
+  }
+  return "SAMPLE OPEN FAILED";
+}
+
 namespace detail {
 
 constexpr Ui2InstrumentParameterDescriptor

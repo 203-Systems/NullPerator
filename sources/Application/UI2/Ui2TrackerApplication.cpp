@@ -1766,13 +1766,20 @@ void Ui2TrackerApplication::ExecuteInstrument(Ui2InstrumentCommand command) {
         return;
       }
 
-      if (instrument->GetType() != IT_SAMPLE)
+      if (instrument->GetType() != IT_SAMPLE || command.cursor.index > 1U)
         return;
       auto *sample = static_cast<SampleInstrument *>(instrument);
       const auto filename = sample->GetSampleFileName();
-      if (sample->GetSampleIndex() < 0 || filename.empty() ||
-          Player::GetInstance()->IsRunning())
+      const Ui2InstrumentSampleOpenOutcome openOutcome =
+          Ui2InstrumentSampleOpenOutcomeFor(
+              sample->GetSampleIndex(), !filename.empty(),
+              Player::GetInstance()->IsRunning());
+      if (openOutcome != Ui2InstrumentSampleOpenOutcome::Available) {
+        const char *message = Ui2InstrumentSampleOpenFailureText(openOutcome);
+        Status::Set("%s", message);
+        ShowFeedbackError(message);
         return;
+      }
       if (command.cursor.index == 0U)
         (void)OpenSampleEditor(filename.c_str(), true,
                                UiApplicationPage::Instrument);
