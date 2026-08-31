@@ -612,6 +612,43 @@ TEST_CASE("UI2 Sample Slices clamps synchronized and moved markers") {
   CHECK(controller.SlicePoints()[0] == 0U);
 }
 
+TEST_CASE("UI2 Sample Slices rejects terminal zero-length previews") {
+  using namespace ui2;
+  Config::SetImportResampler(0);
+  SampleWaveFileSystem fileSystem;
+  fileSystem.BuildPcm(32U);
+  Ui2SampleWaveformBackend waveform;
+  Ui2SampleSlicesController controller(waveform);
+  REQUIRE(controller.OpenPath(fileSystem, "SHORT.WAV") ==
+          Ui2SampleWaveformLoadResult::Loaded);
+
+  std::array<std::uint32_t, Ui2SampleSlicesController::SliceCapacity> points{};
+  points[1] = 32U;
+  controller.SynchronizeSlices(points, 0x0003U);
+
+  const Ui2SampleSlicesCommand completeFirstSlice =
+      controller.Handle(TrackerAction::Play, true);
+  REQUIRE(completeFirstSlice.type ==
+          Ui2SampleSlicesCommandType::PreviewStart);
+  CHECK(completeFirstSlice.end == 31U);
+  controller.Handle(TrackerAction::Play, false);
+
+  Tap(controller, TrackerAction::Right);
+  const Ui2SampleSlicesCommand preview =
+      controller.Handle(TrackerAction::Play, true);
+  CHECK_FALSE(preview.HasValue());
+  CHECK_FALSE(controller.Snapshot().previewActive);
+  controller.Handle(TrackerAction::Play, false);
+
+  points[1] = 31U;
+  controller.SynchronizeSlices(points, 0x0003U);
+  const Ui2SampleSlicesCommand lastFrame =
+      controller.Handle(TrackerAction::Play, true);
+  CHECK(lastFrame.type == Ui2SampleSlicesCommandType::PreviewStart);
+  CHECK(controller.Snapshot().previewActive);
+  controller.Handle(TrackerAction::Play, false);
+}
+
 TEST_CASE("UI2 Sample controllers remain inert without a sample") {
   using namespace ui2;
   Ui2SampleWaveformBackend editorWaveform;

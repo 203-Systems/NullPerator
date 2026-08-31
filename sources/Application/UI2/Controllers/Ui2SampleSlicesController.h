@@ -100,6 +100,7 @@ public:
                          std::uint16_t definedMask) {
     slicePoints_ = points;
     definedMask_ = definedMask;
+    previewableMask_ = definedMask;
     ClampSlices();
     CenterSelectedSlice();
   }
@@ -168,6 +169,8 @@ public:
 
     if (action == TrackerAction::Play) {
       if (repeatedPress || previewHeld_ || waveform_.FrameCount() == 0U)
+        return {};
+      if (IsDefined(selectedSlice_) && !IsPreviewable(selectedSlice_))
         return {};
       const std::uint32_t start = SelectedSliceStart();
       StartPreview(start);
@@ -266,6 +269,7 @@ public:
     start = std::min(start, waveform_.FrameCount() - 1U);
     slicePoints_[selectedSlice_] = start;
     definedMask_ |= static_cast<std::uint16_t>(1U << selectedSlice_);
+    previewableMask_ |= static_cast<std::uint16_t>(1U << selectedSlice_);
     CenterSelectedSlice();
     Ui2SampleSlicesCommand command =
         MakeCommand(Ui2SampleSlicesCommandType::AddSlice);
@@ -277,6 +281,8 @@ public:
     if (!active_ || !IsDefined(selectedSlice_))
       return {};
     definedMask_ &= static_cast<std::uint16_t>(~(1U << selectedSlice_));
+    previewableMask_ &=
+        static_cast<std::uint16_t>(~(1U << selectedSlice_));
     slicePoints_[selectedSlice_] = SelectedSliceStartFallback();
     CenterSelectedSlice();
     return MakeCommand(Ui2SampleSlicesCommandType::DeleteSlice);
@@ -291,12 +297,14 @@ public:
         count, 1, static_cast<int>(SliceCapacity)));
     slicePoints_.fill(0U);
     definedMask_ = 0U;
+    previewableMask_ = 0U;
     if (count > 1U) {
       for (std::uint8_t index = 0U; index < count; ++index) {
         slicePoints_[index] = static_cast<std::uint32_t>(
             (static_cast<std::uint64_t>(waveform_.FrameCount()) * index) /
             count);
         definedMask_ |= static_cast<std::uint16_t>(1U << index);
+        previewableMask_ |= static_cast<std::uint16_t>(1U << index);
       }
     }
     CenterSelectedSlice();
@@ -353,6 +361,7 @@ private:
     waveformPacket_ = {};
     slicePoints_.fill(0U);
     definedMask_ = 0U;
+    previewableMask_ = 0U;
     previewPlayhead_ = 0U;
     selectedSlice_ = 0U;
     autoSliceCount_ = 4U;
@@ -379,15 +388,28 @@ private:
            (definedMask_ & static_cast<std::uint16_t>(1U << index)) != 0U;
   }
 
+  [[nodiscard]] bool IsPreviewable(std::uint8_t index) const {
+    return index < SliceCapacity &&
+           (previewableMask_ & static_cast<std::uint16_t>(1U << index)) != 0U;
+  }
+
   void ClampSlices() {
     if (waveform_.FrameCount() == 0U) {
       definedMask_ = 0U;
+      previewableMask_ = 0U;
       slicePoints_.fill(0U);
       return;
     }
-    for (std::uint8_t index = 0U; index < SliceCapacity; ++index)
+    for (std::uint8_t index = 0U; index < SliceCapacity; ++index) {
+      // SampleInstrument permits the exclusive sample-size endpoint as stored
+      // data but refuses that zero-length slice at playback. Remember the
+      // distinction before clamping markers to the last visible frame.
+      if (slicePoints_[index] >= waveform_.FrameCount())
+        previewableMask_ &=
+            static_cast<std::uint16_t>(~(1U << index));
       slicePoints_[index] =
           std::min(slicePoints_[index], waveform_.FrameCount() - 1U);
+    }
   }
 
   [[nodiscard]] std::uint8_t DefinedCount() const {
@@ -419,10 +441,12 @@ private:
       return 0U;
     for (std::uint8_t candidate = static_cast<std::uint8_t>(index + 1U);
          candidate < SliceCapacity; ++candidate) {
-      if (IsDefined(candidate) && slicePoints_[candidate] > start)
+      if (IsDefined(candidate) && slicePoints_[candidate] > start) {
         // SampleInstrument renders up to, but not including, the next slice
         // point. Preview commands use an inclusive end for their playhead.
-        return slicePoints_[candidate] - 1U;
+        return IsPreviewable(candidate) ? slicePoints_[candidate] - 1U
+                                        : waveform_.FrameCount() - 1U;
+      }
     }
     return waveform_.FrameCount() - 1U;
   }
@@ -466,6 +490,7 @@ private:
       return {};
     slicePoints_[selectedSlice_] = next;
     definedMask_ |= static_cast<std::uint16_t>(1U << selectedSlice_);
+    previewableMask_ |= static_cast<std::uint16_t>(1U << selectedSlice_);
     CenterSelectedSlice();
     Ui2SampleSlicesCommand command =
         MakeCommand(Ui2SampleSlicesCommandType::SetSlicePoint);
@@ -512,6 +537,7 @@ private:
   Ui2WaveformSnapshot waveformPacket_{};
   std::array<std::uint32_t, SliceCapacity> slicePoints_{};
   std::uint16_t definedMask_ = 0U;
+  std::uint16_t previewableMask_ = 0U;
   std::uint32_t previewPlayhead_ = 0U;
   std::uint8_t selectedSlice_ = 0U;
   std::uint8_t autoSliceCount_ = 4U;
