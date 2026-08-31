@@ -42,7 +42,7 @@ private:
   void ApplyAdjustCell(const Ui2TrackerCommand &command);
   void ApplyAdjustSelection(const Ui2TrackerCommand &command);
   void ApplySwitchPage(const Ui2TrackerCommand &command);
-  void ApplyCutCell(const Ui2TrackerCommand &command);
+  [[nodiscard]] bool ApplyCutCell(const Ui2TrackerCommand &command);
   void ApplyPasteLast(const Ui2TrackerCommand &command);
   [[nodiscard]] bool ApplyAllocateNext(const Ui2TrackerCommand &command);
   [[nodiscard]] bool ApplyCloneCell(const Ui2TrackerCommand &command);
@@ -77,6 +77,7 @@ private:
   std::uint8_t instrumentTableDigit_ = 3;
   std::uint8_t lastChain_ = 0;
   std::uint8_t lastPhrase_ = 0;
+  std::uint8_t lastTranspose_ = 0;
   std::uint8_t lastNote_ = 60;
   std::uint8_t lastInstrument_ = 0;
   FourCC lastCommand_ = FourCC::InstrumentCommandNone;

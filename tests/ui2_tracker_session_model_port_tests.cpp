@@ -255,6 +255,188 @@ TEST_CASE("UI2 model port cuts and pastes all Table cell kinds") {
   CHECK(port.ProjectMutationGeneration() == 2U);
 }
 
+TEST_CASE("UI2 atomic cell cut captures Song and Chain last values") {
+  SUBCASE("Song chain reference") {
+    TrackerApplicationSession session;
+    Ui2TrackerSessionModelPort port(session);
+    Song &song = session.ProjectModel().song_;
+    constexpr std::uint8_t sourceRow = 3U;
+    constexpr std::uint8_t destinationRow = 4U;
+    constexpr std::uint8_t track = 2U;
+    song.data_[sourceRow * SONG_CHANNEL_COUNT + track] = 0x23U;
+
+    port.ApplyGridCommand(
+        GridCommand(Ui2TrackerCommandType::CutCell, Ui2TrackerPage::Song,
+                    sourceRow, track));
+    CHECK(song.data_[sourceRow * SONG_CHANNEL_COUNT + track] == 0xFFU);
+    CHECK(port.ProjectMutationGeneration() == 1U);
+
+    port.ApplyGridCommand(
+        GridCommand(Ui2TrackerCommandType::PasteLast, Ui2TrackerPage::Song,
+                    destinationRow, track));
+    CHECK(song.data_[destinationRow * SONG_CHANNEL_COUNT + track] == 0x23U);
+    CHECK(port.ProjectMutationGeneration() == 2U);
+  }
+
+  SUBCASE("Chain phrase reference") {
+    TrackerApplicationSession session;
+    Ui2TrackerSessionModelPort port(session);
+    Song &song = session.ProjectModel().song_;
+    session.EditorState().currentChain_ = 3;
+    constexpr int base = 3 * PHRASES_PER_CHAIN;
+    song.chain_.data_[base + 5] = 0x31U;
+
+    port.ApplyGridCommand(
+        GridCommand(Ui2TrackerCommandType::CutCell, Ui2TrackerPage::Chain, 5, 0));
+    CHECK(song.chain_.data_[base + 5] == 0xFFU);
+    CHECK(port.ProjectMutationGeneration() == 1U);
+
+    port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::PasteLast,
+                                      Ui2TrackerPage::Chain, 6, 0));
+    CHECK(song.chain_.data_[base + 6] == 0x31U);
+    CHECK(port.ProjectMutationGeneration() == 2U);
+  }
+
+  SUBCASE("Chain signed transpose") {
+    TrackerApplicationSession session;
+    Ui2TrackerSessionModelPort port(session);
+    Song &song = session.ProjectModel().song_;
+    session.EditorState().currentChain_ = 4;
+    constexpr int base = 4 * PHRASES_PER_CHAIN;
+    const std::uint8_t transpose =
+        static_cast<std::uint8_t>(static_cast<std::int8_t>(-12));
+    song.chain_.data_[base + 5] = 0x21U;
+    song.chain_.transpose_[base + 5] = transpose;
+    song.chain_.data_[base + 6] = 0x22U;
+
+    port.ApplyGridCommand(
+        GridCommand(Ui2TrackerCommandType::CutCell, Ui2TrackerPage::Chain, 5, 1));
+    CHECK(song.chain_.data_[base + 5] == 0x21U);
+    CHECK(song.chain_.transpose_[base + 5] == 0U);
+    CHECK(port.ProjectMutationGeneration() == 1U);
+
+    port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::PasteLast,
+                                      Ui2TrackerPage::Chain, 6, 1));
+    CHECK(song.chain_.data_[base + 6] == 0x22U);
+    CHECK(song.chain_.transpose_[base + 6] == transpose);
+    CHECK(port.ProjectMutationGeneration() == 2U);
+  }
+}
+
+TEST_CASE("UI2 atomic Phrase cell cut captures each last-value kind") {
+  TrackerApplicationSession session;
+  Ui2TrackerSessionModelPort port(session);
+  Player *player = Player::GetInstance();
+  player->Reset();
+  session.EditorState().currentPhrase_ = 2;
+  Phrase &phrase = session.ProjectModel().song_.phrase_;
+  constexpr int base = 2 * STEPS_PER_PHRASE;
+
+  phrase.note_[base + 1] = 64U;
+  phrase.instr_[base + 1] = 7U;
+  port.ApplyGridCommand(
+      GridCommand(Ui2TrackerCommandType::CutCell, Ui2TrackerPage::Phrase, 1, 0));
+  CHECK(phrase.note_[base + 1] == NO_NOTE);
+  CHECK(phrase.instr_[base + 1] == 0xFFU);
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::PasteLast,
+                                    Ui2TrackerPage::Phrase, 2, 0));
+  CHECK(phrase.note_[base + 2] == 64U);
+  CHECK(phrase.instr_[base + 2] == 7U);
+
+  phrase.note_[base + 3] = 70U;
+  phrase.instr_[base + 3] = 9U;
+  port.ApplyGridCommand(
+      GridCommand(Ui2TrackerCommandType::CutCell, Ui2TrackerPage::Phrase, 3, 1));
+  CHECK(phrase.note_[base + 3] == 70U);
+  CHECK(phrase.instr_[base + 3] == 0xFFU);
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::PasteLast,
+                                    Ui2TrackerPage::Phrase, 4, 1));
+  CHECK(phrase.instr_[base + 4] == 9U);
+
+  phrase.cmd1_[base + 5] = FourCC::InstrumentCommandVolume;
+  phrase.param1_[base + 5] = 0x55U;
+  port.ApplyGridCommand(
+      GridCommand(Ui2TrackerCommandType::CutCell, Ui2TrackerPage::Phrase, 5, 2));
+  CHECK(phrase.cmd1_[base + 5] == FourCC::InstrumentCommandNone);
+  CHECK(phrase.param1_[base + 5] == 0U);
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::PasteLast,
+                                    Ui2TrackerPage::Phrase, 6, 2));
+  CHECK(phrase.cmd1_[base + 6] == FourCC::InstrumentCommandVolume);
+  CHECK(phrase.param1_[base + 6] == 0x55U);
+
+  phrase.cmd1_[base + 7] = FourCC::InstrumentCommandTable;
+  phrase.param1_[base + 7] = 7U;
+  phrase.cmd1_[base + 8] = FourCC::InstrumentCommandTable;
+  port.ApplyGridCommand(
+      GridCommand(Ui2TrackerCommandType::CutCell, Ui2TrackerPage::Phrase, 7, 3));
+  CHECK(phrase.cmd1_[base + 7] == FourCC::InstrumentCommandTable);
+  CHECK(phrase.param1_[base + 7] == 0U);
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::PasteLast,
+                                    Ui2TrackerPage::Phrase, 8, 3));
+  CHECK(phrase.param1_[base + 8] == 7U);
+
+  CHECK(port.ProjectMutationGeneration() == 8U);
+  CHECK(player->startCalls == 0);
+  CHECK(player->stopCalls == 0);
+}
+
+TEST_CASE("UI2 atomic Table cut captures commands and parameters") {
+  for (const Ui2TrackerPage page :
+       {Ui2TrackerPage::PhraseTable, Ui2TrackerPage::InstrumentTable}) {
+    CAPTURE(static_cast<int>(page));
+    TableHolder::GetInstance()->Reset();
+    TrackerApplicationSession session;
+    Ui2TrackerSessionModelPort port(session);
+    Table &table = TableHolder::GetInstance()->GetTable(0);
+
+    table.cmd1_[2] = FourCC::InstrumentCommandVolume;
+    table.param1_[2] = 0x55U;
+    port.ApplyGridCommand(
+        GridCommand(Ui2TrackerCommandType::CutCell, page, 2, 0));
+    CHECK(table.cmd1_[2] == FourCC::InstrumentCommandNone);
+    CHECK(table.param1_[2] == 0U);
+    port.ApplyGridCommand(
+        GridCommand(Ui2TrackerCommandType::PasteLast, page, 3, 0));
+    CHECK(table.cmd1_[3] == FourCC::InstrumentCommandVolume);
+    CHECK(table.param1_[3] == 0x55U);
+
+    table.cmd1_[4] = FourCC::InstrumentCommandTable;
+    table.param1_[4] = 7U;
+    table.cmd1_[5] = FourCC::InstrumentCommandTable;
+    port.ApplyGridCommand(
+        GridCommand(Ui2TrackerCommandType::CutCell, page, 4, 1));
+    CHECK(table.cmd1_[4] == FourCC::InstrumentCommandTable);
+    CHECK(table.param1_[4] == 0U);
+    port.ApplyGridCommand(
+        GridCommand(Ui2TrackerCommandType::PasteLast, page, 5, 1));
+    CHECK(table.param1_[5] == 7U);
+    CHECK(port.ProjectMutationGeneration() == 4U);
+  }
+}
+
+TEST_CASE("UI2 atomic cell cut preserves empty and invalid storage") {
+  TrackerApplicationSession session;
+  Ui2TrackerSessionModelPort port(session);
+  Song &song = session.ProjectModel().song_;
+
+  port.ApplyGridCommand(
+      GridCommand(Ui2TrackerCommandType::CutCell, Ui2TrackerPage::Song, 0, 0));
+  CHECK(port.ProjectMutationGeneration() == 0U);
+
+  Ui2TrackerCommand invalid =
+      GridCommand(Ui2TrackerCommandType::CutCell, Ui2TrackerPage::Song, 0, 8);
+  port.ApplyGridCommand(invalid);
+  CHECK(port.ProjectMutationGeneration() == 0U);
+
+  session.EditorState().currentPhrase_ = 0;
+  song.phrase_.instr_[0] = 8U;
+  port.ApplyGridCommand(
+      GridCommand(Ui2TrackerCommandType::CutCell, Ui2TrackerPage::Phrase, 0, 0));
+  CHECK(song.phrase_.note_[0] == NOTE_OFF);
+  CHECK(song.phrase_.instr_[0] == 8U);
+  CHECK(port.ProjectMutationGeneration() == 1U);
+}
+
 TEST_CASE("UI2 model port clones loaded Song chain references safely") {
   TrackerApplicationSession session;
   Ui2TrackerSessionModelPort port(session);

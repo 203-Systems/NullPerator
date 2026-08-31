@@ -230,6 +230,7 @@ void Ui2TrackerSessionModelPort::ResetProjectBoundary() {
   instrumentTableDigit_ = 3U;
   lastChain_ = 0U;
   lastPhrase_ = 0U;
+  lastTranspose_ = 0U;
   lastNote_ = 60U;
   lastInstrument_ = 0U;
   lastCommand_ = FourCC::InstrumentCommandNone;
@@ -324,7 +325,7 @@ void Ui2TrackerSessionModelPort::ApplyGridCommand(
     ApplyAdjustSelection(command);
     break;
   case Ui2TrackerCommandType::CutCell:
-    ApplyCutCell(command);
+    storageMutated = ApplyCutCell(command);
     break;
   case Ui2TrackerCommandType::PasteLast:
     ApplyPasteLast(command);
@@ -462,12 +463,12 @@ void Ui2TrackerSessionModelPort::ApplyGridCommand(
   switch (command.type) {
   case Ui2TrackerCommandType::AdjustCell:
   case Ui2TrackerCommandType::AdjustSelection:
-  case Ui2TrackerCommandType::CutCell:
   case Ui2TrackerCommandType::PasteLast:
     ++projectMutationGeneration_;
     break;
   case Ui2TrackerCommandType::AllocateNext:
   case Ui2TrackerCommandType::CloneCell:
+  case Ui2TrackerCommandType::CutCell:
   case Ui2TrackerCommandType::CutSelection:
   case Ui2TrackerCommandType::PasteSelection:
     if (storageMutated)
@@ -636,54 +637,104 @@ void Ui2TrackerSessionModelPort::ApplySwitchPage(
   activePage_ = command.targetPage;
 }
 
-void Ui2TrackerSessionModelPort::ApplyCutCell(
+bool Ui2TrackerSessionModelPort::ApplyCutCell(
     const Ui2TrackerCommand &command) {
   TrackerSessionState &editor = session_.EditorState();
   Song &song = session_.ProjectModel().song_;
   if (command.sourcePage == Ui2TrackerPage::Song) {
-    song.data_[command.row * SONG_CHANNEL_COUNT + command.track] = 0xFFU;
+    if (!IsGridCell(command.sourcePage, command.row, command.track))
+      return false;
+    std::uint8_t &cell =
+        song.data_[command.row * SONG_CHANNEL_COUNT + command.track];
+    if (cell == 0xFFU)
+      return false;
+    lastChain_ = cell;
+    cell = 0xFFU;
+    return true;
   } else if (command.sourcePage == Ui2TrackerPage::Chain) {
+    if (!IsGridCell(command.sourcePage, command.row, command.column))
+      return false;
     const int index = editor.currentChain_ * PHRASES_PER_CHAIN + command.row;
-    if (command.column == 0U)
+    if (command.column == 0U) {
+      if (song.chain_.data_[index] == 0xFFU)
+        return false;
+      lastPhrase_ = song.chain_.data_[index];
       song.chain_.data_[index] = 0xFFU;
-    else
+    } else {
+      if (song.chain_.transpose_[index] == 0U)
+        return false;
+      lastTranspose_ = song.chain_.transpose_[index];
       song.chain_.transpose_[index] = 0;
+    }
+    return true;
   } else if (command.sourcePage == Ui2TrackerPage::Phrase) {
+    if (!IsGridCell(command.sourcePage, command.row, command.column))
+      return false;
     Phrase &phrase = song.phrase_;
     const int index = editor.currentPhrase_ * STEPS_PER_PHRASE + command.row;
     switch (command.column) {
-    case 0:
+    case 0: {
       if (phrase.note_[index] == NO_NOTE) {
         phrase.note_[index] = NOTE_OFF;
+        return true;
       } else {
+        lastNote_ = phrase.note_[index];
+        if (phrase.instr_[index] != 0xFFU)
+          lastInstrument_ = phrase.instr_[index];
         phrase.note_[index] = NO_NOTE;
         // Legacy single-cell Note cut deliberately spans the paired INS cell
         // so a deleted note cannot leave a hidden instrument assignment.
         phrase.instr_[index] = 0xFFU;
+        return true;
       }
-      break;
+    }
     case 1:
+      if (phrase.instr_[index] == 0xFFU)
+        return false;
+      lastInstrument_ = phrase.instr_[index];
       phrase.instr_[index] = 0xFFU;
-      break;
-    case 2:
+      return true;
+    case 2: {
+      const bool changed =
+          phrase.cmd1_[index] != FourCC::InstrumentCommandNone ||
+          phrase.param1_[index] != 0U;
+      if (phrase.cmd1_[index] != FourCC::InstrumentCommandNone)
+        lastCommand_ = phrase.cmd1_[index];
+      lastParameter_ = phrase.param1_[index];
       phrase.cmd1_[index] = FourCC::InstrumentCommandNone;
       phrase.param1_[index] = 0;
-      break;
+      return changed;
+    }
     case 3:
+      if (phrase.param1_[index] == 0U)
+        return false;
+      lastParameter_ = phrase.param1_[index];
       phrase.param1_[index] = 0;
-      break;
-    case 4:
+      return true;
+    case 4: {
+      const bool changed =
+          phrase.cmd2_[index] != FourCC::InstrumentCommandNone ||
+          phrase.param2_[index] != 0U;
+      if (phrase.cmd2_[index] != FourCC::InstrumentCommandNone)
+        lastCommand_ = phrase.cmd2_[index];
+      lastParameter_ = phrase.param2_[index];
       phrase.cmd2_[index] = FourCC::InstrumentCommandNone;
       phrase.param2_[index] = 0;
-      break;
+      return changed;
+    }
     case 5:
+      if (phrase.param2_[index] == 0U)
+        return false;
+      lastParameter_ = phrase.param2_[index];
       phrase.param2_[index] = 0;
-      break;
+      return true;
     default:
-      break;
+      return false;
     }
   } else if (command.sourcePage == Ui2TrackerPage::PhraseTable ||
              command.sourcePage == Ui2TrackerPage::InstrumentTable) {
+    if (!IsGridCell(command.sourcePage, command.row, command.column))
+      return false;
     const std::uint8_t tableNumber =
         command.sourcePage == Ui2TrackerPage::InstrumentTable
             ? instrumentTableNumber_
@@ -694,12 +745,24 @@ void Ui2TrackerSessionModelPort::ApplyCutCell(
                                     table.param3_};
     const std::uint8_t group = command.column / 2U;
     if ((command.column & 1U) == 0U) {
+      const bool changed =
+          commands[group][command.row] != FourCC::InstrumentCommandNone ||
+          parameters[group][command.row] != 0U;
+      if (commands[group][command.row] != FourCC::InstrumentCommandNone)
+        lastCommand_ = commands[group][command.row];
+      lastParameter_ = parameters[group][command.row];
       commands[group][command.row] = FourCC::InstrumentCommandNone;
       parameters[group][command.row] = 0U;
+      return changed;
     } else {
+      if (parameters[group][command.row] == 0U)
+        return false;
+      lastParameter_ = parameters[group][command.row];
       parameters[group][command.row] = 0U;
+      return true;
     }
   }
+  return false;
 }
 
 void Ui2TrackerSessionModelPort::ApplyPasteLast(
@@ -718,13 +781,21 @@ void Ui2TrackerSessionModelPort::ApplyPasteLast(
       lastChain_ = cell;
     }
   } else if (command.sourcePage == Ui2TrackerPage::Chain) {
-    std::uint8_t &cell =
-        song.chain_.data_[editor.currentChain_ * 16 + command.row];
-    if (cell == 0xFFU) {
-      cell = lastPhrase_;
-      song.phrase_.SetUsed(cell);
+    const int index = editor.currentChain_ * PHRASES_PER_CHAIN + command.row;
+    if (command.column == 0U) {
+      std::uint8_t &cell = song.chain_.data_[index];
+      if (cell == 0xFFU) {
+        cell = lastPhrase_;
+        song.phrase_.SetUsed(cell);
+      } else {
+        lastPhrase_ = cell;
+      }
     } else {
-      lastPhrase_ = cell;
+      std::uint8_t &cell = song.chain_.transpose_[index];
+      if (cell == 0U)
+        cell = lastTranspose_;
+      else
+        lastTranspose_ = cell;
     }
   } else if (command.sourcePage == Ui2TrackerPage::Phrase) {
     Phrase &phrase = song.phrase_;
@@ -753,10 +824,16 @@ void Ui2TrackerSessionModelPort::ApplyPasteLast(
     } else if (command.column == 2U || command.column == 4U) {
       FourCC &cell =
           command.column == 2U ? phrase.cmd1_[index] : phrase.cmd2_[index];
-      if (cell == FourCC::InstrumentCommandNone)
+      std::uint16_t &parameter =
+          command.column == 2U ? phrase.param1_[index] : phrase.param2_[index];
+      if (cell == FourCC::InstrumentCommandNone) {
         cell = lastCommand_;
-      else
+        parameter =
+            CommandList::RangeLimitCommandParam(cell, lastParameter_);
+      } else {
         lastCommand_ = cell;
+        lastParameter_ = parameter;
+      }
     } else if (command.column == 3U || command.column == 5U) {
       const FourCC effect =
           command.column == 3U ? phrase.cmd1_[index] : phrase.cmd2_[index];
@@ -780,10 +857,15 @@ void Ui2TrackerSessionModelPort::ApplyPasteLast(
     const std::uint8_t group = command.column / 2U;
     if ((command.column & 1U) == 0U) {
       FourCC &cell = commands[group][command.row];
-      if (cell == FourCC::InstrumentCommandNone)
+      std::uint16_t &parameter = parameters[group][command.row];
+      if (cell == FourCC::InstrumentCommandNone) {
         cell = lastCommand_;
-      else
+        parameter =
+            CommandList::RangeLimitCommandParam(cell, lastParameter_);
+      } else {
         lastCommand_ = cell;
+        lastParameter_ = parameter;
+      }
     } else {
       std::uint16_t &cell = parameters[group][command.row];
       if (cell == 0U) {
