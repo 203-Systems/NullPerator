@@ -92,7 +92,6 @@ public:
       phase_ = Phase::Rendering;
       message_ = Message::None;
       ResetProgress();
-      renderStarted_ = true;
       input_ = {};
       ++instanceId_;
       UpdateProgress(backend_->CapturePlayback());
@@ -117,16 +116,11 @@ public:
     if (phase_ != Phase::Rendering || backend_ == nullptr)
       return;
     if (backend_->IsRunning()) {
-      renderStarted_ = true;
       UpdateProgress(backend_->CapturePlayback());
       return;
     }
-    if (renderStarted_) {
-      phase_ = Phase::Complete;
-      renderedUnits_ = totalRenderUnits_;
-      return;
-    }
-    ShowMessage(Message::OutputUnavailable);
+    phase_ = Phase::Complete;
+    renderedUnits_ = totalRenderUnits_;
   }
 
   void Handle(TrackerAction action, bool pressed) {
@@ -201,7 +195,6 @@ private:
     renderedUnits_ = 0;
     totalRenderUnits_ = 1;
     progressChannel_ = -1;
-    renderStarted_ = false;
     startSongRowCaptured_ = false;
   }
 
@@ -329,7 +322,7 @@ private:
   }
 
   [[nodiscard]] int CalculatePercent() const {
-    if (!renderStarted_ || !startSongRowCaptured_ || progressChannel_ < 0)
+    if (!startSongRowCaptured_ || progressChannel_ < 0)
       return 0;
     const int total = std::max(totalRenderUnits_, 1);
     const int rendered = std::clamp(renderedUnits_, 0, total);
@@ -346,7 +339,6 @@ private:
   Ui2ProjectRenderMode mode_ = Ui2ProjectRenderMode::Mixdown;
   Phase phase_ = Phase::Idle;
   Message message_ = Message::None;
-  bool renderStarted_ = false;
   bool startSongRowCaptured_ = false;
 };
 
