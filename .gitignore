@@ -55,3 +55,7 @@ web/dist/
 web/playwright-report/
 web/test-results/
 web/public/wasm/*
+
+# Python tooling caches
+__pycache__/
+*.py[cod]
