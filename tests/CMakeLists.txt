@@ -217,6 +217,26 @@ target_include_directories(ui2_status_bridge_tests PRIVATE
 target_compile_definitions(ui2_status_bridge_tests PRIVATE HOST_TEST)
 add_test(NAME ui2_status_bridge COMMAND ui2_status_bridge_tests)
 
+# Sample deletion crosses the filesystem and live SamplePool boundary. Compile
+# the production transaction against a narrow failure-injection pool so every
+# rename/unload/cleanup branch remains deterministic under ASan/UBSan.
+add_executable(ui2_sample_file_operations_tests
+  test_main.cpp
+  ui2_sample_file_operations_tests.cpp
+  ../sources/Application/UI2/Ui2SampleFileOperations.cpp
+)
+
+target_include_directories(ui2_sample_file_operations_tests PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/ui2_sample_file_operations_stubs
+  ${CMAKE_CURRENT_LIST_DIR}/stubs
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals
+  ${CMAKE_CURRENT_LIST_DIR}/../sources
+)
+
+target_compile_definitions(ui2_sample_file_operations_tests PRIVATE HOST_TEST)
+add_test(NAME ui2_sample_file_operations
+         COMMAND ui2_sample_file_operations_tests)
+
 # Exercise the production grid model adapter against deterministic fixed-size
 # Song/Chain/Phrase/Table storage without pulling the legacy application graph
 # into this focused host test.

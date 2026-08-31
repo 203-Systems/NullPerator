@@ -203,8 +203,13 @@ bool Ui2TrackerApplication::Init(Ui2StartupOptions options) {
     std::strncpy(projectName, UNNAMED_PROJECT_NAME, sizeof(projectName) - 1U);
     createProject = true;
   }
-  if (session_.LoadProject(projectName, createProject) !=
-      TrackerApplicationSession::LoadResult::Loaded) {
+  const bool sampleDeletesRecovered =
+      createProject ||
+      (fileSystem != nullptr &&
+       Ui2RecoverStagedProjectSampleDeletes(*fileSystem, projectName));
+  if (!sampleDeletesRecovered ||
+      session_.LoadProject(projectName, createProject) !=
+          TrackerApplicationSession::LoadResult::Loaded) {
     if (std::strcmp(projectName, UNNAMED_PROJECT_NAME) == 0 ||
         session_.LoadProject(UNNAMED_PROJECT_NAME, true) !=
             TrackerApplicationSession::LoadResult::Loaded) {
@@ -1084,6 +1089,8 @@ void Ui2TrackerApplication::ExecuteSampleBrowser(
       MarkProjectDirty();
     } else if (result == Ui2DeleteProjectSampleResult::UnloadFailed) {
       sampleBrowser_.SetError("DELETE UNSUPPORTED");
+    } else if (result == Ui2DeleteProjectSampleResult::RollbackFailed) {
+      sampleBrowser_.SetError("DELETE RECOVERY FAILED");
     } else {
       sampleBrowser_.SetError("DELETE FAILED");
     }
@@ -2167,8 +2174,12 @@ void Ui2TrackerApplication::ExecuteProjectLifecycle(
         session_.NewProject() == TrackerApplicationSession::LoadResult::Loaded;
     break;
   case Ui2ProjectLifecycleCommandType::LoadProject:
-    succeeded = session_.LoadProject(command.project.data(), false, true) ==
-                TrackerApplicationSession::LoadResult::Loaded;
+    if (FileSystem *fileSystem = FileSystem::GetInstance()) {
+      succeeded = Ui2RecoverStagedProjectSampleDeletes(
+                      *fileSystem, command.project.data()) &&
+                  session_.LoadProject(command.project.data(), false, true) ==
+                      TrackerApplicationSession::LoadResult::Loaded;
+    }
     break;
   case Ui2ProjectLifecycleCommandType::DeleteProject:
     succeeded = session_.DeleteProject(command.project.data());
