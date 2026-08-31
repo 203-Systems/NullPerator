@@ -76,8 +76,8 @@ TEST_CASE("UI2 tracker hub keeps key release with the press owner") {
   hub.Activate(ui2::Ui2TrackerPage::Chain);
   (void)hub.Handle(TrackerAction::Edit, false);
 
-  CHECK((hub.Song().HeldMask() & EPBM_ENTER) == 0);
-  CHECK((hub.Chain().HeldMask() & EPBM_ENTER) == 0);
+  CHECK((hub.Song().HeldMask() & TrackerActionBit(TrackerAction::Edit)) == 0);
+  CHECK((hub.Chain().HeldMask() & TrackerActionBit(TrackerAction::Edit)) == 0);
 }
 
 TEST_CASE("UI2 tracker executor applies typed command then stores navigation") {
@@ -120,21 +120,25 @@ TEST_CASE("UI2 tracker executor preserves held navigation across page switches")
   executor.Handle(TrackerAction::Right, false);
 
   CHECK(executor.ActivePage() == ui2::Ui2TrackerPage::Chain);
-  CHECK((executor.ActiveState().heldMask & EPBM_NAV) != 0U);
+  CHECK((executor.ActiveState().heldMask &
+         TrackerActionBit(TrackerAction::Shift)) != 0U);
 
   executor.Handle(TrackerAction::Right, true);
   executor.Handle(TrackerAction::Right, false);
   CHECK(executor.ActivePage() == ui2::Ui2TrackerPage::Phrase);
-  CHECK((executor.ActiveState().heldMask & EPBM_NAV) != 0U);
+  CHECK((executor.ActiveState().heldMask &
+         TrackerActionBit(TrackerAction::Shift)) != 0U);
 
   executor.Handle(TrackerAction::Left, true);
   executor.Handle(TrackerAction::Left, false);
   CHECK(executor.ActivePage() == ui2::Ui2TrackerPage::Chain);
-  CHECK((executor.ActiveState().heldMask & EPBM_NAV) != 0U);
+  CHECK((executor.ActiveState().heldMask &
+         TrackerActionBit(TrackerAction::Shift)) != 0U);
 
   executor.Handle(TrackerAction::Shift, false);
   executor.Hub().SetNavigationHeld(false);
-  CHECK((executor.ActiveState().heldMask & EPBM_NAV) == 0U);
+  CHECK((executor.ActiveState().heldMask &
+         TrackerActionBit(TrackerAction::Shift)) == 0U);
 }
 
 TEST_CASE("UI2 tracker hub restores held navigation after direct activation") {
@@ -142,7 +146,8 @@ TEST_CASE("UI2 tracker hub restores held navigation after direct activation") {
   hub.SetNavigationHeld(true);
 
   REQUIRE(hub.Activate(ui2::Ui2TrackerPage::Chain));
-  CHECK((hub.ActiveState().heldMask & EPBM_NAV) != 0U);
+  CHECK((hub.ActiveState().heldMask &
+         TrackerActionBit(TrackerAction::Shift)) != 0U);
 
   const auto playback = hub.Handle(TrackerAction::Play, true);
   REQUIRE(playback.count == 1U);
@@ -163,14 +168,17 @@ TEST_CASE("UI2 tracker executor preserves OPTION across quick-select reloads") {
   REQUIRE(track.count == 1U);
   CHECK(track[0].type == ui2::Ui2TrackerCommandType::SelectTrack);
   CHECK(executor.ActiveState().track == 3U);
-  CHECK((executor.ActiveState().heldMask & EPBM_EDIT) != 0U);
+  CHECK((executor.ActiveState().heldMask &
+         TrackerActionBit(TrackerAction::Option)) != 0U);
 
   executor.Handle(TrackerAction::Right, false);
   const auto vertical = executor.Handle(TrackerAction::Down, true);
   REQUIRE(vertical.count == 1U);
   CHECK(vertical[0].type == ui2::Ui2TrackerCommandType::WarpVertical);
-  CHECK((executor.ActiveState().heldMask & EPBM_EDIT) != 0U);
+  CHECK((executor.ActiveState().heldMask &
+         TrackerActionBit(TrackerAction::Option)) != 0U);
   executor.Handle(TrackerAction::Down, false);
   executor.Handle(TrackerAction::Option, false);
-  CHECK((executor.ActiveState().heldMask & EPBM_EDIT) == 0U);
+  CHECK((executor.ActiveState().heldMask &
+         TrackerActionBit(TrackerAction::Option)) == 0U);
 }

@@ -40,16 +40,6 @@ enum TrackerButtonMask : std::uint16_t {
   EPBM_OPTION = TrackerActionBit(TrackerAction::Option),
   EPBM_M8_EDIT = TrackerActionBit(TrackerAction::Edit),
   EPBM_M8_PLAY = TrackerActionBit(TrackerAction::Play),
-
-  // Legacy masks remain available only while the old reference UI is still
-  // part of non-UI2 builds. Native UI2 code must use the semantic masks above.
-  EPBM_ALT = EPBM_SHIFT,
-  EPBM_EDIT = EPBM_OPTION,
-  EPBM_ENTER = EPBM_M8_EDIT,
-  EPBM_START = EPBM_M8_PLAY,
-  EPBM_NAV = EPBM_SHIFT,
-  EPBM_PLAY = TrackerActionBit(TrackerAction::Play),
-  EPBM_SELECT = TrackerActionBit(TrackerAction::Reserved9),
   EPBM_POWER = TrackerActionBit(TrackerAction::Power),
 };
 
