@@ -428,6 +428,23 @@ target_include_directories(node_ui2_input_mailbox_tests PRIVATE
 target_compile_definitions(node_ui2_input_mailbox_tests PRIVATE HOST_TEST)
 add_test(NAME node_ui2_input_mailbox COMMAND node_ui2_input_mailbox_tests)
 
+# The physical Node labels have different names from the semantic M8-style
+# actions. Compile their production mapping without any HAL/ESP-IDF dependency
+# so accidental START/SELECT or A/B swaps fail on the host.
+add_executable(node_ui2_button_map_tests
+  test_main.cpp
+  node_ui2_button_map_tests.cpp
+)
+
+target_include_directories(node_ui2_button_map_tests PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals/SRC/include
+  ${CMAKE_CURRENT_LIST_DIR}/../sources
+)
+
+target_compile_definitions(node_ui2_button_map_tests PRIVATE HOST_TEST)
+add_test(NAME node_ui2_button_map COMMAND node_ui2_button_map_tests)
+
 # Product artifact gates run their parsers as normal host tests so malformed
 # inputs, forbidden UI2 artifacts, and memory-budget boundaries fail closed.
 find_package(Python3 COMPONENTS Interpreter QUIET)
