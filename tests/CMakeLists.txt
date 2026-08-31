@@ -392,6 +392,10 @@ if(Python3_Interpreter_FOUND)
     COMMAND "${Python3_EXECUTABLE}" -m unittest discover
       -s "${CMAKE_CURRENT_LIST_DIR}/../tools/tests"
       -p "test_check_node_iram_budget.py")
+  add_test(NAME lgpt_converter_capacity
+    COMMAND "${Python3_EXECUTABLE}" -m unittest discover
+      -s "${CMAKE_CURRENT_LIST_DIR}/../tools/tests"
+      -p "test_lgptconvert.py")
 endif()
 
 # UI2-native controller tests are registered append-only to avoid churn in the

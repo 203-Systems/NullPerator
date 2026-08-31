@@ -10,7 +10,7 @@ phrase_num = 0x80
 phrase_step = 16
 table_num = 0x20
 table_step = 16
-sample_num = 16
+sample_num = 32
 midi_num = 16
 
 cmd_conv = {
@@ -86,15 +86,32 @@ cmd_conv = {
     '57524150': '45',
     }
 
+def normalize_instrument_id(instrument: str) -> str:
+    if len(instrument) != 2:
+        raise ValueError("instrument ID must contain two hex digits")
+    if any(character not in "0123456789ABCDEFabcdef" for character in instrument):
+        raise ValueError("instrument ID is not hexadecimal")
+    instrument_value = int(instrument, 16)
+    return "{:02X}".format(instrument_value)
+
 def get_used_inst(tree: ET.ElementTree) -> set:
     inst_data = tree.find("SONG/INSTRUMENTS")
     inst_used = set()
     for data in inst_data:
         if not data.attrib:
             for n in range(0, len(data.text), 2):
-                if data.text[n:n+2] != "FF":
-                    inst_used.add(data.text[n:n+2])
+                instrument = normalize_instrument_id(data.text[n:n+2])
+                if instrument != "FF":
+                    inst_used.add(instrument)
     return inst_used
+
+def instrument_type_name(instrument: str) -> str:
+    instrument_value = int(normalize_instrument_id(instrument), 16)
+    if instrument_value < 0x80:
+        return "SAMPLE"
+    if instrument_value < 0x80 + midi_num:
+        return "MIDI"
+    raise ValueError("instrument ID is outside the LGPT sample/MIDI ranges")
 
 def get_defined_tables(tree: ET.ElementTree) -> set:
     table_data = tree.find("TABLES")
@@ -208,14 +225,22 @@ def analyze(tree: ET.ElementTree):
     instbank_data = tree.find("INSTRUMENTBANK")
     sample_inst_defined = set()
     midi_inst_defined = set()
+    inst_defined = set()
     for inst in instbank_data:
-        if "ID" in inst.attrib:
-            # quick hack, sample instruments have more parameters
-            if len(inst) > 10:
-                sample_inst_defined.add(inst.attrib["ID"])
-            else:
-                midi_inst_defined.add(inst.attrib["ID"])
-            
+        if "ID" not in inst.attrib:
+            raise ValueError("instrument definition is missing an ID")
+        instrument_id = normalize_instrument_id(inst.attrib["ID"])
+        if instrument_id in inst_defined:
+            raise ValueError("duplicate instrument definition")
+        inst_defined.add(instrument_id)
+        if instrument_type_name(instrument_id) == "SAMPLE":
+            sample_inst_defined.add(instrument_id)
+        else:
+            midi_inst_defined.add(instrument_id)
+
+    if not inst_used.issubset(inst_defined):
+        raise ValueError("song references an undefined instrument")
+
     result["sample_num"] = len(inst_used.intersection(sample_inst_defined))
     result["midi_num"] = len(inst_used.intersection(midi_inst_defined))
 
@@ -229,7 +254,40 @@ def analyze(tree: ET.ElementTree):
 
     return result
 
-def convert(lgptsav: ET.ElementTree) -> str:
+def build_instrument_map(inst_used: set[str]) -> dict[str, str]:
+    normalized_instruments = {
+        normalize_instrument_id(instrument) for instrument in inst_used
+    }
+    typed_instruments = {
+        instrument: instrument_type_name(instrument)
+        for instrument in normalized_instruments
+    }
+    sample_instruments = sorted(
+        instrument
+        for instrument, instrument_type in typed_instruments.items()
+        if instrument_type == "SAMPLE"
+    )
+    midi_instruments = {
+        instrument
+        for instrument, instrument_type in typed_instruments.items()
+        if instrument_type == "MIDI"
+    }
+    if len(sample_instruments) > sample_num:
+        raise ValueError("sample instrument capacity exceeded")
+    if len(midi_instruments) > midi_num:
+        raise ValueError("MIDI instrument capacity exceeded")
+
+    instrument_map = {
+        instrument: "{:02X}".format(index)
+        for index, instrument in enumerate(sample_instruments)
+    }
+    for index in range(midi_num):
+        instrument_map["{:02X}".format(index + 0x80)] = (
+            "{:02X}".format(index + sample_num)
+        )
+    return instrument_map
+
+def convert(lgptsav: ET.ElementTree) -> bytes:
     # We assume the data fits at this point, so we don't make any checks
 
     root = ET.Element("PICOTRACKER")
@@ -322,29 +380,10 @@ def convert(lgptsav: ET.ElementTree) -> str:
 
     song_inst = ET.SubElement(song, "INSTRUMENTS")
 
-    # We first "compress" the instruments in order to fit the first 16 and depending on what's actually used
-    inst_used = set()
-    for data in lgpt_inst_data:
-        if not data.attrib:
-            for n in range(0, len(data.text), 2):
-                if data.text[n:n+2] != "FF":
-                    inst_used.add(data.text[n:n+2])
-    inst_map = {}
-    count = 0
-    for inst in sorted(inst_used):
-        inst_dec = int(f"0x{inst}", 0)
-        if inst_dec < 128:
-            inst_map[inst] = "{:02X}".format(count)
-            count += 1
-        else:
-            count = 16
-            inst_map[inst] = "{:02X}".format(count)
-            count += 1
-    # midi
-    for n in range(16):
-        inst = "{:02X}".format(n + 128)
-        new_inst = "{:02X}".format(n + sample_num)
-        inst_map[inst] = new_inst
+    # Compress sample instruments into the sample slot range according to what
+    # is actually used. MIDI instruments follow the sample slots.
+    inst_used = get_used_inst(lgptsav)
+    inst_map = build_instrument_map(inst_used)
 
     data_count = 0
     for data in lgpt_inst_data:
@@ -352,8 +391,9 @@ def convert(lgptsav: ET.ElementTree) -> str:
             if not data.attrib:
                 text = ""
                 for n in range(0, len(data.text), 2):
-                    if data.text[n:n+2] != "FF":
-                        text += inst_map[data.text[n:n+2]]
+                    source_id = normalize_instrument_id(data.text[n:n+2])
+                    if source_id != "FF":
+                        text += inst_map[source_id]
                     else:
                         text += "FF"
                 song_inst_data = ET.SubElement(song_inst, "DATA")
@@ -440,10 +480,14 @@ def convert(lgptsav: ET.ElementTree) -> str:
     lgpt_ib_data = lgptsav.find("INSTRUMENTBANK")
     ## Instrument ID=XX
     for inst in lgpt_ib_data:
-        inst_id = inst.attrib["ID"]
+        inst_id = normalize_instrument_id(inst.attrib["ID"])
         if inst_id not in inst_used:
             continue
-        ib_inst = ET.SubElement(ib, "INSTRUMENT", attrib={"ID": inst_map[inst_id]})
+        ib_inst = ET.SubElement(
+            ib,
+            "INSTRUMENT",
+            attrib={"ID": inst_map[inst_id], "TYPE": instrument_type_name(inst_id)},
+        )
     ### Param XX
         for param in inst:
  #           if param.attrib["NAME"] in inst_params:
@@ -495,14 +539,17 @@ def convert(lgptsav: ET.ElementTree) -> str:
     return ET.tostring(root, encoding='utf8', method='xml')
 
 def main(args):
-    tree = ET.parse(args[1]);
+    tree = ET.parse(args[1])
     if tree.getroot().tag != "LITTLEGPTRACKER":
         print("Not a LGPT file!\n")
         return
 
-    result = analyze(tree)
+    try:
+        result = analyze(tree)
+    except ValueError:
+        print("Cannot convert, project contains invalid instrument data")
+        return
     if result["song_step"] <= song_step and result["chain_num"] <= chain_num and result["phrase_num"] <= phrase_num and result["sample_num"] <= sample_num and result["midi_num"] <= midi_num and result["table_num"] <= table_num:
-        convert(tree)
         print(convert(tree).decode("utf-8"))
     else:
         print("Cannot convert, project doesn't fit picoTracker")
