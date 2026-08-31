@@ -50,7 +50,7 @@ public:
 private:
   Opal opl_ = (44100);
 
-  uint8_t breg;
+  uint8_t breg = 0;
 
   etl::vector<Variable *, 15> variables_;
 

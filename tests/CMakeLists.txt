@@ -52,6 +52,7 @@ add_executable(picoTracker_tests
   ../sources/Application/Instruments/WavHeader.cpp
   ../sources/Application/Instruments/MacroInstrument.cpp
   ../sources/Application/Instruments/MidiInstrument.cpp
+  ../sources/Application/Instruments/OpalInstrument.cpp
   ../sources/Application/Instruments/SampleInstrument.cpp
   ../sources/Application/Instruments/SIDInstrument.cpp
   ../sources/Externals/cRSID/SID.cpp
@@ -131,6 +132,7 @@ target_include_directories(picoTracker_tests PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}/stubs
   ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals
   ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals/SRC/include
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Application/Utils
   ${CMAKE_CURRENT_LIST_DIR}/../sources
 )
 

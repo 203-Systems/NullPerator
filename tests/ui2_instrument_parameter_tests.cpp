@@ -3,6 +3,7 @@
 #include "Application/Instruments/OpalInstrumentParameterEncoding.h"
 #include "Application/Instruments/MacroInstrument.h"
 #include "Application/Instruments/MidiInstrument.h"
+#include "Application/Instruments/OpalInstrument.h"
 #include "Application/Instruments/SampleRenderingParams.h"
 #include "Application/Instruments/SampleInstrument.h"
 #include "Application/Instruments/SamplePool.h"
@@ -270,6 +271,25 @@ TEST_CASE("OPAL depth flags retain the UI tremolo and vibrato bit order") {
   CHECK(EncodeOpalDepthControl(1) == 0x40U);
   CHECK(EncodeOpalDepthControl(2) == 0x80U);
   CHECK(EncodeOpalDepthControl(3) == 0xC0U);
+}
+
+TEST_CASE("OPAL gate state is deterministic before the first note") {
+  alignas(OpalInstrument)
+      std::array<std::byte, sizeof(OpalInstrument)> storage{};
+  storage.fill(std::byte{0xFF});
+  OpalInstrument *instrument =
+      std::construct_at(reinterpret_cast<OpalInstrument *>(storage.data()));
+  REQUIRE(instrument->Init());
+
+  instrument->Stop(0);
+  CHECK(Opal::LastPortRegister() == 0xB0U);
+  CHECK(Opal::LastPortValue() == 0U);
+
+  instrument->ProcessCommand(0, FourCC::InstrumentCommandGateOff, 0);
+  CHECK(Opal::LastPortRegister() == 0xB0U);
+  CHECK(Opal::LastPortValue() == 0U);
+
+  std::destroy_at(instrument);
 }
 
 TEST_CASE("SID render is inert before the first note starts") {
