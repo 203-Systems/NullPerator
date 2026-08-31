@@ -20,6 +20,7 @@
 #include "Application/Model/Groove.h"
 #include "Application/Player/PlayerStartPlan.h"
 #include "Application/Player/PlayerStorageBounds.h"
+#include "Application/Player/PlayerTransportPolicy.h"
 #include "Application/Player/TablePlayback.h"
 #include "PlayerMixer.h"
 #include "Services/Midi/MidiService.h"
@@ -376,6 +377,11 @@ void Player::OnSongStartButton(unsigned int from, unsigned int to,
                                bool requestStop, bool forceImmediate,
                                MixerServiceMode msmMode, bool stopAtEnd) {
   mixer_.Lock();
+
+  const SongTrackRange range =
+      NormalizeSongTrackRange<SONG_CHANNEL_COUNT>(from, to);
+  from = range.first;
+  to = range.last;
 
   switch (sequencerMode_) {
 

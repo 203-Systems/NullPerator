@@ -1,4 +1,5 @@
 #include "Application/Player/PlayerStartPlan.h"
+#include "Application/Player/PlayerTransportPolicy.h"
 
 #include <doctest/doctest.h>
 #include <limits>
@@ -74,4 +75,21 @@ TEST_CASE("resume requests keep stop-at-end while resolving to song mode") {
   CHECK(plan.stopAtEnd);
   CHECK(plan.contextChannel == 3);
   CHECK(plan.contextChainPosition == 7);
+}
+
+TEST_CASE("song transport bounds and orders its inclusive track selection") {
+  const SongTrackRange unchanged =
+      NormalizeSongTrackRange<kChannelCount>(2U, 5U);
+  CHECK(unchanged.first == 2U);
+  CHECK(unchanged.last == 5U);
+
+  const SongTrackRange reversed =
+      NormalizeSongTrackRange<kChannelCount>(6U, 1U);
+  CHECK(reversed.first == 1U);
+  CHECK(reversed.last == 6U);
+
+  const SongTrackRange oversized = NormalizeSongTrackRange<kChannelCount>(
+      std::numeric_limits<unsigned int>::max(), 99U);
+  CHECK(oversized.first == kChannelCount - 1U);
+  CHECK(oversized.last == kChannelCount - 1U);
 }
