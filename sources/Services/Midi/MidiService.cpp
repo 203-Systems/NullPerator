@@ -34,8 +34,6 @@ MidiService::MidiService()
 MidiService::~MidiService() { Close(); };
 
 bool MidiService::Init() {
-  outList_.empty();
-  inList_.empty();
   // Init all the output midi devices
   for (auto dev : outList_) {
     dev->Init();
