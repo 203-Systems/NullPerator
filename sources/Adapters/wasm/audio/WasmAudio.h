@@ -58,13 +58,18 @@ public:
   static void OnProcessorCreated(bool success) noexcept;
 
 private:
+  static constexpr std::uint32_t ConfiguredTargetBits = 14U;
+  static constexpr std::uint32_t ConfiguredTargetMask =
+      (1U << ConfiguredTargetBits) - 1U;
+
   static void SetState(WasmAudioState state) noexcept;
   static void SetError(const char *message) noexcept;
   static void AdvanceSetupPhase(std::uint32_t phase) noexcept;
   static void PumpBrowserMainSetup(void *) noexcept;
   static void BrowserMainTeardown() noexcept;
+  static void ApplyConfiguration(WasmAudioDriver &driver) noexcept;
   bool initialized_ = false;
-  int volume_ = 100;
+  std::atomic<std::uint32_t> volume_{100U};
 
   static std::atomic<WasmAudioState> state_;
   static std::atomic<bool> unlockStarted_;
@@ -80,10 +85,12 @@ private:
   static std::atomic<int> workletNode_;
   static std::atomic<std::uint32_t> setupPhase_;
   static std::atomic<std::uint32_t> unlockOnBrowserMainThread_;
-  static std::atomic<std::uint32_t> configuredTargetFillFrames_;
-  static std::atomic<std::uint32_t> configuredOutputGainQ16_;
+  // Target fill (14 bits) and browser-host gain (17 bits) fit in one atomic
+  // word, so pre-main and live browser configuration cannot publish a mixed
+  // pair to the application pthread.
+  static std::atomic<std::uint32_t> configuredAudio_;
   static_assert(std::atomic<std::uint32_t>::is_always_lock_free,
-                "Wasm audio snapshots require lock-free 32-bit atomics");
+                "Wasm audio state requires lock-free 32-bit atomics");
   static constexpr std::size_t MetricsWords = sizeof(WasmAudioMetrics) / sizeof(std::uint32_t);
   // Sequence followed by the fixed metrics payload. Writers publish odd,
   // write every payload word, then release an even sequence. Browser readers

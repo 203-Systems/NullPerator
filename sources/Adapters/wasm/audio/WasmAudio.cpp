@@ -12,6 +12,7 @@
 #include "Adapters/wasm/platform/WasmApplicationSnapshot.h"
 #include "Adapters/wasm/platform/WasmBrowserSnapshots.h"
 #include "Application/Audio/RecordingPlatform.h"
+#include "Application/Model/Config.h"
 #include "Services/Audio/AudioOutDriver.h"
 
 #ifdef __EMSCRIPTEN__
@@ -38,10 +39,9 @@ std::atomic<int> WasmAudio::context_{0};
 std::atomic<int> WasmAudio::workletNode_{0};
 std::atomic<std::uint32_t> WasmAudio::setupPhase_{0U};
 std::atomic<std::uint32_t> WasmAudio::unlockOnBrowserMainThread_{0U};
-std::atomic<std::uint32_t> WasmAudio::configuredTargetFillFrames_{
-    WasmAudioDriver::TargetFillFrames};
-std::atomic<std::uint32_t> WasmAudio::configuredOutputGainQ16_{
-    WasmAudioDriver::UnityGainQ16};
+std::atomic<std::uint32_t> WasmAudio::configuredAudio_{
+    WasmAudioDriver::TargetFillFrames |
+    (WasmAudioDriver::UnityGainQ16 << WasmAudio::ConfiguredTargetBits)};
 std::array<std::atomic<std::uint32_t>, WasmAudio::MetricsSnapshotWords>
     WasmAudio::metricsSnapshot_{};
 std::array<std::atomic<std::uint32_t>, WasmAudio::ErrorWords>
@@ -101,15 +101,25 @@ void WasmAudio::Init() {
   if (initialized_) {
     return;
   }
+  int mixerVolume = 40;
+  if (Config *config = Config::GetInstance()) {
+    if (Variable *configuredVolume =
+            config->FindVariable(FourCC::VarOutputVolume)) {
+      mixerVolume = configuredVolume->GetInt();
+    }
+  }
+  mixerVolume = std::clamp(mixerVolume, 0, 100);
+  volume_.store(static_cast<std::uint32_t>(mixerVolume),
+                std::memory_order_release);
+
   AudioSettings settings{};
   settings.audioAPI_ = "wasm-audio-worklet";
   settings.audioDevice_ = "browser-default";
   settings.bufferSize_ = 1024;
   settings.preBufferCount_ = 4;
   auto *driver = new (driverStorage) WasmAudioDriver(settings);
-  driver->Configure(
-      configuredTargetFillFrames_.load(std::memory_order_acquire),
-      configuredOutputGainQ16_.load(std::memory_order_acquire));
+  driver->SetMixerVolume(mixerVolume);
+  ApplyConfiguration(*driver);
   auto *output = new (outputStorage) AudioOutDriver(*driver);
   AddOutput(*output);
   initialized_ = true;
@@ -127,10 +137,17 @@ void WasmAudio::Close() {
   }
 }
 
-int WasmAudio::GetMixerVolume() { return volume_; }
+int WasmAudio::GetMixerVolume() {
+  return static_cast<int>(volume_.load(std::memory_order_acquire));
+}
 
 void WasmAudio::SetMixerVolume(int volume) {
-  volume_ = std::clamp(volume, 0, 100);
+  const int clamped = std::clamp(volume, 0, 100);
+  volume_.store(static_cast<std::uint32_t>(clamped),
+                std::memory_order_release);
+  if (auto *driver = WasmAudioDriver::Instance()) {
+    driver->SetMixerVolume(clamped);
+  }
 }
 
 void WasmAudio::Configure(std::uint32_t targetFillFrames,
@@ -140,10 +157,22 @@ void WasmAudio::Configure(std::uint32_t targetFillFrames,
       WasmAudioDriver::MaximumTargetFillFrames);
   const std::uint32_t gain =
       std::min(outputGainQ16, WasmAudioDriver::UnityGainQ16);
-  configuredTargetFillFrames_.store(target, std::memory_order_release);
-  configuredOutputGainQ16_.store(gain, std::memory_order_release);
+  configuredAudio_.store(target | (gain << ConfiguredTargetBits),
+                         std::memory_order_release);
   if (auto *driver = WasmAudioDriver::Instance()) {
-    driver->Configure(target, gain);
+    ApplyConfiguration(*driver);
+  }
+}
+
+void WasmAudio::ApplyConfiguration(WasmAudioDriver &driver) noexcept {
+  for (;;) {
+    const std::uint32_t configured =
+        configuredAudio_.load(std::memory_order_acquire);
+    driver.Configure(configured & ConfiguredTargetMask,
+                     configured >> ConfiguredTargetBits);
+    if (configured == configuredAudio_.load(std::memory_order_acquire)) {
+      return;
+    }
   }
 }
 

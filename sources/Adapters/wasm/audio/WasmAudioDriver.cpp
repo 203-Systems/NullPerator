@@ -130,8 +130,18 @@ void WasmAudioDriver::Configure(std::uint32_t targetFillFrames,
       std::clamp(targetFillFrames, MinimumTargetFillFrames,
                  MaximumTargetFillFrames),
       std::memory_order_release);
-  outputGainQ16_.store(std::min(outputGainQ16, UnityGainQ16),
-                       std::memory_order_release);
+  SetHostOutputGainQ16(outputGainQ16);
+}
+
+void WasmAudioDriver::SetMixerVolume(int volume) noexcept {
+  const std::uint32_t clamped =
+      static_cast<std::uint32_t>(std::clamp(volume, 0, 100));
+  std::uint32_t current = outputGainState_.load(std::memory_order_relaxed);
+  std::uint32_t desired = 0U;
+  do {
+    desired = (current & HostOutputGainMask) | (clamped << MixerVolumeShift);
+  } while (!outputGainState_.compare_exchange_weak(
+      current, desired, std::memory_order_release, std::memory_order_relaxed));
 }
 
 std::uint32_t WasmAudioDriver::TargetFillFramesConfigured() const noexcept {
@@ -139,7 +149,13 @@ std::uint32_t WasmAudioDriver::TargetFillFramesConfigured() const noexcept {
 }
 
 std::uint32_t WasmAudioDriver::OutputGainQ16() const noexcept {
-  return outputGainQ16_.load(std::memory_order_relaxed);
+  const std::uint32_t state =
+      outputGainState_.load(std::memory_order_acquire);
+  const std::uint32_t hostGain = state & HostOutputGainMask;
+  const std::uint32_t mixerVolume = state >> MixerVolumeShift;
+  // Compose the exact host Q16 value with the integer Device percentage and
+  // round half up once. The clamped maximum numerator is only 6,553,650.
+  return (hostGain * mixerVolume + 50U) / 100U;
 }
 
 WasmAudioMetrics WasmAudioDriver::Metrics() const noexcept {
@@ -203,6 +219,16 @@ void WasmAudioDriver::RecordCallback(double callbackMilliseconds,
 
 WasmAudioDriver *WasmAudioDriver::Instance() noexcept {
   return instance_.load(std::memory_order_acquire);
+}
+
+void WasmAudioDriver::SetHostOutputGainQ16(std::uint32_t gain) noexcept {
+  const std::uint32_t clamped = std::min(gain, UnityGainQ16);
+  std::uint32_t current = outputGainState_.load(std::memory_order_relaxed);
+  std::uint32_t desired = 0U;
+  do {
+    desired = (current & ~HostOutputGainMask) | clamped;
+  } while (!outputGainState_.compare_exchange_weak(
+      current, desired, std::memory_order_release, std::memory_order_relaxed));
 }
 
 std::uint32_t WasmAudioDriver::Saturating(std::uint64_t value) noexcept {

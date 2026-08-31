@@ -41,6 +41,7 @@ public:
   void SetDestinationRate(std::uint32_t rate) noexcept;
   void Configure(std::uint32_t targetFillFrames,
                  std::uint32_t outputGainQ16) noexcept;
+  void SetMixerVolume(int volume) noexcept;
   [[nodiscard]] std::uint32_t TargetFillFramesConfigured() const noexcept;
   [[nodiscard]] std::uint32_t OutputGainQ16() const noexcept;
   [[nodiscard]] WasmAudioMetrics Metrics() const noexcept;
@@ -53,7 +54,15 @@ public:
   static WasmAudioDriver *Instance() noexcept;
 
 private:
+  static constexpr std::uint32_t HostOutputGainBits = 17U;
+  static constexpr std::uint32_t HostOutputGainMask =
+      (1U << HostOutputGainBits) - 1U;
+  static constexpr std::uint32_t MixerVolumeShift = HostOutputGainBits;
+  static constexpr std::uint32_t InitialOutputGainState =
+      UnityGainQ16 | (100U << MixerVolumeShift);
+
   static std::uint32_t Saturating(std::uint64_t value) noexcept;
+  void SetHostOutputGainQ16(std::uint32_t gain) noexcept;
 
   PcmRingBuffer<RingCapacityFrames> ring_;
   std::atomic<bool> started_{false};
@@ -61,7 +70,11 @@ private:
   std::atomic<bool> workletRunning_{false};
   std::atomic<std::uint32_t> destinationRate_{0U};
   std::atomic<std::uint32_t> targetFillFrames_{TargetFillFrames};
-  std::atomic<std::uint32_t> outputGainQ16_{UnityGainQ16};
+  // The browser-host gain and tracker Device volume share one atomic word.
+  // This keeps concurrent updates independent without letting either writer
+  // overwrite the other writer's component. OutputGainQ16 derives the
+  // effective gain from one coherent snapshot.
+  std::atomic<std::uint32_t> outputGainState_{InitialOutputGainState};
   std::atomic<std::uint32_t> callbackCount_{0U};
   std::atomic<std::uint32_t> renderMicros_{0U};
   std::atomic<std::uint32_t> callbackMicros_{0U};
@@ -72,5 +85,5 @@ private:
   static std::atomic<WasmAudioDriver *> instance_;
 
   static_assert(std::atomic<std::uint32_t>::is_always_lock_free,
-                "AudioWorklet metrics require lock-free 32-bit atomics");
+                "AudioWorklet state requires lock-free 32-bit atomics");
 };

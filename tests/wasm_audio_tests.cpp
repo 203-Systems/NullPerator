@@ -444,7 +444,76 @@ TEST_CASE("WASM audio driver writes interleaved engine frames and fixed worklet 
   REQUIRE(halfRenderer.Render(halfLeft.data(), halfRight.data(), 1));
   CHECK(halfLeft[0] == doctest::Approx(0.25F));
   CHECK(halfRight[0] == doctest::Approx(-0.25F));
+
+  driver.SetMixerVolume(40);
+  driver.AddBuffer(halfInput.data(), 1);
+  WasmAudioWorkletRenderer combinedRenderer(driver, 44100U);
+  std::array<float, 1> combinedLeft{};
+  std::array<float, 1> combinedRight{};
+  REQUIRE(combinedRenderer.Render(combinedLeft.data(), combinedRight.data(), 1));
+  CHECK(combinedLeft[0] == doctest::Approx(0.1F));
+  CHECK(combinedRight[0] == doctest::Approx(-0.1F));
   driver.Stop();
+}
+
+TEST_CASE("WASM audio combines browser-host gain and tracker Device volume in integer Q16") {
+  AudioSettings settings{};
+  WasmAudioDriver driver(settings);
+
+  CHECK(driver.OutputGainQ16() == WasmAudioDriver::UnityGainQ16);
+
+  driver.SetMixerVolume(40);
+  CHECK(driver.OutputGainQ16() == 26214U);
+  driver.Configure(WasmAudioDriver::TargetFillFrames,
+                   WasmAudioDriver::UnityGainQ16 / 2U);
+  CHECK(driver.OutputGainQ16() == 13107U);
+
+  driver.SetMixerVolume(0);
+  CHECK(driver.OutputGainQ16() == 0U);
+  driver.SetMixerVolume(100);
+  CHECK(driver.OutputGainQ16() == WasmAudioDriver::UnityGainQ16 / 2U);
+
+  driver.Configure(WasmAudioDriver::TargetFillFrames, 1U);
+  driver.SetMixerVolume(50);
+  CHECK(driver.OutputGainQ16() == 1U);
+  driver.SetMixerVolume(-1);
+  CHECK(driver.OutputGainQ16() == 0U);
+  driver.SetMixerVolume(101);
+  CHECK(driver.OutputGainQ16() == 1U);
+}
+
+TEST_CASE("WASM host gain and tracker volume retain independent concurrent updates") {
+  AudioSettings settings{};
+  WasmAudioDriver driver(settings);
+  std::atomic<bool> start{false};
+
+  std::thread host([&] {
+    while (!start.load(std::memory_order_acquire)) {
+      std::this_thread::yield();
+    }
+    for (std::uint32_t update = 0U; update < 4096U; ++update) {
+      driver.Configure(WasmAudioDriver::TargetFillFrames,
+                       update % 2U == 0U
+                           ? WasmAudioDriver::UnityGainQ16
+                           : WasmAudioDriver::UnityGainQ16 / 4U);
+    }
+    driver.Configure(WasmAudioDriver::TargetFillFrames,
+                     WasmAudioDriver::UnityGainQ16 / 2U);
+  });
+  std::thread tracker([&] {
+    while (!start.load(std::memory_order_acquire)) {
+      std::this_thread::yield();
+    }
+    for (int update = 0; update < 4096; ++update) {
+      driver.SetMixerVolume(update % 101);
+    }
+    driver.SetMixerVolume(40);
+  });
+
+  start.store(true, std::memory_order_release);
+  host.join();
+  tracker.join();
+  CHECK(driver.OutputGainQ16() == 13107U);
 }
 
 TEST_CASE("WASM audio activity remains owned until every source stops") {
