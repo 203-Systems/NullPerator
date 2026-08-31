@@ -80,7 +80,8 @@ void NodeAudioDriver::AudioThread(void *arg) {
   uint8_t bufferIndex = 0;
   while (1) {
     stackTelemetry.Poll();
-    if (instance_ == NULL || !instance_->isPlaying_) {
+    if (instance_ == NULL ||
+        !instance_->driverPlaying_.load(std::memory_order_acquire)) {
       vTaskDelay(pdMS_TO_TICKS(1));
       continue;
     }
@@ -90,7 +91,8 @@ void NodeAudioDriver::AudioThread(void *arg) {
       continue;
     }
 
-    if (instance_ == NULL || !instance_->isPlaying_) {
+    if (instance_ == NULL ||
+        !instance_->driverPlaying_.load(std::memory_order_acquire)) {
       return_free_buffer(bufferIndex);
       continue;
     }
@@ -113,7 +115,8 @@ void NodeAudioDriver::I2SThread(void *arg) {
   uint8_t bufferIndex = 0;
   while (1) {
     stackTelemetry.Poll();
-    if (instance_ == NULL || !instance_->isPlaying_) {
+    if (instance_ == NULL ||
+        !instance_->driverPlaying_.load(std::memory_order_acquire)) {
       vTaskDelay(pdMS_TO_TICKS(1));
       continue;
     }
@@ -132,7 +135,8 @@ void NodeAudioDriver::I2SThread(void *arg) {
       continue;
     }
 
-    if (instance_ == NULL || !instance_->isPlaying_) {
+    if (instance_ == NULL ||
+        !instance_->driverPlaying_.load(std::memory_order_acquire)) {
       pool_[bufferIndex].size_ = 0;
       pool_[bufferIndex].empty_ = true;
       return_free_buffer(bufferIndex);
@@ -166,7 +170,7 @@ void NodeAudioDriver::BufferNeeded() {
 void NodeAudioDriver::AddBuffer(short *buffer, int samplecount) {
   int len = samplecount * 2 * sizeof(short);
 
-  if (!isPlaying_) {
+  if (!driverPlaying_.load(std::memory_order_acquire)) {
     return;
   }
 
@@ -263,6 +267,7 @@ void NodeAudioDriver::SetVolume(int v) {
 int NodeAudioDriver::GetVolume() { return audio_codec_get_volume(); };
 
 void NodeAudioDriver::CloseDriver() {
+  driverPlaying_.store(false, std::memory_order_release);
   isPlaying_ = false;
   wake_audio_queues();
   switch_speaker_mode(false);
@@ -286,6 +291,7 @@ void NodeAudioDriver::CloseDriver() {
 
 bool NodeAudioDriver::StartDriver() {
   switch_audio_mode(headphone_out);
+  driverPlaying_.store(false, std::memory_order_release);
   isPlaying_ = false;
   for (int i = 0; i < SOUND_BUFFER_COUNT; ++i) {
     pool_[i].size_ = 0;
@@ -298,6 +304,9 @@ bool NodeAudioDriver::StartDriver() {
   hasData_ = false;
   reset_audio_queues();
   isPlaying_ = true;
+  // Publish the initialized buffer and queue state before either worker may
+  // begin producing or consuming audio on its pinned core.
+  driverPlaying_.store(true, std::memory_order_release);
   esp32_sound_pause(0);
   startTime_ = millis();
   return true;
@@ -305,6 +314,8 @@ bool NodeAudioDriver::StartDriver() {
 
 void NodeAudioDriver::StopDriver() {
   esp32_sound_pause(1);
+  // Close the cross-core gate before queue wakeups can release either worker.
+  driverPlaying_.store(false, std::memory_order_release);
   isPlaying_ = false;
   wake_audio_queues();
 }
