@@ -141,9 +141,11 @@ test('automatic mode follows live viewport changes and clears a departing settin
   const dashboard = page.locator('.dashboard')
   const workspace = page.locator('.workspace')
   await expect(dashboard).toHaveAttribute('data-developer-mode', 'true')
+  await page.getByRole('button', { name: 'Settings', exact: true }).focus()
 
   await page.setViewportSize({ width: 320, height: 568 })
   await expect(dashboard).toHaveAttribute('data-developer-mode', 'false')
+  await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeFocused()
 
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
   await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible()
@@ -151,6 +153,7 @@ test('automatic mode follows live viewport changes and clears a departing settin
 
   await page.setViewportSize({ width: 1024, height: 768 })
   await expect(dashboard).toHaveAttribute('data-developer-mode', 'true')
+  await expect(page.getByRole('button', { name: 'Developer mode' })).toBeFocused()
   await expect(page.getByRole('dialog', { name: 'Settings' })).toHaveCount(0)
   await expect(workspace).not.toHaveAttribute('inert', '')
 })

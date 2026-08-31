@@ -51,19 +51,26 @@
     developerMode = resolveDeveloperMode(preference)
     if (developerMode) mobileSettingsOpen = false
   }
+  async function focusModeControl() {
+    await tick()
+    document.querySelector(developerMode ? '.developer-toggle' : '.settings-trigger')?.focus({ preventScroll: true })
+  }
+  async function handleViewportChange() {
+    const previousMode = developerMode
+    synchronizeDeveloperMode()
+    if (developerMode !== previousMode) await focusModeControl()
+  }
   async function setDeveloperMode(enabled){
     const preference = Boolean(enabled)
     synchronizeDeveloperMode(preference)
     mobileSettingsOpen = false
     settingsStore.update({ developerMode: preference })
     if (!developerMode) { activeSection='Device'; openTools=[] }
-    await tick()
-    document.querySelector(developerMode ? '.developer-toggle' : '.settings-trigger')?.focus({ preventScroll: true })
+    await focusModeControl()
   }
 
   onMount(()=>{
     const workbenchHandle = Object.freeze({ restart, stop: stopRuntime })
-    const handleViewportChange = () => synchronizeDeveloperMode()
     mobileViewport.addEventListener?.('change', handleViewportChange)
     globalThis.__picoTrackerWorkbench = workbenchHandle
     const unsubscribe=runtimeStore.subscribe((snapshot)=>{
