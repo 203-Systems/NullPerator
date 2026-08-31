@@ -49,6 +49,9 @@ public:
   [[nodiscard]] constexpr std::uint16_t HeldMask() const {
     return input_.Mask();
   }
+  constexpr void SetNavigationHeld(bool held) {
+    input_.SetNavigationHeld(held);
+  }
 
   constexpr void SetTextCase(std::uint8_t value) {
     textCase_ = static_cast<std::uint8_t>(value % 3U);

@@ -29,6 +29,9 @@ public:
   static constexpr std::uint8_t ChannelCount = 9U;
 
   [[nodiscard]] std::uint8_t SelectedChannel() const { return selected_; }
+  constexpr void SetNavigationHeld(bool held) {
+    input_.SetNavigationHeld(held);
+  }
   constexpr void Synchronize(std::uint8_t channel) {
     selected_ = channel < ChannelCount ? channel : 0U;
   }

@@ -43,6 +43,13 @@ public:
     return (mask_ & modifiers) != 0U;
   }
 
+  // Page navigation can transfer control while SHIFT remains physically held.
+  // Synchronize only that latch bit; the destination must not receive a
+  // synthetic input command for the press that opened it.
+  constexpr void SetNavigationHeld(bool held) {
+    (void)Update(TrackerAction::Shift, held);
+  }
+
   [[nodiscard]] constexpr std::uint16_t Mask() const { return mask_; }
 
 private:

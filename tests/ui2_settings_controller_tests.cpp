@@ -154,6 +154,97 @@ TEST_CASE("UI2 navigation direction release returns to its press owner") {
   CHECK(Ui2ReleasePressOwner(owner, Page::Song, Page::None) == Page::Project);
 }
 
+TEST_CASE("UI2 non-grid pages inherit navigation Shift without commands") {
+  using namespace ui2;
+  constexpr std::uint16_t shift = TrackerActionBit(TrackerAction::Shift);
+
+  Ui2ControllerInputState projectInput;
+  Ui2DeviceController device(Ui2DeviceController::AllFieldsMask,
+                             Ui2DeviceField::Theme);
+  Ui2ThemeController theme;
+  Ui2FontController font;
+  Ui2GrooveController groove;
+  Ui2MixerController mixer;
+  Ui2InstrumentController instrument;
+  Tap(font, TrackerAction::Down); // FONT action row
+
+  // The application mirrors the physical navigation modifier into every
+  // possible non-grid destination. These setters only alter held state: they
+  // never call Handle() or manufacture a page command.
+  projectInput.SetNavigationHeld(true);
+  device.SetNavigationHeld(true);
+  theme.SetNavigationHeld(true);
+  font.SetNavigationHeld(true);
+  groove.SetNavigationHeld(true);
+  mixer.SetNavigationHeld(true);
+  instrument.SetNavigationHeld(true);
+
+  CHECK(projectInput.Mask() == shift);
+  CHECK(device.HeldMask() == shift);
+  CHECK(theme.HeldMask() == shift);
+  CHECK(font.HeldMask() == shift);
+  CHECK(groove.HeldMask() == shift);
+  CHECK(instrument.HeldMask() == shift);
+
+  // Enter actions on a page reached while SHIFT is still down stay blocked.
+  CHECK_FALSE(Tap(device, TrackerAction::Edit).HasValue());
+  CHECK_FALSE(Tap(theme, TrackerAction::Edit).HasValue());
+  CHECK_FALSE(Tap(font, TrackerAction::Edit).HasValue());
+  CHECK_FALSE(Tap(instrument, TrackerAction::Edit).HasValue());
+
+  // Device/Theme/Font must not reinterpret SHIFT+PLAY as their plain global
+  // transport shortcut. Controllers that own SHIFT+PLAY keep that meaning.
+  device.Handle(TrackerAction::Play, true);
+  CHECK_FALSE(
+      Ui2IsPlainPlay(TrackerAction::Play, true, device.HeldMask()));
+  device.Handle(TrackerAction::Play, false);
+  theme.Handle(TrackerAction::Play, true);
+  CHECK_FALSE(Ui2IsPlainPlay(TrackerAction::Play, true, theme.HeldMask()));
+  theme.Handle(TrackerAction::Play, false);
+  font.Handle(TrackerAction::Play, true);
+  CHECK_FALSE(Ui2IsPlainPlay(TrackerAction::Play, true, font.HeldMask()));
+  font.Handle(TrackerAction::Play, false);
+  CHECK(Tap(instrument, TrackerAction::Play).type ==
+        Ui2InstrumentCommandType::None);
+  const Ui2GrooveCommand shiftedPlay = Tap(groove, TrackerAction::Play);
+  CHECK(shiftedPlay.type == Ui2GrooveCommandType::StartPlayback);
+  CHECK(shiftedPlay.songTransport);
+  mixer.Handle(TrackerAction::Option, true);
+  CHECK(Tap(mixer, TrackerAction::Play).type ==
+        Ui2MixerCommandType::UnmuteAll);
+  mixer.Handle(TrackerAction::Option, false);
+
+  projectInput.SetNavigationHeld(false);
+  device.SetNavigationHeld(false);
+  theme.SetNavigationHeld(false);
+  font.SetNavigationHeld(false);
+  groove.SetNavigationHeld(false);
+  mixer.SetNavigationHeld(false);
+  instrument.SetNavigationHeld(false);
+
+  CHECK(projectInput.Mask() == 0U);
+  CHECK(device.HeldMask() == 0U);
+  CHECK(theme.HeldMask() == 0U);
+  CHECK(font.HeldMask() == 0U);
+  CHECK(groove.HeldMask() == 0U);
+  CHECK(instrument.HeldMask() == 0U);
+  CHECK(Tap(device, TrackerAction::Edit).type ==
+        Ui2DeviceCommandType::BrowseTheme);
+  CHECK(Tap(theme, TrackerAction::Edit).type ==
+        Ui2ThemeCommandType::NewTheme);
+  CHECK(Tap(font, TrackerAction::Edit).type ==
+        Ui2FontCommandType::BrowseFont);
+  CHECK(Tap(instrument, TrackerAction::Edit).type ==
+        Ui2InstrumentCommandType::LoadInstrument);
+  const Ui2GrooveCommand plainPlay = Tap(groove, TrackerAction::Play);
+  CHECK(plainPlay.type == Ui2GrooveCommandType::StartPlayback);
+  CHECK_FALSE(plainPlay.songTransport);
+  mixer.Handle(TrackerAction::Option, true);
+  CHECK(Tap(mixer, TrackerAction::Play).type ==
+        Ui2MixerCommandType::ToggleSolo);
+  mixer.Handle(TrackerAction::Option, false);
+}
+
 TEST_CASE("UI2 brightness percentage preserves a visible hardware floor") {
   CHECK(ui2::Ui2BrightnessRawFromPercent(0U) == 0x0FU);
   CHECK(ui2::Ui2BrightnessRawFromPercent(100U) == 0xFFU);

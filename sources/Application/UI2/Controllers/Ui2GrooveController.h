@@ -100,6 +100,9 @@ public:
   [[nodiscard]] constexpr std::uint16_t HeldMask() const {
     return input_.Mask();
   }
+  constexpr void SetNavigationHeld(bool held) {
+    input_.SetNavigationHeld(held);
+  }
 
   constexpr Ui2GrooveCommand Handle(TrackerAction action, bool pressed) {
     if (!input_.Update(action, pressed) || !pressed)

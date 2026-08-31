@@ -103,6 +103,7 @@ private:
   void DispatchLogicalAction(TrackerAction action, bool pressed);
   void DispatchPageAction(UiApplicationPage owner, TrackerAction action,
                           bool pressed);
+  void SynchronizeNonGridNavigationHeld(bool held);
   [[nodiscard]] bool TryNavigate(TrackerAction action);
   void HandleProject(TrackerAction action, bool pressed);
   void HandleProjectLifecycle(TrackerAction action, bool pressed);

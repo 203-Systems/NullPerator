@@ -326,11 +326,25 @@ void Ui2TrackerApplication::DispatchTrackerAction(TrackerAction action,
   }
 
   if (action == TrackerAction::Shift) {
+    SynchronizeNonGridNavigationHeld(pressed);
     source_.SetNavigationHeld(pressed);
     tracker_.Hub().SetNavigationHeld(pressed);
   }
 
   DispatchLogicalAction(action, pressed);
+}
+
+void Ui2TrackerApplication::SynchronizeNonGridNavigationHeld(bool held) {
+  // Navigation may activate another page before SHIFT is released. Share the
+  // physical latch only: each controller still receives commands exclusively
+  // through DispatchPageAction and its original press owner.
+  projectInput_.SetNavigationHeld(held);
+  device_.SetNavigationHeld(held);
+  theme_.SetNavigationHeld(held);
+  font_.SetNavigationHeld(held);
+  groove_.SetNavigationHeld(held);
+  mixer_.SetNavigationHeld(held);
+  instrument_.SetNavigationHeld(held);
 }
 
 void Ui2TrackerApplication::DispatchLogicalAction(TrackerAction action,
@@ -2263,6 +2277,7 @@ void Ui2TrackerApplication::ResetControllersAfterProjectBoundary() {
   pressOwners_.fill(UiApplicationPage::None);
   modelPort_.ResetProjectBoundary();
   tracker_.SynchronizeFromPort();
+  SynchronizeNonGridNavigationHeld(false);
   tracker_.Hub().SetNavigationHeld(false);
   source_.SetNavigationHeld(false);
   runtime_.Invalidate();
