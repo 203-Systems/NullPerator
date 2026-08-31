@@ -567,6 +567,8 @@ TEST_CASE("UI2 Font keeps text case and exposes BROWSE DEFAULT on the font row")
   ui2::Ui2FontController controller;
   CHECK(ui2::Ui2FontController::TextCaseCount == 3U);
   CHECK(controller.SelectedField() == ui2::Ui2FontField::TextCase);
+  Tap(controller, TrackerAction::Up);
+  CHECK(controller.SelectedField() == ui2::Ui2FontField::TextCase);
   CHECK(controller.TextCase() == 1U);
   const auto previous = Tap(controller, TrackerAction::Left);
   CHECK(previous.type == ui2::Ui2FontCommandType::SetTextCase);
@@ -574,6 +576,8 @@ TEST_CASE("UI2 Font keeps text case and exposes BROWSE DEFAULT on the font row")
   const auto next = Tap(controller, TrackerAction::Right);
   CHECK(next.type == ui2::Ui2FontCommandType::SetTextCase);
   CHECK(next.value == 1U);
+  Tap(controller, TrackerAction::Down);
+  CHECK(controller.SelectedField() == ui2::Ui2FontField::Font);
   Tap(controller, TrackerAction::Down);
   CHECK(controller.SelectedField() == ui2::Ui2FontField::Font);
   CHECK(controller.SelectedAction() == ui2::Ui2FontAction::Browse);
@@ -589,6 +593,20 @@ TEST_CASE("UI2 Font keeps text case and exposes BROWSE DEFAULT on the font row")
   Tap(controller, TrackerAction::Up);
   CHECK(controller.SelectedField() == ui2::Ui2FontField::TextCase);
   CHECK(controller.Feedback() == ui2::Ui2FontFeedback::None);
+}
+
+TEST_CASE("UI2 Font held-direction repeats stop at row boundaries") {
+  ui2::Ui2FontController controller;
+
+  for (int repeat = 0; repeat < 8; ++repeat)
+    controller.Handle(TrackerAction::Down, true);
+  CHECK(controller.SelectedField() == ui2::Ui2FontField::Font);
+  controller.Handle(TrackerAction::Down, false);
+
+  for (int repeat = 0; repeat < 8; ++repeat)
+    controller.Handle(TrackerAction::Up, true);
+  CHECK(controller.SelectedField() == ui2::Ui2FontField::TextCase);
+  controller.Handle(TrackerAction::Up, false);
 }
 
 TEST_CASE("UI2 Font text case wraps at the shared domain boundary") {

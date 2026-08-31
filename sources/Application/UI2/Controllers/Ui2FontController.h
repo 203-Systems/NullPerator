@@ -73,9 +73,13 @@ public:
     }
     if (input_.AnyModifier())
       return {};
-    if (action == TrackerAction::Up || action == TrackerAction::Down) {
-      field_ = field_ == Ui2FontField::TextCase ? Ui2FontField::Font
-                                                : Ui2FontField::TextCase;
+    if (action == TrackerAction::Up && field_ == Ui2FontField::Font) {
+      field_ = Ui2FontField::TextCase;
+      return {};
+    }
+    if (action == TrackerAction::Down &&
+        field_ == Ui2FontField::TextCase) {
+      field_ = Ui2FontField::Font;
       return {};
     }
     if (field_ == Ui2FontField::TextCase &&
