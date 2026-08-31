@@ -203,8 +203,7 @@ void MidiInDevice::treatChannelEvent(MidiMessage &event) {
 
         if (audioChannel >= 0) {
           // Register the note with the tracker
-          if (noteTracker_.registerNote(note, midiChannel, audioChannel,
-                                        value)) {
+          if (noteTracker_.registerNote(note, midiChannel, audioChannel)) {
             Trace::Debug("Playing note %d on MIDI channel %d (instrument %d), "
                          "audio channel %d",
                          note, midiChannel, instrumentIndex, audioChannel);

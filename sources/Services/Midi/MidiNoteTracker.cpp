@@ -15,23 +15,18 @@ MidiNoteTracker::MidiNoteTracker() {
   clear();
 }
 
-MidiNoteTracker::~MidiNoteTracker() {
-  // Nothing to clean up
-}
-
 bool MidiNoteTracker::registerNote(uint8_t note, uint8_t midiChannel,
-                                   uint8_t instrumentChannel,
-                                   uint8_t velocity) {
+                                   uint8_t audioChannel) {
   // Validate parameters
   if (note > 127 || midiChannel > 15 ||
-      instrumentChannel >= playingNotes_.size()) {
+      audioChannel >= playingNotes_.size()) {
     Trace::Debug("Invalid parameters in registerNote: note=%d, midiChannel=%d, "
                  "audioChannel=%d",
-                 note, midiChannel, instrumentChannel);
+                 note, midiChannel, audioChannel);
     return false;
   }
 
-  NoteInfo &activeNote = playingNotes_[instrumentChannel];
+  NoteInfo &activeNote = playingNotes_[audioChannel];
   if (activeNote.active) {
     return false;
   }
@@ -39,59 +34,21 @@ bool MidiNoteTracker::registerNote(uint8_t note, uint8_t midiChannel,
   activeNote.active = true;
   activeNote.midiNote = note;
   activeNote.midiChannel = midiChannel;
-  activeNote.instrumentChannel = instrumentChannel;
-  activeNote.velocity = velocity;
 
   Trace::Debug("Note %d registered on MIDI channel %d, audio channel %d", note,
-               midiChannel, instrumentChannel);
+               midiChannel, audioChannel);
   return true;
 }
 
-bool MidiNoteTracker::isNoteActive(uint8_t note) const {
-  // Check if the note is active on any channel
-  for (const auto &activeNote : playingNotes_) {
-    if (activeNote.active && activeNote.midiNote == note) {
-      return true;
-    }
-  }
-  return false;
-}
-
-bool MidiNoteTracker::isNoteActiveOnChannel(uint8_t note,
-                                            uint8_t midiChannel) const {
-  // Check if the specific note is active on the specific MIDI channel
-  for (const auto &activeNote : playingNotes_) {
-    if (activeNote.active && activeNote.midiNote == note &&
-        activeNote.midiChannel == midiChannel) {
-      return true;
-    }
-  }
-  return false;
-}
-
-int MidiNoteTracker::getAudioChannelForNote(uint8_t note,
-                                            uint8_t midiChannel) const {
-  // Find the audio channel assigned to this note on this MIDI channel
-  for (size_t i = 0; i < playingNotes_.size(); i++) {
-    const auto &activeNote = playingNotes_[i];
-    if (activeNote.active && activeNote.midiNote == note &&
-        activeNote.midiChannel == midiChannel) {
-      // The audio channel is the index in the array
-      return static_cast<int>(i);
-    }
-  }
-  return -1; // Note not found
-}
-
 int MidiNoteTracker::getNextAvailableChannel() const {
-  // Find an inactive channel
+  // Find an inactive audio voice slot.
   for (size_t i = 0; i < playingNotes_.size(); i++) {
     if (!playingNotes_[i].active) {
       return static_cast<int>(i);
     }
   }
 
-  // If all channels are active, return -1 (no available channels)
+  // All audio voice slots are active.
   return -1;
 }
 
