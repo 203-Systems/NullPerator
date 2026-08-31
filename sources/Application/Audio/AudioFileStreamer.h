@@ -16,6 +16,8 @@
 #include "Services/Audio/AudioModule.h"
 #include "System/FileSystem/FileSystem.h"
 
+#include <atomic>
+
 #define SINGLE_CYCLE_MAX_SAMPLE_SIZE 600
 
 enum AudioFileStreamerMode { AFSM_STOPPED, AFSM_PLAYING, AFSM_LOOPING };
@@ -31,7 +33,16 @@ public:
   bool IsPlaying();
 
 protected:
-  AudioFileStreamerMode mode_;
+  [[nodiscard]] AudioFileStreamerMode Mode() const {
+    return mode_.load(std::memory_order_relaxed);
+  }
+  void SetMode(AudioFileStreamerMode mode) {
+    mode_.store(mode, std::memory_order_relaxed);
+  }
+
+  // EOF is published by the audio task and sampled by UI2. Stop requests move
+  // in the opposite direction; neither scalar carries dependent payload.
+  std::atomic<AudioFileStreamerMode> mode_{AFSM_STOPPED};
   etl::string<PFILENAME_SIZE - 1> name_;
   WavFile wav_;
   float position_;
@@ -49,7 +60,7 @@ protected:
 
   // For matching oscillator mode in SampleInstrument
   float referencePitch_; // Reference pitch in Hz (C3 = 130.81 Hz)
-  volatile bool stopRequested_;
+  std::atomic<bool> stopRequested_{false};
 
 public:
   void SetProject(Project *project) { project_ = project; }

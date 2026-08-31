@@ -18,18 +18,23 @@
 #include <string.h>
 #include <vector>
 
+static_assert(std::atomic<AudioFileStreamerMode>::is_always_lock_free,
+              "streamer mode must stay lock-free on the audio path");
+static_assert(std::atomic<bool>::is_always_lock_free,
+              "streamer stop requests must stay lock-free on the audio path");
+
 // Initialize the static buffer for single cycle waveforms
 short AudioFileStreamer::singleCycleBuffer_[SINGLE_CYCLE_MAX_SAMPLE_SIZE] = {0};
 
 AudioFileStreamer::AudioFileStreamer() {
-  mode_ = AFSM_STOPPED;
+  SetMode(AFSM_STOPPED);
   position_ = 0;
   fileSampleRate_ = 44100;   // Default
   systemSampleRate_ = 44100; // Default
   fpSpeed_ = FP_ONE;         // Default 1.0 in fixed point
   project_ = NULL;
   singleCycleData_ = NULL;
-  stopRequested_ = false;
+  stopRequested_.store(false, std::memory_order_relaxed);
   referencePitch_ = 261.63f; // C4 = 261.63 Hz (using C4 to compensate for how
                              // its actually what we call C3 in pT)
 };
@@ -40,20 +45,20 @@ bool AudioFileStreamer::Start(const char *name, int startSample, bool looping) {
   Trace::Debug("Starting to stream:%s from sample %d", name, startSample);
   if (!name) {
     Trace::Error("AudioFileStreamer: null filename");
-    mode_ = AFSM_STOPPED;
+    SetMode(AFSM_STOPPED);
     return false;
   }
 
   name_ = name;
   position_ = (startSample > 0) ? float(startSample) : 0.0f;
-  stopRequested_ = false;
+  stopRequested_.store(false, std::memory_order_relaxed);
 
   wav_.Close();
   Trace::Log("", "wave open:%s", name_.c_str());
   auto res = wav_.Open(name_.c_str());
   if (!res) {
     Trace::Error("Failed to open streaming of file:%s", name_.c_str());
-    mode_ = AFSM_STOPPED;
+    SetMode(AFSM_STOPPED);
     return false;
   }
 
@@ -171,7 +176,7 @@ bool AudioFileStreamer::Start(const char *name, int startSample, bool looping) {
 
   // Once we were able to open the file, set the mode. This is to avoid a race
   // condition of render potentially running before start finishes
-  mode_ = looping ? AFSM_LOOPING : AFSM_PLAYING;
+  SetMode(looping ? AFSM_LOOPING : AFSM_PLAYING);
 
   return true;
 };
@@ -182,30 +187,30 @@ void AudioFileStreamer::Stop() {
   // file is closed in Stop() while rendering is still reading from the file to
   // stream the audio data so instead just set flag to request the stop happen
   // in Render()
-  stopRequested_ = true;
-  mode_ = AFSM_STOPPED;
+  stopRequested_.store(true, std::memory_order_release);
+  SetMode(AFSM_STOPPED);
   Trace::Debug("Streaming stopped");
 };
 
 bool AudioFileStreamer::IsPlaying() {
-  return (mode_ == AFSM_PLAYING || mode_ == AFSM_LOOPING);
+  const AudioFileStreamerMode mode = Mode();
+  return mode == AFSM_PLAYING || mode == AFSM_LOOPING;
 }
 
 bool AudioFileStreamer::Render(fixed *buffer, int samplecount) {
-  if (stopRequested_) {
+  if (stopRequested_.exchange(false, std::memory_order_acq_rel)) {
     wav_.Close();
-    stopRequested_ = false;
-    mode_ = AFSM_STOPPED;
+    SetMode(AFSM_STOPPED);
     return false;
   }
   // See if we're playing
-  if (mode_ == AFSM_STOPPED) {
+  if (Mode() == AFSM_STOPPED) {
     return false;
   }
   // look if we have the file loaded
   if (!wav_.IsOpen()) {
     Trace::Error("Failed to open streaming of file:%s", name_.c_str());
-    mode_ = AFSM_STOPPED;
+    SetMode(AFSM_STOPPED);
     return false;
   }
   // We are playing a valid file
@@ -231,11 +236,11 @@ bool AudioFileStreamer::Render(fixed *buffer, int samplecount) {
   fixed *dst = buffer;
 
   // Special handling for single cycle waveforms in looping mode
-  if (mode_ == AFSM_LOOPING) {
+  if (Mode() == AFSM_LOOPING) {
     // Use our static buffer that we've already loaded with the entire waveform
     if (!singleCycleData_) {
       Trace::Error("AudioFileStreamer: Single cycle buffer is null");
-      mode_ = AFSM_STOPPED;
+      SetMode(AFSM_STOPPED);
       return false;
     }
 
@@ -314,7 +319,7 @@ bool AudioFileStreamer::Render(fixed *buffer, int samplecount) {
     // We'll reach the end during this render call
     int remainingSamples = size - position_;
     if (remainingSamples <= 0) {
-      mode_ = AFSM_STOPPED;
+      SetMode(AFSM_STOPPED);
       return false;
     }
   }
@@ -323,7 +328,7 @@ bool AudioFileStreamer::Render(fixed *buffer, int samplecount) {
   if (!wav_.GetBuffer((int)position_, bufferSize)) {
     Trace::Error("AudioFileStreamer: Failed to get buffer at position %d",
                  (int)position_);
-    mode_ = AFSM_STOPPED;
+    SetMode(AFSM_STOPPED);
     return false;
   }
 
@@ -331,7 +336,7 @@ bool AudioFileStreamer::Render(fixed *buffer, int samplecount) {
   short *src = (short *)wav_.GetSampleBuffer(-1);
   if (!src) {
     Trace::Error("AudioFileStreamer: GetSampleBuffer returned null");
-    mode_ = AFSM_STOPPED;
+    SetMode(AFSM_STOPPED);
     return false;
   }
 
@@ -346,7 +351,7 @@ bool AudioFileStreamer::Render(fixed *buffer, int samplecount) {
 
       // Check if we've reached the end of the file
       if (position_ >= size - 1) {
-        mode_ = AFSM_STOPPED;
+        SetMode(AFSM_STOPPED);
         return false;
       }
 
@@ -354,7 +359,7 @@ bool AudioFileStreamer::Render(fixed *buffer, int samplecount) {
       if (!wav_.GetBuffer((int)position_, bufferSize)) {
         Trace::Error("AudioFileStreamer: Failed to get buffer at position %d",
                      (int)position_);
-        mode_ = AFSM_STOPPED;
+        SetMode(AFSM_STOPPED);
         return false;
       }
 
@@ -362,7 +367,7 @@ bool AudioFileStreamer::Render(fixed *buffer, int samplecount) {
       src = (short *)wav_.GetSampleBuffer(-1);
       if (!src) {
         Trace::Error("AudioFileStreamer: GetSampleBuffer returned null");
-        mode_ = AFSM_STOPPED;
+        SetMode(AFSM_STOPPED);
         return false;
       }
 
@@ -405,7 +410,7 @@ bool AudioFileStreamer::Render(fixed *buffer, int samplecount) {
 
   // If we've reached the end of the file, stop playback
   if (position_ >= size) {
-    mode_ = AFSM_STOPPED;
+    SetMode(AFSM_STOPPED);
   }
 
   return true;
