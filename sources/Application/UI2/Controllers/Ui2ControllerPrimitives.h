@@ -14,7 +14,7 @@
 
 namespace ui2 {
 
-// Small input latch shared by non-grid UI2 controllers. Repeated pressed
+// Small input latch shared by UI2 controllers. Repeated pressed
 // events intentionally remain observable so a platform key-repeat source can
 // drive list and value movement without timers or callbacks in the controller.
 class Ui2ControllerInputState {
@@ -48,6 +48,15 @@ public:
   // synthetic input command for the press that opened it.
   constexpr void SetNavigationHeld(bool held) {
     (void)Update(TrackerAction::Shift, held);
+  }
+
+  constexpr void SynchronizeModifiers(std::uint16_t mask) {
+    constexpr std::uint16_t modifiers =
+        TrackerActionBit(TrackerAction::Shift) |
+        TrackerActionBit(TrackerAction::Option) |
+        TrackerActionBit(TrackerAction::Edit);
+    mask_ = static_cast<std::uint16_t>((mask_ & ~modifiers) |
+                                      (mask & modifiers));
   }
 
   [[nodiscard]] constexpr std::uint16_t Mask() const { return mask_; }

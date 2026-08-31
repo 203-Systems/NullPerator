@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include "Application/Input/TrackerInput.h"
+#include "Application/UI2/Controllers/Ui2ControllerPrimitives.h"
 
 #include <array>
 #include <cstddef>
@@ -178,47 +178,6 @@ template <std::size_t Capacity = 2> struct Ui2TrackerCommandBatch {
   }
 };
 
-class Ui2HeldActionState {
-public:
-  constexpr bool Update(TrackerAction action, bool pressed) {
-    if (action >= TrackerAction::Count)
-      return false;
-    const std::uint16_t bit = TrackerActionBit(action);
-    if (pressed)
-      mask_ = static_cast<std::uint16_t>(mask_ | bit);
-    else
-      mask_ = static_cast<std::uint16_t>(mask_ & ~bit);
-    return true;
-  }
-
-  [[nodiscard]] constexpr bool Held(TrackerAction action) const {
-    return action < TrackerAction::Count &&
-           (mask_ & TrackerActionBit(action)) != 0U;
-  }
-
-  [[nodiscard]] constexpr bool AnyModifier() const {
-    constexpr std::uint16_t modifiers =
-        TrackerActionBit(TrackerAction::Shift) |
-        TrackerActionBit(TrackerAction::Option) |
-        TrackerActionBit(TrackerAction::Edit);
-    return (mask_ & modifiers) != 0U;
-  }
-
-  [[nodiscard]] constexpr std::uint16_t Mask() const { return mask_; }
-
-  constexpr void SynchronizeModifiers(std::uint16_t mask) {
-    constexpr std::uint16_t modifiers =
-        TrackerActionBit(TrackerAction::Shift) |
-        TrackerActionBit(TrackerAction::Option) |
-        TrackerActionBit(TrackerAction::Edit);
-    mask_ = static_cast<std::uint16_t>((mask_ & ~modifiers) |
-                                      (mask & modifiers));
-  }
-
-private:
-  std::uint16_t mask_ = 0;
-};
-
 template <std::uint8_t ColumnCount> class Ui2FixedGridCursor {
 public:
   static_assert(ColumnCount > 0U);
@@ -315,7 +274,6 @@ Ui2MakeTrackerCommand(Ui2TrackerCommandType type, Ui2TrackerPage page,
 static_assert(std::is_trivially_copyable_v<Ui2GridSelectionState>);
 static_assert(std::is_trivially_copyable_v<Ui2TrackerCommand>);
 static_assert(std::is_trivially_copyable_v<Ui2TrackerCommandBatch<>>);
-static_assert(std::is_trivially_copyable_v<Ui2HeldActionState>);
 static_assert(sizeof(Ui2TrackerCommandBatch<>) <= 40U);
 
 } // namespace ui2

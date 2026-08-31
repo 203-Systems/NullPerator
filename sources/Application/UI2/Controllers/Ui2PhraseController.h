@@ -33,7 +33,7 @@ public:
     return input_.Mask();
   }
   constexpr void SetNavigationHeld(bool held) {
-    input_.Update(TrackerAction::Shift, held);
+    input_.SetNavigationHeld(held);
   }
   constexpr void SynchronizeHeldModifiers(std::uint16_t mask) {
     input_.SynchronizeModifiers(mask);
@@ -336,7 +336,7 @@ private:
   }
 
   Ui2FixedGridCursor<6> grid_{};
-  Ui2HeldActionState input_{};
+  Ui2ControllerInputState input_{};
   Ui2GridSelectionState selection_{};
   std::uint8_t number_ = 0;
   std::uint8_t selectedTrack_ = 0;
