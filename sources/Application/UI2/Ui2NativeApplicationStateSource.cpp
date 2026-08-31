@@ -443,16 +443,16 @@ Ui2NativeApplicationStateSource::CaptureTable(UiTableFrameState &state) {
     hexshort2char(table.param3_[row], state.rows[row].parameter3.data());
   }
   FormatElapsed(state.elapsed);
-  CaptureUiTrackNotes(Player::GetInstance(), PlayerRunning(),
-                      state.trackNotes);
+  Player *player = Player::GetInstance();
+  CaptureUiTrackNotes(player, PlayerRunning(), state.trackNotes);
   const int selectedTrack = controller.SelectedTrack();
   if (selectedTrack >= 0 && selectedTrack < SONG_CHANNEL_COUNT)
-    state.selectedTrackMuted =
-        Player::GetInstance()->IsChannelMuted(selectedTrack);
+    state.selectedTrackMuted = player->IsChannelMuted(selectedTrack);
   const PlayerTransportSnapshot transport =
-      Player::GetInstance()->CaptureTransportSnapshot();
+      player->CaptureTransportSnapshot();
   if (transport.running && transport.mode != PM_AUDITION &&
-      selectedTrack >= 0 && selectedTrack < SONG_CHANNEL_COUNT) {
+      selectedTrack >= 0 && selectedTrack < SONG_CHANNEL_COUNT &&
+      player->IsChannelPlaying(selectedTrack)) {
     Table &visibleTable =
         TableHolder::GetInstance()->GetTable(controller.Number());
     const auto capturePlayback = [&](TablePlayback &playback,
