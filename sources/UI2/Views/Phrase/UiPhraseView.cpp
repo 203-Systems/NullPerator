@@ -356,17 +356,21 @@ UiBuildStatus UiPhraseView::Build(const UiPhraseViewData &data, UiPalette &,
 
   if (!data.numberFocus) {
     const RectI16 cursor = ResolvedCursorRect(data);
-    bool cursorOverPlayback = false;
-    for (const std::int8_t playbackRow : data.playbackRows) {
+    UiSelectionStyle cursorStyle = UiSelectionStyle::Cursor;
+    for (std::uint8_t track = 0U; track < data.playbackRows.size(); ++track) {
+      const std::int8_t playbackRow = data.playbackRows[track];
       if (playbackRow >= 0 && playbackRow < 16 &&
           !Intersect(cursor,
                      PlaybackTickRect(static_cast<std::uint8_t>(playbackRow)))
                .Empty()) {
-        cursorOverPlayback = true;
-        break;
+        cursorStyle = data.mutedTracks[track]
+                          ? UiSelectionStyle::MutedPlayback
+                          : UiSelectionStyle::Playback;
+        if (cursorStyle == UiSelectionStyle::Playback)
+          break;
       }
     }
-    builder.Selection(cursor, cursorOverPlayback);
+    builder.Selection(cursor, cursorStyle);
     if (data.cursorInkVisible && data.editRow < 16U &&
         data.editColumn < kColumnX.size()) {
       const std::string_view value =

@@ -878,6 +878,7 @@ TEST_CASE("UI2 shared playback ticks prefer any audible track") {
     data.playbackRows[mutedTrack] = 6;
     data.playbackRows[audibleTrack] = 6;
     data.mutedTracks[mutedTrack] = true;
+    data.editRow = 6;
     ui2::UiFrameScene scene;
     REQUIRE(ui2::UiChainView::Build(data, palette, scene) ==
             ui2::UiBuildStatus::Built);
@@ -886,6 +887,9 @@ TEST_CASE("UI2 shared playback ticks prefer any audible track") {
     ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
     const ui2::RectI16 tick = ui2::UiChainView::PlaybackTickRect(6);
     CHECK(surface.Pixel(tick.x, tick.y) ==
+          palette.Index(ui2::UiColorToken::PlaybackActive));
+    const ui2::RectI16 cursor = ui2::UiChainView::CursorTargetRect(data);
+    CHECK(surface.Pixel(cursor.x + 1, cursor.y + 1) ==
           palette.Index(ui2::UiColorToken::PlaybackActive));
   };
   checkChain(1, 6);
@@ -898,6 +902,7 @@ TEST_CASE("UI2 shared playback ticks prefer any audible track") {
     data.playbackRows[mutedTrack] = 9;
     data.playbackRows[audibleTrack] = 9;
     data.mutedTracks[mutedTrack] = true;
+    data.editRow = 9;
     ui2::UiFrameScene scene;
     REQUIRE(ui2::UiPhraseView::Build(data, palette, scene) ==
             ui2::UiBuildStatus::Built);
@@ -907,9 +912,103 @@ TEST_CASE("UI2 shared playback ticks prefer any audible track") {
     const ui2::RectI16 tick = ui2::UiPhraseView::PlaybackTickRect(9);
     CHECK(surface.Pixel(tick.x, tick.y) ==
           palette.Index(ui2::UiColorToken::PlaybackActive));
+    const ui2::RectI16 cursor = ui2::UiPhraseView::CursorTargetRect(data);
+    CHECK(surface.Pixel(cursor.x + 1, cursor.y + 1) ==
+          palette.Index(ui2::UiColorToken::PlaybackActive));
   };
   checkPhrase(1, 6);
   checkPhrase(6, 1);
+}
+
+TEST_CASE("UI2 muted playback stays dim under the edit cursor") {
+  ui2::UiPalette palette;
+  const auto muted = palette.Index(ui2::UiColorToken::DerivedPlaybackMuted);
+
+  {
+    ui2::UiSongViewData data = ui2::test::ApprovedSongFixture();
+    data.playbackRows.fill(-1);
+    data.editTrack = 2;
+    data.editRow = 5;
+    data.playbackRows[data.editTrack] = data.editRow;
+    data.mutedTracks[data.editTrack] = true;
+    ui2::UiFrameScene scene;
+    REQUIRE(ui2::UiSongView::Build(data, palette, scene) ==
+            ui2::UiBuildStatus::Built);
+    ui2::UiSurfaceStorage storage;
+    ui2::UiIndexedSurface surface(storage);
+    ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+    const ui2::RectI16 cursor =
+        ui2::UiSongView::CursorTargetRect(data.editTrack, data.editRow);
+    CHECK(surface.Pixel(cursor.x + 1, cursor.y + 1) == muted);
+  }
+
+  {
+    ui2::UiChainViewData data = ui2::test::ApprovedChainFixture();
+    data.playbackRows.fill(-1);
+    data.editColumn = 0;
+    data.editRow = 5;
+    data.playbackRows[2] = data.editRow;
+    data.mutedTracks[2] = true;
+    ui2::UiFrameScene scene;
+    REQUIRE(ui2::UiChainView::Build(data, palette, scene) ==
+            ui2::UiBuildStatus::Built);
+    ui2::UiSurfaceStorage storage;
+    ui2::UiIndexedSurface surface(storage);
+    ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+    const ui2::RectI16 cursor = ui2::UiChainView::CursorTargetRect(data);
+    CHECK(surface.Pixel(cursor.x + 1, cursor.y + 1) == muted);
+  }
+
+  {
+    ui2::UiPhraseViewData data = ui2::test::ApprovedPhraseFixture("note");
+    data.playbackRows.fill(-1);
+    data.editColumn = 0;
+    data.editRow = 5;
+    data.playbackRows[2] = data.editRow;
+    data.mutedTracks[2] = true;
+    ui2::UiFrameScene scene;
+    REQUIRE(ui2::UiPhraseView::Build(data, palette, scene) ==
+            ui2::UiBuildStatus::Built);
+    ui2::UiSurfaceStorage storage;
+    ui2::UiIndexedSurface surface(storage);
+    ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+    const ui2::RectI16 cursor = ui2::UiPhraseView::CursorTargetRect(data);
+    CHECK(surface.Pixel(cursor.x + 1, cursor.y + 1) == muted);
+  }
+
+  {
+    ui2::UiTableViewData data = ui2::test::ApprovedTableFixture("phrase");
+    data.playbackRows.fill(-1);
+    data.automationPlaybackRows.fill(-1);
+    data.editColumn = 0;
+    data.editRow = 5;
+    data.playbackRows[0] = data.editRow;
+    data.selectedTrackMuted = true;
+    ui2::UiFrameScene scene;
+    REQUIRE(ui2::UiTableView::Build(data, palette, scene) ==
+            ui2::UiBuildStatus::Built);
+    ui2::UiSurfaceStorage storage;
+    ui2::UiIndexedSurface surface(storage);
+    ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+    const ui2::RectI16 cursor = ui2::UiTableView::CursorTargetRect(data);
+    CHECK(surface.Pixel(cursor.x + 1, cursor.y + 1) == muted);
+  }
+
+  {
+    ui2::UiGrooveViewData data = ui2::test::ApprovedGrooveFixture();
+    data.editRow = 5;
+    data.playbackRow = data.editRow;
+    data.selectedTrackMuted = true;
+    ui2::UiFrameScene scene;
+    REQUIRE(ui2::UiGrooveView::Build(data, palette, scene) ==
+            ui2::UiBuildStatus::Built);
+    ui2::UiSurfaceStorage storage;
+    ui2::UiIndexedSurface surface(storage);
+    ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+    const ui2::RectI16 cursor =
+        ui2::UiGrooveView::CursorTargetRect(data.editRow);
+    CHECK(surface.Pixel(cursor.x + 1, cursor.y + 1) == muted);
+  }
 }
 
 TEST_CASE("UI2 Groove renders and delta-updates its playback tick") {

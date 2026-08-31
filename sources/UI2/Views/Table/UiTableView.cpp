@@ -352,7 +352,12 @@ UiBuildStatus UiTableView::Build(const UiTableViewData &data, UiPalette &,
       if (cursorOverPlayback)
         break;
     }
-    builder.Selection(cursor, cursorOverPlayback);
+    const UiSelectionStyle cursorStyle =
+        !cursorOverPlayback
+            ? UiSelectionStyle::Cursor
+            : data.selectedTrackMuted ? UiSelectionStyle::MutedPlayback
+                                      : UiSelectionStyle::Playback;
+    builder.Selection(cursor, cursorStyle);
     if (data.cursorInkVisible && data.editRow < 16U &&
         data.editColumn < kColumnX.size()) {
       const std::string_view value =

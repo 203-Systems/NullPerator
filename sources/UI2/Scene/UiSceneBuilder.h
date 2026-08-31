@@ -14,6 +14,12 @@
 
 namespace ui2 {
 
+enum class UiSelectionStyle : std::uint8_t {
+  Cursor,
+  Playback,
+  MutedPlayback,
+};
+
 template <std::size_t CommandCapacity, std::size_t TextCapacity>
 class UiSceneBuilder {
 public:
@@ -30,11 +36,17 @@ public:
     Accept(commands_.FillRoundedRect(bounds, Index(color), Index(corner)));
   }
 
-  void Selection(RectI16 bounds, bool playback = false) {
-    const UiColorToken fill = playback ? UiColorToken::PlaybackActive
-                                       : UiColorToken::CursorPrimary;
-    const UiCoverage coverage =
-        playback ? UiCoverage::Playback : UiCoverage::Cursor;
+  void Selection(RectI16 bounds,
+                 UiSelectionStyle style = UiSelectionStyle::Cursor) {
+    UiColorToken fill = UiColorToken::CursorPrimary;
+    UiCoverage coverage = UiCoverage::Cursor;
+    if (style == UiSelectionStyle::Playback) {
+      fill = UiColorToken::PlaybackActive;
+      coverage = UiCoverage::Playback;
+    } else if (style == UiSelectionStyle::MutedPlayback) {
+      fill = UiColorToken::DerivedPlaybackMuted;
+      coverage = UiCoverage::Playback;
+    }
     Accept(commands_.FillSelection(bounds, Index(fill), coverage));
   }
 

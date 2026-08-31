@@ -165,7 +165,12 @@ UiBuildStatus UiGrooveView::Build(const UiGrooveViewData &data, UiPalette &,
       !Intersect(cursor,
                  PlaybackTickRect(static_cast<std::uint8_t>(data.playbackRow)))
            .Empty();
-  builder.Selection(cursor, cursorOverPlayback);
+  const UiSelectionStyle cursorStyle =
+      !cursorOverPlayback
+          ? UiSelectionStyle::Cursor
+          : data.selectedTrackMuted ? UiSelectionStyle::MutedPlayback
+                                    : UiSelectionStyle::Playback;
+  builder.Selection(cursor, cursorStyle);
   if (data.cursorInkVisible && data.editRow < 16U) {
     const auto value = HexByte(data.steps[data.editRow]);
     const char *display =

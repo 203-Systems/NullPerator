@@ -270,17 +270,21 @@ UiBuildStatus UiChainView::Build(const UiChainViewData &data,
     }
   }
   if (!data.numberFocus) {
-    bool cursorOverPlayback = false;
-    for (const std::int8_t playbackRow : data.playbackRows) {
+    UiSelectionStyle cursorStyle = UiSelectionStyle::Cursor;
+    for (std::uint8_t track = 0U; track < data.playbackRows.size(); ++track) {
+      const std::int8_t playbackRow = data.playbackRows[track];
       if (playbackRow >= 0 && playbackRow < 16 &&
           !Intersect(cursor,
                      PlaybackTickRect(static_cast<std::uint8_t>(playbackRow)))
                .Empty()) {
-        cursorOverPlayback = true;
-        break;
+        cursorStyle = data.mutedTracks[track]
+                          ? UiSelectionStyle::MutedPlayback
+                          : UiSelectionStyle::Playback;
+        if (cursorStyle == UiSelectionStyle::Playback)
+          break;
       }
     }
-    builder.Selection(cursor, cursorOverPlayback);
+    builder.Selection(cursor, cursorStyle);
     if (data.cursorInkVisible && data.editRow < 16U &&
         data.editColumn < 2U) {
       const std::uint8_t value = data.editColumn == 0U

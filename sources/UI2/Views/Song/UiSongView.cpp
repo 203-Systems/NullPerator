@@ -350,7 +350,7 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data, UiPalette &palette,
     }
   }
 
-  bool cursorOverPlayback = false;
+  UiSelectionStyle cursorStyle = UiSelectionStyle::Cursor;
   if (!cursorRect.Empty() && data.playing) {
     for (std::uint8_t track = 0; track < 8; ++track) {
       const std::int8_t playbackRow = data.playbackRows[track];
@@ -359,12 +359,15 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data, UiPalette &palette,
                cursorRect,
                PlaybackTickRect(track, static_cast<std::uint8_t>(playbackRow)))
                .Empty()) {
-        cursorOverPlayback = true;
-        break;
+        cursorStyle = data.mutedTracks[track]
+                          ? UiSelectionStyle::MutedPlayback
+                          : UiSelectionStyle::Playback;
+        if (cursorStyle == UiSelectionStyle::Playback)
+          break;
       }
     }
   }
-  builder.Selection(cursorRect, cursorOverPlayback);
+  builder.Selection(cursorRect, cursorStyle);
   if (data.cursorInkVisible && data.editTrack < 8U && data.editRow < 16U) {
     const auto selectedValue = HexByte(data.rows[data.editRow][data.editTrack]);
     const char *displayValue = data.rows[data.editRow][data.editTrack] == 0xFFU
