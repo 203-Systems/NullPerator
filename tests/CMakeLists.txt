@@ -281,6 +281,24 @@ target_include_directories(player_mixer_telemetry_tests PRIVATE
 target_compile_definitions(player_mixer_telemetry_tests PRIVATE HOST_TEST)
 add_test(NAME player_mixer_telemetry COMMAND player_mixer_telemetry_tests)
 
+# Cross-core Table telemetry is fixed-size. Keep its no-tearing publication
+# contract in a focused threaded binary suitable for ASan/UBSan and TSan
+# without booting the full audio graph.
+add_executable(audio_telemetry_snapshot_tests
+  test_main.cpp
+  audio_telemetry_snapshot_tests.cpp
+)
+
+target_include_directories(audio_telemetry_snapshot_tests PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/stubs
+  ${CMAKE_CURRENT_LIST_DIR}/../sources
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals/SRC/include
+)
+
+target_compile_definitions(audio_telemetry_snapshot_tests PRIVATE HOST_TEST)
+add_test(NAME audio_telemetry_snapshot COMMAND audio_telemetry_snapshot_tests)
+
 add_executable(ui2_status_bridge_tests
   test_main.cpp
   nanoprintf_test.cpp

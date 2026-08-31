@@ -11,6 +11,9 @@
 #include "Application/Instruments/CommandList.h"
 #include "Application/Instruments/I_Instrument.h"
 
+static_assert(std::atomic<std::uint32_t>::is_always_lock_free,
+              "table telemetry requires lock-free 32-bit atomics");
+
 TablePlayback TablePlayback::playback_[SONG_CHANNEL_COUNT];
 TablePlayback TablePlayback::automationPlayback_[SONG_CHANNEL_COUNT];
 
@@ -70,6 +73,7 @@ void TablePlayback::Init(int channel) {
   groove_.ticks_ = 0;
 
   automated_ = false;
+  PublishPlaybackSnapshot();
 }
 
 void TablePlayback::Start(I_Instrument *i, Table &table, bool automated) {
@@ -99,6 +103,7 @@ void TablePlayback::Start(I_Instrument *i, Table &table, bool automated) {
     automated_ = automated;
   }
   table_ = &table;
+  PublishPlaybackSnapshot();
 }
 
 void TablePlayback::Stop() {
@@ -113,11 +118,26 @@ void TablePlayback::Stop() {
   hopped_[0] = false;
   hopped_[1] = false;
   hopped_[2] = false;
+  PublishPlaybackSnapshot();
 };
 
-int TablePlayback::GetPlaybackPosition(int i) { return previous_[i]; }
+TablePlaybackSnapshot TablePlayback::CapturePlaybackSnapshot() const {
+  return playbackTelemetry_.Capture();
+}
 
-Table *TablePlayback::GetTable() { return table_; };
+void TablePlayback::PublishPlaybackSnapshot() {
+  TablePlaybackSnapshot snapshot{};
+  snapshot.table = table_;
+  for (int group = 0; group < TABLE_COLUMNS; ++group)
+    snapshot.position[group] = static_cast<std::int8_t>(previous_[group]);
+  playbackTelemetry_.Publish(snapshot);
+}
+
+int TablePlayback::GetPlaybackPosition(int i) {
+  return CapturePlaybackSnapshot().position[i];
+}
+
+Table *TablePlayback::GetTable() { return CapturePlaybackSnapshot().table; };
 
 bool TablePlayback::GetAutomation() { return automated_; };
 
@@ -221,6 +241,7 @@ void TablePlayback::ProcessStep(TablePlayerChange &tpc) {
         previous_[0] = position_[0];
         previous_[1] = position_[1];
         previous_[2] = position_[2];
+        PublishPlaybackSnapshot();
       }
 
       // if groove's end reached, update position

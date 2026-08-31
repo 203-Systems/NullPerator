@@ -13,8 +13,16 @@
 #include "Application/Model/Groove.h"
 #include "Application/Model/Song.h"
 #include "Application/Model/Table.h"
+#include "Application/Player/AtomicTelemetrySnapshot.h"
+
+#include <cstdint>
 
 class I_Instrument;
+
+struct TablePlaybackSnapshot final {
+  Table *table = nullptr;
+  std::int8_t position[TABLE_COLUMNS] = {-1, -1, -1};
+};
 
 class TablePlayerChange {
 public:
@@ -32,6 +40,7 @@ public:
   void Stop();
   int GetPlaybackPosition(int channel);
   Table *GetTable();
+  [[nodiscard]] TablePlaybackSnapshot CapturePlaybackSnapshot() const;
   bool GetAutomation();
 
   static void Reset();
@@ -39,6 +48,8 @@ public:
   static TablePlayback &GetAutomationPlayback(int channel);
 
 private:
+  void PublishPlaybackSnapshot();
+
   Table *table_;
   int position_[TABLE_COLUMNS];
   int previous_[TABLE_COLUMNS];
@@ -48,6 +59,7 @@ private:
   bool automated_;
   uchar hopCount_[TABLE_STEPS][TABLE_COLUMNS];
   ChannelGroove groove_;
+  AtomicTelemetrySnapshot<TablePlaybackSnapshot> playbackTelemetry_;
 
   static TablePlayback playback_[SONG_CHANNEL_COUNT];
   static TablePlayback automationPlayback_[SONG_CHANNEL_COUNT];

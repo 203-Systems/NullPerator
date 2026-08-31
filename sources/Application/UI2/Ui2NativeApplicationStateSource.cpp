@@ -458,10 +458,12 @@ Ui2NativeApplicationStateSource::CaptureTable(UiTableFrameState &state) {
         TableHolder::GetInstance()->GetTable(controller.Number());
     const auto capturePlayback = [&](TablePlayback &playback,
                                      auto &playbackRows) {
-      if (playback.GetTable() != &visibleTable)
+      const TablePlaybackSnapshot playbackSnapshot =
+          playback.CapturePlaybackSnapshot();
+      if (playbackSnapshot.table != &visibleTable)
         return;
       for (std::uint8_t group = 0U; group < playbackRows.size(); ++group) {
-        const int playbackRow = playback.GetPlaybackPosition(group);
+        const int playbackRow = playbackSnapshot.position[group];
         if (playbackRow >= 0 && playbackRow < TABLE_STEPS)
           playbackRows[group] = static_cast<std::int8_t>(playbackRow);
       }
