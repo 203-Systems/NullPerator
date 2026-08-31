@@ -169,7 +169,7 @@ InputMailbox::Batch InputMailbox::Drain() {
 
   const std::uint16_t tappedMask = static_cast<std::uint16_t>(
       pendingPressedMask_ & pendingReleasedMask_ & ~acceptedHeldMask_ &
-      ~deliveredHeldMask_);
+      kSupportedMask);
 
   // A common short chord (for example SHIFT+LEFT navigation) can be pressed
   // and released while the UI task is transferring LCD rows. When exactly one
@@ -199,8 +199,16 @@ InputMailbox::Batch InputMailbox::Drain() {
       deliveredHeldMask_ &
       (pendingReleasedMask_ |
        static_cast<std::uint16_t>(~acceptedHeldMask_)));
+  // A key that was already delivered can complete another physical cycle
+  // before this drain. Its first release is a real application boundary:
+  // EDIT release commits/stops audition and PLAY release transfers ownership.
+  // Do not keep a recycled modifier logically held merely because its new
+  // press supplied the context for the queued chord.
+  const std::uint16_t recycledDeliveredMask = static_cast<std::uint16_t>(
+      previouslyDeliveredMask & pendingReleasedMask_ & pendingPressedMask_);
   const std::uint16_t deferredChordReleases =
-      static_cast<std::uint16_t>(releaseMask & completedChordModifiers);
+      static_cast<std::uint16_t>(releaseMask & completedChordModifiers &
+                                 ~recycledDeliveredMask);
   const std::uint16_t immediateReleaseMask =
       static_cast<std::uint16_t>(releaseMask & ~deferredChordReleases);
   for (const TrackerAction action : kAllActionOrder) {

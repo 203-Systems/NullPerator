@@ -168,6 +168,50 @@ TEST_CASE("Node UI2 mailbox releases a held modifier after its queued tap") {
   CheckEvent(batch, 2U, TrackerAction::Shift, false);
 }
 
+TEST_CASE("Node UI2 mailbox preserves modifier release before a new chord") {
+  InputMailbox mailbox;
+  const std::uint16_t edit = Mask({TrackerAction::Edit});
+  mailbox.PublishSample(edit, false, 100U);
+  (void)mailbox.Drain();
+
+  // EDIT was already delivered to the application. A slow UI drain must not
+  // collapse this physical release/repress pair into one continuous logical
+  // hold, because the release commits value edits and stops Phrase audition.
+  mailbox.PublishSample(0U, false, 110U);
+  mailbox.PublishSample(
+      Mask({TrackerAction::Edit, TrackerAction::Left}), false, 120U);
+  mailbox.PublishSample(edit, false, 130U);
+  const InputMailbox::Batch batch = mailbox.Drain();
+
+  REQUIRE(batch.size == 4U);
+  CheckEvent(batch, 0U, TrackerAction::Edit, false);
+  CheckEvent(batch, 1U, TrackerAction::Edit, true);
+  CheckEvent(batch, 2U, TrackerAction::Left, true);
+  CheckEvent(batch, 3U, TrackerAction::Left, false);
+  CHECK(batch.heldMask == edit);
+}
+
+TEST_CASE("Node UI2 mailbox preserves a second tap after a delivered press") {
+  InputMailbox mailbox;
+  const std::uint16_t play = Mask({TrackerAction::Play});
+  mailbox.PublishSample(play, false, 100U);
+  (void)mailbox.Drain();
+
+  // The application still owns the first PLAY press. Before its next drain,
+  // the user releases it and completes another PLAY tap. Both the first
+  // release and the second tap are observable transitions.
+  mailbox.PublishSample(0U, false, 110U);
+  mailbox.PublishSample(play, false, 120U);
+  mailbox.PublishSample(0U, false, 130U);
+  const InputMailbox::Batch batch = mailbox.Drain();
+
+  REQUIRE(batch.size == 3U);
+  CheckEvent(batch, 0U, TrackerAction::Play, false);
+  CheckEvent(batch, 1U, TrackerAction::Play, true);
+  CheckEvent(batch, 2U, TrackerAction::Play, false);
+  CHECK(batch.heldMask == 0U);
+}
+
 TEST_CASE("Node UI2 mailbox defers killed press but never release") {
   InputMailbox mailbox;
   mailbox.PublishSample(0U, false, 100U);
