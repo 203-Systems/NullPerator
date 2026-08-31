@@ -20,6 +20,7 @@
 #include "Application/Session/TrackerApplicationSession.h"
 #include "Application/UI2/Ui2FixedText.h"
 #include "Application/UI2/Ui2InstrumentParameters.h"
+#include "Application/UI2/Ui2NotePresentation.h"
 #include "Application/UI2/Ui2ProjectNamePresentation.h"
 #include "Application/UI2/Ui2VuMapping.h"
 #include "Application/UI2/Workflows/Ui2ThemeWorkflow.h"
@@ -79,29 +80,6 @@ void FormatElapsed(std::array<char, 6> &elapsed) {
                           : 0;
   std::snprintf(elapsed.data(), elapsed.size(), "%02d:%02d",
                 (seconds / 60) % 100, seconds % 60);
-}
-
-void FormatNote(std::uint8_t value, std::array<char, 5> &text) {
-  text.fill(0);
-  if (value == NO_NOTE) {
-    CopyUiText(text, "----");
-    return;
-  }
-  if (value == NOTE_OFF) {
-    CopyUiText(text, "OFF");
-    return;
-  }
-  if (value > HIGHEST_NOTE) {
-    CopyUiText(text, "????");
-    return;
-  }
-  const char *pitch = noteNames[value % 12U];
-  const int octave = static_cast<int>(value / 12U) - 2;
-  if (pitch[1] == ' ')
-    std::snprintf(text.data(), text.size(), "%c%d", pitch[0], octave);
-  else
-    std::snprintf(text.data(), text.size(), "%c%c%d", pitch[0], pitch[1],
-                  octave);
 }
 
 void FormatCommand(FourCC command, std::array<char, 4> &text) {
@@ -289,7 +267,7 @@ Ui2NativeApplicationStateSource::CaptureSong(UiSongFrameState &state) {
       state.notes[controller.Track()][0] == '-') {
     const std::uint8_t note = transport.note[controller.Track()];
     if (note <= HIGHEST_NOTE)
-      FormatNote(note, state.notes[controller.Track()]);
+      FormatUiNote(note, state.notes[controller.Track()]);
   }
   for (std::uint8_t track = 0; track < SONG_CHANNEL_COUNT; ++track) {
     const int visible = transport.songRow[track] - controller.RowOffset();
@@ -384,7 +362,7 @@ Ui2NativeApplicationStateSource::CapturePhrase(UiPhraseFrameState &state) {
   const int base = controller.Number() * STEPS_PER_PHRASE;
   for (std::uint8_t row = 0; row < STEPS_PER_PHRASE; ++row) {
     const int index = base + row;
-    FormatNote(phrase.note_[index], state.rows[row].note);
+    FormatUiNote(phrase.note_[index], state.rows[row].note);
     if (phrase.instr_[index] == 0xFFU)
       CopyUiText(state.rows[row].instrument, "I--");
     else {

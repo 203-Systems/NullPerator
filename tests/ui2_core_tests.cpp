@@ -3,6 +3,7 @@
 #include "Application/UI2/Ui2ChainTranspose.h"
 #include "Application/UI2/Ui2FixedText.h"
 #include "Application/UI2/Ui2ModalInputGate.h"
+#include "Application/UI2/Ui2NotePresentation.h"
 #include "Application/UI2/Ui2SampleAdapters.h"
 #include "Application/UI2/Ui2SettingsAdapters.h"
 #include "Application/UI2/Ui2SettingsControllerAdapters.h"
@@ -55,6 +56,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdio>
 #include <cstdint>
 #include <limits>
 #include <span>
@@ -308,6 +310,33 @@ TEST_CASE("UI2 fixed text copies truncate and clear stale suffixes") {
   std::array<char, 0> empty{};
   ui2::CopyUiText(empty, "IGNORED");
   CHECK(empty.empty());
+}
+
+TEST_CASE("UI2 note presentation matches the complete tracker byte domain") {
+  for (std::uint16_t raw = 0U; raw <= 0xFFU; ++raw) {
+    const auto value = static_cast<std::uint8_t>(raw);
+    std::array<char, 5> expected{};
+    if (value == NO_NOTE) {
+      expected = {'-', '-', '-', '-', '\0'};
+    } else if (value == NOTE_OFF) {
+      expected = {'O', 'F', 'F', '\0', '\0'};
+    } else if (value > HIGHEST_NOTE) {
+      expected = {'?', '?', '?', '?', '\0'};
+    } else {
+      const char *pitch = noteNames[value % 12U];
+      const int octave = static_cast<int>(value / 12U) - 2;
+      if (pitch[1] == ' ')
+        std::snprintf(expected.data(), expected.size(), "%c%d", pitch[0],
+                      octave);
+      else
+        std::snprintf(expected.data(), expected.size(), "%c%c%d", pitch[0],
+                      pitch[1], octave);
+    }
+
+    std::array<char, 5> actual{};
+    ui2::FormatUiNote(value, actual);
+    CHECK(actual == expected);
+  }
 }
 
 TEST_CASE("UI2 indexed surface owns no RGB framebuffer and clips fills") {
