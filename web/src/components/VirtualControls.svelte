@@ -3,6 +3,7 @@
   export let disabled = false
   export let heldActions = []
   export let compact = false
+  export let nativeHostActive = false
 
   const pointerClickSuppression = new WeakSet()
   const source = (event) => `pointer:${event.pointerId}`
@@ -23,34 +24,55 @@
     if (keyboardActivation) pointerClickSuppression.delete(event.currentTarget)
     event.preventDefault()
     const clickSource = `virtual-click:${action}`
-    input?.press(action, clickSource); input?.release(action, clickSource)
+    input?.press(action, clickSource)
+    if (nativeHostActive) setTimeout(() => input?.release(action, clickSource), 90)
+    else input?.release(action, clickSource)
   }
 
 </script>
 
-<div class="operator-controls" class:compact aria-label="PicoTracker virtual controls">
+<div class="operator-controls" class:compact class:native-host={nativeHostActive}
+  role="group"
+  aria-label={nativeHostActive ? 'NullPerator virtual controls' : 'PicoTracker virtual controls'}
+  oncontextmenu={(event) => event.preventDefault()} ondragstart={(event) => event.preventDefault()}>
   <div class="d-pad" aria-label="Directional controls">
     {#each [['up','Up','W','▲'],['left','Left','A','◀'],['down','Down','S','▼'],['right','Right','D','▶']] as [action,label,key,glyph]}
-      <button type="button" class={action} class:pressed={heldActions.includes(action)} aria-label={label} aria-pressed={heldActions.includes(action)} data-action={action} {disabled}
-        onpointerdown={(event) => press(event, action)} onpointerup={(event) => release(event, action, true)}
-        onpointercancel={(event) => cancel(event, action)} onlostpointercapture={(event) => release(event, action)} onclick={(event) => activate(event, action)}>
-        <span class="switch"><span>{glyph}</span></span><kbd>{key}</kbd>
-      </button>
+      {#if nativeHostActive}
+        <button type="button" class="simple-direction {action}" class:pressed={heldActions.includes(action)} aria-label={label} aria-pressed={heldActions.includes(action)} data-action={action} {disabled}
+          onpointerdown={(event) => press(event, action)} onpointerup={(event) => release(event, action, true)}
+          onpointercancel={(event) => cancel(event, action)} onlostpointercapture={(event) => release(event, action)} onclick={(event) => activate(event, action)}><span>{glyph}</span></button>
+      {:else}
+        <button type="button" class={action} class:pressed={heldActions.includes(action)} aria-label={label} aria-pressed={heldActions.includes(action)} data-action={action} {disabled}
+          onpointerdown={(event) => press(event, action)} onpointerup={(event) => release(event, action, true)}
+          onpointercancel={(event) => cancel(event, action)} onlostpointercapture={(event) => release(event, action)} onclick={(event) => activate(event, action)}>
+          <span class="switch"><span>{glyph}</span></span><kbd>{key}</kbd>
+        </button>
+      {/if}
     {/each}
   </div>
 
   <div class="face-buttons">
     <button type="button" class="face enter" class:pressed={heldActions.includes('enter')} aria-label="ENTER" aria-pressed={heldActions.includes('enter')} data-action="enter" {disabled}
       onpointerdown={(e)=>press(e,'enter')} onpointerup={(e)=>release(e,'enter',true)} onpointercancel={(e)=>cancel(e,'enter')} onlostpointercapture={(e)=>release(e,'enter')} onclick={(e)=>activate(e,'enter')}>
-      <span class="switch"><span>↵</span></span><kbd>K</kbd><em>ENTER</em>
+      {#if nativeHostActive}<span class="native-label">ENTER</span>{:else}<span class="switch"><span>↵</span></span><kbd>K</kbd><em>ENTER</em>{/if}
     </button>
     <button type="button" class="face option" class:pressed={heldActions.includes('option')} aria-label="OPTION" aria-pressed={heldActions.includes('option')} data-action="option" {disabled}
       onpointerdown={(e)=>press(e,'option')} onpointerup={(e)=>release(e,'option',true)} onpointercancel={(e)=>cancel(e,'option')} onlostpointercapture={(e)=>release(e,'option')} onclick={(e)=>activate(e,'option')}>
-      <span class="switch"><span>✦</span></span><kbd>J</kbd><em>OPTION</em>
+      {#if nativeHostActive}<span class="native-label">OPTION</span>{:else}<span class="switch"><span>✦</span></span><kbd>J</kbd><em>OPTION</em>{/if}
     </button>
   </div>
 
   <div class="bottom-buttons">
+    {#if nativeHostActive}
+    <button type="button" class:pressed={heldActions.includes('play')} aria-label="PLAY" aria-pressed={heldActions.includes('play')} data-action="play" {disabled}
+      onpointerdown={(e)=>press(e,'play')} onpointerup={(e)=>release(e,'play',true)} onpointercancel={(e)=>cancel(e,'play')} onlostpointercapture={(e)=>release(e,'play')} onclick={(e)=>activate(e,'play')}>
+      <span class="native-label">PLAY</span>
+    </button>
+    <button type="button" class:pressed={heldActions.includes('shift')} aria-label="SHIFT" aria-pressed={heldActions.includes('shift')} data-action="shift" {disabled}
+      onpointerdown={(e)=>press(e,'shift')} onpointerup={(e)=>release(e,'shift',true)} onpointercancel={(e)=>cancel(e,'shift')} onlostpointercapture={(e)=>release(e,'shift')} onclick={(e)=>activate(e,'shift')}>
+      <span class="native-label">SHIFT</span>
+    </button>
+    {:else}
     <button type="button" class:pressed={heldActions.includes('shift')} aria-label="SHIFT" aria-pressed={heldActions.includes('shift')} data-action="shift" {disabled}
       onpointerdown={(e)=>press(e,'shift')} onpointerup={(e)=>release(e,'shift',true)} onpointercancel={(e)=>cancel(e,'shift')} onlostpointercapture={(e)=>release(e,'shift')} onclick={(e)=>activate(e,'shift')}>
       <span class="switch"></span><kbd>X</kbd><em>SHIFT</em>
@@ -59,6 +81,7 @@
       onpointerdown={(e)=>press(e,'play')} onpointerup={(e)=>release(e,'play',true)} onpointercancel={(e)=>cancel(e,'play')} onlostpointercapture={(e)=>release(e,'play')} onclick={(e)=>activate(e,'play')}>
       <span class="switch"><span>▶</span></span><kbd>C</kbd><em>PLAY</em>
     </button>
+    {/if}
   </div>
 </div>
 
@@ -103,6 +126,85 @@
   .compact .bottom-buttons button:first-child{left:4px}.compact .bottom-buttons button:last-child{right:4px}
   .compact .bottom-buttons em { top:21px; bottom:auto; }
   .compact .face.enter,.compact .bottom-buttons button:last-child { border-color:rgba(76,201,240,.3); }
+  .operator-controls.native-host {
+    --control-edge:clamp(56px,14vw,62px);
+    --control-gap:calc(var(--control-edge) + 2px);
+    --face-edge:clamp(76px,19vw,82px);
+    --bottom-w:clamp(116px,29vw,128px);
+    --bottom-h:62px;
+    --bottom-gap:22px;
+    --upper-controls-top:clamp(58px,7.5dvh,74px);
+    flex:1 1 auto;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    grid-template-rows:minmax(0,1fr) var(--bottom-h);
+    column-gap:18px;
+    width:min(100%,430px);
+    height:auto;
+    min-height:0;
+    margin:12px auto 0;
+    padding:0 18px;
+    overflow:hidden;
+  }
+  .operator-controls.native-host::before { display:none; }
+  .operator-controls.native-host button { appearance:none; -webkit-appearance:none; -webkit-tap-highlight-color:transparent; -webkit-touch-callout:none; outline:none; }
+  .operator-controls.native-host .d-pad {
+    position:relative; inset:auto; grid-column:1; grid-row:1; align-self:start; justify-self:center;
+    width:calc(var(--control-gap) * 2 + var(--control-edge)); height:calc(var(--control-gap) * 2 + var(--control-edge)); margin-top:var(--upper-controls-top);
+  }
+  .operator-controls.native-host .d-pad .simple-direction {
+    position:absolute; width:var(--control-edge); height:var(--control-edge); padding:0;
+    border:1px solid #686868; border-radius:5px; color:#e8e8e8;
+    background:linear-gradient(145deg,#181818,#080808);
+    box-shadow:inset 0 0 0 3px #070707,inset 0 0 0 4px #303030,0 2px 6px rgba(0,0,0,.75);
+    transform:rotate(45deg); transform-origin:50% 50%; font:600 17px/1 system-ui,sans-serif;
+  }
+  .operator-controls.native-host .d-pad .simple-direction>span { position:absolute; inset:0; display:grid; place-items:center; transform:rotate(-45deg); pointer-events:none; }
+  .operator-controls.native-host .d-pad .simple-direction:active,
+  .operator-controls.native-host .d-pad .simple-direction.pressed { border-color:#49d6e6; color:#49d6e6; background:#171717; transform:rotate(45deg) scale(.96); }
+  .operator-controls.native-host .d-pad .up { left:var(--control-gap); top:0; }
+  .operator-controls.native-host .d-pad .left { left:0; top:var(--control-gap); }
+  .operator-controls.native-host .d-pad .right { left:calc(var(--control-gap) * 2); top:var(--control-gap); }
+  .operator-controls.native-host .d-pad .down { left:var(--control-gap); top:calc(var(--control-gap) * 2); }
+  .operator-controls.native-host .face-buttons {
+    position:relative; inset:auto; grid-column:2; grid-row:1; display:grid; grid-template-columns:repeat(2,var(--face-edge)); gap:12px;
+    align-self:start; justify-self:center; width:auto; height:auto; margin-top:calc(var(--upper-controls-top) + 48px); margin-left:12px;
+  }
+  .operator-controls.native-host .face,
+  .operator-controls.native-host .bottom-buttons button {
+    position:relative; inset:auto; display:grid; place-items:center; padding:0; border:1px solid #686868; border-radius:6px;
+    color:#f2f2f2; background:linear-gradient(145deg,#181818,#080808);
+    box-shadow:inset 0 0 0 3px #070707,inset 0 0 0 4px #303030,0 2px 6px rgba(0,0,0,.75); transform:none;
+  }
+  .operator-controls.native-host .face { width:var(--face-edge); height:var(--face-edge); }
+  .operator-controls.native-host .face.option { grid-column:1; grid-row:1; }
+  .operator-controls.native-host .face.enter { grid-column:2; grid-row:1; }
+  .operator-controls.native-host .face:active,.operator-controls.native-host .face.pressed,
+  .operator-controls.native-host .bottom-buttons button:active,.operator-controls.native-host .bottom-buttons button.pressed { border-color:#49d6e6; background:#171717; transform:scale(.97); }
+  .operator-controls.native-host .native-label { display:grid; width:100%; height:100%; place-items:center; color:#f1f1f1; font:500 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace; letter-spacing:.025em; pointer-events:none; }
+  .operator-controls.native-host .bottom-buttons {
+    position:relative; inset:auto; grid-column:1 / -1; grid-row:2; display:grid; grid-template-columns:repeat(2,var(--bottom-w)); gap:var(--bottom-gap);
+    justify-content:center; align-self:end; width:auto; height:var(--bottom-h); margin-left:0;
+  }
+  .operator-controls.native-host .bottom-buttons button { width:var(--bottom-w); height:var(--bottom-h); }
+  @media(min-width:500px) and (orientation:portrait){
+    .operator-controls.native-host { --control-edge:66px; --face-edge:88px; --bottom-w:142px; --bottom-h:68px; --bottom-gap:30px; --upper-controls-top:clamp(64px,7.5dvh,82px); width:min(100%,720px); padding-inline:42px; }
+    .operator-controls.native-host .face-buttons { gap:18px; }
+  }
+  @media(orientation:landscape){
+    .operator-controls.native-host {
+      --control-edge:clamp(48px,6.8vw,64px); --control-gap:calc(var(--control-edge) + 2px); --face-edge:clamp(66px,9vw,86px);
+      --bottom-w:clamp(96px,12vw,116px); --bottom-h:56px; --bottom-gap:clamp(14px,2vw,24px);
+      grid-template-columns:minmax(0,1fr) var(--native-screen-size) minmax(0,1fr); grid-template-rows:minmax(0,1fr) var(--bottom-h);
+      column-gap:var(--landscape-control-gap); row-gap:12px; width:100%; height:var(--native-screen-size); margin:0; padding:0; overflow:visible; pointer-events:none;
+    }
+    .operator-controls.native-host button { pointer-events:auto; }
+    .operator-controls.native-host .d-pad { grid-column:1; align-self:center; margin-top:0; }
+    .operator-controls.native-host .face-buttons { grid-column:3; align-self:center; gap:clamp(10px,1.5vw,18px); margin:0; }
+    .operator-controls.native-host .bottom-buttons { display:contents; }
+    .operator-controls.native-host .bottom-buttons button:first-child { grid-column:1; grid-row:2; align-self:end; justify-self:end; }
+    .operator-controls.native-host .bottom-buttons button:last-child { grid-column:3; grid-row:2; align-self:end; justify-self:start; }
+  }
   @media(orientation:portrait) and (max-height:499px){
     .operator-controls.compact{margin-top:5px}
   }

@@ -12,24 +12,30 @@
   import FilesPanel from './components/FilesPanel.svelte'
   import MidiPanel from './components/MidiPanel.svelte'
   import LogsPanel from './components/LogsPanel.svelte'
+  import NativeSettingsOverlay from './components/NativeSettingsOverlay.svelte'
   import TracePanel from './components/TracePanel.svelte'
   import { toggleTool } from './stores/tools.js'
   import { runtimeStore } from './stores/runtime.js'
+  import { nativeRuntimeStore } from './stores/nativeRuntime.js'
+  import { nativeAppSettingsStore } from './stores/nativeAppSettings.js'
   import { settingsStore } from './stores/settings.js'
 
   const sections = ['Device', 'Files', 'MIDI', 'Logs', 'Trace', 'Settings', 'About']
   const query = new URLSearchParams(window.location.search)
+  const nativeHostActive = globalThis.__nullPeratorNativeCore === true
+  const activeRuntimeStore = nativeHostActive ? nativeRuntimeStore : runtimeStore
+  if (nativeHostActive) document.documentElement.classList.add('native-host')
   const forceDeveloperMode = query.get('dev') === '1' || query.get('views-test') === '1' || query.get('inputDiagnostics') === '1'
   const mobileViewport = window.matchMedia('(max-width: 720px), (orientation: landscape) and (max-width: 960px) and (max-height: 539px)')
-  const resolveDeveloperMode = (preference) => forceDeveloperMode || (preference === 'auto'
+  const resolveDeveloperMode = (preference) => !nativeHostActive && (forceDeveloperMode || (preference === 'auto'
     ? !mobileViewport.matches
-    : Boolean(preference))
+    : Boolean(preference)))
   let developerPreference = settingsStore.snapshot().developerMode
   let activeSection = 'Device'
   let openTools = []
   let developerMode = resolveDeveloperMode(developerPreference)
   let mobileSettingsOpen = false
-  let runtime = runtimeStore.getSnapshot()
+  let runtime = activeRuntimeStore.getSnapshot()
   let audio = runtime.audio?.snapshot?.() ?? { state:'unavailable', metrics:null, capability:null }
   let midi = runtime.midi?.snapshot?.() ?? { state:'unavailable' }
   let storage = runtime.storage?.snapshot?.() ?? { state:'unavailable' }
@@ -44,11 +50,11 @@
       target.focus?.({ preventScroll: true })
       if (document.activeElement === target) return
     }
-    document.querySelector('.device-stage:not([hidden]) #picotracker-canvas')?.focus({ preventScroll: true })
+    document.querySelector('.device-stage:not([hidden]) canvas[data-tracker-display]')?.focus({ preventScroll: true })
   }
   async function restart(){
     const focusTarget = document.activeElement
-    await runtimeStore.stop(); canvasGeneration+=1; await tick(); await runtimeStore.start(); await tick()
+    await activeRuntimeStore.stop(); canvasGeneration+=1; await tick(); await activeRuntimeStore.start(); await tick()
     restoreRuntimeFocus(focusTarget)
   }
   async function synchronizeRecoveryFocus(state, button) {
@@ -59,7 +65,7 @@
       button.focus({ preventScroll: true })
     }
   }
-  async function stopRuntime(){ await runtimeStore.stop() }
+  async function stopRuntime(){ await activeRuntimeStore.stop() }
   async function applySettingsRestart(){ const enabled=settingsStore.snapshot().lowLatencyAudio; const url=new URL(location.href); const active=url.searchParams.get('audio')==='worklet'; if(active!==enabled){enabled?url.searchParams.set('audio','worklet'):url.searchParams.delete('audio');location.assign(url);return} await restart() }
   function selectSection(section){ activeSection=section }
   function toggleDock(tool){ openTools=toggleTool(openTools,tool) }
@@ -96,8 +102,9 @@
   onMount(()=>{
     const workbenchHandle = Object.freeze({ restart, stop: stopRuntime })
     mobileViewport.addEventListener?.('change', handleViewportChange)
-    globalThis.__picoTrackerWorkbench = workbenchHandle
-    const unsubscribe=runtimeStore.subscribe((snapshot)=>{
+    const workbenchKey = nativeHostActive ? '__nullPeratorWorkbench' : '__picoTrackerWorkbench'
+    globalThis[workbenchKey] = workbenchHandle
+    const unsubscribe=activeRuntimeStore.subscribe((snapshot)=>{
       runtime=snapshot; detachAudio();detachMidi();detachStorage()
       if(snapshot.audio)detachAudio=snapshot.audio.subscribe((next)=>(audio=next));else audio={state:'unavailable',metrics:null,capability:null}
       if(snapshot.midi)detachMidi=snapshot.midi.subscribe((next)=>(midi=next));else midi={state:'unavailable'}
@@ -108,17 +115,17 @@
       synchronizeDeveloperMode(next.developerMode)
       if(runtime.trace?.snapshot?.().state!=='capturing')runtime.trace?.setMask?.(next.traceMask)
     })
-    runtimeStore.start().catch(()=>{})
-    return()=>{mobileViewport.removeEventListener?.('change', handleViewportChange);if(globalThis.__picoTrackerWorkbench===workbenchHandle)delete globalThis.__picoTrackerWorkbench;unsubscribe();detachAudio();detachMidi();detachStorage();detachSettings();runtimeStore.stop().catch(()=>{})}
+    activeRuntimeStore.start().catch(()=>{})
+    return()=>{mobileViewport.removeEventListener?.('change', handleViewportChange);if(globalThis[workbenchKey]===workbenchHandle)delete globalThis[workbenchKey];unsubscribe();detachAudio();detachMidi();detachStorage();detachSettings();activeRuntimeStore.stop().catch(()=>{})}
   })
 </script>
 
-<svelte:head><title>NullPerator</title><link rel="icon" href="data:,"/><meta name="description" content="PicoTracker WebAssembly development and performance workbench"/></svelte:head>
+<svelte:head><title>{nativeHostActive ? 'NullPerator' : 'PicoTracker'}</title><link rel="icon" href="data:,"/><meta name="description" content={nativeHostActive ? 'NullPerator music workstation' : 'PicoTracker WebAssembly development and performance workbench'}/></svelte:head>
 
-<div class="dashboard" data-developer-mode={developerMode ? 'true' : 'false'}>
+<div class="dashboard" class:native-host={nativeHostActive} data-developer-mode={developerMode ? 'true' : 'false'}>
   {#if developerMode}
     <TopBar {runtime} {audio} {storage} {midi} {developerMode} onDeveloperModeChange={setDeveloperMode}/>
-  {:else}
+  {:else if !nativeHostActive}
     <MobilePlayBar onDeveloperModeChange={setDeveloperMode} onOpenChange={(open)=>(mobileSettingsOpen=open)}/>
   {/if}
   <div class="dashboard-body">
@@ -133,7 +140,7 @@
       <ErrorBoundary label={`${activeSection} panel`}>
         <section class="device-stage" aria-label="Operator simulator" hidden={developerMode && activeSection!=='Device'}
           inert={runtime.state === 'failed' || runtime.state === 'stopping'}>
-          {#key canvasGeneration}<DevicePanel {runtime} {audio} settings={settingsStore} compact={!developerMode}/>{/key}
+          {#key canvasGeneration}<DevicePanel {runtime} {audio} settings={nativeHostActive ? nativeAppSettingsStore : settingsStore} compact={!developerMode} {nativeHostActive}/>{/key}
         </section>
         {#if developerMode && activeSection==='Files'}<div class="page-panel"><FilesPanel files={runtime.files} storage={runtime.storage} hostFolder={runtime.hostFolder} disabled={runtime.state!=='ready'}/></div>
         {:else if developerMode && activeSection==='MIDI'}<div class="page-panel"><MidiPanel midi={runtime.midi} disabled={runtime.state!=='ready'}/></div>
@@ -150,3 +157,6 @@
     <div class="audio-diagnostics" hidden aria-hidden="true" data-audio-capability={audio.capability?(audio.capability.available?'available':'unavailable'):'unknown'} data-audio-capability-reason={audio.capability?.reason??''} data-audio-worklet-callbacks={audio.metrics?.callbackCount??0} data-audio-underruns={audio.metrics?.underrunFrames??0} data-audio-setup-phase={audio.metrics?.setupPhase??0} data-audio-unlock-main-thread={audio.metrics?.unlockOnBrowserMainThread??0} data-audio-render-micros={audio.metrics?.renderMicros??0} data-audio-callback-micros={audio.metrics?.callbackMicros??0} data-audio-callback-max-micros={audio.metrics?.callbackMaxMicros??0} data-audio-processing-deadline-micros={audio.metrics?.callbackDeadlineMicros??0} data-audio-processing-deadline-misses={audio.metrics?.callbackDeadlineMisses??0}></div>
   </div>
 </div>
+{#if nativeHostActive}
+  <NativeSettingsOverlay {runtime} settings={nativeAppSettingsStore} midi={runtime.midi} midiSnapshot={midi} onReboot={restart}/>
+{/if}

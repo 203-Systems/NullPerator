@@ -9,6 +9,8 @@
 }
 *,*::before,*::after{box-sizing:border-box}
 html,body,#app{width:100%;min-width:320px;height:100%;margin:0;overscroll-behavior:none}
+html.native-host,html.native-host body,html.native-host #app,html.native-host #app *{-webkit-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important;-webkit-tap-highlight-color:transparent!important}
+html.native-host,html.native-host body,html.native-host #app{touch-action:none!important}
 body{overflow:hidden;background:var(--bg-0);color:var(--text)}
 button,input,select{font:inherit}button{cursor:pointer}
 :focus-visible{outline:1px solid var(--accent);outline-offset:1px}
@@ -16,6 +18,8 @@ button,input,select{font:inherit}button{cursor:pointer}
 ::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{border-radius:3px;background:rgba(255,255,255,.12)}
 .dashboard{display:flex;flex-direction:column;width:100%;height:100vh;height:100dvh;overflow:hidden}
 .dashboard[data-developer-mode='false']{touch-action:none}
+.dashboard.native-host,.dashboard.native-host *{-webkit-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important;-webkit-tap-highlight-color:transparent!important}
+.dashboard.native-host img,.dashboard.native-host canvas{-webkit-user-drag:none}
 .dashboard-body{position:relative;display:flex;flex:1;min-height:0;overflow:hidden}
 .workspace{position:relative;flex:1;min-width:420px;min-height:0;overflow:hidden;background:var(--bg-1)}
 [data-developer-mode='false'] .workspace{min-width:0;background:var(--bg-0)}
