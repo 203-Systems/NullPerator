@@ -103,6 +103,11 @@ public:
     std::memcpy(bytes_.data(), "NOT A WAVE!", size_);
   }
 
+  void SetBlockAlign(std::uint16_t blockAlign) {
+    bytes_[32] = static_cast<std::uint8_t>(blockAlign);
+    bytes_[33] = static_cast<std::uint8_t>(blockAlign >> 8U);
+  }
+
   void SetOpenFailureAfter(std::uint8_t successfulOpens) {
     failAfter_ = successfulOpens;
   }
@@ -218,6 +223,19 @@ TEST_CASE("UI2 waveform backend rejects absent and malformed WAV safely") {
 
   fileSystem.BuildInvalid();
   CHECK(waveform.LoadPath(fileSystem, "BAD.WAV") ==
+        Ui2SampleWaveformLoadResult::InvalidWav);
+  CHECK_FALSE(waveform.Ready());
+}
+
+TEST_CASE("UI2 waveform backend rejects inconsistent frame alignment") {
+  using namespace ui2;
+  Config::SetImportResampler(0);
+  SampleWaveFileSystem fileSystem;
+  fileSystem.BuildPcm(512U, 2U);
+  fileSystem.SetBlockAlign(1U);
+  Ui2SampleWaveformBackend waveform;
+
+  CHECK(waveform.LoadPath(fileSystem, "MISALIGNED.WAV") ==
         Ui2SampleWaveformLoadResult::InvalidWav);
   CHECK_FALSE(waveform.Ready());
 }

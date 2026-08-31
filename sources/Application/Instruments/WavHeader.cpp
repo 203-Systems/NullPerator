@@ -12,6 +12,8 @@
 #include "System/Console/Trace.h"
 #include "System/FileSystem/I_File.h"
 
+#include <limits>
+
 namespace {
 
 constexpr uint16_t WAV_FORMAT_PCM = 0x0001;
@@ -262,6 +264,15 @@ WavHeaderWriter::ReadHeader(I_File *file) {
   }
 
   info.bytesPerSample = info.bitsPerSample / 8;
+  const uint32_t expectedBlockAlign =
+      static_cast<uint32_t>(info.numChannels) * info.bytesPerSample;
+  if (expectedBlockAlign > std::numeric_limits<uint16_t>::max() ||
+      info.blockAlign != expectedBlockAlign) {
+    Trace::Error(
+        "WavHeaderWriter: Invalid block alignment %u (expected %u)",
+        info.blockAlign, expectedBlockAlign);
+    return etl::unexpected(INVALID_HEADER);
+  }
 
   const uint32_t fmtBytesConsumed = isExtensible ? 40U : 16U;
   if (info.fmtChunkSize > fmtBytesConsumed) {

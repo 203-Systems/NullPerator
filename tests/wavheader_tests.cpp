@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <limits>
 
 namespace {
 
@@ -263,6 +264,29 @@ TEST_CASE("ReadHeader rejects unsupported audio format") {
   CHECK(result.error() == UNSUPPORTED_AUDIO_FORMAT);
 }
 
+TEST_CASE("ReadHeader rejects inconsistent PCM block alignment") {
+  Config::SetImportResampler(0);
+  ByteWriter wav = BuildPcmWav(2, 44100, 24, 12);
+  const uint16_t invalidBlockAlign = 1;
+  std::memcpy(wav.data + 32, &invalidBlockAlign, sizeof(invalidBlockAlign));
+  TestFile file(wav.data, wav.size);
+
+  auto result = WavHeaderWriter::ReadHeader(&file);
+  REQUIRE_FALSE(result.has_value());
+  CHECK(result.error() == INVALID_HEADER);
+}
+
+TEST_CASE("ReadHeader rejects block alignment products wider than the field") {
+  Config::SetImportResampler(0);
+  ByteWriter wav =
+      BuildPcmWav(std::numeric_limits<uint16_t>::max(), 44100, 32, 4);
+  TestFile file(wav.data, wav.size);
+
+  auto result = WavHeaderWriter::ReadHeader(&file);
+  REQUIRE_FALSE(result.has_value());
+  CHECK(result.error() == INVALID_HEADER);
+}
+
 TEST_CASE("ReadHeader parses extensible PCM WAV") {
   Config::SetImportResampler(1);
   ByteWriter wav = BuildExtensibleWav(2, 48000, 24, 12, 1);
@@ -276,6 +300,7 @@ TEST_CASE("ReadHeader parses extensible PCM WAV") {
   CHECK(result->sampleRate == 48000);
   CHECK(result->bitsPerSample == 24);
   CHECK(result->bytesPerSample == 3);
+  CHECK(result->blockAlign == 6);
   CHECK(result->dataChunkSize == 12);
   CHECK(result->dataOffset > 0);
 }
