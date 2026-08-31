@@ -16,7 +16,8 @@
 #define PHRASE_COUNT 0xFF
 #define NO_MORE_PHRASE 0x100
 #define STEPS_PER_PHRASE 16
-#define MAX_INSTRUMENT_COUNT 0x27
+#define MAX_INSTRUMENT_COUNT 0x40
+#define MAX_SAMPLEINSTRUMENT_COUNT 0x20
 #define HIGHEST_NOTE 119
 #define NOTE_OFF 0xFE
 #define NO_NOTE 0xFF
@@ -82,10 +83,14 @@ public:
   }
 
   unsigned short GetNextAndAssignID(InstrumentType type, unsigned char id) {
-    if (id >= instruments_.size() || used_[id])
+    if (id >= instruments_.size() || used_[id] ||
+        (type == IT_SAMPLE &&
+         sampleInstrumentCount_ >= MAX_SAMPLEINSTRUMENT_COUNT))
       return NO_MORE_INSTRUMENT;
     used_[id] = true;
     instruments_[id].SetType(type);
+    if (type == IT_SAMPLE)
+      ++sampleInstrumentCount_;
     return id;
   }
 
@@ -95,7 +100,11 @@ public:
     const unsigned short next = GetNextFreeInstrumentSlotId();
     if (next == NO_MORE_INSTRUMENT)
       return NO_MORE_INSTRUMENT;
-    used_[next] = true;
+    if (GetNextAndAssignID(instruments_[source].GetType(),
+                           static_cast<unsigned char>(next)) ==
+        NO_MORE_INSTRUMENT) {
+      return NO_MORE_INSTRUMENT;
+    }
     instruments_[next] = instruments_[source];
     return next;
   }
@@ -124,6 +133,7 @@ public:
 private:
   std::array<SampleInstrument, MAX_INSTRUMENT_COUNT> instruments_{};
   std::array<bool, MAX_INSTRUMENT_COUNT> used_{};
+  std::size_t sampleInstrumentCount_ = 0U;
 };
 
 class Chain {

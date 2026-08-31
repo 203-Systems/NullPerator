@@ -17,7 +17,12 @@
 #include "WavFile.h"
 #include <cstdint>
 
-#define MAX_SAMPLES MAX_SAMPLEINSTRUMENT_COUNT * 4
+// Keep the sample-library capacity independent from the number of instrument
+// slots. Increasing the instrument limit must not also double the fixed sample
+// metadata and WavFile arrays on embedded targets.
+#define MAX_SAMPLES 64
+static_assert(MAX_SAMPLES <= 0xFF,
+              "sample indexes must fit the one-byte variable list size");
 
 enum SamplePoolEventType { SPET_INSERT, SPET_DELETE };
 

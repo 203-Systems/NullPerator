@@ -348,14 +348,15 @@ TEST_CASE("UI2 model port clones the Phrase instrument into a free slot") {
   CHECK(port.ProjectMutationGeneration() == 1U);
 }
 
-TEST_CASE("UI2 Phrase instrument clone is a no-op when the bank is full") {
+TEST_CASE("UI2 Phrase instrument clone is a no-op when its type pool is full") {
   TrackerApplicationSession session;
   Ui2TrackerSessionModelPort port(session);
   InstrumentBank *bank = session.ProjectModel().GetInstrumentBank();
   REQUIRE(bank != nullptr);
-  for (std::uint8_t id = 0U; id < MAX_INSTRUMENT_COUNT; ++id) {
+  for (std::uint8_t id = 0U; id < MAX_SAMPLEINSTRUMENT_COUNT; ++id) {
     REQUIRE(bank->GetNextAndAssignID(IT_SAMPLE, id) == id);
   }
+  CHECK(bank->GetNextFreeInstrumentSlotId() == MAX_SAMPLEINSTRUMENT_COUNT);
 
   constexpr std::uint8_t sourceInstrument = 4U;
   session.ProjectModel().song_.phrase_.instr_[0] = sourceInstrument;

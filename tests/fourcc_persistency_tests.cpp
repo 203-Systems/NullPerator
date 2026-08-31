@@ -906,6 +906,13 @@ TEST_CASE("Song and Groove semantic restore rejects unsafe indexes and rolls "
 
   rejectSong("BADINST", "INSTRUMENTS", MAX_INSTRUMENT_COUNT);
 
+  fixture.Write("projects/INST3F/lgptsav.dat",
+                "<PICOTRACKER><SONG><INSTRUMENTS><DATA VALUE=\"63\" "
+                "LENGTH=\"1\"/></INSTRUMENTS></SONG></PICOTRACKER>");
+  CHECK(service.Load("INST3F") == PERSIST_LOADED);
+  CHECK(song.phrase_.instr_[0] == MAX_INSTRUMENT_COUNT - 1U);
+  REQUIRE(service.RestoreLoadRollback() == PERSIST_LOADED);
+
   fixture.Write("projects/CHAINFE/lgptsav.dat",
                 "<PICOTRACKER><SONG><CHAINS><DATA VALUE=\"254\" "
                 "LENGTH=\"1\"/></CHAINS></SONG></PICOTRACKER>");
@@ -2368,10 +2375,16 @@ TEST_CASE("Instrument bank restore policy rejects malformed and duplicate slots"
   CHECK(slot == 0U);
   CHECK(DecodeInstrumentBankSlotId("0f", slot));
   CHECK(slot == 15U);
+  CHECK(DecodeInstrumentBankSlotId("26", slot));
+  CHECK(slot == 38U);
+  CHECK(DecodeInstrumentBankSlotId("27", slot));
+  CHECK(slot == 39U);
+  CHECK(DecodeInstrumentBankSlotId("3f", slot));
+  CHECK(slot == 63U);
   CHECK_FALSE(DecodeInstrumentBankSlotId("0", slot));
   CHECK_FALSE(DecodeInstrumentBankSlotId("000", slot));
   CHECK_FALSE(DecodeInstrumentBankSlotId("GG", slot));
-  CHECK_FALSE(DecodeInstrumentBankSlotId("27", slot));
+  CHECK_FALSE(DecodeInstrumentBankSlotId("40", slot));
 
   CHECK(DecodeInstrumentBankType("sample", type));
   CHECK(type == IT_SAMPLE);
@@ -2386,6 +2399,13 @@ TEST_CASE("Instrument bank restore policy rejects malformed and duplicate slots"
 }
 
 TEST_CASE("Instrument bank restore policy rejects fixed-pool exhaustion") {
+  InstrumentBankRestorePolicy samplePolicy;
+  for (std::uint8_t index = 0U; index < MAX_SAMPLEINSTRUMENT_COUNT; ++index)
+    CHECK(samplePolicy.Reserve(index, IT_SAMPLE));
+  CHECK_FALSE(
+      samplePolicy.Reserve(MAX_SAMPLEINSTRUMENT_COUNT, IT_SAMPLE));
+  CHECK(samplePolicy.Reserve(MAX_SAMPLEINSTRUMENT_COUNT, IT_MIDI));
+
   InstrumentBankRestorePolicy policy;
   for (std::uint8_t index = 0U; index < MAX_SIDINSTRUMENT_COUNT; ++index)
     CHECK(policy.Reserve(index, IT_SID));
