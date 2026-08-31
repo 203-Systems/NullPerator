@@ -24,6 +24,8 @@ PlayerMixer::PlayerMixer() {
 
   for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {
     lastInstrument_[i] = 0;
+    isChannelPlaying_[i] = false;
+    notes_[i] = NO_NOTE;
   };
 
   alignas(PlayerChannel) static char
