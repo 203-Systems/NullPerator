@@ -86,6 +86,12 @@ macro(adapter_node_setup)
     LINK_MAP "${CMAKE_BINARY_DIR}/${PROJECT_NAME}.map"
     ELF "$<TARGET_FILE:${PROJECT_NAME}.elf>")
 
+  include("${_node_root}/../cmake/NodeIramBudget.cmake")
+  pico_tracker_add_node_iram_budget_check(
+    NAME node_iram_budget
+    FIRMWARE_TARGET "${PROJECT_NAME}.elf"
+    LINK_MAP "${CMAKE_BINARY_DIR}/${PROJECT_NAME}.map")
+
   # Enable ETL debug mode only for Debug builds
   if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_compile_definitions(ETL_DEBUG)
