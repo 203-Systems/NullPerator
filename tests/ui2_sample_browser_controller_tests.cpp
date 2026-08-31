@@ -405,6 +405,26 @@ TEST_CASE("UI2 Sample Browser option directions jump eight entries") {
   controller.Handle(TrackerAction::Option, false);
 }
 
+TEST_CASE("UI2 Sample Browser option edit requests confirmed pool deletion") {
+  using namespace ui2;
+  SampleBrowserFileSystem fileSystem;
+  Ui2SampleBrowserController controller;
+  REQUIRE(controller.Open("DEMO"));
+
+  controller.Handle(TrackerAction::Option, true);
+  const Ui2SampleBrowserCommand request =
+      controller.Handle(TrackerAction::Edit, true);
+  REQUIRE(request.type == Ui2SampleBrowserCommandType::RequestDelete);
+  CHECK(request.projectSample);
+  CHECK(std::strcmp(request.filename.data(), "AKWF.WAV") == 0);
+  controller.Handle(TrackerAction::Edit, false);
+  controller.Handle(TrackerAction::Option, false);
+
+  REQUIRE(controller.OpenLibrary("DEMO"));
+  controller.Handle(TrackerAction::Option, true);
+  CHECK_FALSE(controller.Handle(TrackerAction::Edit, true).HasValue());
+}
+
 TEST_CASE("UI2 Sample Browser exposes actions for empty states") {
   using namespace ui2;
   SampleBrowserFileSystem fileSystem(true);
@@ -519,4 +539,36 @@ TEST_CASE("UI2 Sample Browser delete dialog waits for its EDIT release") {
       controller.HandleDialog(TrackerAction::Edit, true);
   CHECK(confirmed.type == Ui2SampleBrowserCommandType::DeleteConfirmed);
   CHECK(std::strcmp(confirmed.filename.data(), "AKWF.WAV") == 0);
+}
+
+TEST_CASE("UI2 Sample Browser clears modifier releases owned by its dialog") {
+  using namespace ui2;
+  SampleBrowserFileSystem fileSystem;
+  Ui2SampleBrowserController controller;
+  REQUIRE(controller.Open("DEMO"));
+
+  controller.Handle(TrackerAction::Option, true);
+  const Ui2SampleBrowserCommand request =
+      controller.Handle(TrackerAction::Edit, true);
+  REQUIRE(request.type == Ui2SampleBrowserCommandType::RequestDelete);
+  controller.RequestDeleteConfirmation(request.filename.data(),
+                                       TrackerAction::Edit);
+
+  // Mirror Ui2TrackerApplication's modal release routing: the dialog consumes
+  // the release first, then the browser press owner receives the same key-up.
+  controller.HandleDialog(TrackerAction::Edit, false);
+  controller.Handle(TrackerAction::Edit, false);
+  controller.HandleDialog(TrackerAction::Option, false);
+  controller.Handle(TrackerAction::Option, false);
+
+  controller.HandleDialog(TrackerAction::Left, true); // YES
+  controller.HandleDialog(TrackerAction::Left, false);
+  REQUIRE(controller.HandleDialog(TrackerAction::Edit, true).type ==
+          Ui2SampleBrowserCommandType::DeleteConfirmed);
+  controller.Handle(TrackerAction::Edit, false);
+
+  // OPTION is no longer latched: ordinary EDIT opens the sample editor rather
+  // than immediately requesting another delete.
+  CHECK(Tap(controller, TrackerAction::Edit).type ==
+        Ui2SampleBrowserCommandType::Edit);
 }

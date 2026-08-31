@@ -96,8 +96,18 @@ public:
   }
 
   Ui2SampleBrowserCommand Handle(TrackerAction action, bool pressed) {
-    if (!active_ || dialogActive_)
+    if (!active_)
       return {};
+
+    // Application-level press ownership forwards releases back to the browser
+    // while its confirmation dialog is active. Keep those releases in sync so
+    // OPTION+EDIT cannot leave OPTION latched and turn the next plain EDIT into
+    // another delete request. Dialog presses remain exclusively modal-owned.
+    if (dialogActive_) {
+      if (!pressed)
+        input_.Update(action, false);
+      return {};
+    }
 
     if (!input_.Update(action, pressed))
       return {};
@@ -160,6 +170,15 @@ public:
       SelectionChanged();
       return {};
     }
+
+    // Match the M8 file-browser shortcut already supported by Project
+    // Browser. The project pool owns a designed, confirmed delete flow;
+    // Library files deliberately remain read-only here.
+    if (mode_ == Ui2SampleBrowserMode::ProjectPool &&
+        action == TrackerAction::Edit &&
+        input_.Held(TrackerAction::Option) &&
+        !input_.Held(TrackerAction::Shift) && HasFileSelection())
+      return MakeSelected(Ui2SampleBrowserCommandType::RequestDelete);
 
     if (input_.Held(TrackerAction::Shift) ||
         input_.Held(TrackerAction::Option))
