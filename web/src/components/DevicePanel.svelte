@@ -1,5 +1,5 @@
 <script>
-  import { onDestroy, onMount } from 'svelte'
+  import { onDestroy, onMount, tick } from 'svelte'
   import VirtualControls from './VirtualControls.svelte'
   import { createInputStore } from '../stores/input.js'
 
@@ -9,13 +9,14 @@
   export let compact = false
 
   let panel
+  let scene
   let actionMask = 0
   let actionGeneration = 0
   let lastAction = -1
   let heldActions = []
   let displayScale = settings?.snapshot?.().displayScale ?? 'fit'
   let detachSettings = () => {}
-  const scaleFor = (value) => compact ? 1 : (value === 'fit' ? 1.4 : Number(value) || 1)
+  const scaleFor = (value, compactMode) => compactMode ? 1 : (value === 'fit' ? 1.4 : Number(value) || 1)
   const input = createInputStore({
     pressAction: (action) => runtime.input?.pressAction(action),
     repeatAction: (action) => runtime.input?.repeatAction(action),
@@ -25,6 +26,13 @@
   const detachInput = input.subscribe((next) => { heldActions = next })
 
   function focusCanvas() { panel?.querySelector('#picotracker-canvas')?.focus({ preventScroll: true }) }
+  async function resetModeScroll(compactMode, target) {
+    if (!target) return
+    await tick()
+    if (compact !== compactMode || scene !== target) return
+    target.scrollTop = 0
+    target.scrollLeft = 0
+  }
   function unlockAudio() { runtime.audio?.unlockAudio?.().catch(() => {}) }
   function isTrackerActive(event) {
     if (!panel || panel.getClientRects().length === 0) return false
@@ -45,6 +53,7 @@
   function diagnosticsEnabled() { return new URLSearchParams(window.location.search).get('inputDiagnostics') === '1' }
 
   $: if (runtime.state !== 'ready') { input.releaseAll(); actionMask = 0; actionGeneration = 0; lastAction = -1 }
+  $: resetModeScroll(compact, scene)
 
   onMount(() => {
     detachSettings = settings?.subscribe?.((next) => { displayScale = next.displayScale }) ?? (() => {})
@@ -59,8 +68,8 @@
 
 <div class="device-input-host" class:compact bind:this={panel} onfocusout={(event) => { if (!panel?.contains(event.relatedTarget)) input.releaseAll() }}>
   <h1 class="sr-only">PicoTracker Device</h1>
-  <div class="device-scene">
-    <div class="operator-device" data-display-scale={displayScale} style={`--device-scale:${scaleFor(displayScale)}`}>
+  <div class="device-scene" bind:this={scene}>
+    <div class="operator-device" data-display-scale={displayScale} style={`--device-scale:${scaleFor(displayScale, compact)}`}>
       <div class="operator-screen-housing">
         <div class="screen-bezel">
           <canvas id="canvas" aria-hidden="true" tabindex="-1"></canvas>

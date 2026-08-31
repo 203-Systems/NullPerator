@@ -118,6 +118,18 @@ for (const viewport of mobileViewports) {
     await page.getByRole('button', { name: 'Developer mode' }).click()
     await expect(dashboard).toHaveAttribute('data-developer-mode', 'false')
     await expect(page.getByRole('button', { name: 'Settings', exact: true })).toHaveCount(1)
+    await expect.poll(() => page.locator('.operator-device').evaluate(
+      (element) => element.style.getPropertyValue('--device-scale'),
+    )).toBe('1')
+    await expect.poll(() => page.locator('.device-scene').evaluate(
+      (element) => ({ left: element.scrollLeft, top: element.scrollTop }),
+    )).toEqual({ left: 0, top: 0 })
+    const compactCanvasBox = await canvas.boundingBox()
+    expect(compactCanvasBox).not.toBeNull()
+    expect(compactCanvasBox.x).toBeGreaterThanOrEqual(0)
+    expect(compactCanvasBox.y).toBeGreaterThanOrEqual(0)
+    expect(compactCanvasBox.x + compactCanvasBox.width).toBeLessThanOrEqual(viewport.width)
+    expect(compactCanvasBox.y + compactCanvasBox.height).toBeLessThanOrEqual(viewport.height)
   })
 }
 
