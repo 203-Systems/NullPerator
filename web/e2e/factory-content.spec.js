@@ -13,6 +13,11 @@ const editableProjectSamplePath = `/data/projects/oneCycAc/samples/${editableSam
 const factoryProjectPath = '/data/projects/oneCycAc/lgptsav.dat'
 const factoryProjectSamplePath = '/data/projects/oneCycAc/samples/AKWF_0906.wav'
 const editableLibrarySamplePath = `/data/samples/${editableSampleName}`
+const editableSampleJournalLeaf = Buffer.from(editableSampleName).toString('hex').toUpperCase()
+const editableWorkingSamplePath =
+  `/data/projects/oneCycAc/samples/.sample-editor-working-copy-${editableSampleJournalLeaf}`
+const editableBackupSamplePath =
+  `/data/projects/oneCycAc/samples/.sample-editor-backup-copy-${editableSampleJournalLeaf}`
 
 const fixtureFiles = Object.freeze([
   {
@@ -148,6 +153,13 @@ async function chord(page, modifier, key) {
 
 async function readVirtualFile(page, path) {
   return page.evaluate((requestedPath) => globalThis.__picoTrackerStorageTest.read(requestedPath), path)
+}
+
+async function virtualFileExists(page, path) {
+  return page.evaluate(
+    (requestedPath) => globalThis.__picoTrackerStorageTest.exists(requestedPath),
+    path,
+  )
 }
 
 async function storageSnapshot(page) {
@@ -364,13 +376,15 @@ test('real oneCycAc project imports, trims, plays, and survives reload plus runt
   await tap(page, 's')
   await tap(page, 'k')
 
-  // name -> start; EDIT+UP changes the start frame from 0 to 1. Move through
-  // end and the default Trim operation to Apply, then select Yes in the modal.
+  // waveform -> start; select the least-significant hex digit, then EDIT+UP
+  // changes the start frame from 0 to 1. Move through end and the default Trim
+  // operation to Apply, then select Yes in the modal.
   await tap(page, 's')
+  for (let digit = 0; digit < 6; digit += 1) await tap(page, 'd')
   await chord(page, 'k', 'w')
   await tap(page, 's')
   await tap(page, 's')
-  await tap(page, 'd')
+  await tap(page, 's')
   const beforeApply = await storageSnapshot(page)
   await tap(page, 'k')
   await tap(page, 'a')
@@ -381,11 +395,16 @@ test('real oneCycAc project imports, trims, plays, and survives reload plus runt
   ).toBeGreaterThan(beforeApply.mutationGeneration)
   const appliedMutation = await storageSnapshot(page)
   await awaitStorageDurable(page, appliedMutation.mutationGeneration)
+  // APPLY mutates only the hidden transaction copy. The authoritative project
+  // sample is byte-identical until SAVE promotes the validated replacement.
+  expect(Buffer.from(await readVirtualFile(page, editableProjectSamplePath))).toEqual(importedBytes)
+  expect(await virtualFileExists(page, editableWorkingSamplePath)).toBe(true)
+  expect(Buffer.from(await readVirtualFile(page, editableWorkingSamplePath))).toEqual(expectedEditedBytes)
+  expect(await virtualFileExists(page, editableBackupSamplePath)).toBe(false)
 
-  // Apply remains focused after the field list rebuild. DOWN selects Discard,
-  // LEFT selects Save. The save atomically commits the working WAV in place.
+  // Apply remains focused after the field list rebuild. DOWN selects Save,
+  // which atomically commits the working WAV in place.
   await tap(page, 's')
-  await tap(page, 'a')
   const beforeSampleSave = await storageSnapshot(page)
   await tap(page, 'k')
   await expect.poll(
@@ -403,6 +422,8 @@ test('real oneCycAc project imports, trims, plays, and survives reload plus runt
   const editedHash = sha256(editedBytes)
   expect(editedBytes).toEqual(expectedEditedBytes)
   expect(editedHash).toBe(expectedEditedHash)
+  expect(await virtualFileExists(page, editableWorkingSamplePath)).toBe(false)
+  expect(await virtualFileExists(page, editableBackupSamplePath)).toBe(false)
   expect(editedHash).not.toBe(sha256(importedBytes))
   expect(editedBytes.readUInt32LE(40)).toBe(importedBytes.readUInt32LE(40) - 2)
 
