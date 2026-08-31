@@ -162,7 +162,10 @@ export function createInputStore(bridge) {
     detach?.()
     let attached = true
     const onKeyDown = (event) => attached && isActive(event) && handleKeyDown(event)
-    const onKeyUp = (event) => attached && isActive(event) && handleKeyUp(event)
+    // A control may move focus while its key is still held (for example when a
+    // modal opens). Always process key-up so that an action accepted by the
+    // active surface cannot remain latched after that focus transition.
+    const onKeyUp = (event) => attached && handleKeyUp(event)
     const onBlur = () => { if (attached) releaseAll() }
     const onPageHide = () => { if (attached) releaseAll() }
     const onVisibilityChange = () => {

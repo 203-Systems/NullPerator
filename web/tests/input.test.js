@@ -68,6 +68,27 @@ describe('tracker input state', () => {
     expect(bridge.releaseAllActions).toHaveBeenCalledTimes(2)
   })
 
+  it('releases an accepted key after the input surface becomes inactive', () => {
+    const bridge = createBridge()
+    const input = createInputStore(bridge)
+    const listeners = new Map()
+    let active = true
+    const target = {
+      addEventListener: (name, listener) => listeners.set(name, listener),
+      removeEventListener() {},
+    }
+    const document = { addEventListener() {}, removeEventListener() {}, visibilityState: 'visible' }
+    input.attach({ target, document, isActive: () => active })
+
+    listeners.get('keydown')({ code: 'KeyW', repeat: false, preventDefault() {} })
+    active = false
+    listeners.get('keyup')({ code: 'KeyW', preventDefault() {} })
+
+    expect(bridge.pressAction).toHaveBeenCalledWith(DEFAULT_KEY_MAP.up.action)
+    expect(bridge.releaseAction).toHaveBeenCalledWith(DEFAULT_KEY_MAP.up.action)
+    expect(input.getHeldActions()).toEqual([])
+  })
+
   it('keeps an action held until every simultaneous source releases it', () => {
     const bridge = createBridge()
     const input = createInputStore(bridge)
