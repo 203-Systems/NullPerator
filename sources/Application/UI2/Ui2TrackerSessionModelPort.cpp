@@ -1076,6 +1076,64 @@ bool Ui2TrackerSessionModelPort::ApplyPasteSelection(
                 static_cast<std::uint8_t>(column), value);
     }
   }
+  Song &song = session_.ProjectModel().song_;
+  const auto registerReference = [&](std::uint8_t row, std::uint8_t column) {
+    if (command.sourcePage == Ui2TrackerPage::Song) {
+      const std::uint8_t chain = song.data_[row * SONG_CHANNEL_COUNT + column];
+      if (chain < CHAIN_COUNT)
+        song.chain_.SetUsed(chain);
+      return;
+    }
+    if (command.sourcePage == Ui2TrackerPage::Chain) {
+      if (column == 0U) {
+        const std::uint8_t phrase = song.chain_.data_[
+            session_.EditorState().currentChain_ * PHRASES_PER_CHAIN + row];
+        if (phrase < PHRASE_COUNT)
+          song.phrase_.SetUsed(phrase);
+      }
+      return;
+    }
+    FourCC effect = FourCC::InstrumentCommandNone;
+    std::uint16_t parameter = 0U;
+    if (command.sourcePage == Ui2TrackerPage::Phrase) {
+      if (column < 2U)
+        return;
+      const int index = session_.EditorState().currentPhrase_ *
+                            STEPS_PER_PHRASE +
+                        row;
+      const std::uint8_t group = static_cast<std::uint8_t>((column - 2U) / 2U);
+      effect = group == 0U ? song.phrase_.cmd1_[index]
+                           : song.phrase_.cmd2_[index];
+      parameter = group == 0U ? song.phrase_.param1_[index]
+                              : song.phrase_.param2_[index];
+    } else {
+      const std::uint8_t tableNumber =
+          command.sourcePage == Ui2TrackerPage::PhraseTable
+              ? phraseTableNumber_
+              : instrumentTableNumber_;
+      Table &table = TableHolder::GetInstance()->GetTable(tableNumber);
+      const std::uint8_t group = column / 2U;
+      const FourCC *commands[3] = {table.cmd1_, table.cmd2_, table.cmd3_};
+      const std::uint16_t *parameters[3] = {table.param1_, table.param2_,
+                                           table.param3_};
+      effect = commands[group][row];
+      parameter = parameters[group][row];
+    }
+    if (effect == FourCC::InstrumentCommandTable && parameter < TABLE_COUNT)
+      TableHolder::GetInstance()->SetUsed(parameter);
+  };
+  for (std::uint8_t y = 0; y < selectionClipboardHeight_; ++y) {
+    const unsigned row = static_cast<unsigned>(command.row) + y;
+    if (row > bounds.maximumRow)
+      break;
+    for (std::uint8_t x = 0; x < selectionClipboardWidth_; ++x) {
+      const unsigned column = static_cast<unsigned>(command.column) + x;
+      if (column > bounds.maximumColumn)
+        break;
+      registerReference(static_cast<std::uint8_t>(row),
+                        static_cast<std::uint8_t>(column));
+    }
+  }
   return storageMutated;
 }
 

@@ -614,6 +614,54 @@ TEST_CASE("UI2 model port shares FX selections between Phrase and Table") {
   CHECK(port.ProjectMutationGeneration() == 2U);
 }
 
+TEST_CASE("UI2 selection paste registers referenced tracker resources") {
+  TableHolder::GetInstance()->Reset();
+  TrackerApplicationSession session;
+  Ui2TrackerSessionModelPort port(session);
+  Song &song = session.ProjectModel().song_;
+
+  for (std::uint8_t index = 0U; index < 7U; ++index) {
+    song.chain_.SetUsed(index);
+    song.phrase_.SetUsed(index);
+    TableHolder::GetInstance()->SetUsed(index);
+  }
+
+  // Loaded projects may contain live references before the allocation bitmap
+  // has observed them. Copying them must not let a subsequent allocation
+  // recycle and overwrite the referenced object.
+  song.data_[0] = 7U;
+  port.ApplyGridCommand(SelectionCommand(Ui2TrackerCommandType::CopySelection,
+                                         Ui2TrackerPage::Song, 0, 0, 0, 0));
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::PasteSelection,
+                                    Ui2TrackerPage::Song, 1, 1));
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::AllocateNext,
+                                    Ui2TrackerPage::Song, 2, 2));
+  CHECK(song.data_[2 * SONG_CHANNEL_COUNT + 2] == 8U);
+
+  session.EditorState().currentChain_ = 0;
+  song.chain_.data_[0] = 7U;
+  port.ApplyGridCommand(SelectionCommand(Ui2TrackerCommandType::CopySelection,
+                                         Ui2TrackerPage::Chain, 0, 0, 0, 0));
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::PasteSelection,
+                                    Ui2TrackerPage::Chain, 1, 0));
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::AllocateNext,
+                                    Ui2TrackerPage::Chain, 2, 0));
+  CHECK(song.chain_.data_[2] == 8U);
+
+  session.EditorState().currentPhrase_ = 0;
+  song.phrase_.cmd1_[0] = FourCC::InstrumentCommandTable;
+  song.phrase_.param1_[0] = 7U;
+  song.phrase_.cmd1_[1] = FourCC::InstrumentCommandTable;
+  port.ApplyGridCommand(SelectionCommand(Ui2TrackerCommandType::CopySelection,
+                                         Ui2TrackerPage::Phrase, 3, 0, 3, 0));
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::PasteSelection,
+                                    Ui2TrackerPage::Phrase, 1, 3));
+  song.phrase_.cmd1_[2] = FourCC::InstrumentCommandTable;
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::AllocateNext,
+                                    Ui2TrackerPage::Phrase, 2, 3));
+  CHECK(song.phrase_.param1_[2] == 8U);
+}
+
 TEST_CASE("UI2 model port rejects Phrase note selections in Table") {
   TableHolder *tables = TableHolder::GetInstance();
   tables->Reset();
