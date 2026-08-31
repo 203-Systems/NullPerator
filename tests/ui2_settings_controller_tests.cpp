@@ -1276,6 +1276,31 @@ TEST_CASE("UI2 Groove workflow reports only effective mutations") {
   CHECK(result.dispatchPerformance);
 }
 
+TEST_CASE("UI2 Groove workflow rejects out-of-range row commands") {
+  using namespace ui2;
+  std::array<std::uint8_t, Ui2GrooveController::RowCount + 2U> guarded{};
+  std::uint8_t *steps = guarded.data() + 1U;
+  constexpr std::array<Ui2GrooveCommandType, 3U> commands{
+      Ui2GrooveCommandType::InitializeStep,
+      Ui2GrooveCommandType::ClearStep,
+      Ui2GrooveCommandType::AdjustStep,
+  };
+
+  for (const Ui2GrooveCommandType type : commands) {
+    guarded.fill(Ui2GrooveStepPolicy::Initial);
+    if (type == Ui2GrooveCommandType::InitializeStep)
+      guarded.back() = Ui2GrooveStepPolicy::Empty;
+    const std::uint8_t canary = guarded.back();
+    const auto result = Ui2GrooveWorkflow::Execute(
+        {.type = type,
+         .value = 1,
+         .row = Ui2GrooveController::RowCount},
+        steps);
+    CHECK_FALSE(result.projectMutated);
+    CHECK(guarded.back() == canary);
+  }
+}
+
 TEST_CASE("UI2 Groove workflow copies cuts and clips selection pastes") {
   using namespace ui2;
   std::uint8_t steps[Ui2GrooveController::RowCount]{};

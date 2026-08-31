@@ -42,16 +42,22 @@ public:
 
     switch (command.type) {
     case Ui2GrooveCommandType::InitializeStep:
+      if (command.row >= Ui2GrooveController::RowCount)
+        return {};
       if (steps[command.row] != Ui2GrooveStepPolicy::Empty)
         return {};
       steps[command.row] = Ui2GrooveStepPolicy::Initial;
       return {.projectMutated = true};
     case Ui2GrooveCommandType::ClearStep:
+      if (command.row >= Ui2GrooveController::RowCount)
+        return {};
       if (steps[command.row] == Ui2GrooveStepPolicy::Empty)
         return {};
       steps[command.row] = Ui2GrooveStepPolicy::Empty;
       return {.projectMutated = true};
     case Ui2GrooveCommandType::AdjustStep: {
+      if (command.row >= Ui2GrooveController::RowCount)
+        return {};
       const std::uint8_t adjusted =
           Ui2GrooveStepPolicy::Adjust(steps[command.row], command.value);
       if (adjusted == steps[command.row])
