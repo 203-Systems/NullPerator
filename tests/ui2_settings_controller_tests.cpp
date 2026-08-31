@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <cstdio>
+#include <cstring>
 #include <string>
 #include <type_traits>
 
@@ -80,6 +82,54 @@ public:
 
 private:
   static constexpr const char *kNames[3]{"Regular", "Bold", "Wide"};
+};
+
+class ThemeBrowserFileSystem final : public FileSystem {
+public:
+  explicit ThemeBrowserFileSystem(std::uint16_t itemCount)
+      : itemCount_(itemCount) {
+    previous_ = FileSystem::GetInstance();
+    FileSystem::Install(this);
+  }
+
+  ~ThemeBrowserFileSystem() override { FileSystem::Install(previous_); }
+
+  FileHandle Open(const char *, const char *) override { return {}; }
+  bool chdir(const char *path) override {
+    return path != nullptr && std::strcmp(path, THEMES_DIR) == 0;
+  }
+  void list(etl::ivector<int> *indices, const char *, bool,
+            bool = false) override {
+    indices->clear();
+    for (std::uint16_t index = 0U; index < itemCount_; ++index)
+      indices->push_back(index);
+  }
+  bool listChecked(etl::ivector<int> *indices, const char *filter,
+                   bool subDirOnly, bool includeHidden = false) override {
+    list(indices, filter, subDirOnly, includeHidden);
+    return true;
+  }
+  void getFileName(int index, char *name, int length) override {
+    if (name == nullptr || length <= 0)
+      return;
+    std::snprintf(name, static_cast<std::size_t>(length), "THEME%02d.npt",
+                  index);
+  }
+  PicoFileType getFileType(int) override { return PFT_FILE; }
+  bool isParentRoot() override { return false; }
+  bool isCurrentRoot() override { return true; }
+  bool DeleteFile(const char *) override { return false; }
+  bool DeleteDir(const char *) override { return false; }
+  bool exists(const char *) override { return false; }
+  bool makeDir(const char *, bool = false) override { return false; }
+  std::uint64_t getFileSize(int) override { return 0U; }
+  bool CopyFile(const char *, const char *) override { return false; }
+  bool MoveFile(const char *, const char *) override { return false; }
+  bool isExFat() override { return false; }
+
+private:
+  FileSystem *previous_ = nullptr;
+  std::uint16_t itemCount_ = 0U;
 };
 
 constexpr std::uint32_t DeviceFieldBit(ui2::Ui2DeviceField field) {
@@ -285,6 +335,20 @@ TEST_CASE("UI2 settings browser does not fabricate font entries") {
   CHECK(std::string(snapshot.meta.data()).empty());
   CHECK(snapshot.totalItemCount == 0U);
   CHECK_FALSE(snapshot.hasSelection);
+}
+
+TEST_CASE("UI2 theme browser option directions jump eight entries") {
+  using namespace ui2;
+  ThemeBrowserFileSystem fileSystem(20U);
+  Ui2SettingsBrowserController controller;
+  REQUIRE(controller.OpenTheme(nullptr));
+
+  controller.Handle(TrackerAction::Option, true);
+  Tap(controller, TrackerAction::Down);
+  CHECK(controller.Snapshot().selectedRow == 8U);
+  Tap(controller, TrackerAction::Up);
+  CHECK(controller.Snapshot().selectedRow == 0U);
+  controller.Handle(TrackerAction::Option, false);
 }
 
 TEST_CASE("UI2 sample instrument fields emit editor and slices activation commands") {

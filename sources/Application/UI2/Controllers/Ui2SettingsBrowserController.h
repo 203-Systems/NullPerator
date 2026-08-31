@@ -99,13 +99,14 @@ public:
     if (!Active())
       return {};
     if (action == TrackerAction::Up) {
-      if (selected_ > 0U)
-        --selected_;
+      selected_ = Ui2MoveListIndex(
+          selected_, ItemCount(),
+          input_.Held(TrackerAction::Option) ? -8 : -1);
       SelectionChanged();
     } else if (action == TrackerAction::Down) {
-      const std::uint16_t count = ItemCount();
-      if (selected_ + 1U < count)
-        ++selected_;
+      selected_ = Ui2MoveListIndex(
+          selected_, ItemCount(),
+          input_.Held(TrackerAction::Option) ? 8 : 1);
       SelectionChanged();
     } else if (action == TrackerAction::Left) {
       activeAction_ = 0U;
