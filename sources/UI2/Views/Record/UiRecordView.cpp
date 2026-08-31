@@ -6,12 +6,12 @@
 
 #include "UI2/Views/Record/UiRecordView.h"
 
+#include "Application/UI2/Ui2FixedText.h"
 #include "UI2/Render/UiFrameRenderer.h"
 #include "UI2/Text/UiFont5x7.h"
 
 #include <algorithm>
 #include <array>
-#include <cstdio>
 
 namespace ui2 {
 namespace {
@@ -184,9 +184,7 @@ UiBuildStatus UiRecordView::Build(const UiRecordViewData &data,
   const UiColorToken stateColor = StateColor(data.state);
   if (data.state == UiRecordState::Saving) {
     std::array<char, 6> progress{};
-    std::snprintf(progress.data(), progress.size(), "%u%%",
-                  static_cast<unsigned>(
-                      std::min<std::uint8_t>(data.savingPercent, 100U)));
+    FormatUiPercent100(data.savingPercent, progress);
     builder.CenteredText(progress.data(), 120, 132, stateColor, 2);
   } else {
     const UiColorToken elapsedColor =

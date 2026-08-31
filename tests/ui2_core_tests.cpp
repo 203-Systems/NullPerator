@@ -442,6 +442,29 @@ TEST_CASE("UI2 percent formatting covers uint16 boundaries and stale bytes") {
   }
 }
 
+TEST_CASE("UI2 bounded percent formatting clamps and clears compact buffers") {
+  struct Case {
+    std::uint8_t value;
+    std::array<char, 5> expected;
+  };
+  constexpr std::array<Case, 8> cases{{
+      {0U, {'0', '%', '\0', '\0', '\0'}},
+      {1U, {'1', '%', '\0', '\0', '\0'}},
+      {9U, {'9', '%', '\0', '\0', '\0'}},
+      {10U, {'1', '0', '%', '\0', '\0'}},
+      {99U, {'9', '9', '%', '\0', '\0'}},
+      {100U, {'1', '0', '0', '%', '\0'}},
+      {101U, {'1', '0', '0', '%', '\0'}},
+      {255U, {'1', '0', '0', '%', '\0'}},
+  }};
+  for (const Case &test : cases) {
+    std::array<char, 5> actual{'X', 'X', 'X', 'X', 'X'};
+    ui2::FormatUiPercent100(test.value, actual);
+    CAPTURE(test.value);
+    CHECK(actual == test.expected);
+  }
+}
+
 TEST_CASE("UI2 indexed surface owns no RGB framebuffer and clips fills") {
   ui2::UiSurfaceStorage storage;
   ui2::UiIndexedSurface surface(storage);

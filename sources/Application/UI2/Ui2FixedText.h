@@ -95,4 +95,24 @@ inline void FormatUiPercent(std::uint16_t value,
   destination[index] = '%';
 }
 
+// Battery and record progress are normalized percentages. Their render paths
+// only need the bounded 0..100 representation, which fits the compact 5-byte
+// top-bar buffer and avoids invoking printf on every visible frame.
+template <std::size_t Size>
+inline void FormatUiPercent100(std::uint8_t value,
+                               std::array<char, Size> &destination) {
+  static_assert(Size >= 5U);
+  const std::uint8_t percent = std::min<std::uint8_t>(value, 100U);
+  destination.fill('\0');
+  std::size_t index = 0U;
+  if (percent >= 100U) {
+    destination[index++] = '1';
+    destination[index++] = '0';
+  } else if (percent >= 10U) {
+    destination[index++] = static_cast<char>('0' + percent / 10U);
+  }
+  destination[index++] = static_cast<char>('0' + percent % 10U);
+  destination[index] = '%';
+}
+
 } // namespace ui2

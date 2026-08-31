@@ -6,6 +6,8 @@
 
 #include "UI2/Chrome/UiChromeRenderer.h"
 
+#include "Application/UI2/Ui2FixedText.h"
+
 #include <algorithm>
 #include <array>
 #include <cstdio>
@@ -181,8 +183,7 @@ UiBuildStatus UiChromeRenderer::BuildTop(const UiTopBarModel &model,
   } else {
     if (model.showBatteryPercent) {
       std::array<char, 5> percent{};
-      std::snprintf(percent.data(), percent.size(), "%u%%",
-                    static_cast<unsigned>(model.batteryPercent));
+      FormatUiPercent100(model.batteryPercent, percent);
       builder.Text(percent.data(), 184, 14, UiColorToken::TextNormal);
     }
     DrawPower(model, builder);
