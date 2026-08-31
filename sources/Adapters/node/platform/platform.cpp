@@ -5,11 +5,12 @@
 #include "driver/i2s_std.h"
 #include "esp_log.h"
 #include "esp_timer.h"
+#include <atomic>
 
 namespace {
 audio_mode g_audioMode = headphone_out;
 bool g_speakerEnabled = false;
-bool g_audioMuted = false;
+std::atomic<bool> g_audioMuted{false};
 int g_audioResumeVolume = 50;
 
 esp_err_t apply_audio_route() {
@@ -71,7 +72,8 @@ esp_err_t audio_codec_write(void* buffer, size_t len, size_t* bytes_written,
     if (bytes_written) {
         *bytes_written = len;
     }
-    if (g_audioMuted || NullperatorHAL::Audio::GetVolume() == 0) {
+    if (g_audioMuted.load(std::memory_order_acquire) ||
+        NullperatorHAL::Audio::GetVolume() == 0) {
         return ESP_OK;
     }
     return i2s_channel_write(txChan, buffer, len, bytes_written, timeout_ms);
@@ -84,7 +86,7 @@ esp_err_t audio_codec_set_volume(int volume) {
     if (volume > 0) {
         g_audioResumeVolume = volume;
     }
-    g_audioMuted = (volume == 0);
+    g_audioMuted.store(volume == 0, std::memory_order_release);
     return NullperatorHAL::Audio::SetVolume(static_cast<uint8_t>(volume));
 }
 
@@ -93,7 +95,7 @@ int audio_codec_get_volume(void) {
 }
 
 esp_err_t audio_codec_set_mute(bool enable) {
-    g_audioMuted = enable;
+    g_audioMuted.store(enable, std::memory_order_release);
     if (enable) {
         const int currentVolume = audio_codec_get_volume();
         if (currentVolume > 0) {

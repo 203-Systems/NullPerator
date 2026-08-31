@@ -3,6 +3,7 @@
 #include "Adapters/node/hal/nullperator/audio/codec/es8389.h"
 #include "Adapters/node/hal/nullperator/system/system.h"
 #include "esp_log.h"
+#include <atomic>
 
 static const char* TAG = "NP_AUDIO";
 
@@ -11,7 +12,7 @@ namespace NullperatorHAL::Audio {
     static i2s_chan_handle_t rxChan = nullptr;
     static OutputMode_t currentOutputMode = OUTPUT_OFF;
     static InputMode_t currentInputMode = INPUT_OFF;
-    static uint8_t currentVolume = 50;
+    static std::atomic<uint8_t> currentVolume{50};
 
     namespace {
         constexpr i2s_data_bit_width_t I2S_AUDIO_BIT_WIDTH = I2S_DATA_BIT_WIDTH_16BIT;
@@ -129,7 +130,7 @@ namespace NullperatorHAL::Audio {
             return ret;
         }
 
-        ret = SetVolume(currentVolume);
+        ret = SetVolume(currentVolume.load(std::memory_order_acquire));
         if (ret != ESP_OK) {
             return ret;
         }
@@ -150,7 +151,7 @@ namespace NullperatorHAL::Audio {
         if (volume > 100) {
             volume = 100;
         }
-        currentVolume = volume;
+        currentVolume.store(volume, std::memory_order_release);
         esp_err_t ret = Codec::ES8389::SetVolume(volume);
         if (ret != ESP_OK) {
             return ret;
@@ -161,7 +162,7 @@ namespace NullperatorHAL::Audio {
     }
 
     uint8_t GetVolume() {
-        return currentVolume;
+        return currentVolume.load(std::memory_order_acquire);
     }
 
     esp_err_t SetOutputMode(OutputMode_t mode) {
