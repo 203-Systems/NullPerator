@@ -15,10 +15,10 @@ enum class TrackerAction : std::uint8_t {
   Down,
   Right,
   Up,
-  Shift,  // Node SELECT; M8 page/navigation modifier.
+  Shift,  // Node START; M8 page/navigation modifier.
   Option, // Node B; M8 context/fast-action modifier.
   Edit,   // Node A; M8 edit/confirm action.
-  Play,   // Node START; immediate context playback action.
+  Play,   // Node SELECT; immediate context playback action.
   Reserved8,
   Reserved9,
   Power = 10,
