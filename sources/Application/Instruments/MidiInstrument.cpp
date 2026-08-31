@@ -81,10 +81,7 @@ bool MidiInstrument::Start(int c, unsigned char note, bool retrigger) {
   first_[c] = true;
   lastNotes_[c][0] = note;
 
-  Variable *v = FindVariable(FourCC::MidiInstrumentChannel);
-  int channel = v->GetInt();
-
-  v = FindVariable(FourCC::MidiInstrumentNoteLength);
+  Variable *v = FindVariable(FourCC::MidiInstrumentNoteLength);
   remainingTicks_ = v->GetInt();
   if (remainingTicks_ == 0) {
     remainingTicks_ = -1;
@@ -119,11 +116,6 @@ void MidiInstrument::Stop(int c) {
   }
   // clear last notes array
   lastNotes_[c].fill(NO_NOTE);
-};
-
-void MidiInstrument::SetChannel(int channel) {
-  Variable *v = FindVariable(FourCC::MidiInstrumentChannel);
-  v->SetInt(channel);
 };
 
 bool MidiInstrument::Render(int channel, fixed *buffer, int size,
