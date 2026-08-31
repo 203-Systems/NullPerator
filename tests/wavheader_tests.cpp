@@ -4,6 +4,7 @@
 #include "Application/Model/Config.h"
 #include "System/FileSystem/I_File.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <limits>
@@ -119,6 +120,88 @@ private:
   bool error_ = false;
 };
 
+class HeaderWriteFile final : public I_File {
+public:
+  int Read(void *ptr, int size) override {
+    if (!ptr || size <= 0 || position_ >= size_) {
+      return 0;
+    }
+    const size_t available = size_ - position_;
+    const size_t count =
+        std::min(static_cast<size_t>(size), available);
+    std::memcpy(ptr, data_ + position_, count);
+    position_ += count;
+    return static_cast<int>(count);
+  }
+
+  int GetC() override {
+    if (position_ >= size_) {
+      return -1;
+    }
+    return data_[position_++];
+  }
+
+  int Write(const void *ptr, int size, int nmemb) override {
+    if (!ptr || size <= 0 || nmemb <= 0) {
+      return 0;
+    }
+    const size_t count =
+        static_cast<size_t>(size) * static_cast<size_t>(nmemb);
+    if (position_ + count > sizeof(data_)) {
+      error_ = true;
+      return 0;
+    }
+    std::memcpy(data_ + position_, ptr, count);
+    position_ += count;
+    size_ = std::max(size_, position_);
+    return static_cast<int>(count);
+  }
+
+  void Seek(long offset, int whence) override {
+    size_t base = 0;
+    if (whence == SEEK_CUR) {
+      base = position_;
+    } else if (whence == SEEK_END) {
+      base = size_;
+    }
+    const long next = static_cast<long>(base) + offset;
+    if (next < 0 || static_cast<size_t>(next) > sizeof(data_)) {
+      error_ = true;
+      return;
+    }
+    position_ = static_cast<size_t>(next);
+  }
+
+  long Tell() override { return static_cast<long>(position_); }
+  int Error() override { return error_ ? 1 : 0; }
+  bool Sync() override { return !error_; }
+  void Dispose() override {}
+
+  const uint8_t *data() const { return data_; }
+  size_t size() const { return size_; }
+
+protected:
+  bool Close() override { return true; }
+
+private:
+  uint8_t data_[64] = {0};
+  size_t size_ = 0;
+  size_t position_ = 0;
+  bool error_ = false;
+};
+
+uint16_t ReadU16(const uint8_t *data) {
+  return static_cast<uint16_t>(data[0]) |
+         static_cast<uint16_t>(data[1] << 8U);
+}
+
+uint32_t ReadU32(const uint8_t *data) {
+  return static_cast<uint32_t>(data[0]) |
+         (static_cast<uint32_t>(data[1]) << 8U) |
+         (static_cast<uint32_t>(data[2]) << 16U) |
+         (static_cast<uint32_t>(data[3]) << 24U);
+}
+
 ByteWriter BuildPcmWav(uint16_t channels, uint32_t sampleRate,
                        uint16_t bitsPerSample, uint32_t dataSize) {
   ByteWriter writer;
@@ -205,6 +288,18 @@ ByteWriter BuildExtensibleWav(uint16_t channels, uint32_t sampleRate,
 }
 
 } // namespace
+
+TEST_CASE("WriteHeader defaults to 16-bit stereo PCM") {
+  HeaderWriteFile file;
+
+  REQUIRE(WavHeaderWriter::WriteHeader(&file));
+  REQUIRE(file.size() == 44U);
+  CHECK(ReadU16(file.data() + 22U) == 2U);
+  CHECK(ReadU32(file.data() + 24U) == 44100U);
+  CHECK(ReadU32(file.data() + 28U) == 176400U);
+  CHECK(ReadU16(file.data() + 32U) == 4U);
+  CHECK(ReadU16(file.data() + 34U) == 16U);
+}
 
 TEST_CASE("ReadHeader parses valid PCM WAV") {
   Config::SetImportResampler(0);
