@@ -60,8 +60,9 @@ test('real session Save As, Browser Load/Delete, dirty confirmation, and New res
   await expect(page.locator('[data-storage-state="ready"]')).toBeVisible()
   await expectModel(page, { projectName: '.untitled', tempo: 138, playerRunning: false })
 
-  // Create project A with tempo 139. Rename starts on the input row; UP moves
-  // to actions, LEFT selects RANDOM, and the next EDIT accepts SAVE.
+  // Create project A with tempo 139. An empty rename cannot select SAVE, so
+  // UP reaches RANDOM; the first EDIT generates a valid name and the second
+  // accepts SAVE.
   await chord(page, 'x', 'w')
   await tap(page, 's')
   await tap(page, 'd')
@@ -71,13 +72,11 @@ test('real session Save As, Browser Load/Delete, dirty confirmation, and New res
   await tap(page, 'd')
   await tap(page, 'k')
   await tap(page, 'w')
-  await tap(page, 'a')
   await tap(page, 'k')
   await tap(page, 'k')
   const projectA = (await modelSnapshot(page)).projectName
   expect(projectA).not.toBe('.untitled')
 
-  await tap(page, 'a')
   await tap(page, 'a')
   await tap(page, 'k')
   await expect.poll(() => projectExists(page, projectA), { timeout: 10_000 }).toBe(true)
@@ -87,7 +86,6 @@ test('real session Save As, Browser Load/Delete, dirty confirmation, and New res
   await tap(page, 's')
   await tap(page, 'd')
   await tap(page, 'w')
-  await tap(page, 'd')
   await tap(page, 'd')
   await tap(page, 'k')
   await tap(page, 's')
@@ -99,7 +97,6 @@ test('real session Save As, Browser Load/Delete, dirty confirmation, and New res
   expect(projectB).toBe(`${projectA}1`)
 
   await tap(page, 'a')
-  await tap(page, 'a')
   await tap(page, 'k')
   await expect.poll(() => projectExists(page, projectB), { timeout: 10_000 }).toBe(true)
   await expectModel(page, { projectName: projectB, tempo: 140 })
@@ -108,9 +105,8 @@ test('real session Save As, Browser Load/Delete, dirty confirmation, and New res
   // consumes EDIT and leaves the selected project and live model untouched.
   await tap(page, 'c')
   await expectModel(page, { playerRunning: true })
-  await tap(page, 'd')
+  await tap(page, 'a')
   await tap(page, 'k')
-  await tap(page, 's')
   await tap(page, 'k')
   await expectModel(page, { projectName: projectB, tempo: 140, playerRunning: true })
   await tap(page, 'k')
@@ -128,7 +124,6 @@ test('real session Save As, Browser Load/Delete, dirty confirmation, and New res
   await tap(page, 'd')
   await tap(page, 'w')
   await tap(page, 'k')
-  await tap(page, 's')
   await tap(page, 'k')
   await tap(page, 'k')
   await expectModel(page, { projectName: projectB, tempo: 141 })
@@ -141,7 +136,6 @@ test('real session Save As, Browser Load/Delete, dirty confirmation, and New res
   // Project therefore reopens on NEW. First delete non-current B through the
   // browser (again checking the default NO), then execute NEW from that reset.
   await chord(page, 'x', 'w')
-  await tap(page, 'd')
   await tap(page, 'd')
   await tap(page, 'k')
   await tap(page, 's')
@@ -156,7 +150,6 @@ test('real session Save As, Browser Load/Delete, dirty confirmation, and New res
   await expect.poll(() => projectExists(page, projectB), { timeout: 10_000 }).toBe(false)
 
   await chord(page, 'x', 'a')
-  await tap(page, 'a')
   await tap(page, 'a')
   await tap(page, 'k')
   await expectModel(page, { projectName: '.untitled', tempo: 138, playerRunning: false })
