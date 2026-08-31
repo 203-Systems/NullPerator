@@ -250,14 +250,18 @@ target_include_directories(node_ui2_input_mailbox_tests PRIVATE
 target_compile_definitions(node_ui2_input_mailbox_tests PRIVATE HOST_TEST)
 add_test(NAME node_ui2_input_mailbox COMMAND node_ui2_input_mailbox_tests)
 
-# The product UI2-only gate remains opt-in, but its artifact parser is a normal
-# host test so forbidden/required contract changes cannot silently weaken it.
+# Product artifact gates run their parsers as normal host tests so malformed
+# inputs, forbidden UI2 artifacts, and memory-budget boundaries fail closed.
 find_package(Python3 COMPONENTS Interpreter QUIET)
 if(Python3_Interpreter_FOUND)
   add_test(NAME ui2_only_firmware_acceptance_checker
     COMMAND "${Python3_EXECUTABLE}" -m unittest discover
       -s "${CMAKE_CURRENT_LIST_DIR}/../tools/tests"
       -p "test_verify_ui2_only_firmware.py")
+  add_test(NAME node_iram_budget_checker
+    COMMAND "${Python3_EXECUTABLE}" -m unittest discover
+      -s "${CMAKE_CURRENT_LIST_DIR}/../tools/tests"
+      -p "test_check_node_iram_budget.py")
 endif()
 
 # UI2-native controller tests are registered append-only to avoid churn in the
