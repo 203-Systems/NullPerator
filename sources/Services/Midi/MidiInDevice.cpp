@@ -75,10 +75,6 @@ void MidiInDevice::stopTrackedNotes() {
 bool MidiInDevice::IsRunning() { return isRunning_; };
 
 void MidiInDevice::onMidiStart() {
-  MidiSyncData data(MSM_START);
-  SetChanged();
-  NotifyObservers();
-
   // Get the Player instance and start playback similar to SongView's onStart
   Player *player = Player::GetInstance();
   if (player) {
@@ -88,10 +84,6 @@ void MidiInDevice::onMidiStart() {
 };
 
 void MidiInDevice::onMidiStop() {
-  MidiSyncData data(MSM_STOP);
-  SetChanged();
-  NotifyObservers();
-
   // Get the Player instance and stop playback
   Player *player = Player::GetInstance();
   if (player) {
@@ -105,10 +97,6 @@ void MidiInDevice::onMidiStop() {
 };
 
 void MidiInDevice::onMidiContinue() {
-  MidiSyncData data(MSM_CONTINUE);
-  SetChanged();
-  NotifyObservers();
-
   // Get the Player instance and start playback
   Player *player = Player::GetInstance();
   if (player) {
@@ -118,12 +106,6 @@ void MidiInDevice::onMidiContinue() {
       player->OnSongStartButton(0, 7, false, false);
     }
   }
-};
-
-void MidiInDevice::onMidiTempoTick() {
-  MidiSyncData data(MSM_TEMPOTICK);
-  SetChanged();
-  NotifyObservers();
 };
 
 void MidiInDevice::onDriverMessage(MidiMessage &message) {
@@ -148,7 +130,6 @@ void MidiInDevice::treatChannelEvent(MidiMessage &event) {
   // First check for system real-time messages which need to be compared with
   // the full status byte
   if (event.status_ == MidiMessage::MIDI_CLOCK) {
-    onMidiTempoTick();
     return;
   } else if (event.status_ == MidiMessage::MIDI_START) {
     onMidiStart();

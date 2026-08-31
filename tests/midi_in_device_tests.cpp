@@ -45,10 +45,13 @@ public:
   void Update(Observable &, I_ObservableData *data) override {
     if (data != nullptr) {
       messages.push_back(*static_cast<MidiMessage *>(data));
+    } else {
+      ++emptyUpdates;
     }
   }
 
   std::vector<MidiMessage> messages;
+  int emptyUpdates = 0;
 };
 
 } // namespace
@@ -185,6 +188,20 @@ TEST_CASE("System Real-Time bytes preserve partial and running status") {
   CHECK(recorder.messages[3].status_ == 0x92U);
   CHECK(recorder.messages[3].data1_ == 61U);
   CHECK(recorder.messages[3].data2_ == 101U);
+}
+
+TEST_CASE("Transport input publishes only its typed raw message") {
+  Player::ResetTestState();
+  TestMidiInDevice device;
+  MidiEventRecorder recorder;
+  device.AddObserver(recorder);
+
+  device.Feed(MidiMessage::MIDI_START);
+
+  REQUIRE(recorder.messages.size() == 1U);
+  CHECK(recorder.messages[0].status_ == MidiMessage::MIDI_START);
+  CHECK(recorder.emptyUpdates == 0);
+  CHECK(Player::GetInstance()->songStartCalls == 1);
 }
 
 TEST_CASE("System Common messages cancel channel running status") {

@@ -41,8 +41,6 @@ bool MidiService::Init() {
 
   for (auto dev : inList_) {
     dev->Start();
-    // Add this service as an observer to receive transport control messages
-    dev->AddObserver(*this);
   }
 
   // Initialize the new channel-to-instrument mapping

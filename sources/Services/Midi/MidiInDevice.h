@@ -14,13 +14,6 @@
 #include "MidiMessage.h"
 #include "MidiNoteTracker.h"
 
-enum MidiSyncMessage { MSM_START, MSM_STOP, MSM_TEMPOTICK, MSM_CONTINUE };
-
-struct MidiSyncData : public I_ObservableData {
-  MidiSyncMessage message_;
-  MidiSyncData(MidiSyncMessage msg) : message_(msg){};
-};
-
 class MidiInDevice : public Observable {
 public:
   MidiInDevice(const char *name);
@@ -52,7 +45,6 @@ protected:
   // Callbacks from driver
 
   void onDriverMessage(MidiMessage &event);
-  void onMidiTempoTick();
   void onMidiStart();
   void onMidiStop();
   void onMidiContinue();
