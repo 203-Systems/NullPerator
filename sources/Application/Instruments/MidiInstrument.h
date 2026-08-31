@@ -65,17 +65,6 @@ public:
 
   void SetChannel(int i);
   void SendProgramChange(int channel, int program);
-  void SendProgramChangeWithNote(int channel, int program);
-
-  // Static callback for handling delayed note-off messages
-  static void NoteOffCallback();
-
-  // Structure to hold note-off information
-  struct NoteOffInfo {
-    int channel;
-    uint8_t note;
-    static NoteOffInfo current;
-  };
 
 private:
   etl::vector<Variable *, 6> variables_;
@@ -103,7 +92,6 @@ private:
   Variable tableAuto_;
   Variable program_;
   static MidiService *svc_;
-  static TimerService *timerSvc_;
 };
 
 #endif
