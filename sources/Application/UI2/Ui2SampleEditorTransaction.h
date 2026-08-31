@@ -108,25 +108,27 @@ public:
   [[nodiscard]] Ui2SampleEditorTransactionResult Save() {
     if (!active_ || fileSystem_ == nullptr)
       return Ui2SampleEditorTransactionResult::SaveFailed;
+    // A backup may be the only authoritative generation after an interrupted
+    // promotion. Recover it before retrying; never delete it merely because a
+    // prior SAVE attempt left it behind.
+    if (fileSystem_->exists(backup_.data()) && !Recover())
+      return Ui2SampleEditorTransactionResult::RecoveryFailed;
     if (!hasWorkingCopy_)
       return Ui2SampleEditorTransactionResult::NoChanges;
     if (!Validate(working_.data())) {
       AbandonBrokenWorkingCopy();
       return Ui2SampleEditorTransactionResult::SaveFailed;
     }
-    if (fileSystem_->exists(backup_.data()) &&
-        !fileSystem_->DeleteFile(backup_.data()))
-      return Ui2SampleEditorTransactionResult::SaveFailed;
     if (!fileSystem_->MoveFile(destination_.data(), backup_.data()))
       return Ui2SampleEditorTransactionResult::SaveFailed;
     if (!fileSystem_->MoveFile(working_.data(), destination_.data())) {
-      (void)RestoreBackup();
-      return Ui2SampleEditorTransactionResult::SaveFailed;
+      return RestoreBackup() ? Ui2SampleEditorTransactionResult::SaveFailed
+                             : Ui2SampleEditorTransactionResult::RecoveryFailed;
     }
     hasWorkingCopy_ = false;
     if (!Validate(destination_.data())) {
-      (void)RestoreBackup();
-      return Ui2SampleEditorTransactionResult::SaveFailed;
+      return RestoreBackup() ? Ui2SampleEditorTransactionResult::SaveFailed
+                             : Ui2SampleEditorTransactionResult::RecoveryFailed;
     }
 
     // The new destination is already the committed generation. A stale

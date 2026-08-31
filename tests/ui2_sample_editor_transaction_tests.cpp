@@ -133,6 +133,7 @@ public:
   bool MoveFile(const char *source, const char *destination) override {
     if (source == nullptr || destination == nullptr ||
         (failMove_.first == source && failMove_.second == destination) ||
+        (failMove2_.first == source && failMove2_.second == destination) ||
         !files_.contains(source) || files_.contains(destination))
       return false;
     files_[destination] = std::move(files_[source]);
@@ -152,9 +153,13 @@ public:
   void FailMove(const char *source, const char *destination) {
     failMove_ = {source, destination};
   }
+  void FailMoveAlso(const char *source, const char *destination) {
+    failMove2_ = {source, destination};
+  }
   void ClearFailures() {
     failCopy_ = false;
     failMove_ = {};
+    failMove2_ = {};
     failDelete_.clear();
   }
 
@@ -162,6 +167,7 @@ private:
   FileSystem *previous_ = nullptr;
   std::map<std::string, std::vector<std::uint8_t>> files_{};
   std::pair<std::string, std::string> failMove_{};
+  std::pair<std::string, std::string> failMove2_{};
   std::string failDelete_{};
   bool failCopy_ = false;
 };
@@ -270,6 +276,47 @@ TEST_CASE("UI2 sample editor restores the original when promotion fails") {
   CHECK(transaction.Save() == Ui2SampleEditorTransactionResult::SaveFailed);
   CHECK(fileSystem.Bytes(source) == original);
   CHECK_FALSE(fileSystem.exists(transaction.BackupPath()));
+}
+
+TEST_CASE("UI2 sample editor retry preserves the only backup generation") {
+  using namespace ui2;
+  constexpr const char *source = "/samples/VOICE.wav";
+  SampleEditMemoryFileSystem fileSystem;
+  const std::vector<std::uint8_t> original = MakeWav();
+  fileSystem.Put(source, original);
+  Ui2SampleEditorTransaction transaction;
+
+  REQUIRE(transaction.Begin(fileSystem, source) ==
+          Ui2SampleEditorTransactionResult::Ready);
+  REQUIRE(transaction.ApplyTrim(1U, 3U) ==
+          Ui2SampleEditorTransactionResult::Applied);
+  const std::string working = transaction.WorkingPath();
+  const std::string backup = transaction.BackupPath();
+  fileSystem.FailMove(working.c_str(), source);
+  fileSystem.FailMoveAlso(backup.c_str(), source);
+
+  CHECK(transaction.Save() ==
+        Ui2SampleEditorTransactionResult::RecoveryFailed);
+  CHECK_FALSE(fileSystem.exists(source));
+  REQUIRE(fileSystem.exists(backup.c_str()));
+  CHECK(fileSystem.Bytes(backup.c_str()) == original);
+  REQUIRE(fileSystem.exists(working.c_str()));
+
+  // A direct retry must attempt recovery first and must not delete the only
+  // authoritative generation merely because its backup filename exists.
+  CHECK(transaction.Save() ==
+        Ui2SampleEditorTransactionResult::RecoveryFailed);
+  CHECK_FALSE(fileSystem.exists(source));
+  REQUIRE(fileSystem.exists(backup.c_str()));
+  CHECK(fileSystem.Bytes(backup.c_str()) == original);
+
+  fileSystem.ClearFailures();
+  Ui2SampleEditorTransaction reopened;
+  REQUIRE(reopened.Begin(fileSystem, source) ==
+          Ui2SampleEditorTransactionResult::Ready);
+  CHECK(fileSystem.Bytes(source) == original);
+  CHECK_FALSE(fileSystem.exists(backup.c_str()));
+  CHECK_FALSE(fileSystem.exists(working.c_str()));
 }
 
 TEST_CASE("UI2 sample editor recovers an interrupted backup before opening") {
