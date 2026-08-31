@@ -424,6 +424,7 @@ UiApplicationRuntime::ViewDataFor(const ChainFrameState &state) {
   data.adjustmentFocus = state.adjustmentFocus;
   data.selectionActive = state.selectionActive;
   data.playbackRows = state.playbackRows;
+  data.mutedTracks = state.mutedTracks;
   data.power = state.power;
   data.navCursor = state.navCursor;
   return data;
@@ -590,6 +591,7 @@ UiApplicationRuntime::ViewDataFor(const PhraseFrameState &state) {
   data.adjustmentFocus = state.adjustmentFocus;
   data.selectionActive = state.selectionActive;
   data.playbackRows = state.playbackRows;
+  data.mutedTracks = state.mutedTracks;
   data.power = state.power;
   data.navCursor = state.navCursor;
   return data;
@@ -747,6 +749,7 @@ UiApplicationRuntime::ViewDataFor(const TableFrameState &state) {
   data.selectionActive = state.selectionActive;
   data.playbackRows = state.playbackRows;
   data.automationPlaybackRows = state.automationPlaybackRows;
+  data.selectedTrackMuted = state.selectedTrackMuted;
   data.power = state.power;
   data.navCursor = state.navCursor;
   return data;
@@ -1404,6 +1407,7 @@ UiApplicationRuntime::ViewDataFor(const GrooveFrameState &state) {
   data.steps = state.steps;
   data.editRow = state.editRow;
   data.playbackRow = state.playbackRow;
+  data.selectedTrackMuted = state.selectedTrackMuted;
   data.cursorVisualRect = state.cursorVisualRect;
   data.selectionVisualRect = state.selectionVisualRect;
   data.cursorVisualOverride = state.cursorVisualOverride;

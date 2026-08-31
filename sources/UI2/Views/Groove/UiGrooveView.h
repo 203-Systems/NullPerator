@@ -22,6 +22,7 @@ struct UiGrooveViewData {
   std::array<std::uint8_t, 16> steps{};
   std::uint8_t editRow = 0;
   std::int8_t playbackRow = -1;
+  bool selectedTrackMuted = false;
   RectI16 cursorVisualRect{};
   RectI16 selectionVisualRect{};
   bool cursorVisualOverride = false;

@@ -42,6 +42,7 @@ struct UiChainViewData {
   bool adjustmentFocus = false;
   bool selectionActive = false;
   std::array<std::int8_t, 8> playbackRows{-1, -1, -1, -1, -1, -1, -1, -1};
+  std::array<bool, 8> mutedTracks{};
   UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
 };

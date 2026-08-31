@@ -293,6 +293,8 @@ Ui2NativeApplicationStateSource::CaptureChain(UiChainFrameState &state) {
                       state.trackNotes);
   Player *player = Player::GetInstance();
   const PlayerTransportSnapshot transport = player->CaptureTransportSnapshot();
+  for (std::uint8_t track = 0; track < SONG_CHANNEL_COUNT; ++track)
+    state.mutedTracks[track] = player->IsChannelMuted(track);
   if (transport.running && transport.mode != PM_AUDITION) {
     for (std::uint8_t track = 0; track < SONG_CHANNEL_COUNT; ++track) {
       if (!player->IsChannelPlaying(track) ||
@@ -356,6 +358,8 @@ Ui2NativeApplicationStateSource::CapturePhrase(UiPhraseFrameState &state) {
                       state.trackNotes);
   Player *player = Player::GetInstance();
   const PlayerTransportSnapshot transport = player->CaptureTransportSnapshot();
+  for (std::uint8_t track = 0; track < SONG_CHANNEL_COUNT; ++track)
+    state.mutedTracks[track] = player->IsChannelMuted(track);
   if (transport.running && transport.mode != PM_AUDITION) {
     for (std::uint8_t track = 0; track < SONG_CHANNEL_COUNT; ++track) {
       if (!player->IsChannelPlaying(track) ||
@@ -442,6 +446,9 @@ Ui2NativeApplicationStateSource::CaptureTable(UiTableFrameState &state) {
   CaptureUiTrackNotes(Player::GetInstance(), PlayerRunning(),
                       state.trackNotes);
   const int selectedTrack = controller.SelectedTrack();
+  if (selectedTrack >= 0 && selectedTrack < SONG_CHANNEL_COUNT)
+    state.selectedTrackMuted =
+        Player::GetInstance()->IsChannelMuted(selectedTrack);
   const PlayerTransportSnapshot transport =
       Player::GetInstance()->CaptureTransportSnapshot();
   if (transport.running && transport.mode != PM_AUDITION &&
@@ -935,6 +942,8 @@ Ui2NativeApplicationStateSource::CaptureGroove(UiGrooveFrameState &state) {
     return {.active = false};
   const PlayerTransportSnapshot transport = player->CaptureTransportSnapshot();
   const int track = session_.EditorState().songX_;
+  if (track >= 0 && track < SONG_CHANNEL_COUNT)
+    state.selectedTrackMuted = player->IsChannelMuted(track);
   if (transport.running && transport.mode != PM_AUDITION && track >= 0 &&
       track < SONG_CHANNEL_COUNT && player->IsChannelPlaying(track)) {
     int playingGroove = 0;

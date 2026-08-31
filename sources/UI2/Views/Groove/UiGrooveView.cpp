@@ -90,7 +90,8 @@ void UiGrooveView::RenderDelta(const UiGrooveViewData &previous,
     render(RowDamageRect(previous.editRow));
     render(RowDamageRect(current.editRow));
   }
-  if (previous.playbackRow != current.playbackRow) {
+  if (previous.playbackRow != current.playbackRow ||
+      previous.selectedTrackMuted != current.selectedTrackMuted) {
     if (previous.playbackRow >= 0 && previous.playbackRow < 16)
       render(RowDamageRect(static_cast<std::uint8_t>(previous.playbackRow)));
     if (current.playbackRow >= 0 && current.playbackRow < 16)
@@ -157,7 +158,8 @@ UiBuildStatus UiGrooveView::Build(const UiGrooveViewData &data, UiPalette &,
   }
   if (data.playbackRow >= 0 && data.playbackRow < 16)
     builder.Fill(PlaybackTickRect(static_cast<std::uint8_t>(data.playbackRow)),
-                 UiColorToken::PlaybackActive);
+                 data.selectedTrackMuted ? UiColorToken::DerivedPlaybackMuted
+                                         : UiColorToken::PlaybackActive);
   const bool cursorOverPlayback =
       data.playbackRow >= 0 && data.playbackRow < 16 &&
       !Intersect(cursor,

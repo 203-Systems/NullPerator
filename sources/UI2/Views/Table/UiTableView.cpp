@@ -188,6 +188,17 @@ void UiTableView::RenderDelta(const UiTableViewData &previous,
   renderPlaybackChanges(previous.playbackRows, current.playbackRows);
   renderPlaybackChanges(previous.automationPlaybackRows,
                         current.automationPlaybackRows);
+  if (previous.selectedTrackMuted != current.selectedTrackMuted) {
+    for (std::uint8_t group = 0U; group < current.playbackRows.size(); ++group) {
+      const std::array<std::int8_t, 4> rows{
+          previous.playbackRows[group], previous.automationPlaybackRows[group],
+          current.playbackRows[group], current.automationPlaybackRows[group]};
+      for (const std::int8_t row : rows) {
+        if (row >= 0 && row < 16)
+          render(RowDamageRect(static_cast<std::uint8_t>(row)));
+      }
+    }
+  }
   if (oldCursor != newCursor ||
       previous.cursorInkVisible != current.cursorInkVisible) {
     render(ExpandedCursorDamage(oldCursor));
@@ -318,7 +329,8 @@ UiBuildStatus UiTableView::Build(const UiTableViewData &data, UiPalette &,
       if (playbackRow >= 0 && playbackRow < 16)
         builder.Fill(
             PlaybackTickRect(group, static_cast<std::uint8_t>(playbackRow)),
-            UiColorToken::PlaybackActive);
+            data.selectedTrackMuted ? UiColorToken::DerivedPlaybackMuted
+                                    : UiColorToken::PlaybackActive);
     }
   }
   if (!data.numberFocus) {

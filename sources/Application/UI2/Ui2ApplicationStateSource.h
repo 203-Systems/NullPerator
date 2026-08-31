@@ -124,6 +124,7 @@ struct UiChainFrameState {
   bool selectionActive = false;
   bool navHeld = false;
   std::array<std::int8_t, 8> playbackRows{-1, -1, -1, -1, -1, -1, -1, -1};
+  std::array<bool, 8> mutedTracks{};
   UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
 
@@ -162,6 +163,7 @@ struct UiPhraseFrameState {
   bool selectionActive = false;
   bool navHeld = false;
   std::array<std::int8_t, 8> playbackRows{-1, -1, -1, -1, -1, -1, -1, -1};
+  std::array<bool, 8> mutedTracks{};
   UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
 
@@ -209,6 +211,7 @@ struct UiTableFrameState {
   bool navHeld = false;
   std::array<std::int8_t, 3> playbackRows{-1, -1, -1};
   std::array<std::int8_t, 3> automationPlaybackRows{-1, -1, -1};
+  bool selectedTrackMuted = false;
   UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
 
@@ -220,6 +223,7 @@ struct UiGrooveFrameState {
   std::array<std::uint8_t, 16> steps{};
   std::uint8_t editRow = 0;
   std::int8_t playbackRow = -1;
+  bool selectedTrackMuted = false;
   RectI16 cursorVisualRect{};
   RectI16 selectionVisualRect{};
   bool cursorVisualOverride = false;

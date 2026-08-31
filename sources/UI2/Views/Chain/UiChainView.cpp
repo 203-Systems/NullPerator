@@ -121,7 +121,8 @@ void UiChainView::RenderDelta(const UiChainViewData &previous,
     render(RowDamageRect(current.editRow));
   }
   for (std::uint8_t track = 0U; track < current.playbackRows.size(); ++track) {
-    if (previous.playbackRows[track] == current.playbackRows[track])
+    if (previous.playbackRows[track] == current.playbackRows[track] &&
+        previous.mutedTracks[track] == current.mutedTracks[track])
       continue;
     if (previous.playbackRows[track] >= 0 && previous.playbackRows[track] < 16)
       render(RowDamageRect(
@@ -253,10 +254,20 @@ UiBuildStatus UiChainView::Build(const UiChainViewData &data,
                                 ? UiColorToken::TextDim
                                 : UiColorToken::TextNormal);
   }
-  for (const std::int8_t playbackRow : data.playbackRows) {
-    if (playbackRow >= 0 && playbackRow < 16)
-      builder.Fill(PlaybackTickRect(static_cast<std::uint8_t>(playbackRow)),
-                   UiColorToken::PlaybackActive);
+  for (std::uint8_t row = 0U; row < 16U; ++row) {
+    bool audible = false;
+    bool muted = false;
+    for (std::uint8_t track = 0U; track < data.playbackRows.size(); ++track) {
+      if (data.playbackRows[track] != row)
+        continue;
+      muted = muted || data.mutedTracks[track];
+      audible = audible || !data.mutedTracks[track];
+    }
+    if (audible || muted) {
+      builder.Fill(PlaybackTickRect(row),
+                   audible ? UiColorToken::PlaybackActive
+                           : UiColorToken::DerivedPlaybackMuted);
+    }
   }
   if (!data.numberFocus) {
     bool cursorOverPlayback = false;

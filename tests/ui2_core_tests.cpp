@@ -717,37 +717,46 @@ TEST_CASE("UI2 tracker detail pages retain every playback source") {
   ui2::UiChainViewData chain = ui2::test::ApprovedChainFixture();
   chain.playbackRows[0] = 2;
   chain.playbackRows[3] = 11;
+  chain.mutedTracks[3] = true;
   ui2::UiFrameScene chainScene;
   REQUIRE(ui2::UiChainView::Build(chain, palette, chainScene) ==
           ui2::UiBuildStatus::Built);
   ui2::UiSurfaceStorage chainStorage;
   ui2::UiIndexedSurface chainSurface(chainStorage);
   ui2::UiFrameRenderer::RenderStatic(chainScene, chainSurface, palette);
-  for (const std::uint8_t row : {2U, 11U}) {
+  for (const auto [row, color] :
+       {std::pair<std::uint8_t, ui2::UiColorToken>{
+            2U, ui2::UiColorToken::PlaybackActive},
+        {11U, ui2::UiColorToken::DerivedPlaybackMuted}}) {
     const ui2::RectI16 tick = ui2::UiChainView::PlaybackTickRect(row);
     CHECK(chainSurface.Pixel(tick.x, tick.y) ==
-          palette.Index(ui2::UiColorToken::PlaybackActive));
+          palette.Index(color));
   }
 
   ui2::UiPhraseViewData phrase = ui2::test::ApprovedPhraseFixture("note");
   phrase.playbackRows[1] = 3;
   phrase.playbackRows[6] = 12;
+  phrase.mutedTracks[6] = true;
   ui2::UiFrameScene phraseScene;
   REQUIRE(ui2::UiPhraseView::Build(phrase, palette, phraseScene) ==
           ui2::UiBuildStatus::Built);
   ui2::UiSurfaceStorage phraseStorage;
   ui2::UiIndexedSurface phraseSurface(phraseStorage);
   ui2::UiFrameRenderer::RenderStatic(phraseScene, phraseSurface, palette);
-  for (const std::uint8_t row : {3U, 12U}) {
+  for (const auto [row, color] :
+       {std::pair<std::uint8_t, ui2::UiColorToken>{
+            3U, ui2::UiColorToken::PlaybackActive},
+        {12U, ui2::UiColorToken::DerivedPlaybackMuted}}) {
     const ui2::RectI16 tick = ui2::UiPhraseView::PlaybackTickRect(row);
     CHECK(phraseSurface.Pixel(tick.x, tick.y) ==
-          palette.Index(ui2::UiColorToken::PlaybackActive));
+          palette.Index(color));
   }
 
   ui2::UiTableViewData table = ui2::test::ApprovedTableFixture("phrase");
   table.playbackRows[0] = 2;
   table.automationPlaybackRows[0] = 8;
   table.automationPlaybackRows[2] = 6;
+  table.selectedTrackMuted = true;
   ui2::UiFrameScene tableScene;
   REQUIRE(ui2::UiTableView::Build(table, palette, tableScene) ==
           ui2::UiBuildStatus::Built);
@@ -758,8 +767,51 @@ TEST_CASE("UI2 tracker detail pages retain every playback source") {
        {std::pair<std::uint8_t, std::uint8_t>{0U, 2U}, {0U, 8U}, {2U, 6U}}) {
     const ui2::RectI16 tick = ui2::UiTableView::PlaybackTickRect(group, row);
     CHECK(tableSurface.Pixel(tick.x, tick.y) ==
-          palette.Index(ui2::UiColorToken::PlaybackActive));
+          palette.Index(ui2::UiColorToken::DerivedPlaybackMuted));
   }
+}
+
+TEST_CASE("UI2 shared playback ticks prefer any audible track") {
+  ui2::UiPalette palette;
+  const auto checkChain = [&](std::uint8_t mutedTrack,
+                              std::uint8_t audibleTrack) {
+    ui2::UiChainViewData data = ui2::test::ApprovedChainFixture();
+    data.playbackRows.fill(-1);
+    data.playbackRows[mutedTrack] = 6;
+    data.playbackRows[audibleTrack] = 6;
+    data.mutedTracks[mutedTrack] = true;
+    ui2::UiFrameScene scene;
+    REQUIRE(ui2::UiChainView::Build(data, palette, scene) ==
+            ui2::UiBuildStatus::Built);
+    ui2::UiSurfaceStorage storage;
+    ui2::UiIndexedSurface surface(storage);
+    ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+    const ui2::RectI16 tick = ui2::UiChainView::PlaybackTickRect(6);
+    CHECK(surface.Pixel(tick.x, tick.y) ==
+          palette.Index(ui2::UiColorToken::PlaybackActive));
+  };
+  checkChain(1, 6);
+  checkChain(6, 1);
+
+  const auto checkPhrase = [&](std::uint8_t mutedTrack,
+                               std::uint8_t audibleTrack) {
+    ui2::UiPhraseViewData data = ui2::test::ApprovedPhraseFixture("note");
+    data.playbackRows.fill(-1);
+    data.playbackRows[mutedTrack] = 9;
+    data.playbackRows[audibleTrack] = 9;
+    data.mutedTracks[mutedTrack] = true;
+    ui2::UiFrameScene scene;
+    REQUIRE(ui2::UiPhraseView::Build(data, palette, scene) ==
+            ui2::UiBuildStatus::Built);
+    ui2::UiSurfaceStorage storage;
+    ui2::UiIndexedSurface surface(storage);
+    ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+    const ui2::RectI16 tick = ui2::UiPhraseView::PlaybackTickRect(9);
+    CHECK(surface.Pixel(tick.x, tick.y) ==
+          palette.Index(ui2::UiColorToken::PlaybackActive));
+  };
+  checkPhrase(1, 6);
+  checkPhrase(6, 1);
 }
 
 TEST_CASE("UI2 Groove renders and delta-updates its playback tick") {
@@ -775,6 +827,7 @@ TEST_CASE("UI2 Groove renders and delta-updates its playback tick") {
 
   ui2::UiGrooveViewData current = previous;
   current.playbackRow = 6;
+  current.selectedTrackMuted = true;
   ui2::UiFrameScene currentScene;
   REQUIRE(ui2::UiGrooveView::Build(current, palette, currentScene) ==
           ui2::UiBuildStatus::Built);
@@ -783,7 +836,7 @@ TEST_CASE("UI2 Groove renders and delta-updates its playback tick") {
 
   const ui2::RectI16 tick = ui2::UiGrooveView::PlaybackTickRect(6);
   CHECK(surface.Pixel(tick.x, tick.y) ==
-        palette.Index(ui2::UiColorToken::PlaybackActive));
+        palette.Index(ui2::UiColorToken::DerivedPlaybackMuted));
 
   ui2::UiSurfaceStorage expectedStorage;
   ui2::UiIndexedSurface expected(expectedStorage);
@@ -2238,6 +2291,7 @@ TEST_CASE("UI2 Phrase delta rendering is pixel-identical to a full redraw") {
   current.rows[7][3] = "BEEF";
   current.playbackRows[1] = 7;
   current.playbackRows[4] = 12;
+  current.mutedTracks[4] = true;
   current.cursorBottom = ui2::test::ApprovedPhraseFixture("fx").cursorBottom;
   current.cursorVisualOverride = true;
   current.cursorVisualRect = {75, 76, 20, 9};
@@ -2406,6 +2460,7 @@ TEST_CASE("UI2 Table delta rendering is pixel-identical to a full redraw") {
   current.playbackRows[0] = 2;
   current.automationPlaybackRows[0] = 8;
   current.automationPlaybackRows[2] = 6;
+  current.selectedTrackMuted = true;
   current.cursorBottom =
       ui2::test::ApprovedTableFixture("instrument").cursorBottom;
   current.cursorVisualOverride = true;
@@ -3038,6 +3093,7 @@ TEST_CASE("UI2 Chain delta rendering is pixel-identical to a full redraw") {
   current.phrases[6] = 0x4C;
   current.playbackRows[1] = 2;
   current.playbackRows[4] = 11;
+  current.mutedTracks[4] = true;
   current.trackNotes[4] = "C#4";
   current.vuLevelTop[1] = 80;
   current.cursorVisualOverride = true;
