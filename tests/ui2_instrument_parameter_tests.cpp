@@ -4,6 +4,8 @@
 #include "Application/Instruments/MacroInstrument.h"
 #include "Application/Instruments/MidiInstrument.h"
 #include "Application/Instruments/SampleRenderingParams.h"
+#include "Application/Instruments/SampleInstrument.h"
+#include "Application/Instruments/SamplePool.h"
 #include "Application/Instruments/SIDInstrument.h"
 #include "Application/UI2/Controllers/Ui2InstrumentLifecycleController.h"
 #include "Application/UI2/Ui2InstrumentParameters.h"
@@ -26,8 +28,80 @@ struct MacroInstrumentTestPeer {
   }
 };
 
+struct SampleInstrumentTestPeer {
+  static void BindSource(SampleInstrument &instrument, SoundSource &source) {
+    instrument.source_ = &source;
+  }
+
+  static renderParams &Params(int channel) {
+    return SampleInstrument::renderParams_[channel];
+  }
+};
+
+// SampleVariable normally follows the platform SamplePool. These lifecycle
+// tests bind a fixed SoundSource directly and keep only the variable contract.
+SampleVariable::SampleVariable(FourCC id) : WatchedVariable(id, 0) {}
+SampleVariable::~SampleVariable() = default;
+void SampleVariable::SetInt(int value, bool notify) {
+  binding_.Clear();
+  Variable::SetInt(value, notify);
+}
+void SampleVariable::SetString(const char *value, bool notify) {
+  Variable::SetString(value, notify);
+}
+etl::string<MAX_VARIABLE_STRING_LENGTH> SampleVariable::GetString() {
+  return Variable::GetString();
+}
+void SampleVariable::Reset() {
+  binding_.Clear();
+  Variable::Reset();
+}
+void SampleVariable::Update(Observable &observable, I_ObservableData *data) {
+  (void)observable;
+  (void)data;
+}
+
+SoundSource *SamplePool::GetSource(uint32_t index) {
+  (void)index;
+  return nullptr;
+}
+int SamplePool::GetNameListSize() { return 0; }
+void SamplePool::PurgeSample(int index, const char *projectName) {
+  (void)index;
+  (void)projectName;
+}
+
 namespace {
 std::vector<MidiMessage> capturedMidiMessages;
+
+class FixedMonoSource final : public SoundSource {
+public:
+  int GetSize(int note) override {
+    (void)note;
+    return static_cast<int>(samples.size());
+  }
+  int GetSampleRate(int note) override {
+    (void)note;
+    return 44100;
+  }
+  int GetChannelCount(int note) override {
+    (void)note;
+    return 1;
+  }
+  void *GetSampleBuffer(int note) override {
+    (void)note;
+    return samples.data();
+  }
+  bool IsMulti() override { return false; }
+  int GetRootNote(int note) override {
+    (void)note;
+    return 60;
+  }
+  float GetLengthInSec() override { return 0.001F; }
+
+  std::array<short, 8> samples{1000, 1000, 1000, 1000,
+                               1000, 1000, 1000, 1000};
+};
 
 class FakeMidiService final : public MidiService {};
 
@@ -316,6 +390,37 @@ TEST_CASE("Macro render starts its gain envelope from silence") {
   CHECK(buffer[1] == 0);
 
   std::destroy_at(instrument);
+}
+
+TEST_CASE("Sample render clamps pan before indexing the pan law") {
+  FixedMonoSource source;
+  SampleInstrument instrument;
+  SampleInstrumentTestPeer::BindSource(instrument, source);
+  instrument.FindVariable(FourCC::SampleInstrumentEnd)
+      ->SetInt(static_cast<int>(source.samples.size()));
+  REQUIRE(instrument.Start(0, 60));
+  auto &params = SampleInstrumentTestPeer::Params(0);
+  params.pan_ = params.basePan_ = i2fp(0xFF);
+  std::array<fixed, 2> buffer{};
+
+  REQUIRE(instrument.Render(0, buffer.data(), 1, false));
+  CHECK(buffer[0] != 0);
+  CHECK(buffer[1] == 0);
+}
+
+TEST_CASE("Sample pan automation updates gains inside the current buffer") {
+  FixedMonoSource source;
+  SampleInstrument instrument;
+  SampleInstrumentTestPeer::BindSource(instrument, source);
+  instrument.FindVariable(FourCC::SampleInstrumentEnd)
+      ->SetInt(static_cast<int>(source.samples.size()));
+  REQUIRE(instrument.Start(0, 60));
+  instrument.ProcessCommand(0, FourCC::InstrumentCommandPan, 0x00FF);
+  std::array<fixed, 2> buffer{};
+
+  REQUIRE(instrument.Render(0, buffer.data(), 1, false));
+  CHECK(buffer[0] != 0);
+  CHECK(buffer[1] == 0);
 }
 
 TEST_CASE("Sample size queries keep the default sentinel outside render state") {

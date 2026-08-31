@@ -52,6 +52,7 @@ add_executable(picoTracker_tests
   ../sources/Application/Instruments/WavHeader.cpp
   ../sources/Application/Instruments/MacroInstrument.cpp
   ../sources/Application/Instruments/MidiInstrument.cpp
+  ../sources/Application/Instruments/SampleInstrument.cpp
   ../sources/Application/Instruments/SIDInstrument.cpp
   ../sources/Externals/cRSID/SID.cpp
   ../sources/Externals/braids/analog_oscillator.cc
@@ -59,7 +60,9 @@ add_executable(picoTracker_tests
   ../sources/Externals/braids/macro_oscillator.cc
   ../sources/Externals/braids/random.cc
   ../sources/Externals/braids/resources.cc
+  ../sources/Application/Instruments/Filters.cpp
   ../sources/Application/Instruments/I_Instrument.cpp
+  ../sources/Application/Instruments/SRPUpdaters.cpp
   ../sources/Application/UI2/Ui2SampleWaveformBackend.cpp
   ../sources/Application/Utils/HexBuffers.cpp
   ../sources/Application/Utils/char.cpp
@@ -79,6 +82,7 @@ add_executable(picoTracker_tests
   ../sources/Foundation/Services/SubService.cpp
   ../sources/Foundation/Variables/Variable.cpp
   ../sources/Foundation/Variables/VariableContainer.cpp
+  ../sources/Foundation/Variables/WatchedVariable.cpp
   ../sources/System/io/Status.cpp
   ../sources/Externals/TinyXML2/tinyxml2_printer_only.cpp
   ../sources/Externals/TinyXML2/tinyxml2adapter.cpp

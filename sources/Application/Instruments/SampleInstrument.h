@@ -37,6 +37,10 @@ enum SampleInstrumentLoopMode {
 
 class SampleInstrument : public I_Instrument, I_Observer {
 
+#ifdef HOST_TEST
+  friend struct SampleInstrumentTestPeer;
+#endif
+
 public:
   SampleInstrument();
   ~SampleInstrument() override;

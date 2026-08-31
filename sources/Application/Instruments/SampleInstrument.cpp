@@ -821,9 +821,12 @@ bool SampleInstrument::Render(int channel, fixed *buffer, int size,
 
     fixed volscale = fl2fp(0.003921568627450980392156862745098f);
     fixed volfactor = fp_mul(rp->volume_, volscale);
-    int pan = fp2i(rp->pan_);
+    int pan = std::clamp(fp2i(rp->pan_),
+                         SampleInstrumentParameterLimits::PanMinimum,
+                         SampleInstrumentParameterLimits::PanMaximum);
     fixed fixedpanl = panlaw[pan];
-    fixed fixedpanr = panlaw[254 - pan];
+    fixed fixedpanr =
+        panlaw[SampleInstrumentParameterLimits::PanMaximum - pan];
 
     // filter constants
 
@@ -1035,7 +1038,12 @@ bool SampleInstrument::Render(int channel, fixed *buffer, int size,
           filtering = (rp->cutoff_ < i2fp(1)) || (rp->reso_ > i2fp(0));
 
           volfactor = fp_mul(rp->volume_, volscale);
-          pan = fp2i(rp->pan_);
+          pan = std::clamp(fp2i(rp->pan_),
+                           SampleInstrumentParameterLimits::PanMinimum,
+                           SampleInstrumentParameterLimits::PanMaximum);
+          fixedpanl = panlaw[pan];
+          fixedpanr =
+              panlaw[SampleInstrumentParameterLimits::PanMaximum - pan];
 
           if (rpReverse) {
             fpSpeed = -rp->speed_;
@@ -1361,10 +1369,9 @@ void SampleInstrument::ProcessCommand(int channel, FourCC cc, ushort value) {
   } break;
 
   case FourCC::InstrumentCommandPan: {
-    float targetPan = float(value & 0xFF);
-    if (targetPan == 0xFF) {
-      targetPan = 0xFE;
-    }
+    float targetPan = float(std::clamp<int>(
+        value & 0xFF, SampleInstrumentParameterLimits::PanMinimum,
+        SampleInstrumentParameterLimits::PanMaximum));
     float basePan = fp2fl(rp->basePan_);
     float speed = float(value >> 8);
     float startPan = fp2fl(rp->pan_);
