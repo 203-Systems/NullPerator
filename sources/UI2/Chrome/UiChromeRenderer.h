@@ -32,6 +32,8 @@ public:
   [[nodiscard]] static RectI16 BottomTrackTargetRect(std::int8_t track);
   [[nodiscard]] static RectI16 BottomRgbTargetRect(std::uint8_t component,
                                                    std::uint8_t value);
+  [[nodiscard]] static std::int16_t
+  BatteryFillWidth(const UiTopBarModel &model);
 
 private:
   static void DrawPower(const UiTopBarModel &model,

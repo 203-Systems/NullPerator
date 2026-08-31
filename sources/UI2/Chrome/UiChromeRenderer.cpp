@@ -63,27 +63,6 @@ void DrawPlusMinus(BarBuilder &builder, std::int16_t x, std::int16_t y) {
                UiColorToken::TextColored);
 }
 
-[[nodiscard]] std::int16_t BatteryFillWidth(const UiTopBarModel &model) {
-  if (model.showBatteryPercent) {
-    const std::uint16_t percentage =
-        std::min<std::uint16_t>(model.batteryPercent, 100U);
-    if (percentage == 0U)
-      return 0;
-    // The icon has sixteen interior columns. Round upward so every non-empty
-    // percentage retains at least one visible column on the 240 px display.
-    return static_cast<std::int16_t>(
-        std::min<std::uint16_t>(16U, (percentage * 16U + 99U) / 100U));
-  }
-
-  // Platforms without an available percentage retain the coarse state-based
-  // presentation. Charging only changes color; it never implies a full cell.
-  if (model.power == UiPowerState::BatteryHigh)
-    return 16;
-  if (model.power == UiPowerState::BatteryLow)
-    return 4;
-  return 11;
-}
-
 } // namespace
 
 void UiChromeRenderer::DrawPower(const UiTopBarModel &model,
@@ -119,6 +98,26 @@ void UiChromeRenderer::DrawSaving(BarBuilder &builder) {
   builder.Fill({222, 15, 3, 3}, UiColorToken::DerivedTextFaint);
   builder.Fill({216, 20, 3, 3}, UiColorToken::DerivedTextFaint);
   builder.Fill({210, 15, 3, 3}, UiColorToken::DerivedTextFaint);
+}
+
+std::int16_t UiChromeRenderer::BatteryFillWidth(const UiTopBarModel &model) {
+  if (model.showBatteryPercent) {
+    const std::uint16_t percentage =
+        std::min<std::uint16_t>(model.batteryPercent, 100U);
+    if (percentage == 0U)
+      return 0;
+    // The icon has sixteen interior columns. Round upward so a non-empty
+    // battery always retains at least one visible column.
+    return static_cast<std::int16_t>(
+        std::min<std::uint16_t>(16U, (percentage * 16U + 99U) / 100U));
+  }
+  // Fixtures and platforms without a percentage retain the established
+  // coarse presentation. Charging changes color only; it must not imply full.
+  if (model.power == UiPowerState::BatteryHigh)
+    return 16;
+  if (model.power == UiPowerState::BatteryLow)
+    return 4;
+  return 11;
 }
 
 UiBuildStatus UiChromeRenderer::BuildTop(const UiTopBarModel &model,

@@ -2181,6 +2181,22 @@ TEST_CASE("UI2 battery sampling is bounded to 1 Hz and refreshes after play") {
   CHECK(gate.ShouldSample(false, 500U));
 }
 
+TEST_CASE("UI2 charging changes battery color without changing fullness") {
+  ui2::UiTopBarModel model{};
+  model.showBatteryPercent = true;
+  model.batteryPercent = 37;
+  model.power = ui2::UiPowerState::BatteryNormal;
+  const std::int16_t normalWidth =
+      ui2::UiChromeRenderer::BatteryFillWidth(model);
+  model.power = ui2::UiPowerState::Charging;
+  CHECK(ui2::UiChromeRenderer::BatteryFillWidth(model) == normalWidth);
+  CHECK(normalWidth == 6);
+
+  model.batteryPercent = 0;
+  CHECK(ui2::UiChromeRenderer::BatteryFillWidth(model) == 0);
+  model.batteryPercent = 100;
+  CHECK(ui2::UiChromeRenderer::BatteryFillWidth(model) == 16);
+}
 TEST_CASE("UI2 region rendering restores exact pixels without a backbuffer") {
   ui2::UiPalette palette;
   ui2::UiFrameScene scene;
