@@ -18,6 +18,7 @@
 #include "Application/Player/TablePlayback.h"
 #include "Application/Session/FirmwareLifecycleService.h"
 #include "Application/Session/TrackerApplicationSession.h"
+#include "Application/UI2/Ui2FixedText.h"
 #include "Application/UI2/Ui2InstrumentParameters.h"
 #include "Application/UI2/Ui2ProjectNamePresentation.h"
 #include "Application/UI2/Ui2VuMapping.h"
@@ -44,13 +45,6 @@ UiTextCaseMode Ui2NativeApplicationStateSource::TextCase() const {
   return UiTextCaseMode::Upper;
 }
 namespace {
-
-template <std::size_t Size>
-void CopyText(std::array<char, Size> &destination, const char *source) {
-  destination.fill(0);
-  if (source != nullptr && Size > 0U)
-    std::snprintf(destination.data(), destination.size(), "%s", source);
-}
 
 template <std::size_t Size>
 void CopyUpper(std::array<char, Size> &destination, const char *source,
@@ -90,15 +84,15 @@ void FormatElapsed(std::array<char, 6> &elapsed) {
 void FormatNote(std::uint8_t value, std::array<char, 5> &text) {
   text.fill(0);
   if (value == NO_NOTE) {
-    CopyText(text, "----");
+    CopyUiText(text, "----");
     return;
   }
   if (value == NOTE_OFF) {
-    CopyText(text, "OFF");
+    CopyUiText(text, "OFF");
     return;
   }
   if (value > HIGHEST_NOTE) {
-    CopyText(text, "????");
+    CopyUiText(text, "????");
     return;
   }
   const char *pitch = noteNames[value % 12U];
@@ -116,7 +110,7 @@ void FormatCommand(FourCC command, std::array<char, 4> &text) {
       source[2] != '\0' && source[3] == '\0')
     CopyUpper(text, source);
   else
-    CopyText(text, "???");
+    CopyUiText(text, "???");
 }
 
 void FormatVolume(int value, std::array<char, 4> &text) {
@@ -153,13 +147,13 @@ template <typename Notes> void CaptureTrackNotes(Notes &notes) {
   const bool playing = PlayerRunning();
   for (std::uint8_t track = 0; track < SONG_CHANNEL_COUNT; ++track) {
     if (!playing) {
-      CopyText(notes[track], "--");
+      CopyUiText(notes[track], "--");
       continue;
     }
     const char *pitch = player->GetPlayedNote(track);
     const char *octave = player->GetPlayedOctive(track);
     if (pitch[0] == ' ' || octave[1] == '-') {
-      CopyText(notes[track], "--");
+      CopyUiText(notes[track], "--");
     } else if (pitch[1] == ' ') {
       std::snprintf(notes[track].data(), notes[track].size(),
                     octave[0] == '-' ? "%c-%c" : "%c%c", pitch[0],
@@ -392,7 +386,7 @@ Ui2NativeApplicationStateSource::CapturePhrase(UiPhraseFrameState &state) {
     const int index = base + row;
     FormatNote(phrase.note_[index], state.rows[row].note);
     if (phrase.instr_[index] == 0xFFU)
-      CopyText(state.rows[row].instrument, "I--");
+      CopyUiText(state.rows[row].instrument, "I--");
     else {
       state.rows[row].instrument[0] = 'I';
       hex2char(phrase.instr_[index], state.rows[row].instrument.data() + 1);
@@ -438,7 +432,7 @@ Ui2NativeApplicationStateSource::CapturePhrase(UiPhraseFrameState &state) {
       state.context = UiPhraseContext::Instrument;
       std::snprintf(state.contextLead.data(), state.contextLead.size(),
                     "INSTRUMENT %02X", instrument);
-      CopyText(state.contextTail, list[instrument]->GetDisplayName().c_str());
+      CopyUiText(state.contextTail, list[instrument]->GetDisplayName().c_str());
     }
   } else {
     const FourCC command = controller.Column() <= 3U ? phrase.cmd1_[selected]
@@ -538,9 +532,9 @@ UiApplicationActivityState Ui2NativeApplicationStateSource::CaptureInstrument(
   state.selectedTrack = editor.songX_;
   state.kind = static_cast<UiInstrumentKind>(type);
   if (instrument == nullptr || type == IT_NONE)
-    CopyText(state.name, "--");
+    CopyUiText(state.name, "--");
   else
-    CopyText(state.name, instrument->GetDisplayName().c_str());
+    CopyUiText(state.name, instrument->GetDisplayName().c_str());
 
   const bool sidFirstChip = type != IT_SID ||
                             static_cast<SIDInstrument *>(instrument)->GetChip() ==
@@ -565,7 +559,7 @@ UiApplicationActivityState Ui2NativeApplicationStateSource::CaptureInstrument(
     const Ui2InstrumentParameterDescriptor descriptor =
         Ui2InstrumentFieldParameter(type, index, sidFirstChip);
     auto &field = state.fields[state.fieldCount++];
-    CopyText(field.label, descriptor.label);
+    CopyUiText(field.label, descriptor.label);
     int current = valueFor(descriptor.primary);
     int secondary = valueFor(descriptor.secondary);
     const char *text = nullptr;
@@ -600,7 +594,7 @@ UiApplicationActivityState Ui2NativeApplicationStateSource::CaptureInstrument(
         Ui2InstrumentOperatorParameter(index, false);
     const Ui2InstrumentParameterDescriptor op2 =
         Ui2InstrumentOperatorParameter(index, true);
-    CopyText(row.label, op1.label);
+    CopyUiText(row.label, op1.label);
     Ui2FormatInstrumentParameter(op1, valueFor(op1.primary), 0, nullptr,
                                  row.op1.data(), row.op1.size());
     Ui2FormatInstrumentParameter(op2, valueFor(op2.primary), 0, nullptr,
@@ -790,13 +784,13 @@ Ui2NativeApplicationStateSource::CaptureDevice(UiDeviceFrameState &state) {
     const Ui2SelectorState selector = device_.Selector(field);
     return options[std::min<std::size_t>(selector.current, count - 1U)];
   };
-  CopyText(state.midiDevice,
+  CopyUiText(state.midiDevice,
            currentText(Ui2DeviceField::MidiDevice, midiDevices, 4U));
-  CopyText(state.midiSync,
+  CopyUiText(state.midiSync,
            currentText(Ui2DeviceField::MidiSync, boolean, 2U));
-  CopyText(state.resampler,
+  CopyUiText(state.resampler,
            currentText(Ui2DeviceField::Resampler, resamplers, 2U));
-  CopyText(state.lineOut,
+  CopyUiText(state.lineOut,
            currentText(Ui2DeviceField::LineOut, lineOutputs, 3U));
   std::snprintf(state.volume.data(), state.volume.size(), "%u%%",
                 device_.Selector(Ui2DeviceField::Volume).current);
@@ -804,10 +798,10 @@ Ui2NativeApplicationStateSource::CaptureDevice(UiDeviceFrameState &state) {
                 device_.Selector(Ui2DeviceField::Brightness).current);
   if (Config *config = Config::GetInstance()) {
     if (Variable *theme = config->FindVariable(FourCC::VarThemeName))
-      CopyText(state.theme, theme->GetString().c_str());
+      CopyUiText(state.theme, theme->GetString().c_str());
     if (Variable *font = config->FindVariable(FourCC::VarUIFont)) {
       if (font->GetInt() == 0) {
-        CopyText(state.font, font->GetString().c_str());
+        CopyUiText(state.font, font->GetString().c_str());
       } else {
         std::snprintf(state.font.data(), state.font.size(),
                       "%s (UNAVAILABLE; USING REGULAR)",
@@ -815,7 +809,7 @@ Ui2NativeApplicationStateSource::CaptureDevice(UiDeviceFrameState &state) {
       }
     }
   }
-  CopyText(state.version, PROJECT_NUMBER);
+  CopyUiText(state.version, PROJECT_NUMBER);
   state.cursor = DeviceCursorFor(device_.SelectedField());
   state.editHeld =
       (device_.HeldMask() & TrackerActionBit(TrackerAction::Edit)) != 0U;
@@ -866,7 +860,7 @@ Ui2NativeApplicationStateSource::CaptureDevice(UiDeviceFrameState &state) {
     }
     state.selectorWrap = bottom.wrap;
     for (std::size_t index = 0; index < optionCount; ++index)
-      CopyText(state.selectorOptions[index], options[index]);
+      CopyUiText(state.selectorOptions[index], options[index]);
   }
   const UiApplicationBatteryState battery = ReadBattery();
   state.batteryPercent = battery.percentage;
@@ -879,7 +873,7 @@ Ui2NativeApplicationStateSource::CaptureTheme(UiThemeFrameState &state) {
   state = {};
   if (Config *config = Config::GetInstance()) {
     if (Variable *name = config->FindVariable(FourCC::VarThemeName))
-      CopyText(state.view.name, name->GetString().c_str());
+      CopyUiText(state.view.name, name->GetString().c_str());
     state.colors = config->GetSemanticThemeColors();
     state.colorsValid = true;
   }
@@ -938,7 +932,7 @@ Ui2NativeApplicationStateSource::CaptureFont(UiFontFrameState &state) {
   case Ui2FontFeedback::None:
     break;
   }
-  CopyText(state.feedback, feedback);
+  CopyUiText(state.feedback, feedback);
   return {.active = PlayerRunning()};
 }
 
@@ -1079,12 +1073,12 @@ Ui2NativeApplicationStateSource::CaptureRecord(UiRecordFrameState &state) {
       RecordingPlatform::kMicGainMaxDb));
   record_.Synchronize(source, lineGain, micGain);
   constexpr const char *sources[] = {"ALL OFF", "LINE IN", "MIC", "USB IN"};
-  CopyText(state.snapshot.source, sources[source]);
+  CopyUiText(state.snapshot.source, sources[source]);
   std::snprintf(state.snapshot.lineGain.data(),
                 state.snapshot.lineGain.size(), "%d DB", lineGain);
   std::snprintf(state.snapshot.micGain.data(), state.snapshot.micGain.size(),
                 "%d DB", micGain);
-  CopyText(state.snapshot.elapsed, "00:00");
+  CopyUiText(state.snapshot.elapsed, "00:00");
   state.snapshot.sourceIndex = source;
   state.snapshot.lineGainDb = lineGain;
   state.snapshot.micGainDb = micGain;

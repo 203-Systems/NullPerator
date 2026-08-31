@@ -1,6 +1,7 @@
 #include "Adapters/wasm/gui/WasmUiPresenter.h"
 #include "Application/UI2/Ui2ApplicationRuntime.h"
 #include "Application/UI2/Ui2ChainTranspose.h"
+#include "Application/UI2/Ui2FixedText.h"
 #include "Application/UI2/Ui2ModalInputGate.h"
 #include "Application/UI2/Ui2SampleAdapters.h"
 #include "Application/UI2/Ui2SettingsAdapters.h"
@@ -291,6 +292,22 @@ TEST_CASE("UI2 geometry clips and unions signed pixel rectangles") {
         ui2::RectI16{0, 2, 6, 8});
   CHECK(ui2::Intersect({250, 2, 4, 8}, ui2::RectI16::Screen()).Empty());
   CHECK(ui2::Union({3, 4, 5, 6}, {1, 7, 10, 2}) == ui2::RectI16{1, 4, 10, 6});
+}
+
+TEST_CASE("UI2 fixed text copies truncate and clear stale suffixes") {
+  std::array<char, 5> text{'X', 'X', 'X', 'X', 'X'};
+  ui2::CopyUiText(text, "ABCDEFG");
+  CHECK((text == std::array<char, 5>{'A', 'B', 'C', 'D', '\0'}));
+
+  ui2::CopyUiText(text, "OK");
+  CHECK((text == std::array<char, 5>{'O', 'K', '\0', '\0', '\0'}));
+
+  ui2::CopyUiText(text, nullptr);
+  CHECK((text == std::array<char, 5>{'\0', '\0', '\0', '\0', '\0'}));
+
+  std::array<char, 0> empty{};
+  ui2::CopyUiText(empty, "IGNORED");
+  CHECK(empty.empty());
 }
 
 TEST_CASE("UI2 indexed surface owns no RGB framebuffer and clips fills") {
