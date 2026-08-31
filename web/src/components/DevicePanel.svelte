@@ -24,7 +24,7 @@
   })
   const detachInput = input.subscribe((next) => { heldActions = next })
 
-  function focusCanvas() { panel?.querySelector('#picotracker-canvas')?.focus() }
+  function focusCanvas() { panel?.querySelector('#picotracker-canvas')?.focus({ preventScroll: true }) }
   function unlockAudio() { runtime.audio?.unlockAudio?.().catch(() => {}) }
   function isTrackerActive(event) {
     if (!panel || panel.getClientRects().length === 0) return false

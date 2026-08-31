@@ -146,3 +146,21 @@ test('forced developer mode preserves an explicit disabled preference', async ({
   await page.goto('/?audio=disabled')
   await expect(dashboard).toHaveAttribute('data-developer-mode', 'false')
 })
+
+test('short-screen runtime recovery remains fully visible and restarts in place', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 480 })
+  await page.goto('/?audio=disabled&runtime-fail-test=1')
+
+  const workspace = page.locator('.workspace')
+  const recovery = page.locator('[data-recovery-kind="runtime"]')
+  await expect(recovery).toBeVisible({ timeout: 20_000 })
+  await expect.poll(() => workspace.evaluate((element) => element.scrollTop)).toBe(0)
+  const workspaceBox = await workspace.boundingBox()
+  const recoveryBox = await recovery.boundingBox()
+  expect(recoveryBox.y).toBeGreaterThanOrEqual(workspaceBox.y)
+  await expect(page.getByRole('button', { name: 'Retry runtime' })).toBeInViewport()
+
+  await page.getByRole('button', { name: 'Retry runtime' }).click()
+  await expect(page.locator('#picotracker-canvas')).toHaveAttribute('data-frame-content', 'rendered', { timeout: 20_000 })
+  await expect.poll(() => workspace.evaluate((element) => element.scrollTop)).toBe(0)
+})
