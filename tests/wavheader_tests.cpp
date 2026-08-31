@@ -322,6 +322,27 @@ TEST_CASE("ReadHeader parses extensible float WAV") {
   CHECK(result->dataOffset > 0);
 }
 
+TEST_CASE("ReadHeader rejects unsupported extensible subtype") {
+  Config::SetImportResampler(0);
+  ByteWriter wav = BuildExtensibleWav(2, 44100, 16, 4, 2);
+  TestFile file(wav.data, wav.size);
+
+  auto result = WavHeaderWriter::ReadHeader(&file);
+  REQUIRE_FALSE(result.has_value());
+  CHECK(result.error() == UNSUPPORTED_AUDIO_FORMAT);
+}
+
+TEST_CASE("ReadHeader rejects nonstandard extensible subtype GUID") {
+  Config::SetImportResampler(0);
+  ByteWriter wav = BuildExtensibleWav(2, 44100, 16, 4, 1);
+  wav.data[52] ^= 1; // Corrupt the GUID tail while retaining PCM's Data1.
+  TestFile file(wav.data, wav.size);
+
+  auto result = WavHeaderWriter::ReadHeader(&file);
+  REQUIRE_FALSE(result.has_value());
+  CHECK(result.error() == UNSUPPORTED_AUDIO_FORMAT);
+}
+
 TEST_CASE("ReadHeader accepts data chunk beyond RIFF when still within EOF") {
   Config::SetImportResampler(0);
   ByteWriter wav = BuildPcmWav(2, 44100, 16, 8);
