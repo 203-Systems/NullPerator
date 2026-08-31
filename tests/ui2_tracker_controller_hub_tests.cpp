@@ -137,6 +137,19 @@ TEST_CASE("UI2 tracker executor preserves held navigation across page switches")
   CHECK((executor.ActiveState().heldMask & EPBM_NAV) == 0U);
 }
 
+TEST_CASE("UI2 tracker hub restores held navigation after direct activation") {
+  ui2::Ui2TrackerControllerHub hub;
+  hub.SetNavigationHeld(true);
+
+  REQUIRE(hub.Activate(ui2::Ui2TrackerPage::Chain));
+  CHECK((hub.ActiveState().heldMask & EPBM_NAV) != 0U);
+
+  const auto playback = hub.Handle(TrackerAction::Play, true);
+  REQUIRE(playback.count == 1U);
+  CHECK(playback[0].type == ui2::Ui2TrackerCommandType::StartPlayback);
+  CHECK(playback[0].flag);
+}
+
 TEST_CASE("UI2 tracker executor preserves OPTION across quick-select reloads") {
   FakeGridPort port;
   port.loaded.activePage = ui2::Ui2TrackerPage::Chain;

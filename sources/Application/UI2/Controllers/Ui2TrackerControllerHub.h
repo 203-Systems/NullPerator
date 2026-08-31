@@ -251,6 +251,11 @@ public:
     const std::uint8_t sharedTrack = ActiveTrack();
     AlignTrack(page, sharedTrack);
     activePage_ = page;
+    // AlignTrack rebuilds the destination controller so its page-local cursor
+    // can inherit the shared track. Application navigation may activate that
+    // page while SHIFT remains physically held; restore the hub-owned latch so
+    // a following PLAY is still SHIFT+PLAY instead of a local context start.
+    SetNavigationHeld(navigationHeld_);
     return true;
   }
 
