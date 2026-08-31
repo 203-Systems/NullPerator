@@ -516,7 +516,10 @@ TEST_CASE("UI2 Sample Slices selects moves previews adds and deletes") {
       controller.Handle(TrackerAction::Play, true);
   CHECK(preview.type == Ui2SampleSlicesCommandType::PreviewStart);
   CHECK(preview.start == 256U);
-  CHECK(preview.end == 512U);
+  // Slice points are exclusive audio boundaries, while preview.end is the
+  // inclusive final playhead frame. Do not let this slice claim the first
+  // frame of the following slice.
+  CHECK(preview.end == 511U);
   CHECK_FALSE(preview.singleCycle);
   CHECK(controller.Handle(TrackerAction::Play, false).type ==
         Ui2SampleSlicesCommandType::PreviewStop);

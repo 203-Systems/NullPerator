@@ -420,7 +420,9 @@ private:
     for (std::uint8_t candidate = static_cast<std::uint8_t>(index + 1U);
          candidate < SliceCapacity; ++candidate) {
       if (IsDefined(candidate) && slicePoints_[candidate] > start)
-        return slicePoints_[candidate];
+        // SampleInstrument renders up to, but not including, the next slice
+        // point. Preview commands use an inclusive end for their playhead.
+        return slicePoints_[candidate] - 1U;
     }
     return waveform_.FrameCount() - 1U;
   }
