@@ -681,10 +681,11 @@ TEST_CASE("UI2 Table selection paste registers referenced tables") {
   port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::PasteSelection,
                                     Ui2TrackerPage::PhraseTable, 1, 0));
 
-  table.cmd1_[2] = FourCC::InstrumentCommandTable;
+  Phrase &phrase = session.ProjectModel().song_.phrase_;
+  phrase.cmd1_[0] = FourCC::InstrumentCommandTable;
   port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::AllocateNext,
-                                    Ui2TrackerPage::PhraseTable, 2, 1));
-  CHECK(table.param1_[2] == 8U);
+                                    Ui2TrackerPage::Phrase, 0, 3));
+  CHECK(phrase.param1_[0] == 8U);
 }
 
 TEST_CASE("UI2 model port rejects Phrase note selections in Table") {
