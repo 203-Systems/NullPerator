@@ -52,10 +52,12 @@ test('every registered C++ view and modal enters, draws, and processes input on 
 
   expect(subtypeHeaders.get(6).equals(subtypeHeaders.get(7)),
     'Phrase Table and Instrument Table must render distinct P## / I## headers').toBe(false)
-  const distinctBrowserHeaders = [10, 11, 12, 14]
+  expect(subtypeHeaders.get(10).equals(subtypeHeaders.get(11)),
+    'Sample and Instrument imports share the approved IMPORT chrome').toBe(true)
+  const distinctBrowserHeaders = [10, 12, 14]
     .map((viewType) => subtypeHeaders.get(viewType).toString('base64'))
   expect(new Set(distinctBrowserHeaders).size,
-    'Sample, Instrument, Project, and Theme diagnostics must use distinct controllers').toBe(4)
+    'Import, Project, and Theme diagnostics must keep distinct chrome').toBe(3)
   expect(subtypeHeaders.get(14).equals(subtypeHeaders.get(15)),
     'Select Theme and Theme Import share the real Theme browser controller').toBe(true)
 
