@@ -11,8 +11,10 @@ namespace {
 class SampleBrowserFileSystem final : public FileSystem {
 public:
   explicit SampleBrowserFileSystem(bool empty = false,
-                                   bool rootsUnavailable = false)
-      : empty_(empty), rootsUnavailable_(rootsUnavailable) {
+                                   bool rootsUnavailable = false,
+                                   bool denseLibrary = false)
+      : empty_(empty), rootsUnavailable_(rootsUnavailable),
+        denseLibrary_(denseLibrary) {
     previous_ = FileSystem::GetInstance();
     FileSystem::Install(this);
   }
@@ -96,6 +98,10 @@ public:
       PushIfVisible(indices, 20, filter, retainDirectories);
       PushIfVisible(indices, 21, filter, retainDirectories);
       PushIfVisible(indices, 22, filter, retainDirectories);
+      if (denseLibrary_) {
+        for (int index = 30; index < 42; ++index)
+          PushIfVisible(indices, index, filter, retainDirectories);
+      }
     } else if (directory_ == Directory::Drums) {
       PushIfVisible(indices, 20, filter, retainDirectories);
       PushIfVisible(indices, 23, filter, retainDirectories);
@@ -105,6 +111,10 @@ public:
   void getFileName(int index, char *name, int length) override {
     if (name == nullptr || length <= 0)
       return;
+    char generated[16]{};
+    if (index >= 30 && index < 42) {
+      std::snprintf(generated, sizeof(generated), "S%02d.WAV", index - 30);
+    }
     const char *value = index == 10   ? "AKWF.WAV"
                         : index == 20 ? ".."
                         : index == 21 ? "KICK.WAV"
@@ -112,12 +122,14 @@ public:
                         : index == 23 ? "SNARE.WAV"
                         : index == 24 ? "NESTED"
                         : index == 25 ? "AKWF.WAV"
-                                      : "";
+                        : generated[0] != '\0' ? generated
+                                               : "";
     std::snprintf(name, static_cast<std::size_t>(length), "%s", value);
   }
 
   PicoFileType getFileType(int index) override {
-    if (index == 10 || index == 21 || index == 23 || index == 25)
+    if (index == 10 || index == 21 || index == 23 || index == 25 ||
+        (index >= 30 && index < 42))
       return PFT_FILE;
     if (index == 20 || index == 22 || index == 24)
       return PFT_DIR;
@@ -174,6 +186,7 @@ private:
   std::uint8_t nestedDirectoryEnterAttempts_ = 0U;
   bool empty_ = false;
   bool rootsUnavailable_ = false;
+  bool denseLibrary_ = false;
 };
 
 template <typename Controller>
@@ -369,6 +382,27 @@ TEST_CASE("UI2 Sample Browser accepts held-direction repeat pulses") {
   REQUIRE(snapshot.actionCount == 3U);
   CHECK(snapshot.activeAction == 2U);
   CHECK(std::strcmp(snapshot.actions[2].data(), "DELETE") == 0);
+}
+
+TEST_CASE("UI2 Sample Browser option directions jump eight entries") {
+  using namespace ui2;
+  SampleBrowserFileSystem fileSystem(false, false, true);
+  Ui2SampleBrowserController controller;
+  REQUIRE(controller.OpenLibrary("DEMO"));
+
+  controller.Handle(TrackerAction::Option, true);
+  Tap(controller, TrackerAction::Down);
+  Ui2BrowserSnapshot snapshot = controller.Snapshot(40);
+  CHECK(snapshot.selectedRow == 8U);
+  CHECK(std::strcmp(snapshot.items[snapshot.selectedRow - snapshot.topIndex]
+                        .data(),
+                    "S06.WAV") == 0);
+
+  Tap(controller, TrackerAction::Up);
+  snapshot = controller.Snapshot(40);
+  CHECK(snapshot.selectedRow == 0U);
+  CHECK(std::strcmp(snapshot.items[0].data(), "~KICK.WAV") == 0);
+  controller.Handle(TrackerAction::Option, false);
 }
 
 TEST_CASE("UI2 Sample Browser exposes actions for empty states") {

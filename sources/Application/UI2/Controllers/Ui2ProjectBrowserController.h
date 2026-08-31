@@ -98,13 +98,13 @@ public:
       return {};
 
     if (action == TrackerAction::Up) {
-      if (selected_ > 0U)
-        --selected_;
+      selected_ = Ui2MoveListIndex(
+          selected_, RowCount(), input_.Held(TrackerAction::Option) ? -8 : -1);
       activeAction_ = 0U;
       KeepSelectionVisible();
     } else if (action == TrackerAction::Down) {
-      if (selected_ + 1U < RowCount())
-        ++selected_;
+      selected_ = Ui2MoveListIndex(
+          selected_, RowCount(), input_.Held(TrackerAction::Option) ? 8 : 1);
       activeAction_ = 0U;
       KeepSelectionVisible();
     } else if (action == TrackerAction::Left) {

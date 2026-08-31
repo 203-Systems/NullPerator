@@ -150,17 +150,26 @@ public:
       return {};
     }
 
+    // M8 browser navigation uses OPTION+UP/DOWN to jump eight entries. Keep
+    // this ahead of the generic modifier guard so the chord works in both the
+    // project pool and recursive sample library.
+    if (input_.Held(TrackerAction::Option) &&
+        (action == TrackerAction::Up || action == TrackerAction::Down)) {
+      selected_ = Ui2MoveListIndex(
+          selected_, count_, action == TrackerAction::Up ? -8 : 8);
+      SelectionChanged();
+      return {};
+    }
+
     if (input_.Held(TrackerAction::Shift) ||
         input_.Held(TrackerAction::Option))
       return {};
 
     if (action == TrackerAction::Up) {
-      if (selected_ > 0U)
-        --selected_;
+      selected_ = Ui2MoveListIndex(selected_, count_, -1);
       SelectionChanged();
     } else if (action == TrackerAction::Down) {
-      if (selected_ + 1U < count_)
-        ++selected_;
+      selected_ = Ui2MoveListIndex(selected_, count_, 1);
       SelectionChanged();
     } else if (action == TrackerAction::Left) {
       MoveAction(-1);

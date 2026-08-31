@@ -170,6 +170,20 @@ TEST_CASE("UI2 Project Browser accepts held-direction repeat pulses") {
   CHECK(std::strcmp(snapshot.items[2].data(), ".saveas-stage.X") == 0);
 }
 
+TEST_CASE("UI2 Project Browser option directions jump eight entries") {
+  using namespace ui2;
+  ProjectBrowserFileSystem fileSystem;
+  Ui2ProjectBrowserController controller;
+  REQUIRE(controller.Refresh("ACTIVE"));
+
+  controller.Handle(TrackerAction::Option, true);
+  Tap(controller, TrackerAction::Down);
+  CHECK(controller.Snapshot().selectedRow == 3U);
+  Tap(controller, TrackerAction::Up);
+  CHECK(controller.Snapshot().selectedRow == 0U);
+  controller.Handle(TrackerAction::Option, false);
+}
+
 TEST_CASE("UI2 Project Browser keeps projects as its product root") {
   using namespace ui2;
   ProjectBrowserFileSystem fileSystem;
@@ -198,8 +212,8 @@ TEST_CASE("UI2 Project Browser keeps Load explicit and protects active Delete") 
   CHECK(load.type == Ui2ProjectBrowserCommandType::Load);
   CHECK(std::strcmp(load.project.data(), "OLD") == 0);
 
-  controller.Handle(TrackerAction::Option, true);
   Tap(controller, TrackerAction::Down); // ACTIVE
+  controller.Handle(TrackerAction::Option, true);
   CHECK(Tap(controller, TrackerAction::Edit).type ==
         Ui2ProjectBrowserCommandType::None);
   controller.Handle(TrackerAction::Option, false);

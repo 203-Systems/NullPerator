@@ -76,6 +76,20 @@ private:
   std::uint16_t blockedMask_ = 0U;
 };
 
+// Clamp a browser/list cursor after a signed movement. The fixed-capacity UI2
+// browsers share this primitive for ordinary single-row movement and M8-style
+// OPTION+UP/DOWN eight-row jumps.
+[[nodiscard]] constexpr std::uint16_t
+Ui2MoveListIndex(std::uint16_t current, std::uint16_t count,
+                 std::int16_t delta) {
+  if (count == 0U)
+    return 0U;
+  const std::int32_t maximum = static_cast<std::int32_t>(count) - 1;
+  const std::int32_t moved = static_cast<std::int32_t>(current) + delta;
+  return static_cast<std::uint16_t>(
+      moved < 0 ? 0 : moved > maximum ? maximum : moved);
+}
+
 // A selector owns indices only. Display strings remain static/model-owned, so
 // the controller is deterministic and has no lifetime or allocation concerns.
 struct Ui2SelectorState {
@@ -276,5 +290,8 @@ static_assert(std::is_trivially_copyable_v<Ui2InputReleaseGate>);
 static_assert(std::is_trivially_copyable_v<Ui2SelectorState>);
 static_assert(sizeof(Ui2ControllerInputState) == 2U);
 static_assert(sizeof(Ui2InputReleaseGate) == 2U);
+static_assert(Ui2MoveListIndex(3U, 12U, -8) == 0U);
+static_assert(Ui2MoveListIndex(3U, 12U, 8) == 11U);
+static_assert(Ui2MoveListIndex(0U, 0U, 8) == 0U);
 
 } // namespace ui2

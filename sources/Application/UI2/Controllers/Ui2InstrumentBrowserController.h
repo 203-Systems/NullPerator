@@ -58,10 +58,12 @@ public:
     if (!input_.Update(action, pressed) || !pressed)
       return {};
     if (action == TrackerAction::Up && selected_ > 0U) {
-      --selected_;
+      selected_ = Ui2MoveListIndex(
+          selected_, count_, input_.Held(TrackerAction::Option) ? -8 : -1);
       error_.fill('\0');
     } else if (action == TrackerAction::Down && selected_ + 1U < count_) {
-      ++selected_;
+      selected_ = Ui2MoveListIndex(
+          selected_, count_, input_.Held(TrackerAction::Option) ? 8 : 1);
       error_.fill('\0');
     } else if (action == TrackerAction::Edit && count_ != 0U) {
       Ui2InstrumentBrowserCommand command{
