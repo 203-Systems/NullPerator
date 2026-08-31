@@ -266,8 +266,14 @@ bool WavFileWriter::NormalizeFile(const char *path, void *scratchBuffer,
   const uint32_t dataChunkSize = headerInfo->dataChunkSize;
   const uint32_t dataOffset = headerInfo->dataOffset;
 
-  if (numChannels == 0 || numChannels > 2 || bytesPerSample == 0 ||
-      dataChunkSize == 0) {
+  // The normalization loops below intentionally operate on unsigned PCM8 or
+  // signed little-endian PCM16 samples. Accepting wider PCM or IEEE float
+  // here would reinterpret their bytes as int16_t and corrupt the copy.
+  const bool supportedPcm =
+      headerInfo->audioFormat == 1U &&
+      (bitsPerSample == 8U || bitsPerSample == 16U);
+  if (!supportedPcm || numChannels == 0 || numChannels > 2 ||
+      bytesPerSample == 0 || dataChunkSize == 0) {
     Trace::Error("WavFileWriter: Unsupported WAV format for normalization: "
                  "%s",
                  path);

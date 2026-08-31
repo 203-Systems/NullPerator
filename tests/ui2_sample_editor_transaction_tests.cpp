@@ -207,6 +207,32 @@ std::vector<std::uint8_t> MakeWav() {
   return bytes;
 }
 
+std::vector<std::uint8_t> MakeWavWithEncoding(std::uint16_t audioFormat,
+                                              std::uint16_t bitsPerSample) {
+  std::vector<std::uint8_t> bytes;
+  const auto appendFourCc = [&bytes](const char *value) {
+    bytes.insert(bytes.end(), value, value + 4U);
+  };
+  const std::uint16_t bytesPerSample =
+      static_cast<std::uint16_t>(bitsPerSample / 8U);
+  const std::uint32_t dataBytes = 4U * bytesPerSample;
+  appendFourCc("RIFF");
+  AppendU32(bytes, 36U + dataBytes);
+  appendFourCc("WAVE");
+  appendFourCc("fmt ");
+  AppendU32(bytes, 16U);
+  AppendU16(bytes, audioFormat);
+  AppendU16(bytes, 1U);
+  AppendU32(bytes, 44100U);
+  AppendU32(bytes, 44100U * bytesPerSample);
+  AppendU16(bytes, bytesPerSample);
+  AppendU16(bytes, bitsPerSample);
+  appendFourCc("data");
+  AppendU32(bytes, dataBytes);
+  bytes.resize(bytes.size() + dataBytes, 0x20U);
+  return bytes;
+}
+
 std::uint32_t ReadU32(const std::vector<std::uint8_t> &bytes,
                       std::size_t offset) {
   return static_cast<std::uint32_t>(bytes[offset]) |
@@ -386,4 +412,28 @@ TEST_CASE("UI2 sample editor copy failure never mutates the source") {
         Ui2SampleEditorTransactionResult::CopyFailed);
   CHECK(fileSystem.Bytes(source) == original);
   CHECK_FALSE(transaction.HasWorkingCopy());
+}
+
+TEST_CASE("UI2 sample normalize rejects encodings it cannot transform") {
+  using namespace ui2;
+  constexpr const char *source = "/samples/VOICE.wav";
+
+  for (const auto [audioFormat, bitsPerSample] :
+       {std::pair<std::uint16_t, std::uint16_t>{1U, 24U},
+        {1U, 32U}, {3U, 32U}, {3U, 64U}}) {
+    CAPTURE(audioFormat);
+    CAPTURE(bitsPerSample);
+    SampleEditMemoryFileSystem fileSystem;
+    const std::vector<std::uint8_t> original =
+        MakeWavWithEncoding(audioFormat, bitsPerSample);
+    fileSystem.Put(source, original);
+    Ui2SampleEditorTransaction transaction;
+    REQUIRE(transaction.Begin(fileSystem, source) ==
+            Ui2SampleEditorTransactionResult::Ready);
+
+    CHECK(transaction.ApplyNormalize() ==
+          Ui2SampleEditorTransactionResult::MutationFailed);
+    CHECK(fileSystem.Bytes(source) == original);
+    CHECK_FALSE(transaction.HasWorkingCopy());
+  }
 }
