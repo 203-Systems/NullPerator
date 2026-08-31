@@ -63,6 +63,27 @@ void DrawPlusMinus(BarBuilder &builder, std::int16_t x, std::int16_t y) {
                UiColorToken::TextColored);
 }
 
+[[nodiscard]] std::int16_t BatteryFillWidth(const UiTopBarModel &model) {
+  if (model.showBatteryPercent) {
+    const std::uint16_t percentage =
+        std::min<std::uint16_t>(model.batteryPercent, 100U);
+    if (percentage == 0U)
+      return 0;
+    // The icon has sixteen interior columns. Round upward so every non-empty
+    // percentage retains at least one visible column on the 240 px display.
+    return static_cast<std::int16_t>(
+        std::min<std::uint16_t>(16U, (percentage * 16U + 99U) / 100U));
+  }
+
+  // Platforms without an available percentage retain the coarse state-based
+  // presentation. Charging only changes color; it never implies a full cell.
+  if (model.power == UiPowerState::BatteryHigh)
+    return 16;
+  if (model.power == UiPowerState::BatteryLow)
+    return 4;
+  return 11;
+}
+
 } // namespace
 
 void UiChromeRenderer::DrawPower(const UiTopBarModel &model,
@@ -75,11 +96,7 @@ void UiChromeRenderer::DrawPower(const UiTopBarModel &model,
   }
   const std::int16_t x = 207;
   const std::int16_t y = 12;
-  const std::int16_t fillWidth =
-      model.power == UiPowerState::Charging ||
-              model.power == UiPowerState::BatteryHigh
-          ? 16
-          : (model.power == UiPowerState::BatteryLow ? 4 : 11);
+  const std::int16_t fillWidth = BatteryFillWidth(model);
   builder.Fill({x, y, 20, 1}, color);
   builder.Fill({x, static_cast<std::int16_t>(y + 9), 20, 1}, color);
   builder.Fill({x, static_cast<std::int16_t>(y + 1), 1, 8}, color);

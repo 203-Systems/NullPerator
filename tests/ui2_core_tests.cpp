@@ -1446,6 +1446,45 @@ TEST_CASE("UI2 playing elapsed text keeps its right edge fixed") {
   }
 }
 
+TEST_CASE("UI2 battery fill maps percentage without charging inflation") {
+  const auto fill = [](std::uint8_t percentage, ui2::UiPowerState power,
+                       bool available = true) {
+    ui2::UiBarScene scene;
+    REQUIRE(ui2::UiChromeRenderer::BuildTop(
+                {.title = "DEVICE",
+                 .power = power,
+                 .showBatteryPercent = available,
+                 .batteryPercent = percentage},
+                scene) == ui2::UiBuildStatus::Built);
+    const auto command = std::find_if(
+        scene.Stream().commands.begin(), scene.Stream().commands.end(),
+        [](const ui2::UiCommand &item) {
+          return item.kind == ui2::UiCommandKind::FillRect &&
+                 item.bounds.x == 209 && item.bounds.y == 14 &&
+                 item.bounds.height == 6;
+        });
+    REQUIRE(command != scene.Stream().commands.end());
+    return *command;
+  };
+
+  CHECK(fill(0U, ui2::UiPowerState::BatteryNormal).bounds.width == 0);
+  CHECK(fill(1U, ui2::UiPowerState::BatteryNormal).bounds.width == 1);
+  CHECK(fill(37U, ui2::UiPowerState::BatteryNormal).bounds.width == 6);
+  CHECK(fill(100U, ui2::UiPowerState::BatteryNormal).bounds.width == 16);
+  CHECK(fill(255U, ui2::UiPowerState::BatteryNormal).bounds.width == 16);
+
+  const ui2::UiCommand normal =
+      fill(37U, ui2::UiPowerState::BatteryNormal);
+  const ui2::UiCommand charging =
+      fill(37U, ui2::UiPowerState::Charging);
+  CHECK(charging.bounds.width == normal.bounds.width);
+  CHECK(normal.color ==
+        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::BatteryNormal));
+  CHECK(charging.color ==
+        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::BatteryCharging));
+  CHECK(fill(37U, ui2::UiPowerState::Charging, false).bounds.width == 11);
+}
+
 TEST_CASE("UI2 bottom renderer bounds externally supplied item counts") {
   ui2::UiBarScene scene;
   ui2::UiBottomBarModel actions{.kind = ui2::UiBottomBarKind::Actions};
