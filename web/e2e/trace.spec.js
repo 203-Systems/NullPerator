@@ -2,6 +2,30 @@ import { expect, test } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
 import { stopWorkbench } from './helpers/runtime.js'
 
+test('native UI2 input dispatch remains visible in trace summaries', async ({ page }) => {
+  await page.goto('/?audio=disabled&inputDiagnostics=1')
+  await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible({ timeout: 20_000 })
+  const canvas = page.locator('#picotracker-canvas')
+  const initialGeneration = Number(await canvas.getAttribute('data-action-generation'))
+
+  await page.getByRole('button', { name: 'Trace', exact: true }).click()
+  const panel = page.locator('[data-trace-state]')
+  await page.getByRole('button', { name: 'Start capture' }).click()
+  await expect(panel).toHaveAttribute('data-trace-state', 'capturing')
+
+  await page.getByRole('button', { name: 'Device', exact: true }).click()
+  await canvas.focus()
+  await page.keyboard.press('s')
+  await expect.poll(async () => Number(await canvas.getAttribute('data-action-generation')))
+    .toBeGreaterThanOrEqual(initialGeneration + 2)
+  await page.waitForTimeout(300)
+
+  await page.getByRole('button', { name: 'Trace', exact: true }).click()
+  await page.getByRole('button', { name: 'Stop capture' }).click()
+  await expect(panel).toHaveAttribute('data-trace-state', 'stopped')
+  await expect(panel.locator('tbody tr').filter({ hasText: 'input.dispatch' })).toHaveCount(1)
+})
+
 test('captures live native scopes, benchmarks deterministically, and exports Chrome Trace JSON', async ({ page }) => {
   await page.goto('/')
   await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible({ timeout: 20_000 })

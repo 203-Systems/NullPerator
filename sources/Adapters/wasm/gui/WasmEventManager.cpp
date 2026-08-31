@@ -255,8 +255,12 @@ void WasmEventManager::PumpFrame() {
         if (InputMap::DecodeActionEvent(
                 reinterpret_cast<std::uintptr_t>(event.user.data1), action,
                 pressed)) {
-          application.DispatchTrackerAction(static_cast<TrackerAction>(action),
-                                            pressed);
+          {
+            WASM_TRACE_SCOPE(WasmTraceCategory::Input,
+                             WasmTraceName::InputDispatch);
+            application.DispatchTrackerAction(
+                static_cast<TrackerAction>(action), pressed);
+          }
           diagnosticInputGeneration_.fetch_add(1, std::memory_order_acq_rel);
           InputMap::AcknowledgeAction(action, pressed);
         }
