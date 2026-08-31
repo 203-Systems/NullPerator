@@ -2,6 +2,7 @@
 
 #include "Application/Instruments/OpalInstrumentParameterEncoding.h"
 #include "Application/Instruments/SampleRenderingParams.h"
+#include "Application/Instruments/SIDInstrument.h"
 #include "Application/UI2/Controllers/Ui2InstrumentLifecycleController.h"
 #include "Application/UI2/Ui2InstrumentParameters.h"
 #include "Application/UI2/Ui2InstrumentTableAllocation.h"
@@ -9,8 +10,23 @@
 #include "Application/UI2/Ui2TransportPolicy.h"
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string_view>
+
+// The focused host binary does not link TablePlayback.cpp; provide its small
+// value-state reset so the production SID lifecycle can be exercised directly.
+void TableSaveState::Reset() {
+  for (std::size_t row = 0U; row < TABLE_STEPS; ++row)
+    for (std::size_t column = 0U; column < TABLE_COLUMNS; ++column)
+      hopCount_[row][column] = 0U;
+  for (std::size_t column = 0U; column < TABLE_COLUMNS; ++column)
+    position_[column] = 0;
+  groove_.groove_ = static_cast<unsigned char>(-1);
+  groove_.position_ = 0U;
+  groove_.ticks_ = 0U;
+}
 
 namespace {
 
@@ -141,6 +157,22 @@ TEST_CASE("OPAL depth flags retain the UI tremolo and vibrato bit order") {
   CHECK(EncodeOpalDepthControl(1) == 0x40U);
   CHECK(EncodeOpalDepthControl(2) == 0x80U);
   CHECK(EncodeOpalDepthControl(3) == 0xC0U);
+}
+
+TEST_CASE("SID render is inert before the first note starts") {
+  alignas(SIDInstrument)
+      std::array<std::byte, sizeof(SIDInstrument)> storage{};
+  storage.fill(std::byte{0xFF});
+  SIDInstrument *instrument =
+      std::construct_at(reinterpret_cast<SIDInstrument *>(storage.data()), SID1);
+  REQUIRE(instrument->Init());
+  std::array<fixed, 8> buffer{};
+  buffer.fill(123);
+
+  CHECK_FALSE(instrument->Render(0, buffer.data(), 4, false));
+  for (fixed sample : buffer)
+    CHECK(sample == 123);
+  std::destroy_at(instrument);
 }
 
 TEST_CASE("Sample size queries keep the default sentinel outside render state") {

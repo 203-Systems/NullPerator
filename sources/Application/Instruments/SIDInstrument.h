@@ -106,8 +106,8 @@ private:
   SIDInstrumentInstance chip_; // SID1 or SID2
   bool render_ = false;
 
-  bool playing_;
-  bool gate_;
+  bool playing_ = false;
+  bool gate_ = false;
   //  bool retrig_;
   // int retrigLoop_;
   TableSaveState tableState_;

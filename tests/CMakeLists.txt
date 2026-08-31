@@ -50,6 +50,8 @@ add_executable(picoTracker_tests
   ../sources/Services/Audio/AudioDriver.cpp
   ../sources/Adapters/wasm/input/InputMap.cpp
   ../sources/Application/Instruments/WavHeader.cpp
+  ../sources/Application/Instruments/SIDInstrument.cpp
+  ../sources/Externals/cRSID/SID.cpp
   ../sources/Application/Instruments/I_Instrument.cpp
   ../sources/Application/UI2/Ui2SampleWaveformBackend.cpp
   ../sources/Application/Utils/HexBuffers.cpp
