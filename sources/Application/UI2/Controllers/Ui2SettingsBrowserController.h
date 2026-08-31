@@ -32,10 +32,6 @@ enum class Ui2SettingsBrowserCommandType : std::uint8_t {
 struct Ui2SettingsBrowserCommand {
   Ui2SettingsBrowserCommandType type = Ui2SettingsBrowserCommandType::None;
   std::array<char, MAX_THEME_NAME_LENGTH + 5U> theme{};
-
-  [[nodiscard]] bool HasValue() const {
-    return type != Ui2SettingsBrowserCommandType::None;
-  }
 };
 
 // Theme uses the approved Browser renderer primitive while remaining separate
