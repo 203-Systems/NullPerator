@@ -33,8 +33,6 @@ public:
 
   void Trigger() override;
 
-  virtual stereosample GetLastPeakLevels();
-
   int GetPlayedBufferPercentage() override;
 
   AudioDriver *GetDriver();
@@ -55,7 +53,6 @@ protected:
 private:
   AudioDriver *driver_;
   bool hasSound_ = false;
-  stereosample lastPeakVolume_ = 0;
 
   PICOTRACKER_FAST_AUDIO_BUFFER static fixed
       primarySoundBuffer_[MIX_BUFFER_SIZE];

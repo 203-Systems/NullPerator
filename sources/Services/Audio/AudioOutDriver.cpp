@@ -43,8 +43,6 @@ void AudioOutDriver::SetAudioActive(bool active) {
   driver_->OnAudioActive(active);
 }
 
-stereosample AudioOutDriver::GetLastPeakLevels() { return lastPeakVolume_; };
-
 void AudioOutDriver::Trigger() {
   prepareMixBuffers();
   hasSound_ = AudioMixer::Render(primarySoundBuffer_, sampleCount_) > 0;
@@ -76,12 +74,9 @@ void AudioOutDriver::prepareMixBuffers() {
 void AudioOutDriver::clipToMix() {
   if (!hasSound_) {
     memset(mixBuffer_, 0, sampleCount_ * 2 * sizeof(short));
-    lastPeakVolume_ = 0;
     return;
   }
 
-  short peakL = 0;
-  short peakR = 0;
   fixed *src = primarySoundBuffer_;
 
   if (driver_->Interlaced()) {
@@ -106,23 +101,6 @@ void AudioOutDriver::clipToMix() {
       dst[6] = static_cast<short>(l3);
       dst[7] = static_cast<short>(r3);
 
-      if (l0 >= peakL)
-        peakL = l0;
-      if (r0 >= peakR)
-        peakR = r0;
-      if (l1 >= peakL)
-        peakL = l1;
-      if (r1 >= peakR)
-        peakR = r1;
-      if (l2 >= peakL)
-        peakL = l2;
-      if (r2 >= peakR)
-        peakR = r2;
-      if (l3 >= peakL)
-        peakL = l3;
-      if (r3 >= peakR)
-        peakR = r3;
-
       src += 8;
       dst += 8;
     }
@@ -131,10 +109,6 @@ void AudioOutDriver::clipToMix() {
       int r = fp2i(src[1]);
       dst[0] = static_cast<short>(l);
       dst[1] = static_cast<short>(r);
-      if (l >= peakL)
-        peakL = l;
-      if (r >= peakR)
-        peakR = r;
       src += 2;
       dst += 2;
     }
@@ -146,15 +120,8 @@ void AudioOutDriver::clipToMix() {
       int r = fp2i(*src++);
       *left++ = static_cast<short>(l);
       *right++ = static_cast<short>(r);
-      if (l >= peakL)
-        peakL = l;
-      if (r >= peakR)
-        peakR = r;
     }
   }
-
-  lastPeakVolume_ = peakL << 16;
-  lastPeakVolume_ += peakR;
 };
 
 int AudioOutDriver::GetPlayedBufferPercentage() {
