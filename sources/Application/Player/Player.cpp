@@ -33,6 +33,9 @@ int32_t DecodeRetriggerOffset(int32_t value) {
   return static_cast<int8_t>(value & 0xFF);
 }
 
+static_assert(PlayerAudioActivity::VoiceCount == SONG_CHANNEL_COUNT,
+              "audio ownership must cover every physical player voice");
+
 // Private constructor - Singleton
 
 Player::Player() : mixer_() {
@@ -57,6 +60,8 @@ bool Player::Init(Project *project, TrackerSessionState *viewData) {
 
   viewData_ = viewData;
   project_ = project;
+  audioActivity_.Reset();
+  audioActive_ = false;
 
   if (!mixer_.Init(project)) {
     return false;
@@ -85,6 +90,8 @@ void Player::Reset() {
 };
 
 void Player::Close() {
+  audioActivity_.Reset();
+  SetAudioActive(false);
   mixer_.Stop();
   mixer_.Close();
 };
@@ -154,7 +161,11 @@ void Player::Start(PlayMode mode, bool forceSongMode, MixerServiceMode msmMode,
   // Let's get started !
 
   SyncMaster::GetInstance()->Start();
-  SetAudioActive(true);
+  // Starting transport stops every physical player voice above. Keep direct
+  // note ownership in step with the mixer before acquiring transport output.
+  audioActivity_.ClearVoices();
+  audioActivity_.Set(PlayerAudioActivity::Source::Transport, true);
+  RefreshAudioActive();
 
   firstPlayCycle_ = true;
   mode_ = viewData_->playMode_;
@@ -225,8 +236,6 @@ void Player::Start(PlayMode mode, bool forceSongMode, MixerServiceMode msmMode,
 void Player::Stop() {
   mixer_.Lock();
 
-  bool keepAudioActive = mixer_.IsPlaying();
-
   for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {
     mixer_.StopChannel(i);
     TablePlayback::GetTablePlayback(i).Stop();
@@ -237,12 +246,12 @@ void Player::Stop() {
 
   SyncMaster::GetInstance()->Stop();
   isRunning_ = false;
+  audioActivity_.ClearVoices();
+  audioActivity_.Set(PlayerAudioActivity::Source::Transport, false);
   SetChanged();
   PlayerEvent pe(PET_STOP);
   NotifyObservers(&pe);
-  if (!keepAudioActive) {
-    SetAudioActive(false);
-  }
+  RefreshAudioActive();
 
   mixer_.Unlock();
 }
@@ -551,6 +560,13 @@ void Player::Update(Observable &o, I_ObservableData *d) {
 
   MidiService::GetInstance()->Trigger();
   project_->Trigger();
+
+  // AudioFileStreamer can reach EOF on the render thread. Release its owner
+  // on the next serialized mixer tick without disturbing transport, record
+  // monitoring, or direct voices.
+  audioActivity_.Set(PlayerAudioActivity::Source::FileStream,
+                     mixer_.IsPlaying());
+  RefreshAudioActive();
 
   if (isRunning_) {
 
@@ -1297,34 +1313,54 @@ PlayerEventType PlayerEvent::GetType() { return type_; };
 unsigned int PlayerEvent::GetTickCount() { return tickCount_; };
 
 void Player::StartStreaming(const char *name, int startSample) {
-  mixer_.StartStreaming(name, startSample);
-  if (!isRunning_) {
-    SetAudioActive(true);
-  }
+  mixer_.Lock();
+  const bool started = mixer_.StartStreaming(name, startSample);
+  audioActivity_.Set(PlayerAudioActivity::Source::FileStream, started);
+  RefreshAudioActive();
+  mixer_.Unlock();
 }
 
 void Player::StartLoopingStreaming(const char *name) {
-  mixer_.StartLoopingStreaming(name);
-  if (!isRunning_) {
-    SetAudioActive(true);
-  }
+  mixer_.Lock();
+  const bool started = mixer_.StartLoopingStreaming(name);
+  audioActivity_.Set(PlayerAudioActivity::Source::FileStream, started);
+  RefreshAudioActive();
+  mixer_.Unlock();
 }
 
 void Player::StopStreaming() {
+  mixer_.Lock();
   mixer_.StopStreaming();
-  if (!isRunning_) {
-    SetAudioActive(false);
-  }
+  audioActivity_.Set(PlayerAudioActivity::Source::FileStream, false);
+  RefreshAudioActive();
+  mixer_.Unlock();
 }
 
 void Player::StartRecordStreaming(uint16_t *srcBuffer, uint32_t size,
                                   bool stereo) {
-  mixer_.StartRecordStreaming(srcBuffer, size, stereo);
+  mixer_.Lock();
+  const bool started = mixer_.StartRecordStreaming(srcBuffer, size, stereo);
+  audioActivity_.Set(PlayerAudioActivity::Source::RecordStream, started);
+  RefreshAudioActive();
+  mixer_.Unlock();
 }
 
-void Player::StopRecordStreaming() { mixer_.StopRecordStreaming(); }
+void Player::StopRecordStreaming() {
+  mixer_.Lock();
+  mixer_.StopRecordStreaming();
+  audioActivity_.Set(PlayerAudioActivity::Source::RecordStream, false);
+  RefreshAudioActive();
+  mixer_.Unlock();
+}
+
+void Player::RefreshAudioActive() {
+  SetAudioActive(audioActivity_.IsActive());
+}
 
 void Player::SetAudioActive(bool active) {
+  if (audioActive_ == active)
+    return;
+  audioActive_ = active;
   MixerService *ms = MixerService::GetInstance();
   AudioOut *out = (ms != nullptr) ? ms->GetAudioOut() : nullptr;
   if (out) {
@@ -1378,18 +1414,22 @@ void Player::PlayNote(unsigned short instrumentIndex, unsigned short channel,
   if (instrument) {
     // Use the channel modulo SONG_CHANNEL_COUNT to ensure it's within range
     int playerChannel = channel % SONG_CHANNEL_COUNT;
+    mixer_.Lock();
     mixer_.StartInstrument(playerChannel, instrument, note, true);
-    if (!isRunning_) {
-      SetAudioActive(true);
-    }
+    audioActivity_.SetVoice(
+        static_cast<std::uint8_t>(playerChannel),
+        mixer_.GetInstrument(playerChannel) != nullptr);
+    RefreshAudioActive();
+    mixer_.Unlock();
   }
 }
 
 void Player::StopNote(unsigned short instrumentIndex, unsigned short channel) {
   // Use the channel modulo SONG_CHANNEL_COUNT to ensure it's within range
   int playerChannel = channel % SONG_CHANNEL_COUNT;
+  mixer_.Lock();
   mixer_.StopInstrument(playerChannel);
-  if (!isRunning_) {
-    SetAudioActive(false);
-  }
+  audioActivity_.SetVoice(static_cast<std::uint8_t>(playerChannel), false);
+  RefreshAudioActive();
+  mixer_.Unlock();
 }

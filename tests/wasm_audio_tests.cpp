@@ -3,6 +3,7 @@
 #include "Adapters/wasm/audio/AudioWorklet.h"
 #include "Adapters/wasm/audio/WasmAudioDriver.h"
 #include "Adapters/wasm/gui/WasmFrameSnapshot.h"
+#include "Application/Player/PlayerAudioActivity.h"
 
 #include "doctest/doctest.h"
 
@@ -443,6 +444,54 @@ TEST_CASE("WASM audio driver writes interleaved engine frames and fixed worklet 
   REQUIRE(halfRenderer.Render(halfLeft.data(), halfRight.data(), 1));
   CHECK(halfLeft[0] == doctest::Approx(0.25F));
   CHECK(halfRight[0] == doctest::Approx(-0.25F));
+  driver.Stop();
+}
+
+TEST_CASE("WASM audio activity remains owned until every source stops") {
+  AudioSettings settings{};
+  WasmAudioDriver driver(settings);
+  REQUIRE(driver.Init());
+  REQUIRE(driver.Start());
+
+  PlayerAudioActivity activity;
+  const auto publish = [&] { driver.OnAudioActive(activity.IsActive()); };
+
+  activity.SetVoice(0U, true);
+  publish();
+  REQUIRE(driver.IsActive());
+
+  activity.SetVoice(1U, true);
+  publish();
+  activity.SetVoice(0U, false);
+  publish();
+  CHECK(driver.IsActive());
+
+  activity.Set(PlayerAudioActivity::Source::FileStream, true);
+  publish();
+  activity.SetVoice(1U, false);
+  publish();
+  CHECK(driver.IsActive());
+
+  activity.Set(PlayerAudioActivity::Source::FileStream, false);
+  publish();
+  CHECK_FALSE(driver.IsActive());
+
+  activity.Set(PlayerAudioActivity::Source::Transport, true);
+  activity.SetVoice(7U, true);
+  publish();
+  activity.ClearVoices();
+  publish();
+  CHECK(driver.IsActive());
+  activity.Set(PlayerAudioActivity::Source::Transport, false);
+  publish();
+  CHECK_FALSE(driver.IsActive());
+
+  activity.Set(PlayerAudioActivity::Source::RecordStream, true);
+  publish();
+  CHECK(driver.IsActive());
+  activity.Reset();
+  publish();
+  CHECK_FALSE(driver.IsActive());
   driver.Stop();
 }
 

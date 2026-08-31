@@ -13,6 +13,7 @@
 #include "Externals/etl/include/etl/string.h"
 #include "Foundation/Observable.h"
 #include "Foundation/T_Singleton.h"
+#include "PlayerAudioActivity.h"
 #include "PlayerMixer.h"
 #include "SyncMaster.h"
 #include "System/Timer/Timer.h"
@@ -175,6 +176,7 @@ protected:
   void triggerLiveChains();
 
   void SetAudioActive(bool active);
+  void RefreshAudioActive();
 
   bool isPlayable(int row, int col, int chainPos = 0);
   bool findPlayable(uchar *row, int col, uchar chainPos = 0);
@@ -213,6 +215,9 @@ private:
 
   bool retrigAllImmediate_;
   unsigned char retrigPos_;
+
+  PlayerAudioActivity audioActivity_;
+  bool audioActive_ = false;
 };
 
 #endif
