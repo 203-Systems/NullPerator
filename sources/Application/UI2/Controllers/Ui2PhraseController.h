@@ -155,7 +155,8 @@ public:
         // Phrase rows are a window into the current Chain. Crossing 00/0F
         // asks the model to resolve the adjacent Chain phrase; an empty target
         // is rejected and synchronization leaves this cursor at the edge.
-        Ui2TrackerCommand command = Command(Ui2TrackerCommandType::WarpVertical);
+        Ui2TrackerCommand command =
+            Command(Ui2TrackerCommandType::WarpVertical);
         command.direction = direction;
         command.value = direction == Ui2TrackerEditDirection::Up ? -1 : 1;
         output.Push(command);
@@ -201,8 +202,7 @@ private:
                                  Ui2TrackerCommandBatch<> &output) {
     clonePending_ = false;
     const Ui2TrackerEditDirection direction = Ui2TrackerDirectionFor(action);
-    if (action == TrackerAction::Shift &&
-        input_.Held(TrackerAction::Option)) {
+    if (action == TrackerAction::Shift && input_.Held(TrackerAction::Option)) {
       output.Push(Command(Ui2TrackerCommandType::ToggleMute));
       return;
     }
@@ -226,6 +226,15 @@ private:
       selection_.Clear();
       return;
     }
+    if (action == TrackerAction::Edit && input_.Held(TrackerAction::Option) &&
+        !input_.Held(TrackerAction::Shift)) {
+      Ui2TrackerCommand command = Command(Ui2TrackerCommandType::CutSelection);
+      command.selection = selection_;
+      output.Push(command);
+      selection_.Clear();
+      return;
+    }
+
     if (action == TrackerAction::Option &&
         input_.Mask() == TrackerActionBit(TrackerAction::Option)) {
       clonePending_ = true;

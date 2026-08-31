@@ -182,8 +182,7 @@ private:
                                  Ui2TrackerCommandBatch<> &output) {
     clonePending_ = false;
     const Ui2TrackerEditDirection direction = Ui2TrackerDirectionFor(action);
-    if (action == TrackerAction::Shift &&
-        input_.Held(TrackerAction::Option)) {
+    if (action == TrackerAction::Shift && input_.Held(TrackerAction::Option)) {
       output.Push(Command(Ui2TrackerCommandType::ToggleMute));
       return;
     }
@@ -207,6 +206,15 @@ private:
       selection_.Clear();
       return;
     }
+    if (action == TrackerAction::Edit && input_.Held(TrackerAction::Option) &&
+        !input_.Held(TrackerAction::Shift)) {
+      Ui2TrackerCommand command = Command(Ui2TrackerCommandType::CutSelection);
+      command.selection = selection_;
+      output.Push(command);
+      selection_.Clear();
+      return;
+    }
+
     if (action == TrackerAction::Option &&
         input_.Mask() == TrackerActionBit(TrackerAction::Option)) {
       clonePending_ = true;

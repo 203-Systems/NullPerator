@@ -56,6 +56,19 @@ void CheckSelectionClipboardLifecycle(Controller controller) {
   controller.Handle(TrackerAction::Option, false);
   CHECK(controller.Handle(TrackerAction::Edit, false).Empty());
 }
+template <typename Controller>
+void CheckSelectionCutAcceptsEitherModifierOrder(Controller controller) {
+  BeginSelection(controller);
+  REQUIRE(controller.Selection().active);
+  CHECK(controller.Handle(TrackerAction::Option, true).Empty());
+  const auto cut = controller.Handle(TrackerAction::Edit, true);
+  REQUIRE(cut.count == 1U);
+  CHECK(cut[0].type == Ui2TrackerCommandType::CutSelection);
+  CHECK(cut[0].selection.active);
+  CHECK_FALSE(controller.Selection().active);
+  controller.Handle(TrackerAction::Edit, false);
+  CHECK(controller.Handle(TrackerAction::Option, false).Empty());
+}
 
 template <typename Controller> void CheckCommonPlaybackChords() {
   Controller plain;
@@ -198,6 +211,13 @@ TEST_CASE("UI2 grid selection copy cut and paste close the lifecycle") {
   CheckSelectionClipboardLifecycle(Ui2ChainController(2, 1, 3, 0));
   CheckSelectionClipboardLifecycle(Ui2PhraseController(2, 1, 3, 0));
   CheckSelectionClipboardLifecycle(
+      Ui2TableController(Ui2TrackerPage::PhraseTable, 2, 1, 3, 0));
+}
+TEST_CASE("UI2 grid selection cut is independent of modifier press order") {
+  CheckSelectionCutAcceptsEitherModifierOrder(Ui2SongController(1, 2, 3));
+  CheckSelectionCutAcceptsEitherModifierOrder(Ui2ChainController(2, 1, 3, 0));
+  CheckSelectionCutAcceptsEitherModifierOrder(Ui2PhraseController(2, 1, 3, 0));
+  CheckSelectionCutAcceptsEitherModifierOrder(
       Ui2TableController(Ui2TrackerPage::PhraseTable, 2, 1, 3, 0));
 }
 

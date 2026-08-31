@@ -281,8 +281,7 @@ private:
     if (action == TrackerAction::Edit)
       editChordConsumed_ = true;
     const Ui2TrackerEditDirection direction = Ui2TrackerDirectionFor(action);
-    if (action == TrackerAction::Shift &&
-        input_.Held(TrackerAction::Option)) {
+    if (action == TrackerAction::Shift && input_.Held(TrackerAction::Option)) {
       Ui2TrackerCommand command = Command(Ui2TrackerCommandType::ToggleMute);
       command.selection = selection_;
       output.Push(command);
@@ -311,6 +310,19 @@ private:
       selection_.Clear();
       return;
     }
+    if (action == TrackerAction::Edit && input_.Held(TrackerAction::Option) &&
+        !input_.Held(TrackerAction::Shift)) {
+      // Selection chords are defined by the held mask, not by which physical
+      // key happened to close the chord. Accept OPTION->EDIT as well as
+      // EDIT->OPTION so slower input polling cannot make CUT order-dependent.
+      Ui2TrackerCommand command = Command(Ui2TrackerCommandType::CutSelection);
+      command.selection = selection_;
+      output.Push(command);
+      editChordConsumed_ = true;
+      selection_.Clear();
+      return;
+    }
+
     if (action == TrackerAction::Option &&
         input_.Mask() == TrackerActionBit(TrackerAction::Option)) {
       // OPTION is also the prefix of OPTION+SHIFT mute. Defer a plain copy
