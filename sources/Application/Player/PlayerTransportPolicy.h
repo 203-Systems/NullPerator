@@ -42,3 +42,18 @@ TriggerAllImmediateChannels(IsImmediate isImmediate, Trigger trigger) {
   }
   return triggered;
 }
+
+// A channel can publish the stop-at-end edge while the shared step traversal
+// is in progress. Stop immediately so later channels and the remainder of the
+// same audio tick cannot overwrite the final stopped transport snapshot.
+template <unsigned int ChannelCount, typename Advance>
+[[nodiscard]] constexpr bool
+AdvanceTransportChannelsUntilStopped(Advance advance) {
+  static_assert(ChannelCount > 0);
+  for (unsigned int channel = 0; channel < ChannelCount; ++channel) {
+    if (!advance(channel)) {
+      return false;
+    }
+  }
+  return true;
+}

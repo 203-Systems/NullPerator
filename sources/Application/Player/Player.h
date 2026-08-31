@@ -146,7 +146,7 @@ protected:
   void RetriggerChannelInstrument(int channel, int semitoneOffset,
                                   bool stepAutomationTable);
   int getChannelHop(int channel, int pos);
-  void moveToNextStep();
+  [[nodiscard]] bool moveToNextStep();
   void moveToNextPhrase(int channel, int hop = -1);
   void moveToNextChain(int channel, int hop);
 

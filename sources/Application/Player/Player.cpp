@@ -655,8 +655,8 @@ void Player::Update(Observable &o, I_ObservableData *d) {
         retrigAllImmediate_ = false;
       }
       // Don't advance in audition mode
-      if (viewData_->playMode_ != PM_AUDITION)
-        moveToNextStep();
+      if (viewData_->playMode_ != PM_AUDITION && !moveToNextStep())
+        return;
       if (triggerLiveChains_) {
         triggerLiveChains();
       };
@@ -1118,7 +1118,7 @@ int Player::getChannelHop(int channel, int pos) {
         playing channels.
  ********************************************************/
 
-void Player::moveToNextStep() {
+bool Player::moveToNextStep() {
   // we'll need to know if any channel is playing
 
   const std::uint32_t immediateChannels =
@@ -1140,59 +1140,68 @@ void Player::moveToNextStep() {
 
   bool playingChannel = immediateChannels != 0;
 
-  for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {
-    const bool liveTriggered =
-        (immediateChannels & (std::uint32_t{1} << i)) != 0;
+  const bool stillRunning =
+      AdvanceTransportChannelsUntilStopped<SONG_CHANNEL_COUNT>(
+          [&](unsigned int channel) {
+            const int i = static_cast<int>(channel);
+            const bool liveTriggered =
+                (immediateChannels & (std::uint32_t{1} << i)) != 0;
 
-    switch (liveQueueingMode_[i]) {
-    case QM_TICKSTART:
-      // Immediate queues are consumed together above so one selected track
-      // cannot prevent a later selected track from starting in this tick.
-      break;
-    case QM_PHRASESTART:
-    case QM_PHRASESTOP:
-    case QM_CHAINSTART:
-    case QM_CHAINSTOP:
-    case QM_NONE:
-      break;
-    }
+            switch (liveQueueingMode_[i]) {
+            case QM_TICKSTART:
+              // Immediate queues are consumed together above so one selected
+              // track cannot prevent a later selected track from starting in
+              // this tick.
+              break;
+            case QM_PHRASESTART:
+            case QM_PHRASESTOP:
+            case QM_CHAINSTART:
+            case QM_CHAINSTOP:
+            case QM_NONE:
+              break;
+            }
 
-    Groove *gs = Groove::GetInstance();
+            Groove *gs = Groove::GetInstance();
 
-    if (mixer_.IsChannelPlaying(i) && !liveTriggered) {
-      playingChannel = true;
+            if (mixer_.IsChannelPlaying(i) && !liveTriggered) {
+              playingChannel = true;
 
-      if (gs->TriggerChannel(i)) { // If groove says it is time to play
-        if (viewData_->currentPlayPhrase_[i] != 0xFF) {
-          int pos = (viewData_->phrasePlayPos_[i]) + 1;
-          if (pos != 16) {
-            int hop = getChannelHop(i, pos);
-            if (hop >= 0) {
-              if (mode_ != PM_PHRASE) {
-                moveToNextPhrase(i, hop);
-              } else {
-                updatePhrasePos(hop, i);
+              if (gs->TriggerChannel(i)) { // If groove says it is time to play
+                if (viewData_->currentPlayPhrase_[i] != 0xFF) {
+                  int pos = (viewData_->phrasePlayPos_[i]) + 1;
+                  if (pos != 16) {
+                    int hop = getChannelHop(i, pos);
+                    if (hop >= 0) {
+                      if (mode_ != PM_PHRASE) {
+                        moveToNextPhrase(i, hop);
+                      } else {
+                        updatePhrasePos(hop, i);
+                      }
+                    } else {
+                      updatePhrasePos(pos, i);
+                    }
+                  } else { // HOP.. something should be done so that if
+                           // next chain has a hop on pos zero, it is effective
+                    if (mode_ != PM_PHRASE) {
+                      moveToNextPhrase(i);
+                    } else {
+                      updatePhrasePos(0, i);
+                    }
+                  }
+                }
               }
-            } else {
-              updatePhrasePos(pos, i);
             }
-          } else { // HOP.. something should be done so that if
-                   // next chain has a hop on pos zero, it is effective
-            if (mode_ != PM_PHRASE) {
-              moveToNextPhrase(i);
-            } else {
-              updatePhrasePos(0, i);
-            }
-          }
-        }
-      }
-    }
-  }
+            return isRunning_.load(std::memory_order_acquire);
+          });
+  if (!stillRunning)
+    return false;
+
   // if no channel is playing we allow straight
   // queueing of chains
   if (!playingChannel) {
     triggerLiveChains_ = true;
   };
+  return true;
 }
 
 /********************************************************

@@ -119,3 +119,30 @@ TEST_CASE("unplayable immediate queues do not claim a playing channel") {
 
   CHECK(triggered == (std::uint32_t{1} << 5U));
 }
+
+TEST_CASE("transport traversal stops on the channel that publishes stop") {
+  std::array<bool, kChannelCount> advanced{};
+
+  const bool completed = AdvanceTransportChannelsUntilStopped<kChannelCount>(
+      [&](unsigned int channel) {
+        advanced[channel] = true;
+        return channel != 2U;
+      });
+
+  CHECK_FALSE(completed);
+  CHECK(advanced == std::array<bool, kChannelCount>{
+                        true, true, true, false, false, false, false, false});
+}
+
+TEST_CASE("transport traversal visits every channel while still running") {
+  unsigned int visits = 0;
+
+  const bool completed =
+      AdvanceTransportChannelsUntilStopped<kChannelCount>([&](unsigned int) {
+        ++visits;
+        return true;
+      });
+
+  CHECK(completed);
+  CHECK(visits == kChannelCount);
+}
