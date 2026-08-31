@@ -42,11 +42,5 @@ protected:
   AudioSettings settings_;
 
   etl::vector<AudioOut *, MaxAudioOuts> outputs_;
-
-private:
-  etl::string<STRING_AUDIO_API_MAX> audioAPI_;
-  etl::string<STRING_AUDIO_DEVICE_MAX> audioDevice_;
-  int audioBufferSize_;
-  int preBufferCount_;
 };
 #endif
