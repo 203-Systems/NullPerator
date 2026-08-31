@@ -78,8 +78,7 @@ void FormatElapsed(std::array<char, 6> &elapsed) {
   const int seconds = PlayerRunning()
                           ? std::max(0, static_cast<int>(player->GetPlayTime()))
                           : 0;
-  std::snprintf(elapsed.data(), elapsed.size(), "%02d:%02d",
-                (seconds / 60) % 100, seconds % 60);
+  FormatUiElapsed(seconds, elapsed);
 }
 
 void FormatCommand(FourCC command, std::array<char, 4> &text) {

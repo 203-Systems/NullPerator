@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <cstdint>
 
 namespace ui2 {
 
@@ -24,6 +25,24 @@ void CopyUiText(std::array<char, Size> &destination, const char *source) {
     while (length + 1U < Size && source[length] != '\0') ++length;
     std::copy_n(source, length, destination.begin());
   }
+}
+
+// Format the fixed MM:SS transport clock without pulling printf formatting
+// through every UI frame. The display intentionally wraps minutes at 100,
+// matching the previous "%02d:%02d" formatting contract.
+inline void FormatUiElapsed(int seconds, std::array<char, 6> &destination) {
+  const std::uint32_t elapsed =
+      seconds < 0 ? 0U : static_cast<std::uint32_t>(seconds);
+  const std::uint32_t minutes = (elapsed / 60U) % 100U;
+  const std::uint32_t remainder = elapsed % 60U;
+  destination = {
+      static_cast<char>('0' + minutes / 10U),
+      static_cast<char>('0' + minutes % 10U),
+      ':',
+      static_cast<char>('0' + remainder / 10U),
+      static_cast<char>('0' + remainder % 10U),
+      '\0',
+  };
 }
 
 } // namespace ui2

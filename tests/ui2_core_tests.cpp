@@ -381,6 +381,23 @@ TEST_CASE("UI2 track notes avoid the legacy shared text buffer alias") {
   CHECK(player.rawReads == 7U);
 }
 
+TEST_CASE("UI2 elapsed clock preserves fixed wrapping display semantics") {
+  constexpr std::array<int, 10> seconds{
+      -1, 0, 5, 59, 60, 61, 5999, 6000, 6001,
+      std::numeric_limits<int>::max(),
+  };
+  for (const int value : seconds) {
+    const int clamped = std::max(0, value);
+    std::array<char, 6> expected{};
+    std::snprintf(expected.data(), expected.size(), "%02d:%02d",
+                  (clamped / 60) % 100, clamped % 60);
+    std::array<char, 6> actual{};
+    ui2::FormatUiElapsed(value, actual);
+    CAPTURE(value);
+    CHECK(actual == expected);
+  }
+}
+
 TEST_CASE("UI2 indexed surface owns no RGB framebuffer and clips fills") {
   ui2::UiSurfaceStorage storage;
   ui2::UiIndexedSurface surface(storage);
