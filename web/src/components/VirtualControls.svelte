@@ -103,6 +103,9 @@
   .compact .bottom-buttons button:first-child{left:4px}.compact .bottom-buttons button:last-child{right:4px}
   .compact .bottom-buttons em { top:21px; bottom:auto; }
   .compact .face.enter,.compact .bottom-buttons button:last-child { border-color:rgba(76,201,240,.3); }
+  @media(orientation:portrait) and (max-height:499px){
+    .operator-controls.compact{margin-top:5px}
+  }
   @media(orientation:landscape) and (max-height:539px){
     .operator-controls.compact{width:280px;height:156px}
     .compact button,.compact .d-pad button,.compact .face{width:48px;height:48px;border-radius:12px}

@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 const mobileViewports = [
+  { name: 'compact portrait', width: 320, height: 480 },
   { name: 'portrait', width: 320, height: 568 },
   { name: 'narrow landscape', width: 480, height: 320 },
   { name: 'landscape', width: 568, height: 320 },
