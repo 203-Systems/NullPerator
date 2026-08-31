@@ -14,6 +14,11 @@
 #include "Foundation/Types/Types.h"
 #include "SRPUpdaters.h"
 
+[[nodiscard]] constexpr bool IsSampleRenderChannel(int channel,
+                                                   int channelCount) {
+  return channel >= 0 && channel < channelCount;
+}
+
 struct renderParams {
 
   void *sampleBuffer_; // wavdata

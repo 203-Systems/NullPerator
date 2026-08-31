@@ -1,5 +1,6 @@
 #include "doctest/doctest.h"
 
+#include "Application/Instruments/SampleRenderingParams.h"
 #include "Application/UI2/Controllers/Ui2InstrumentLifecycleController.h"
 #include "Application/UI2/Ui2InstrumentParameters.h"
 #include "Application/UI2/Ui2InstrumentTableAllocation.h"
@@ -120,6 +121,13 @@ TEST_CASE("UI2 Instrument booleans use NO and YES labels") {
             descriptor, 0, ui2::Ui2InstrumentValueDirection::Left) == 1);
   CHECK(ui2::Ui2AdjustInstrumentParameter(
             descriptor, 1, ui2::Ui2InstrumentValueDirection::Right) == 0);
+}
+
+TEST_CASE("Sample size queries keep the default sentinel outside render state") {
+  CHECK_FALSE(IsSampleRenderChannel(-1, SONG_CHANNEL_COUNT));
+  CHECK(IsSampleRenderChannel(0, SONG_CHANNEL_COUNT));
+  CHECK(IsSampleRenderChannel(SONG_CHANNEL_COUNT - 1, SONG_CHANNEL_COUNT));
+  CHECK_FALSE(IsSampleRenderChannel(SONG_CHANNEL_COUNT, SONG_CHANNEL_COUNT));
 }
 
 TEST_CASE("UI2 Instrument descriptors preserve approved field layout") {

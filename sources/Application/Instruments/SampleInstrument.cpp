@@ -1212,11 +1212,13 @@ int SampleInstrument::GetVolume() {
 };
 
 int SampleInstrument::GetSampleSize(int channel) {
-  if (source_) {
-    renderParams *rp = renderParams_ + channel;
-    return source_->GetSize(rp->midiNote_);
-  };
-  return 0;
+  if (!source_)
+    return 0;
+  if (channel == -1)
+    return source_->GetSize(-1);
+  if (!IsSampleRenderChannel(channel, SONG_CHANNEL_COUNT))
+    return 0;
+  return source_->GetSize(renderParams_[channel].midiNote_);
 };
 
 float SampleInstrument::GetLengthInSec() {
