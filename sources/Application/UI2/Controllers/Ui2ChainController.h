@@ -106,7 +106,10 @@ public:
       return output;
     }
     if (input_.Held(TrackerAction::Option)) {
-      if (action == TrackerAction::Option && input_.Held(TrackerAction::Edit)) {
+      if ((action == TrackerAction::Option &&
+           input_.Held(TrackerAction::Edit)) ||
+          (action == TrackerAction::Edit &&
+           input_.Held(TrackerAction::Option))) {
         output.Push(Command(Ui2TrackerCommandType::CutCell));
       } else if (!input_.Held(TrackerAction::Shift) &&
                  !input_.Held(TrackerAction::Edit) &&
