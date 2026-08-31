@@ -8,15 +8,6 @@
  */
 
 #include "MacroInstrument.h"
-#include "Application/Instruments/Filters.h"
-#include "Application/Model/Table.h"
-#include "Application/Player/SyncMaster.h"
-#include "CommandList.h"
-#include "I_Instrument.h"
-#include "Services/Audio/Audio.h"
-#include "System/Console/Trace.h"
-#include "System/io/Status.h"
-#include <assert.h>
 
 MacroInstrument::MacroInstrument()
     : I_Instrument(&variables_),
