@@ -215,7 +215,9 @@ void WasmEventManager::PumpFrame() {
   const std::uint32_t requestedModal = requestedDiagnosticModal_.exchange(
       NoDiagnosticModal, std::memory_order_acq_rel);
   if (requestedModal != NoDiagnosticModal) {
-    diagnosticModal_.store(requestedModal, std::memory_order_release);
+    diagnosticModal_.store(requestedModal == DMT_COUNT ? NoDiagnosticModal
+                                                       : requestedModal,
+                           std::memory_order_release);
     diagnosticModalGeneration_.fetch_add(1, std::memory_order_acq_rel);
   }
 

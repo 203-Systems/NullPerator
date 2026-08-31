@@ -37,6 +37,19 @@ enum WasmDiagnosticView : std::uint32_t {
 static_assert(VT_RECORD == 18U);
 static_assert(VT_FONT == 19U);
 
+// The browser sends DMT_COUNT as an explicit close command because the
+// all-ones value is reserved by the event mailbox for "no pending request".
+enum WasmDiagnosticModal : std::uint32_t {
+  DMT_MESSAGE_BOX = 0,
+  DMT_TEXT_INPUT,
+  DMT_RENDER_PROGRESS,
+  DMT_FULL_SCREEN_BOX,
+  DMT_RENAME,
+  DMT_COUNT,
+};
+
+static_assert(DMT_COUNT == 5U);
+
 void WasmViewDiagnostics_Request(std::uint32_t viewType) noexcept;
 std::uint32_t WasmViewDiagnostics_Current() noexcept;
 std::uint32_t WasmViewDiagnostics_ViewGeneration() noexcept;
