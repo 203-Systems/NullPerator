@@ -78,6 +78,10 @@ void MidiInstrument::OnStart() {
 
 bool MidiInstrument::Start(int c, unsigned char note, bool retrigger) {
 
+  if (note > 0x7F) {
+    return false;
+  }
+
   first_[c] = true;
   lastNotes_[c][0] = note;
   VoiceState &voice = voiceState_[c];
@@ -279,7 +283,7 @@ void MidiInstrument::ProcessCommand(int channel, FourCC cc, ushort value) {
     MidiMessage msg;
     msg.status_ = MidiMessage::MIDI_CONTROL_CHANGE + mchannel;
     msg.data1_ = MidiCC::CC_VOLUME;
-    msg.data2_ = value / 2;
+    msg.data2_ = (value & 0xFF) / 2;
     svc_->QueueMessage(msg);
   }; break;
 
@@ -321,12 +325,15 @@ void MidiInstrument::ProcessCommand(int channel, FourCC cc, ushort value) {
       uint8_t scaledOffset = getSemitonesOffset(scale, noteOffset, scaleRoot);
 
       // use the existing steps note to calculate each notes offset
-      uint8_t note = rootNote + scaledOffset;
+      int note = static_cast<int>(rootNote) + scaledOffset;
+      if (note > 0x7F) {
+        continue;
+      }
       // Trace::Debug("MIDI SCALE note:%d root:%d offset: %d", note, rootNote,
       //              noteOffset);
 
       // save the chord note for sending a note off later
-      chordNote = note;
+      chordNote = static_cast<uint8_t>(note);
 
       if (noteOffset != 0) {
         MidiMessage msg;

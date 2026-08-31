@@ -476,6 +476,59 @@ TEST_CASE("MIDI chord repeats retrigger populated slots") {
   CHECK(capturedMidiMessages[1].data1_ == chordNote);
 }
 
+TEST_CASE("MIDI chord skips high replacements without leaving a stuck note") {
+  InstallFakeMidiService();
+  MidiInstrument instrument;
+  REQUIRE(instrument.Init());
+  REQUIRE(instrument.Start(0, HIGHEST_NOTE));
+  std::array<fixed, 8> buffer{};
+  instrument.Render(0, buffer.data(), 4, false);
+  capturedMidiMessages.clear();
+
+  instrument.ProcessCommand(0, FourCC::InstrumentCommandMidiChord, 0x0001U);
+  REQUIRE(capturedMidiMessages.size() == 1U);
+  CHECK(capturedMidiMessages[0].status_ == MidiMessage::MIDI_NOTE_ON);
+  CHECK(capturedMidiMessages[0].data1_ == 120U);
+
+  capturedMidiMessages.clear();
+  instrument.ProcessCommand(0, FourCC::InstrumentCommandMidiChord, 0x000BU);
+
+  REQUIRE(capturedMidiMessages.size() == 1U);
+  CHECK(capturedMidiMessages[0].status_ == MidiMessage::MIDI_NOTE_OFF);
+  CHECK(capturedMidiMessages[0].data1_ == 120U);
+
+  instrument.Stop(0);
+  REQUIRE(capturedMidiMessages.size() == 2U);
+  CHECK(capturedMidiMessages[1].status_ == MidiMessage::MIDI_NOTE_OFF);
+  CHECK(capturedMidiMessages[1].data1_ == HIGHEST_NOTE);
+}
+
+TEST_CASE("MIDI rejects base notes above the protocol range") {
+  InstallFakeMidiService();
+  MidiInstrument instrument;
+  REQUIRE(instrument.Init());
+  capturedMidiMessages.clear();
+
+  CHECK_FALSE(instrument.Start(0, 128U));
+  std::array<fixed, 8> buffer{};
+  instrument.Render(0, buffer.data(), 4, false);
+  CHECK(capturedMidiMessages.empty());
+}
+
+TEST_CASE("MIDI volume command keeps its data byte seven-bit") {
+  InstallFakeMidiService();
+  MidiInstrument instrument;
+  REQUIRE(instrument.Init());
+  capturedMidiMessages.clear();
+
+  instrument.ProcessCommand(0, FourCC::InstrumentCommandVolume, 0x01FFU);
+
+  REQUIRE(capturedMidiMessages.size() == 1U);
+  CHECK(capturedMidiMessages[0].status_ == MidiMessage::MIDI_CONTROL_CHANGE);
+  CHECK(capturedMidiMessages[0].data1_ == MidiCC::CC_VOLUME);
+  CHECK(capturedMidiMessages[0].data2_ == 0x7FU);
+}
+
 TEST_CASE("MIDI kill before first render cancels the pending note on") {
   InstallFakeMidiService();
   MidiInstrument instrument;
