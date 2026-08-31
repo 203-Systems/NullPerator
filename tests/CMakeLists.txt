@@ -24,6 +24,7 @@ add_executable(picoTracker_tests
   wasm_logging_tests.cpp
   wasm_trace_tests.cpp
   wasm_platform_tests.cpp
+  midi_message_encoding_tests.cpp
   midi_note_tracker_tests.cpp
   node_path_resolver_tests.cpp
   project_defaults_tests.cpp

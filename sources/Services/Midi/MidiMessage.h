@@ -11,6 +11,7 @@
 
 #include "Foundation/Observable.h"
 #include "Foundation/Types/Types.h"
+#include <array>
 #include <cstddef>
 
 namespace midi_queue_budget {
@@ -58,6 +59,9 @@ struct MidiMessage : public I_ObservableData {
     MIDI_PITCH_BEND = 0xE0,
     MIDI_CHANNEL_PRESSURE = 0xD0,
     MIDI_POLY_PRESSURE = 0xA0,
+    MIDI_TIME_CODE_QUARTER_FRAME = 0xF1,
+    MIDI_SONG_POSITION_POINTER = 0xF2,
+    MIDI_SONG_SELECT = 0xF3,
     MIDI_CLOCK = 0xF8,
     MIDI_START = 0xFA,
     MIDI_CONTINUE = 0xFB,
@@ -85,6 +89,39 @@ struct MidiMessage : public I_ObservableData {
   unsigned char data1_;
   unsigned char data2_;
 };
+
+struct MidiWireMessage {
+  std::array<unsigned char, 3> bytes{};
+  unsigned char length = 1;
+};
+
+// Encode the fixed-size MIDI messages represented by MidiMessage. SysEx is a
+// byte stream and deliberately remains outside this three-byte abstraction.
+inline MidiWireMessage EncodeMidiWireMessage(const MidiMessage &message) {
+  MidiWireMessage encoded{{message.status_, 0, 0}, 1};
+
+  if (message.status_ < 0xF0) {
+    const unsigned char type = message.status_ & 0xF0;
+    encoded.length =
+        (type == MidiMessage::MIDI_PROGRAM_CHANGE ||
+         type == MidiMessage::MIDI_CHANNEL_PRESSURE)
+            ? 2
+            : 3;
+  } else if (message.status_ == MidiMessage::MIDI_TIME_CODE_QUARTER_FRAME ||
+             message.status_ == MidiMessage::MIDI_SONG_SELECT) {
+    encoded.length = 2;
+  } else if (message.status_ == MidiMessage::MIDI_SONG_POSITION_POINTER) {
+    encoded.length = 3;
+  }
+
+  if (encoded.length > 1) {
+    encoded.bytes[1] = message.data1_ & 0x7F;
+  }
+  if (encoded.length > 2) {
+    encoded.bytes[2] = message.data2_ & 0x7F;
+  }
+  return encoded;
+}
 
 // MIDI Control Change numbers used throughout the firmware
 enum MidiCC {

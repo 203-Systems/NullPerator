@@ -29,17 +29,8 @@ void WasmMidiOutDevice::Stop() {
 
 MidiPacket WasmMidiOutDevice::Encode(const MidiMessage &message,
                                      double timestampMilliseconds) {
-  MidiPacket packet{{message.status_, 0U, 0U}, 1U, timestampMilliseconds};
-  if (message.status_ < 0xF0U) {
-    const std::uint8_t type = message.status_ & 0xF0U;
-    packet.length = (type == 0xC0U || type == 0xD0U) ? 2U : 3U;
-  } else if (message.status_ == 0xF1U || message.status_ == 0xF3U) {
-    packet.length = 2U;
-  } else if (message.status_ == 0xF2U) {
-    packet.length = 3U;
-  }
-  if (packet.length > 1U) packet.bytes[1] = message.data1_ & 0x7FU;
-  if (packet.length > 2U) packet.bytes[2] = message.data2_ & 0x7FU;
+  const MidiWireMessage encoded = EncodeMidiWireMessage(message);
+  MidiPacket packet{encoded.bytes, encoded.length, timestampMilliseconds};
   return packet;
 }
 
