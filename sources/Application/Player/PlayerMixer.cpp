@@ -116,7 +116,7 @@ void PlayerMixer::StopChannel(int channel) {
   isChannelPlaying_[channel] = false;
 };
 
-bool PlayerMixer::IsChannelPlaying(int channel) {
+bool PlayerMixer::IsChannelPlaying(int channel) const {
   return isChannelPlaying_[channel];
 };
 

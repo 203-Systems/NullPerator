@@ -247,6 +247,25 @@ target_include_directories(player_start_plan_tests PRIVATE
 target_compile_definitions(player_start_plan_tests PRIVATE HOST_TEST)
 add_test(NAME player_start_plan COMMAND player_start_plan_tests)
 
+# Player transport crosses the ESP32-S3 application/audio core boundary. Keep
+# the sequence-validated publication under real concurrent readers without
+# pulling the audio driver graph into the focused test.
+find_package(Threads REQUIRED)
+add_executable(player_transport_snapshot_tests
+  test_main.cpp
+  player_transport_snapshot_tests.cpp
+)
+
+target_include_directories(player_transport_snapshot_tests PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals/SRC/include
+  ${CMAKE_CURRENT_LIST_DIR}/../sources
+)
+
+target_compile_definitions(player_transport_snapshot_tests PRIVATE HOST_TEST)
+target_link_libraries(player_transport_snapshot_tests PRIVATE Threads::Threads)
+add_test(NAME player_transport_snapshot COMMAND player_transport_snapshot_tests)
+
 add_executable(ui2_status_bridge_tests
   test_main.cpp
   nanoprintf_test.cpp

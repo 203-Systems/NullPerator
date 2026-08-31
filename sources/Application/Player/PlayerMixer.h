@@ -52,7 +52,7 @@ public:
   void StartChannel(int channel);
   void StopChannel(int channel);
 
-  bool IsChannelPlaying(int channel);
+  bool IsChannelPlaying(int channel) const;
 
   bool StartStreaming(const char *name, int startSample = 0);
   bool StartLoopingStreaming(const char *name);

@@ -15,46 +15,17 @@
 #include "Foundation/T_Singleton.h"
 #include "PlayerAudioActivity.h"
 #include "PlayerMixer.h"
+#include "PlayerTransportSnapshot.h"
 #include "SyncMaster.h"
 #include "System/Timer/Timer.h"
+#include "TransportSnapshotPublication.h"
 #include "config/StringLimits.h"
 
 #include <atomic>
 
 enum PlayerEventType { PET_START, PET_UPDATE, PET_STOP };
 
-enum SequencerMode { SM_SONG, SM_LIVE };
-
-enum QueueingMode {
-  QM_NONE,
-  QM_CHAINSTART,
-  QM_PHRASESTART,
-  QM_CHAINSTOP,
-  QM_PHRASESTOP,
-  QM_TICKSTART
-};
-
 typedef uint32_t MixerStereoLevel;
-
-// Fixed-size, allocation-free transport state published by Player. UI and
-// diagnostics consume this instead of reconstructing playback state by
-// walking Song/Chain/Phrase storage every frame.
-struct PlayerTransportSnapshot final {
-  bool running = false;
-  PlayMode mode = PM_SONG;
-  int songRow[SONG_CHANNEL_COUNT]{};
-  unsigned char note[SONG_CHANNEL_COUNT]{};
-  unsigned char chain[SONG_CHANNEL_COUNT]{};
-  std::int8_t chainRow[SONG_CHANNEL_COUNT]{};
-  unsigned char phrase[SONG_CHANNEL_COUNT]{};
-  std::int8_t phraseRow[SONG_CHANNEL_COUNT]{};
-  QueueingMode queueMode[SONG_CHANNEL_COUNT]{};
-  unsigned char queueSongRow[SONG_CHANNEL_COUNT]{};
-  unsigned char queueChainRow[SONG_CHANNEL_COUNT]{};
-};
-
-static_assert(sizeof(PlayerTransportSnapshot) <= 128U,
-              "transport snapshot must remain embedded-friendly");
 
 class I_Instrument;
 
@@ -188,6 +159,11 @@ protected:
   bool findPlayable(uchar *row, int col, uchar chainPos = 0);
 
 private:
+  [[nodiscard]] PlayerTransportSnapshot BuildTransportSnapshotLocked() const;
+  void PublishTransportSnapshotLocked();
+  void QueueChannelLocked(int i, QueueingMode mode, unsigned char position,
+                          unsigned char chainpos);
+
   PlayerMixer mixer_;
   TrackerSessionState *viewData_;
   Project *project_;
@@ -218,6 +194,11 @@ private:
   unsigned char liveQueueChainPosition_[SONG_CHANNEL_COUNT];
   unsigned int timeToLive_[SONG_CHANNEL_COUNT];
   unsigned int timeToStart_[SONG_CHANNEL_COUNT];
+
+  // All producers are serialized by MixerService's existing mutex. UI and
+  // diagnostics never take that audio-path lock; they validate an atomic-word
+  // copy against the published frame sequence instead.
+  TransportSnapshotPublication<PlayerTransportSnapshot> transportPublication_;
 
   bool retrigAllImmediate_;
   unsigned char retrigPos_;

@@ -46,6 +46,8 @@ Player::Player() : mixer_() {
   lastSongPos_ = 0;
   mode_ = PM_SONG;
   sequencerMode_ = SM_SONG;
+  startClock_ = 0U;
+  now_ = 0U;
   lastPercentage_ = 0;
   retrigAllImmediate_ = false;
 
@@ -54,6 +56,7 @@ Player::Player() : mixer_() {
     liveQueueingMode_[i] = QM_NONE;
     liveQueueChainPosition_[i] = 0U;
   }
+  PublishTransportSnapshotLocked();
 };
 
 bool Player::Init(Project *project, TrackerSessionState *viewData) {
@@ -70,16 +73,20 @@ bool Player::Init(Project *project, TrackerSessionState *viewData) {
   mixer_.AddObserver((*this));
   SyncMaster *sync = SyncMaster::GetInstance();
   sync->SetTempo(project_->GetTempo());
+  PublishTransportSnapshotLocked();
   return mixer_.Start();
 }
 
 void Player::BindProject(Project *project, TrackerSessionState *viewData) {
+  mixer_.Lock();
   viewData_ = viewData;
   project_ = project;
   mixer_.BindProject(project);
 
   SyncMaster *sync = SyncMaster::GetInstance();
   sync->SetTempo(project_->GetTempo());
+  PublishTransportSnapshotLocked();
+  mixer_.Unlock();
 }
 
 void Player::Reset() {
@@ -229,6 +236,7 @@ void Player::Start(PlayMode mode, bool forceSongMode, MixerServiceMode msmMode,
   NotifyObservers(&pe);
 
   isRunning_ = true; // keep last !!!!
+  PublishTransportSnapshotLocked();
 
   mixer_.Unlock();
 }
@@ -252,6 +260,7 @@ void Player::Stop() {
   PlayerEvent pe(PET_STOP);
   NotifyObservers(&pe);
   RefreshAudioActive();
+  PublishTransportSnapshotLocked();
 
   mixer_.Unlock();
 }
@@ -265,26 +274,31 @@ bool Player::GetPlayedSliceIndex(int channel, uint8_t &sliceIndex) {
 }
 
 const char *Player::GetLiveIndicator(int channel) {
+  if (channel < 0 || channel >= SONG_CHANNEL_COUNT)
+    return " ";
 
   bool blink = true;
+  const PlayerTransportSnapshot transport = CaptureTransportSnapshot();
+  const QueueingMode queueMode = transport.queueMode[channel];
+  const std::uint32_t elapsedMs = transport.liveQueueElapsedMs;
 
-  switch (liveQueueingMode_[channel]) {
+  switch (queueMode) {
   case QM_CHAINSTART:
   case QM_CHAINSTOP:
-    blink = (now_ - startClock_) % 500 < 250;
+    blink = elapsedMs % 500U < 250U;
     break;
   case QM_PHRASESTART:
   case QM_PHRASESTOP:
-    blink = (now_ - startClock_) % 125 < 72;
+    blink = elapsedMs % 125U < 72U;
     break;
   case QM_TICKSTART:
-    blink = (now_ - startClock_) % 75 < 37;
+    blink = elapsedMs % 75U < 37U;
     break;
   case QM_NONE:
     break;
   };
   if (blink) {
-    switch (liveQueueingMode_[channel]) {
+    switch (queueMode) {
     case QM_CHAINSTART:
     case QM_PHRASESTART:
     case QM_TICKSTART:
@@ -306,6 +320,7 @@ const char *Player::GetLiveIndicator(int channel) {
 };
 
 void Player::SetSequencerMode(SequencerMode mode) {
+  mixer_.Lock();
   if (isRunning_) {
     switch (mode) {
     case SM_LIVE:
@@ -317,12 +332,18 @@ void Player::SetSequencerMode(SequencerMode mode) {
     };
   };
   sequencerMode_ = mode;
+  PublishTransportSnapshotLocked();
+  mixer_.Unlock();
 };
 
-SequencerMode Player::GetSequencerMode() { return sequencerMode_; };
+SequencerMode Player::GetSequencerMode() {
+  return CaptureTransportSnapshot().sequencerMode;
+};
 
 bool Player::IsChannelPlaying(int channel) {
-  return mixer_.IsChannelPlaying(channel);
+  return channel >= 0 &&
+         CaptureTransportSnapshot().IsChannelPlaying(
+             static_cast<std::size_t>(channel));
 };
 
 // Handles start button on any screen BUT the song screen
@@ -330,6 +351,7 @@ bool Player::IsChannelPlaying(int channel) {
 void Player::OnStartButton(PlayMode origin, unsigned int from,
                            bool startFromPrevious, unsigned char chainPos,
                            MixerServiceMode msmMode, bool stopAtEnd) {
+  mixer_.Lock();
   // SequencerMode is the persistent SONG/LIVE selector for Song-screen
   // actions. Context screens still own their local transport while that
   // selector is LIVE; only OnSongStartButton applies Live cue semantics.
@@ -345,14 +367,17 @@ void Player::OnStartButton(PlayMode origin, unsigned int from,
     Start(plan.mode, plan.resumeLastSongPosition, msmMode, plan.stopAtEnd,
           plan.contextChannel, plan.contextChainPosition);
   }
+  PublishTransportSnapshotLocked();
+  mixer_.Unlock();
 }
 
 // Handles start on song screen
 void Player::OnSongStartButton(unsigned int from, unsigned int to,
                                bool requestStop, bool forceImmediate,
                                MixerServiceMode msmMode, bool stopAtEnd) {
+  mixer_.Lock();
 
-  switch (GetSequencerMode()) {
+  switch (sequencerMode_) {
 
   case SM_SONG:
 
@@ -386,10 +411,10 @@ void Player::OnSongStartButton(unsigned int from, unsigned int to,
 
       for (unsigned int i = 0; i < SONG_CHANNEL_COUNT; i++) {
         if ((i < from) || (i > to)) {
-          QueueChannel(i, QM_NONE, 0);
+          QueueChannelLocked(i, QM_NONE, 0, 0);
         } else {
           if (isPlayable(songPos, i, 0)) {
-            QueueChannel(i, QM_CHAINSTART, songPos, 0);
+            QueueChannelLocked(i, QM_CHAINSTART, songPos, 0);
           }
         }
       };
@@ -420,19 +445,21 @@ void Player::OnSongStartButton(unsigned int from, unsigned int to,
             }
           }
         } else { // modifier = onStop from song screen
-          if (GetQueueingMode(i) != QM_CHAINSTOP) {
+          if (liveQueueingMode_[i] != QM_CHAINSTOP) {
             mode = QM_CHAINSTOP;
           } else {
             mode = QM_PHRASESTOP;
           }
         }
         if (mode != QM_NONE) {
-          QueueChannel(i, mode, row, 0);
+          QueueChannelLocked(i, mode, row, 0);
         }
       }
     };
     break;
   }
+  PublishTransportSnapshotLocked();
+  mixer_.Unlock();
 }
 
 bool Player::IsRunning() { return isRunning_.load(std::memory_order_acquire); };
@@ -450,9 +477,16 @@ bool Player::IsAudioActive() {
 stereosample Player::GetMasterLevel() { return mixer_.GetMasterOutLevel(); }
 
 PlayerTransportSnapshot Player::CaptureTransportSnapshot() const {
+  return transportPublication_.Capture();
+}
+
+PlayerTransportSnapshot Player::BuildTransportSnapshotLocked() const {
   PlayerTransportSnapshot snapshot{};
   snapshot.running = isRunning_.load(std::memory_order_acquire);
+  snapshot.sequencerMode = sequencerMode_;
   snapshot.mode = mode_;
+  snapshot.liveQueueElapsedMs =
+      static_cast<std::uint32_t>(now_ - startClock_);
   for (int channel = 0; channel < SONG_CHANNEL_COUNT; ++channel) {
     snapshot.note[channel] = NO_NOTE;
     snapshot.chain[channel] = 0xFFU;
@@ -462,6 +496,10 @@ PlayerTransportSnapshot Player::CaptureTransportSnapshot() const {
     snapshot.queueMode[channel] = liveQueueingMode_[channel];
     snapshot.queueSongRow[channel] = liveQueuePosition_[channel];
     snapshot.queueChainRow[channel] = liveQueueChainPosition_[channel];
+    if (mixer_.IsChannelPlaying(channel)) {
+      snapshot.channelPlayingMask |=
+          static_cast<std::uint8_t>(std::uint8_t{1U} << channel);
+    }
     if (viewData_ == nullptr || viewData_->song_ == nullptr)
       continue;
 
@@ -482,6 +520,10 @@ PlayerTransportSnapshot Player::CaptureTransportSnapshot() const {
         phraseRow];
   }
   return snapshot;
+}
+
+void Player::PublishTransportSnapshotLocked() {
+  transportPublication_.Publish(BuildTransportSnapshotLocked());
 }
 
 bool Player::isPlayable(int row, int col, int chainPos) {
@@ -540,16 +582,29 @@ bool Player::findPlayable(uchar *row, int col, uchar chainPos) {
   return (data != 0xFF);
 }
 
-QueueingMode Player::GetQueueingMode(int i) { return liveQueueingMode_[i]; };
+QueueingMode Player::GetQueueingMode(int i) {
+  return CaptureTransportSnapshot().queueMode[i];
+};
 
-unsigned char Player::GetQueuePosition(int i) { return liveQueuePosition_[i]; };
+unsigned char Player::GetQueuePosition(int i) {
+  return CaptureTransportSnapshot().queueSongRow[i];
+};
 
 unsigned char Player::GetQueueChainPosition(int i) {
-  return liveQueueChainPosition_[i];
+  return CaptureTransportSnapshot().queueChainRow[i];
 };
 
 void Player::QueueChannel(int i, QueueingMode mode, unsigned char position,
                           unsigned char chainpos) {
+  mixer_.Lock();
+  QueueChannelLocked(i, mode, position, chainpos);
+  PublishTransportSnapshotLocked();
+  mixer_.Unlock();
+};
+
+void Player::QueueChannelLocked(int i, QueueingMode mode,
+                                unsigned char position,
+                                unsigned char chainpos) {
   liveQueueingMode_[i] = mode;
   liveQueuePosition_[i] = position;
   liveQueueChainPosition_[i] = chainpos;
@@ -589,7 +644,7 @@ void Player::Update(Observable &o, I_ObservableData *d) {
       triggerLiveChains_ = false;
       if (retrigAllImmediate_) {
         for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {
-          QueueChannel(i, QM_TICKSTART, retrigPos_, 0);
+          QueueChannelLocked(i, QM_TICKSTART, retrigPos_, 0);
         };
         retrigAllImmediate_ = false;
       }
@@ -655,6 +710,7 @@ void Player::Update(Observable &o, I_ObservableData *d) {
 
     // Notify refresh
 
+    PublishTransportSnapshotLocked();
     PlayerEvent pe(PET_UPDATE, 0);
     SetChanged();
     NotifyObservers(&pe);
@@ -1262,6 +1318,7 @@ void Player::moveToNextChain(int channel, int hop) {
         mixer_.OnPlayerStop();
 
         isRunning_ = false;
+        PublishTransportSnapshotLocked();
         SetChanged();
         PlayerEvent pe(PET_STOP);
         NotifyObservers(&pe);
