@@ -11,7 +11,6 @@
 #define _MIDIIN_DEVICE_H_
 
 #include "Foundation/Observable.h"
-#include "MidiEvent.h"
 #include "MidiMessage.h"
 #include "MidiNoteTracker.h"
 
@@ -32,7 +31,6 @@ public:
   virtual void Stop() = 0;
 
   virtual bool IsRunning();
-  virtual void Trigger();
 
   // New methods for direct instrument mapping
   static void AssignInstrumentToChannel(int midiChannel, int instrumentIndex);
@@ -58,7 +56,6 @@ protected:
   void onMidiStart();
   void onMidiStop();
   void onMidiContinue();
-  void queueEvent(MidiEvent &event);
 
   // MIDI message parsing
   void processMidiData(uint8_t data);

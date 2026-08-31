@@ -128,18 +128,10 @@ void MidiInDevice::onMidiTempoTick() {
   NotifyObservers();
 };
 
-void MidiInDevice::queueEvent(MidiEvent &event){
-    // TODO: queue the event
-};
-
 void MidiInDevice::onDriverMessage(MidiMessage &message) {
   SetChanged();
   NotifyObservers(&message);
   treatChannelEvent(message);
-};
-
-void MidiInDevice::Trigger(){
-    // No-op: events are handled immediately in onDriverMessage.
 };
 
 void MidiInDevice::treatChannelEvent(MidiMessage &event) {
