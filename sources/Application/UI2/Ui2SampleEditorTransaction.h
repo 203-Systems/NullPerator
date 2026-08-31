@@ -7,8 +7,8 @@
 
 #include "Application/Instruments/WavFileWriter.h"
 #include "Application/Instruments/WavHeader.h"
+#include "Application/Instruments/SampleEditorFileJournal.h"
 #include "System/FileSystem/FileSystem.h"
-#include "System/FileSystem/CopyFileJournal.h"
 
 #include <array>
 #include <cstddef>
@@ -41,18 +41,18 @@ enum class Ui2SampleEditorTransactionResult : std::uint8_t {
 // corrupting the user's authoritative sample.
 class Ui2SampleEditorTransaction final {
 public:
-  static constexpr const char *WorkingPrefix =
-      ".sample-editor-working-copy-";
-  static constexpr const char *BackupPrefix =
-      ".sample-editor-backup-copy-";
   static constexpr std::size_t ScratchBytes = 2048U;
 
   [[nodiscard]] Ui2SampleEditorTransactionResult
   Begin(FileSystem &fileSystem, const char *destination) {
     Reset();
     if (!CopyPath(destination, destination_) ||
-        !BuildSiblingPath(destination, WorkingPrefix, working_) ||
-        !BuildSiblingPath(destination, BackupPrefix, backup_) ||
+        !BuildSiblingPath(destination,
+                          SampleEditorFileJournal::Generation::Working,
+                          working_) ||
+        !BuildSiblingPath(destination,
+                          SampleEditorFileJournal::Generation::Backup,
+                          backup_) ||
         std::strcmp(destination_.data(), working_.data()) == 0 ||
         std::strcmp(destination_.data(), backup_.data()) == 0 ||
         std::strcmp(working_.data(), backup_.data()) == 0) {
@@ -180,11 +180,12 @@ private:
   }
 
   template <std::size_t Capacity>
-  static bool BuildSiblingPath(const char *source, const char *prefix,
+  static bool BuildSiblingPath(const char *source,
+                               SampleEditorFileJournal::Generation generation,
                                std::array<char, Capacity> &destination) {
     destination.fill('\0');
-    return FileCopyJournal::BuildSiblingPath(
-        source, prefix, destination.data(), destination.size());
+    return SampleEditorFileJournal::BuildPath(
+        source, generation, destination.data(), destination.size());
   }
 
   [[nodiscard]] bool Validate(const char *path) const {
@@ -231,13 +232,31 @@ private:
     if (fileSystem_->exists(working_.data()) &&
         !fileSystem_->DeleteFile(working_.data()))
       return false;
-    if (!fileSystem_->CopyFile(destination_.data(), working_.data()) ||
+    if (!CopyToWorking(destination_.data()) ||
         !Validate(working_.data())) {
       (void)fileSystem_->DeleteFile(working_.data());
       return false;
     }
     hasWorkingCopy_ = true;
     return true;
+  }
+
+  [[nodiscard]] bool CopyToWorking(const char *sourcePath) {
+    FileHandle source = fileSystem_->Open(sourcePath, "r");
+    FileHandle destination = fileSystem_->Open(working_.data(), "w");
+    if (!source || !destination)
+      return false;
+    while (true) {
+      const int bytesRead =
+          source->Read(scratch_.data(), static_cast<int>(scratch_.size()));
+      if (bytesRead < 0 || (bytesRead == 0 && source->Error() != 0))
+        return false;
+      if (bytesRead == 0)
+        break;
+      if (destination->Write(scratch_.data(), 1, bytesRead) != bytesRead)
+        return false;
+    }
+    return destination->Sync();
   }
 
   [[nodiscard]] Ui2SampleEditorTransactionResult
