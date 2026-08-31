@@ -635,10 +635,15 @@ UiApplicationActivityState Ui2NativeApplicationStateSource::CaptureInstrument(
         state.fieldOptions = UiInstrumentFieldOptions::OpalKeyscale;
         break;
       case Ui2InstrumentValueFormat::Choice:
-        state.fieldOptions =
-            activeDescriptor.primary == FourCC::SampleInstrumentInterpolation
-                ? UiInstrumentFieldOptions::SampleInterpolation
-                : UiInstrumentFieldOptions::SidFilter;
+        if (activeDescriptor.primary ==
+            FourCC::SampleInstrumentInterpolation) {
+          state.fieldOptions = UiInstrumentFieldOptions::SampleInterpolation;
+        } else if (activeDescriptor.primary ==
+                   FourCC::SampleInstrumentFilterMode) {
+          state.fieldOptions = UiInstrumentFieldOptions::SampleFilterMode;
+        } else {
+          state.fieldOptions = UiInstrumentFieldOptions::SidFilter;
+        }
         break;
       default:
         state.fieldOptions = UiInstrumentFieldOptions::None;

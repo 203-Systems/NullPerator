@@ -40,6 +40,7 @@ enum class UiInstrumentFieldOptions : std::uint8_t {
   None,
   Boolean,
   SampleLoop,
+  SampleFilterMode,
   SampleInterpolation,
   SidWaveform,
   SidFilter,

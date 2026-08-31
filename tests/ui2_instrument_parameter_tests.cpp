@@ -861,7 +861,7 @@ TEST_CASE("Sample size queries keep the default sentinel outside render state") 
 
 TEST_CASE("UI2 Instrument descriptors preserve approved field layout") {
   using namespace ui2;
-  CHECK(Ui2InstrumentFieldCount(IT_SAMPLE) == 17U);
+  CHECK(Ui2InstrumentFieldCount(IT_SAMPLE) == 19U);
   CHECK(Ui2InstrumentFieldCount(IT_MIDI) == 6U);
   CHECK(Ui2InstrumentFieldCount(IT_SID) == 11U);
   CHECK(Ui2InstrumentFieldCount(IT_OPAL) == 3U);
@@ -885,20 +885,29 @@ TEST_CASE("UI2 Instrument descriptors preserve approved field layout") {
   const auto sid2Volume = Ui2InstrumentFieldParameter(IT_SID, 10U, false);
   CHECK(sid2Volume.primary == FourCC::SIDInstrument2Volume);
 
-  const auto sampleStart = Ui2InstrumentFieldParameter(IT_SAMPLE, 12U);
-  CHECK(Ui2InstrumentFieldParameter(IT_SAMPLE, 11U).primary ==
+  const auto sampleFilterType = Ui2InstrumentFieldParameter(IT_SAMPLE, 10U);
+  CHECK(sampleFilterType.primary == FourCC::SampleInstrumentFilterType);
+  CHECK(sampleFilterType.format == Ui2InstrumentValueFormat::Hex);
+  const auto sampleFilterMode = Ui2InstrumentFieldParameter(IT_SAMPLE, 11U);
+  CHECK(sampleFilterMode.primary == FourCC::SampleInstrumentFilterMode);
+  CHECK(sampleFilterMode.format == Ui2InstrumentValueFormat::Choice);
+  CHECK(Format(sampleFilterMode, 1, 0, "bassy") == "BASSY");
+  CHECK(Ui2InstrumentFieldParameter(IT_SAMPLE, 12U).primary ==
         FourCC::SampleInstrumentInterpolation);
+  CHECK(Ui2InstrumentFieldParameter(IT_SAMPLE, 13U).primary ==
+        FourCC::SampleInstrumentLoopMode);
+  const auto sampleStart = Ui2InstrumentFieldParameter(IT_SAMPLE, 14U);
   CHECK(sampleStart.primary == FourCC::SampleInstrumentStart);
   CHECK(sampleStart.width == 7U);
   CHECK(sampleStart.subfieldMode == Ui2InstrumentSubfieldMode::HexDigit);
   const auto resolved = Ui2ResolveSamplePositionMaximum(sampleStart, 1234);
   CHECK(resolved.maximum == 1233);
   const auto sampleLoopStart =
-      Ui2InstrumentFieldParameter(IT_SAMPLE, 13U);
+      Ui2InstrumentFieldParameter(IT_SAMPLE, 15U);
   CHECK(sampleLoopStart.primary == FourCC::SampleInstrumentLoopStart);
   CHECK(Ui2ResolveSamplePositionMaximum(sampleLoopStart, 1234).maximum ==
         1233);
-  const auto sampleEnd = Ui2InstrumentFieldParameter(IT_SAMPLE, 14U);
+  const auto sampleEnd = Ui2InstrumentFieldParameter(IT_SAMPLE, 16U);
   CHECK(sampleEnd.primary == FourCC::SampleInstrumentEnd);
   const auto resolvedEnd = Ui2ResolveSamplePositionMaximum(sampleEnd, 1234);
   CHECK(resolvedEnd.maximum == 1234);
@@ -906,9 +915,9 @@ TEST_CASE("UI2 Instrument descriptors preserve approved field layout") {
             resolvedEnd, 1233, Ui2InstrumentValueDirection::Right) == 1234);
   CHECK(Ui2AdjustInstrumentParameter(
             resolvedEnd, 1234, Ui2InstrumentValueDirection::Right) == 1234);
-  CHECK(Ui2InstrumentFieldParameter(IT_SAMPLE, 15U).primary ==
+  CHECK(Ui2InstrumentFieldParameter(IT_SAMPLE, 17U).primary ==
         FourCC::SampleInstrumentTable);
-  CHECK(Ui2InstrumentFieldParameter(IT_SAMPLE, 16U).primary ==
+  CHECK(Ui2InstrumentFieldParameter(IT_SAMPLE, 18U).primary ==
         FourCC::SampleInstrumentTableAutomation);
   const auto midiTable = Ui2InstrumentFieldParameter(IT_MIDI, 5U);
   CHECK(midiTable.primary == FourCC::MidiInstrumentTable);
@@ -947,7 +956,7 @@ TEST_CASE("UI2 Instrument TABLE activation allocates only Sample and MIDI "
   TableHolder tables;
   Variable sampleTable(FourCC::SampleInstrumentTable, VAR_OFF);
   const auto sampleDescriptor =
-      Ui2InstrumentFieldParameter(IT_SAMPLE, 15U);
+      Ui2InstrumentFieldParameter(IT_SAMPLE, 17U);
   REQUIRE(Ui2AllocateInstrumentTable(sampleDescriptor, sampleTable, tables));
   CHECK(sampleTable.GetInt() == 0);
 
@@ -1079,11 +1088,17 @@ TEST_CASE("UI2 Instrument adjustment legend applies only to approved numeric "
   CHECK_FALSE(Ui2InstrumentAdjustment(
                   Ui2InstrumentFieldParameter(IT_SAMPLE, 9U))
                   .visible); // combined FILTER
+  CHECK(Ui2InstrumentAdjustment(
+            Ui2InstrumentFieldParameter(IT_SAMPLE, 10U))
+            .visible); // FILTER TYPE numeric
   CHECK_FALSE(Ui2InstrumentAdjustment(
-                  Ui2InstrumentFieldParameter(IT_SAMPLE, 10U))
+                  Ui2InstrumentFieldParameter(IT_SAMPLE, 11U))
+                  .visible); // FILTER MODE choice
+  CHECK_FALSE(Ui2InstrumentAdjustment(
+                  Ui2InstrumentFieldParameter(IT_SAMPLE, 13U))
                   .visible); // LOOP choice
   CHECK_FALSE(Ui2InstrumentAdjustment(
-                  Ui2InstrumentFieldParameter(IT_SAMPLE, 12U))
+                  Ui2InstrumentFieldParameter(IT_SAMPLE, 14U))
                   .visible); // hex digit
   CHECK_FALSE(Ui2InstrumentAdjustment(
                   Ui2InstrumentFieldParameter(IT_MIDI, 4U))

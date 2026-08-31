@@ -2948,6 +2948,12 @@ TEST_CASE("UI2 Sample Instrument supplies contextual bars for every field kind")
           ui2::UiBuildStatus::Built);
   CHECK(FindTextCommand(scene.bottom.Stream(), "PING PONG") != nullptr);
 
+  data.fieldOptions = ui2::UiInstrumentFieldOptions::SampleFilterMode;
+  data.fieldOptionCurrent = 1U;
+  REQUIRE(ui2::UiInstrumentView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK(FindTextCommand(scene.bottom.Stream(), "BASSY") != nullptr);
+
   data.fieldOptions = ui2::UiInstrumentFieldOptions::Boolean;
   data.fieldOptionCurrent = 1U;
   REQUIRE(ui2::UiInstrumentView::Build(data, palette, scene) ==

@@ -132,7 +132,7 @@ Parameter(const char *label, FourCC::enum_type primary, std::int16_t minimum,
           .userData = userData};
 }
 
-inline constexpr std::array<Ui2InstrumentParameterDescriptor, 17>
+inline constexpr std::array<Ui2InstrumentParameterDescriptor, 19>
     kSampleParameters{
         Parameter("SAMPLE", FourCC::SampleInstrumentSample, 0, 0, 1, 1, 66,
                   0, Ui2InstrumentValueFormat::UserText, false, false, false,
@@ -172,35 +172,41 @@ inline constexpr std::array<Ui2InstrumentParameterDescriptor, 17>
                   SampleInstrumentParameterLimits::FilterMaximum, 1, 0x10,
                   156, 2, Ui2InstrumentValueFormat::SampleFilter, false, false,
                   true, FourCC::SampleInstrumentFilterResonance),
-        Parameter("LOOP", FourCC::SampleInstrumentLoopMode, 0, 4, 1, 1, 166,
-                  0, Ui2InstrumentValueFormat::SampleLoop),
+        Parameter("FILTER TYPE", FourCC::SampleInstrumentFilterType,
+                  SampleInstrumentParameterLimits::FilterMinimum,
+                  SampleInstrumentParameterLimits::FilterMaximum, 1, 0x10,
+                  166, 2, Ui2InstrumentValueFormat::Hex),
+        Parameter("FILTER MODE", FourCC::SampleInstrumentFilterMode, 0, 2, 1,
+                  1, 176, 0, Ui2InstrumentValueFormat::Choice),
         Parameter("INTERPOLATION", FourCC::SampleInstrumentInterpolation, 0,
-                  1, 1, 1, 176, 0, Ui2InstrumentValueFormat::Choice),
+                  1, 1, 1, 186, 0, Ui2InstrumentValueFormat::Choice),
+        Parameter("LOOP", FourCC::SampleInstrumentLoopMode, 0, 4, 1, 1, 196,
+                  0, Ui2InstrumentValueFormat::SampleLoop),
         // Position maxima are resolved to sampleSize-1 immediately before
         // mutation. 0x0FFFFFFF is only the seven-digit format ceiling.
         Parameter("START", FourCC::SampleInstrumentStart,
                   SampleInstrumentParameterLimits::PositionMinimum,
                   SampleInstrumentParameterLimits::PositionPersistedMaximum, 1,
-                  0x10, 186, 7, Ui2InstrumentValueFormat::Hex, false, false,
+                  0x10, 206, 7, Ui2InstrumentValueFormat::Hex, false, false,
                   true, FourCC::Default, false,
                   Ui2InstrumentSubfieldMode::HexDigit),
         Parameter("LOOP START", FourCC::SampleInstrumentLoopStart,
                   SampleInstrumentParameterLimits::PositionMinimum,
                   SampleInstrumentParameterLimits::PositionPersistedMaximum, 1,
-                  0x10, 196, 7,
+                  0x10, 216, 7,
                   Ui2InstrumentValueFormat::Hex, false, false, true,
                   FourCC::Default, false,
                   Ui2InstrumentSubfieldMode::HexDigit),
         Parameter("LOOP END", FourCC::SampleInstrumentEnd,
                   SampleInstrumentParameterLimits::PositionMinimum,
                   SampleInstrumentParameterLimits::PositionPersistedMaximum, 1,
-                  0x10, 206, 7, Ui2InstrumentValueFormat::Hex, false, false,
+                  0x10, 226, 7, Ui2InstrumentValueFormat::Hex, false, false,
                   true, FourCC::Default, false,
                   Ui2InstrumentSubfieldMode::HexDigit),
         Parameter("TABLE", FourCC::SampleInstrumentTable, 0, 0x1F, 1, 0x10,
-                  216, 2, Ui2InstrumentValueFormat::OffHex, false, true),
+                  236, 2, Ui2InstrumentValueFormat::OffHex, false, true),
         Parameter("AUTOMATION", FourCC::SampleInstrumentTableAutomation, 0,
-                  1, 1, 1, 226, 0, Ui2InstrumentValueFormat::Boolean),
+                  1, 1, 1, 246, 0, Ui2InstrumentValueFormat::Boolean),
     };
 
 inline constexpr std::array<Ui2InstrumentParameterDescriptor, 6>

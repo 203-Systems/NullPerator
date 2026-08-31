@@ -21,6 +21,8 @@ constexpr std::array<std::string_view, 5> kTypeOptions{"NONE", "SAMPLE", "MIDI",
 constexpr std::array<std::string_view, 2> kBooleanOptions{"NO", "YES"};
 constexpr std::array<std::string_view, 5> kSampleLoopOptions{
     "ONE SHOT", "FORWARD", "PING PONG", "OSCILLATOR", "LOOP SYNC"};
+constexpr std::array<std::string_view, 3> kSampleFilterModeOptions{
+    "ORIGINAL", "BASSY", "SCREAM"};
 constexpr std::array<std::string_view, 2> kSampleInterpolationOptions{"LINEAR",
                                                                       "NONE"};
 constexpr std::array<std::string_view, 9> kSidWaveformOptions{
@@ -41,6 +43,8 @@ OptionsFor(UiInstrumentFieldOptions options) {
     return kBooleanOptions;
   case UiInstrumentFieldOptions::SampleLoop:
     return kSampleLoopOptions;
+  case UiInstrumentFieldOptions::SampleFilterMode:
+    return kSampleFilterModeOptions;
   case UiInstrumentFieldOptions::SampleInterpolation:
     return kSampleInterpolationOptions;
   case UiInstrumentFieldOptions::SidWaveform:
