@@ -460,3 +460,57 @@ TEST_CASE("UI2 sample normalize propagates durable sync failure") {
   CHECK(fileSystem.Bytes(source) == original);
   CHECK_FALSE(transaction.HasWorkingCopy());
 }
+
+TEST_CASE("UI2 sample trim no-op removes its transient working copy") {
+  using namespace ui2;
+  constexpr const char *source = "/samples/VOICE.wav";
+  SampleEditMemoryFileSystem fileSystem;
+  const std::vector<std::uint8_t> original = MakeWav();
+  fileSystem.Put(source, original);
+  Ui2SampleEditorTransaction transaction;
+  REQUIRE(transaction.Begin(fileSystem, source) ==
+          Ui2SampleEditorTransactionResult::Ready);
+
+  CHECK(transaction.ApplyTrim(0U, 3U) ==
+        Ui2SampleEditorTransactionResult::NoChanges);
+  CHECK_FALSE(transaction.HasWorkingCopy());
+  CHECK_FALSE(fileSystem.exists(transaction.WorkingPath()));
+  CHECK(fileSystem.Bytes(source) == original);
+}
+
+TEST_CASE("UI2 sample normalize no-op removes its transient working copy") {
+  using namespace ui2;
+  constexpr const char *source = "/samples/SILENT.wav";
+  SampleEditMemoryFileSystem fileSystem;
+  std::vector<std::uint8_t> silent = MakeWav();
+  std::fill(silent.begin() + 44, silent.end(), 0U);
+  fileSystem.Put(source, silent);
+  Ui2SampleEditorTransaction transaction;
+  REQUIRE(transaction.Begin(fileSystem, source) ==
+          Ui2SampleEditorTransactionResult::Ready);
+
+  CHECK(transaction.ApplyNormalize() ==
+        Ui2SampleEditorTransactionResult::NoChanges);
+  CHECK_FALSE(transaction.HasWorkingCopy());
+  CHECK_FALSE(fileSystem.exists(transaction.WorkingPath()));
+  CHECK(fileSystem.Bytes(source) == silent);
+}
+
+TEST_CASE("UI2 sample no-op preserves an earlier unsaved edit") {
+  using namespace ui2;
+  constexpr const char *source = "/samples/VOICE.wav";
+  SampleEditMemoryFileSystem fileSystem;
+  fileSystem.Put(source, MakeWav());
+  Ui2SampleEditorTransaction transaction;
+  REQUIRE(transaction.Begin(fileSystem, source) ==
+          Ui2SampleEditorTransactionResult::Ready);
+  REQUIRE(transaction.ApplyTrim(1U, 3U) ==
+          Ui2SampleEditorTransactionResult::Applied);
+  const std::vector<std::uint8_t> edited =
+      fileSystem.Bytes(transaction.WorkingPath());
+
+  CHECK(transaction.ApplyTrim(0U, 2U) ==
+        Ui2SampleEditorTransactionResult::NoChanges);
+  CHECK(transaction.HasWorkingCopy());
+  CHECK(fileSystem.Bytes(transaction.WorkingPath()) == edited);
+}

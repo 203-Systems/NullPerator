@@ -1392,6 +1392,8 @@ void Ui2TrackerApplication::ExecuteSampleEditor(
         command.operation == Ui2SampleEditorOperation::Trim
             ? sampleEditorTransaction_.ApplyTrim(command.start, command.end)
             : sampleEditorTransaction_.ApplyNormalize();
+    if (result == Ui2SampleEditorTransactionResult::NoChanges)
+      break;
     FileSystem *fileSystem = FileSystem::GetInstance();
     if (result == Ui2SampleEditorTransactionResult::Applied &&
         fileSystem != nullptr &&

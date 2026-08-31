@@ -80,6 +80,7 @@ public:
 
   [[nodiscard]] Ui2SampleEditorTransactionResult
   ApplyTrim(std::uint32_t start, std::uint32_t end) {
+    const bool hadWorkingCopy = hasWorkingCopy_;
     if (!EnsureWorkingCopy())
       return Ui2SampleEditorTransactionResult::CopyFailed;
     if (FileSystem::GetInstance() != fileSystem_) {
@@ -89,10 +90,11 @@ public:
     WavTrimResult result{};
     const bool applied = WavFileWriter::TrimFile(
         working_.data(), start, end, scratch_.data(), scratch_.size(), result);
-    return FinishMutation(applied);
+    return FinishMutation(applied, result.trimmed, hadWorkingCopy);
   }
 
   [[nodiscard]] Ui2SampleEditorTransactionResult ApplyNormalize() {
+    const bool hadWorkingCopy = hasWorkingCopy_;
     if (!EnsureWorkingCopy())
       return Ui2SampleEditorTransactionResult::CopyFailed;
     if (FileSystem::GetInstance() != fileSystem_) {
@@ -102,7 +104,7 @@ public:
     WavNormalizeResult result{};
     const bool applied = WavFileWriter::NormalizeFile(
         working_.data(), scratch_.data(), scratch_.size(), result);
-    return FinishMutation(applied);
+    return FinishMutation(applied, result.normalized, hadWorkingCopy);
   }
 
   [[nodiscard]] Ui2SampleEditorTransactionResult Save() {
@@ -238,10 +240,23 @@ private:
     return true;
   }
 
-  [[nodiscard]] Ui2SampleEditorTransactionResult FinishMutation(bool applied) {
+  [[nodiscard]] Ui2SampleEditorTransactionResult
+  FinishMutation(bool applied, bool changed, bool hadWorkingCopy) {
     if (!applied || !Validate(working_.data())) {
       AbandonBrokenWorkingCopy();
       return Ui2SampleEditorTransactionResult::MutationFailed;
+    }
+    if (!changed) {
+      // A scan-only no-op must not leave behind the copy it just created. If
+      // an earlier operation already produced edits, retain that generation.
+      if (!hadWorkingCopy) {
+        if (!fileSystem_->DeleteFile(working_.data())) {
+          AbandonBrokenWorkingCopy();
+          return Ui2SampleEditorTransactionResult::MutationFailed;
+        }
+        hasWorkingCopy_ = false;
+      }
+      return Ui2SampleEditorTransactionResult::NoChanges;
     }
     return Ui2SampleEditorTransactionResult::Applied;
   }
