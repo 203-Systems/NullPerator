@@ -37,7 +37,9 @@ public:
   [[nodiscard]] std::size_t ReadFrames(std::span<StereoF32> output) noexcept;
   [[nodiscard]] bool IsActive() const noexcept;
   [[nodiscard]] bool IsStarted() const noexcept;
-  void SetWorkletRunning(bool running) noexcept;
+  // Browser graph teardown is irreversible for this driver instance. Stop
+  // producer ticks immediately while the application-thread shutdown follows.
+  void DisableProducerForTeardown() noexcept;
   void SetDestinationRate(std::uint32_t rate) noexcept;
   void Configure(std::uint32_t targetFillFrames,
                  std::uint32_t outputGainQ16) noexcept;
@@ -67,7 +69,7 @@ private:
   PcmRingBuffer<RingCapacityFrames> ring_;
   std::atomic<bool> started_{false};
   std::atomic<bool> active_{false};
-  std::atomic<bool> workletRunning_{false};
+  std::atomic<bool> producerEnabled_{true};
   std::atomic<std::uint32_t> destinationRate_{0U};
   std::atomic<std::uint32_t> targetFillFrames_{TargetFillFrames};
   // The browser-host gain and tracker Device volume share one atomic word.

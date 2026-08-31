@@ -210,7 +210,7 @@ bool WasmAudio::Unlock() noexcept {
 
 void WasmAudio::StopBrowserAudio() noexcept {
   if (auto *driver = WasmAudioDriver::Instance()) {
-    driver->SetWorkletRunning(false);
+    driver->DisableProducerForTeardown();
   }
   if (teardownRequested_.exchange(true, std::memory_order_acq_rel)) {
     return;
@@ -588,7 +588,6 @@ void WasmAudio::OnProcessorCreated(bool success) noexcept {
   }
   workletNode_.store(node, std::memory_order_release);
   emscripten_audio_node_connect(node, context, 0, 0);
-  driver->SetWorkletRunning(true);
   setupPhase_.store(8U, std::memory_order_release);
 #else
   (void)success;

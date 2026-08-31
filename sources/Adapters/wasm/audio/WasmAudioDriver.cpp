@@ -52,7 +52,6 @@ bool WasmAudioDriver::StartDriver() {
 void WasmAudioDriver::StopDriver() {
   active_.store(false, std::memory_order_release);
   started_.store(false, std::memory_order_release);
-  workletRunning_.store(false, std::memory_order_release);
 }
 
 bool WasmAudioDriver::Interlaced() { return true; }
@@ -81,9 +80,13 @@ void WasmAudioDriver::OnAudioActive(bool active) {
 
 void WasmAudioDriver::PumpProducer() noexcept {
   if (!IsStarted() || !IsActive() ||
-      !workletRunning_.load(std::memory_order_acquire)) {
+      !producerEnabled_.load(std::memory_order_acquire)) {
     return;
   }
+  // Pre-fill while the browser is still creating or resuming its worklet.
+  // Waiting for the consumer's first callback guarantees a cold-start
+  // underrun. The started/active checks above own the producer lifecycle, and
+  // the target-fill check below keeps this prebuffer bounded by ring capacity.
   WASM_TRACE_SCOPE(WasmTraceCategory::Audio,
                    WasmTraceName::AudioProducer);
   // Bound rendering work per browser frame. The callback only consumes the
@@ -116,8 +119,8 @@ bool WasmAudioDriver::IsStarted() const noexcept {
   return started_.load(std::memory_order_acquire);
 }
 
-void WasmAudioDriver::SetWorkletRunning(bool running) noexcept {
-  workletRunning_.store(running, std::memory_order_release);
+void WasmAudioDriver::DisableProducerForTeardown() noexcept {
+  producerEnabled_.store(false, std::memory_order_release);
 }
 
 void WasmAudioDriver::SetDestinationRate(std::uint32_t rate) noexcept {

@@ -18,6 +18,27 @@
 #include <vector>
 
 namespace {
+class ProducerObserver final : public I_Observer {
+public:
+  explicit ProducerObserver(WasmAudioDriver &driver) : driver_(driver) {}
+
+  void Update(Observable &, I_ObservableData *data) override {
+    auto *event = static_cast<AudioDriver::Event *>(data);
+    if (event == nullptr ||
+        event->type_ != AudioDriver::Event::ADET_BUFFERNEEDED) {
+      return;
+    }
+    std::array<short, 1024> silence{};
+    driver_.AddBuffer(silence.data(), 512);
+    ++bufferRequests;
+  }
+
+  int bufferRequests = 0;
+
+private:
+  WasmAudioDriver &driver_;
+};
+
 StereoI16 Frame(std::int16_t left, std::int16_t right) {
   return StereoI16{left, right};
 }
@@ -27,6 +48,42 @@ void CheckFrame(const StereoF32 &frame, float left, float right) {
   CHECK(frame.right == doctest::Approx(right));
 }
 } // namespace
+
+TEST_CASE("WASM audio producer pre-fills before the worklet consumer is ready") {
+  AudioSettings settings{};
+  WasmAudioDriver driver(settings);
+  ProducerObserver observer(driver);
+  driver.AddObserver(observer);
+
+  driver.PumpProducer();
+  CHECK(observer.bufferRequests == 0);
+  REQUIRE(driver.Init());
+  REQUIRE(driver.Start());
+  driver.PumpProducer();
+  CHECK(observer.bufferRequests == 0);
+
+  driver.OnAudioActive(true);
+  driver.Configure(512U, WasmAudioDriver::UnityGainQ16);
+  // There is deliberately no worklet-ready transition here. A cold-start
+  // producer must build its bounded prebuffer before the first consumer call.
+  driver.PumpProducer();
+  CHECK(observer.bufferRequests == 1);
+  CHECK(driver.Metrics().ringFillFrames == 512U);
+  CHECK(driver.Metrics().ringFillFrames <=
+        driver.TargetFillFramesConfigured());
+
+  driver.PumpProducer();
+  CHECK(observer.bufferRequests == 1);
+  std::array<StereoF32, 512> consumed{};
+  CHECK(driver.ReadFrames(consumed) == consumed.size());
+  driver.DisableProducerForTeardown();
+  driver.PumpProducer();
+  CHECK(observer.bufferRequests == 1);
+  driver.Stop();
+  driver.PumpProducer();
+  CHECK(observer.bufferRequests == 1);
+  driver.RemoveObserver(observer);
+}
 
 TEST_CASE("WASM frame snapshot publishes only complete even-sequence frames") {
   WasmFrameSnapshot<8> snapshot;
@@ -415,7 +472,6 @@ TEST_CASE("WASM audio driver writes interleaved engine frames and fixed worklet 
   REQUIRE(driver.Init());
   REQUIRE(driver.Start());
   driver.OnAudioActive(true);
-  driver.SetWorkletRunning(true);
   std::array<short, 8> input{0, 16384, 8192, -8192, -16384, 0, 32767, -32768};
   driver.AddBuffer(input.data(), 4);
   WasmAudioWorkletRenderer renderer(driver, 44100U);
@@ -571,7 +627,6 @@ TEST_CASE("WASM audio worklet helper resamples a 44.1k source at a 48k boundary"
   REQUIRE(driver.Init());
   REQUIRE(driver.Start());
   driver.OnAudioActive(true);
-  driver.SetWorkletRunning(true);
   std::array<short, 512 * 2> input{};
   for (std::size_t frame = 0; frame < 512; ++frame) {
     input[frame * 2] = static_cast<short>(frame * 32);
