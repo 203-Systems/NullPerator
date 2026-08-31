@@ -110,11 +110,14 @@ namespace NullperatorHAL::Audio {
             return ret;
         }
 
-        if (!NullperatorHAL::System::SetIOExpanderDirectionPin(PCA_PA_CTRL, false) ||
+        // Preload safe output levels before enabling the expander outputs. The
+        // TCA9555 output registers power up high, so changing direction first
+        // can briefly enable the speaker PA or select the wrong audio source.
+        if (!NullperatorHAL::System::WriteIOExpanderPin(PCA_PA_CTRL, false) ||
+            !NullperatorHAL::System::WriteIOExpanderPin(PCA_AUDIO_MUX_SEL, false) ||
+            !NullperatorHAL::System::SetIOExpanderDirectionPin(PCA_PA_CTRL, false) ||
             !NullperatorHAL::System::SetIOExpanderDirectionPin(PCA_AUDIO_MUX_SEL, false) ||
-            !NullperatorHAL::System::SetIOExpanderDirectionPin(PCA_PHONE_DET, true) ||
-            !NullperatorHAL::System::WriteIOExpanderPin(PCA_PA_CTRL, false) ||
-            !NullperatorHAL::System::WriteIOExpanderPin(PCA_AUDIO_MUX_SEL, false)) {
+            !NullperatorHAL::System::SetIOExpanderDirectionPin(PCA_PHONE_DET, true)) {
             ESP_LOGE(TAG, "Failed to configure audio IO expander pins");
             return ESP_FAIL;
         }
