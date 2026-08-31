@@ -23,6 +23,9 @@ Ui2GrooveTrackerCommand(Ui2GrooveCommand command, int track) {
     trackerCommand.type = Ui2TrackerCommandType::StartPlayback;
     trackerCommand.flag = command.songTransport;
     break;
+  case Ui2GrooveCommandType::ToggleMute:
+    trackerCommand.type = Ui2TrackerCommandType::ToggleMute;
+    break;
   case Ui2GrooveCommandType::ToggleSolo:
     trackerCommand.type = Ui2TrackerCommandType::ToggleSolo;
     break;

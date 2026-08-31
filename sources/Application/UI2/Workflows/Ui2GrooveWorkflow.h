@@ -136,6 +136,7 @@ public:
     case Ui2GrooveCommandType::SelectNumber:
       return {.selectNumber = true};
     case Ui2GrooveCommandType::StartPlayback:
+    case Ui2GrooveCommandType::ToggleMute:
     case Ui2GrooveCommandType::ToggleSolo:
     case Ui2GrooveCommandType::UnmuteAll:
       return {.dispatchPerformance = true};

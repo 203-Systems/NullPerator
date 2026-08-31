@@ -33,13 +33,12 @@ template <typename Controller>
 void CheckSelectionClipboardLifecycle(Controller controller) {
   BeginSelection(controller);
   REQUIRE(controller.Selection().active);
-  const auto copy = controller.Handle(TrackerAction::Option, true);
+  CHECK(controller.Handle(TrackerAction::Option, true).Empty());
+  const auto copy = controller.Handle(TrackerAction::Option, false);
   REQUIRE(copy.count == 1U);
   CHECK(copy[0].type == Ui2TrackerCommandType::CopySelection);
   CHECK(copy[0].selection.active);
   CHECK_FALSE(controller.Selection().active);
-  controller.Handle(TrackerAction::Option, false);
-
   controller.Handle(TrackerAction::Shift, true);
   const auto paste = controller.Handle(TrackerAction::Edit, true);
   REQUIRE(paste.count == 1U);
@@ -329,6 +328,42 @@ TEST_CASE("UI2 Song follows M8 modifier order and transport chords") {
   CHECK(controller.Selection().active);
 }
 
+TEST_CASE("UI2 grid selections retain Option then Shift mute") {
+  Ui2SongController song(3, 4, 8);
+  BeginSelection(song);
+  song.Handle(TrackerAction::Option, true);
+  const auto songMute = song.Handle(TrackerAction::Shift, true);
+  REQUIRE(songMute.count == 1U);
+  CHECK(songMute[0].type == Ui2TrackerCommandType::ToggleMute);
+  CHECK(songMute[0].selection.active);
+  CHECK(songMute[0].selection.Left() == 3U);
+  CHECK(songMute[0].selection.Right() == 3U);
+
+  Ui2ChainController chain(2, 4, 3, 0);
+  BeginSelection(chain);
+  chain.Handle(TrackerAction::Option, true);
+  const auto chainMute = chain.Handle(TrackerAction::Shift, true);
+  REQUIRE(chainMute.count == 1U);
+  CHECK(chainMute[0].type == Ui2TrackerCommandType::ToggleMute);
+  CHECK(chainMute[0].track == 4U);
+
+  Ui2PhraseController phrase(2, 5, 3, 0);
+  BeginSelection(phrase);
+  phrase.Handle(TrackerAction::Option, true);
+  const auto phraseMute = phrase.Handle(TrackerAction::Shift, true);
+  REQUIRE(phraseMute.count == 1U);
+  CHECK(phraseMute[0].type == Ui2TrackerCommandType::ToggleMute);
+  CHECK(phraseMute[0].track == 5U);
+
+  Ui2TableController table(Ui2TrackerPage::PhraseTable, 2, 6, 3, 0);
+  BeginSelection(table);
+  table.Handle(TrackerAction::Option, true);
+  const auto tableMute = table.Handle(TrackerAction::Shift, true);
+  REQUIRE(tableMute.count == 1U);
+  CHECK(tableMute[0].type == Ui2TrackerCommandType::ToggleMute);
+  CHECK(tableMute[0].track == 6U);
+}
+
 TEST_CASE("UI2 Song EDIT PLAY launches immediately only in LIVE mode") {
   Ui2SongController liveController(3, 4, 8, true);
 
@@ -615,7 +650,8 @@ TEST_CASE("UI2 Song selection stays within the fixed 8 by 16 clipboard") {
   CHECK(controller.Selection().Top() == 0U);
   CHECK(controller.Selection().Bottom() == 15U);
 
-  const auto copy = controller.Handle(TrackerAction::Option, true);
+  CHECK(controller.Handle(TrackerAction::Option, true).Empty());
+  const auto copy = controller.Handle(TrackerAction::Option, false);
   REQUIRE(copy.count == 1U);
   CHECK(copy[0].type == Ui2TrackerCommandType::CopySelection);
   CHECK(copy[0].selection.Bottom() - copy[0].selection.Top() + 1U == 16U);

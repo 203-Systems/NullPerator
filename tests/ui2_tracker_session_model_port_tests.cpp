@@ -1178,6 +1178,34 @@ TEST_CASE("UI2 Groove performance chords route through the model port") {
   }
 }
 
+TEST_CASE("UI2 Groove selection mute routes through the model port") {
+  TrackerApplicationSession session;
+  Ui2TrackerSessionModelPort port(session);
+  Player *player = Player::GetInstance();
+  player->Reset();
+  session.EditorState().songX_ = 5;
+
+  ui2::Ui2GrooveController controller(0, 3);
+  controller.Handle(TrackerAction::Shift, true);
+  controller.Handle(TrackerAction::Option, true);
+  controller.Handle(TrackerAction::Option, false);
+  controller.Handle(TrackerAction::Shift, false);
+  REQUIRE(controller.Selection().active);
+  controller.Handle(TrackerAction::Option, true);
+  const ui2::Ui2GrooveCommand grooveCommand =
+      controller.Handle(TrackerAction::Shift, true);
+  const Ui2TrackerCommand trackerCommand = ui2::Ui2GrooveTrackerCommand(
+      grooveCommand, session.EditorState().songX_);
+
+  CHECK(trackerCommand.type == Ui2TrackerCommandType::ToggleMute);
+  port.ApplyGridCommand(trackerCommand);
+  CHECK(player->IsChannelMuted(5));
+  for (int track = 0; track < SONG_CHANNEL_COUNT; ++track) {
+    if (track != 5)
+      CHECK_FALSE(player->IsChannelMuted(track));
+  }
+}
+
 TEST_CASE("UI2 model port preserves playback and solo command semantics") {
   TrackerApplicationSession session;
   Ui2TrackerSessionModelPort port(session);

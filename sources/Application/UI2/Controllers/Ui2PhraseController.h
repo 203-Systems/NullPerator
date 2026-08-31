@@ -38,7 +38,9 @@ public:
   constexpr void SynchronizeHeldModifiers(std::uint16_t mask) {
     input_.SynchronizeModifiers(mask);
   }
-  [[nodiscard]] constexpr bool ClonePending() const { return clonePending_; }
+  [[nodiscard]] constexpr bool ClonePending() const {
+    return clonePending_ && input_.Held(TrackerAction::Shift);
+  }
   [[nodiscard]] constexpr const Ui2GridSelectionState &Selection() const {
     return selection_;
   }
@@ -54,10 +56,20 @@ public:
   constexpr Ui2TrackerCommandBatch<> Handle(TrackerAction action,
                                             bool pressed) {
     Ui2TrackerCommandBatch<> output;
+    const bool wasHeld = input_.Held(action);
     if (!input_.Update(action, pressed))
       return output;
 
     if (!pressed) {
+      if (action == TrackerAction::Option && wasHeld && clonePending_ &&
+          selection_.active && !input_.Held(TrackerAction::Shift)) {
+        Ui2TrackerCommand command =
+            Command(Ui2TrackerCommandType::CopySelection);
+        command.selection = selection_;
+        output.Push(command);
+        selection_.Clear();
+        clonePending_ = false;
+      }
       if (action == TrackerAction::Shift)
         clonePending_ = false;
       if (action == TrackerAction::Edit && valueEditDirty_) {
@@ -188,6 +200,11 @@ private:
                                  Ui2TrackerCommandBatch<> &output) {
     clonePending_ = false;
     const Ui2TrackerEditDirection direction = Ui2TrackerDirectionFor(action);
+    if (action == TrackerAction::Shift &&
+        input_.Held(TrackerAction::Option)) {
+      output.Push(Command(Ui2TrackerCommandType::ToggleMute));
+      return;
+    }
     if (action == TrackerAction::Play) {
       if (input_.Held(TrackerAction::Edit))
         return;
@@ -210,10 +227,7 @@ private:
     }
     if (action == TrackerAction::Option &&
         input_.Mask() == TrackerActionBit(TrackerAction::Option)) {
-      Ui2TrackerCommand command = Command(Ui2TrackerCommandType::CopySelection);
-      command.selection = selection_;
-      output.Push(command);
-      selection_.Clear();
+      clonePending_ = true;
       return;
     }
     if (input_.Held(TrackerAction::Edit) &&

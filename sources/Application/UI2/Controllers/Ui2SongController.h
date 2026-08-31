@@ -36,7 +36,9 @@ public:
     return static_cast<std::uint8_t>(rowOffset_ + visibleRow_);
   }
   [[nodiscard]] constexpr bool LiveMode() const { return liveMode_; }
-  [[nodiscard]] constexpr bool ClonePending() const { return clonePending_; }
+  [[nodiscard]] constexpr bool ClonePending() const {
+    return clonePending_ && input_.Held(TrackerAction::Shift);
+  }
   [[nodiscard]] constexpr std::uint16_t HeldMask() const {
     return input_.Mask();
   }
@@ -58,6 +60,15 @@ public:
       return output;
 
     if (!pressed) {
+      if (action == TrackerAction::Option && wasHeld && clonePending_ &&
+          selection_.active && !input_.Held(TrackerAction::Shift)) {
+        Ui2TrackerCommand command =
+            Command(Ui2TrackerCommandType::CopySelection);
+        command.selection = selection_;
+        output.Push(command);
+        selection_.Clear();
+        clonePending_ = false;
+      }
       if (action == TrackerAction::Shift)
         clonePending_ = false;
       if (action == TrackerAction::Edit && wasHeld) {
@@ -269,6 +280,13 @@ private:
     if (action == TrackerAction::Edit)
       editChordConsumed_ = true;
     const Ui2TrackerEditDirection direction = Ui2TrackerDirectionFor(action);
+    if (action == TrackerAction::Shift &&
+        input_.Held(TrackerAction::Option)) {
+      Ui2TrackerCommand command = Command(Ui2TrackerCommandType::ToggleMute);
+      command.selection = selection_;
+      output.Push(command);
+      return;
+    }
     if (action == TrackerAction::Play) {
       if (input_.Held(TrackerAction::Edit))
         return;
@@ -294,10 +312,9 @@ private:
     }
     if (action == TrackerAction::Option &&
         input_.Mask() == TrackerActionBit(TrackerAction::Option)) {
-      Ui2TrackerCommand command = Command(Ui2TrackerCommandType::CopySelection);
-      command.selection = selection_;
-      output.Push(command);
-      selection_.Clear();
+      // OPTION is also the prefix of OPTION+SHIFT mute. Defer a plain copy
+      // until release so modifier order remains observable.
+      clonePending_ = true;
       return;
     }
     if (input_.Held(TrackerAction::Edit) &&

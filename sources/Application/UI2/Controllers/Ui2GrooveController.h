@@ -25,6 +25,7 @@ enum class Ui2GrooveCommandType : std::uint8_t {
   InterpolateSelection,
   SelectNumber,
   StartPlayback,
+  ToggleMute,
   ToggleSolo,
   UnmuteAll,
 };
@@ -105,8 +106,21 @@ public:
   }
 
   constexpr Ui2GrooveCommand Handle(TrackerAction action, bool pressed) {
-    if (!input_.Update(action, pressed) || !pressed)
+    const bool wasHeld = input_.Held(action);
+    if (!input_.Update(action, pressed))
       return {};
+    if (!pressed) {
+      if (action == TrackerAction::Option && wasHeld && copyPending_ &&
+          selection_.active && !input_.Held(TrackerAction::Shift)) {
+        Ui2GrooveCommand command =
+            MakeCommand(Ui2GrooveCommandType::CopySelection);
+        command.selection = selection_;
+        selection_.Clear();
+        copyPending_ = false;
+        return command;
+      }
+      return {};
+    }
 
     const Ui2GrooveDirection direction = DirectionFor(action);
     if (action == TrackerAction::Play &&
@@ -124,6 +138,11 @@ public:
           MakeCommand(Ui2GrooveCommandType::StartPlayback);
       command.songTransport = true;
       return command;
+    }
+    if (action == TrackerAction::Shift &&
+        input_.Held(TrackerAction::Option)) {
+      copyPending_ = false;
+      return MakeCommand(Ui2GrooveCommandType::ToggleMute);
     }
     if (selection_.active)
       return HandleSelection(action, direction);
@@ -210,6 +229,7 @@ private:
 
   constexpr Ui2GrooveCommand
   HandleSelection(TrackerAction action, Ui2GrooveDirection direction) {
+    copyPending_ = false;
     if (action == TrackerAction::Play) {
       if (input_.Held(TrackerAction::Edit))
         return {};
@@ -233,11 +253,8 @@ private:
     }
     if (action == TrackerAction::Option &&
         input_.Mask() == TrackerActionBit(TrackerAction::Option)) {
-      Ui2GrooveCommand command =
-          MakeCommand(Ui2GrooveCommandType::CopySelection);
-      command.selection = selection_;
-      selection_.Clear();
-      return command;
+      copyPending_ = true;
+      return {};
     }
     if (action == TrackerAction::Edit &&
         input_.Held(TrackerAction::Shift)) {
@@ -310,6 +327,7 @@ private:
   std::uint8_t row_ = 0;
   std::uint8_t grooveCount_ = DefaultGrooveCount;
   bool grooveWrap_ = true;
+  bool copyPending_ = false;
 };
 
 static_assert(std::is_trivially_copyable_v<Ui2GrooveCommand>);

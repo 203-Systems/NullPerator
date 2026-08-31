@@ -1072,7 +1072,9 @@ TEST_CASE("UI2 Groove selection follows the grid clipboard lifecycle") {
   CHECK(controller.Selection().Top() == 3U);
   CHECK(controller.Selection().Bottom() == 4U);
 
-  const Ui2GrooveCommand copy = Tap(controller, TrackerAction::Option);
+  CHECK_FALSE(controller.Handle(TrackerAction::Option, true).HasValue());
+  const Ui2GrooveCommand copy =
+      controller.Handle(TrackerAction::Option, false);
   REQUIRE(copy.type == Ui2GrooveCommandType::CopySelection);
   CHECK(copy.selection.active);
   CHECK(copy.selection.Top() == 3U);
@@ -1182,6 +1184,21 @@ TEST_CASE("UI2 Groove accepts M8 solo and clear-all playback chords") {
   }
 }
 
+TEST_CASE("UI2 Groove selection retains Option then Shift mute") {
+  using namespace ui2;
+  Ui2GrooveController controller(0, 3);
+  controller.Handle(TrackerAction::Shift, true);
+  Tap(controller, TrackerAction::Option);
+  controller.Handle(TrackerAction::Shift, false);
+  REQUIRE(controller.Selection().active);
+
+  controller.Handle(TrackerAction::Option, true);
+  const Ui2GrooveCommand mute =
+      controller.Handle(TrackerAction::Shift, true);
+  CHECK(mute.type == Ui2GrooveCommandType::ToggleMute);
+  CHECK(controller.Selection().active);
+}
+
 TEST_CASE("UI2 Groove step policy initializes only empty cells and clamps") {
   using namespace ui2;
   CHECK(Ui2GrooveStepPolicy::Initialize(0xFFU) == 6U);
@@ -1217,6 +1234,9 @@ TEST_CASE("UI2 Groove workflow reports only effective mutations") {
   CHECK(result.selectNumber);
   result = Ui2GrooveWorkflow::Execute(
       {.type = Ui2GrooveCommandType::StartPlayback}, steps);
+  CHECK(result.dispatchPerformance);
+  result = Ui2GrooveWorkflow::Execute(
+      {.type = Ui2GrooveCommandType::ToggleMute}, steps);
   CHECK(result.dispatchPerformance);
   result = Ui2GrooveWorkflow::Execute(
       {.type = Ui2GrooveCommandType::ToggleSolo}, steps);
