@@ -74,6 +74,16 @@
     event.preventDefault()
     unlockButton?.focus({ preventScroll: true })
   }
+  // Chromium can move focus to the document when a modal backdrop is clicked.
+  function containAudioPromptFocus(event) {
+    if (unlockDialog?.contains(event.relatedTarget)) return
+    queueMicrotask(() => {
+      if (!audioBlocked || !unlockDialog?.open
+        || unlockDialog.contains(document.activeElement)) return
+      unlockButton?.focus({ preventScroll: true })
+    })
+  }
+
   function isTrackerActive(event) {
     if (runtime.state !== 'ready') return false
     if (audioBlocked) return false
@@ -135,7 +145,8 @@
       <VirtualControls {input} {heldActions} disabled={runtime.state !== 'ready'} {compact} />
     </div>
     <dialog bind:this={unlockDialog} class="audio-gate audio-unlock" aria-labelledby="audio-unlock-title"
-      oncancel={(event) => event.preventDefault()} onkeydown={trapAudioPromptFocus}>
+      oncancel={(event) => event.preventDefault()} onkeydown={trapAudioPromptFocus}
+      onfocusout={containAudioPromptFocus}>
       <p class="eyebrow">Audio</p>
       <h2 id="audio-unlock-title">Enable sound</h2>
       <p>Your browser needs one click before PicoTracker can play audio.</p>
