@@ -280,7 +280,12 @@ WavHeaderWriter::ReadHeader(I_File *file) {
       return etl::unexpected(INVALID_HEADER);
     }
 
-    (void)extensionSize;
+    if (extensionSize < 22U) {
+      Trace::Error("WavHeaderWriter: Extensible payload too small (%u)",
+                   extensionSize);
+      return etl::unexpected(INVALID_HEADER);
+    }
+
     (void)validBitsPerSample;
     (void)channelMask;
 

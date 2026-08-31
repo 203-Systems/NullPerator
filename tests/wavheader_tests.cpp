@@ -317,6 +317,18 @@ TEST_CASE("ReadHeader parses valid PCM WAV") {
   CHECK(result->dataOffset > 0);
 }
 
+TEST_CASE("ReadHeader rejects truncated extensible payload declaration") {
+  Config::SetImportResampler(0);
+  ByteWriter wav = BuildExtensibleWav(2, 44100, 16, 4, 1);
+  wav.data[36] = 21;
+  wav.data[37] = 0;
+  TestFile file(wav.data, wav.size);
+
+  auto result = WavHeaderWriter::ReadHeader(&file);
+  REQUIRE_FALSE(result.has_value());
+  CHECK(result.error() == INVALID_HEADER);
+}
+
 TEST_CASE("ReadHeader rejects missing RIFF") {
   ByteWriter wav = BuildPcmWav(2, 44100, 16, 4);
   wav.data[0] = 'N';
