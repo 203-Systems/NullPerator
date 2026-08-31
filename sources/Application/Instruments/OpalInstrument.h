@@ -16,8 +16,6 @@
 #include "I_Instrument.h"
 #include <cstdint>
 
-#define OPAL_MAX_CHANNELS 4
-
 class OpalInstrument : public I_Instrument {
 
 public:
@@ -48,8 +46,6 @@ public:
   virtual void GetTableState(TableSaveState &state);
   virtual void SetTableState(TableSaveState &state);
   etl::ivector<Variable *> *Variables() { return &variables_; };
-
-  void setChannel(uint8_t channel);
 
 private:
   Opal opl_ = (44100);
