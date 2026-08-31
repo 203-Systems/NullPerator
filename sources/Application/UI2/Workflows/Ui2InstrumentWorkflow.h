@@ -72,7 +72,7 @@ public:
   template <typename Bank, typename Detector, typename Loader>
   [[nodiscard]] static Ui2InstrumentImportOutcome
   Import(Bank *bank, unsigned short slot, const char *filename,
-         bool storageAvailable, bool playerRunning, Detector &&detector,
+         bool storageAvailable, bool audioActive, Detector &&detector,
          Loader &&loader) {
     if (bank == nullptr || !storageAvailable)
       return Ui2InstrumentImportOutcome::Unavailable;
@@ -81,7 +81,7 @@ public:
     // Replacing a fixed-pool instrument while Player may still render it can
     // invalidate the active voice. Match type-change safety and stop before
     // file detection, allocation, or restore performs any work.
-    if (playerRunning)
+    if (audioActive)
       return Ui2InstrumentImportOutcome::PlayingBlocked;
 
     const InstrumentType importedType =
@@ -107,15 +107,15 @@ public:
   template <typename Bank>
   [[nodiscard]] static Ui2InstrumentTypeOutcome
   ChangeType(Bank *bank, unsigned short slot, InstrumentType requested,
-             bool playerRunning) {
+             bool audioActive) {
     if (bank == nullptr)
       return Ui2InstrumentTypeOutcome::Unavailable;
     auto *current = bank->GetInstrument(slot);
     if (current != nullptr && current->GetType() == requested)
       return Ui2InstrumentTypeOutcome::NoChange;
-    // Playback can begin after the confirmation dialog opens. Keep this check
-    // inside the workflow immediately before fixed-pool replacement.
-    if (playerRunning)
+    // A transport or direct preview/MIDI voice can begin after the confirmation
+    // dialog opens. Recheck immediately before fixed-pool replacement.
+    if (audioActive)
       return Ui2InstrumentTypeOutcome::PlayingBlocked;
 
     switch (Ui2ChangeInstrumentTypeAtomically(*bank, slot, requested)) {

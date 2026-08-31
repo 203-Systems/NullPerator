@@ -907,7 +907,7 @@ void Ui2TrackerApplication::HandleBrowser(TrackerAction action, bool pressed) {
     PersistencyService *persistence = PersistencyService::GetInstance();
     const Ui2InstrumentImportOutcome result = Ui2InstrumentWorkflow::Import(
         bank, number, command.filename.data(), persistence != nullptr,
-        Player::GetInstance()->IsRunning(),
+        Player::GetInstance()->IsAudioActive(),
         [persistence](const char *filename) {
           return persistence->DetectInstrumentType(filename);
         },
@@ -1813,7 +1813,7 @@ void Ui2TrackerApplication::ExecuteInstrument(Ui2InstrumentCommand command) {
         instrumentLifecycle_.RequestTypeChange(
             requested, current,
             Ui2InstrumentNeedsTypeChangeConfirmation(instrument),
-            Player::GetInstance()->IsRunning(),
+            Player::GetInstance()->IsAudioActive(),
             InstrumentTypeChangeTrigger(command.direction));
     ExecuteInstrumentLifecycle(lifecycleCommand);
     return;
@@ -1872,7 +1872,8 @@ void Ui2TrackerApplication::ExecuteInstrumentLifecycle(
   const auto slot = static_cast<unsigned short>(
       session_.EditorState().currentInstrumentID_);
   const Ui2InstrumentTypeOutcome result = Ui2InstrumentWorkflow::ChangeType(
-      bank, slot, command.instrumentType, Player::GetInstance()->IsRunning());
+      bank, slot, command.instrumentType,
+      Player::GetInstance()->IsAudioActive());
   if (result == Ui2InstrumentTypeOutcome::PlayingBlocked) {
     I_Instrument *current = bank == nullptr ? nullptr : bank->GetInstrument(slot);
     (void)instrumentLifecycle_.RequestTypeChange(
@@ -2156,7 +2157,7 @@ void Ui2TrackerApplication::ExecuteProjectLifecycle(
     // Recheck at execution time as well as when opening the confirmation. A
     // transport may start outside this modal's input path, and neither sample
     // files nor live instrument slots may be released while Player owns them.
-    if (Player::GetInstance()->IsRunning()) {
+    if (Player::GetInstance()->IsAudioActive()) {
       if (command.type ==
           Ui2ProjectLifecycleCommandType::PurgeUnusedSamples)
         projectLifecycle_.RequestPurgeUnusedSamples(true, TrackerAction::Edit);
@@ -2341,11 +2342,11 @@ void Ui2TrackerApplication::ExecuteProject(Ui2ProjectCommand command) {
     break;
   case Ui2ProjectCommandType::RemoveUnusedSamples:
     projectLifecycle_.RequestPurgeUnusedSamples(
-        Player::GetInstance()->IsRunning(), TrackerAction::Edit);
+        Player::GetInstance()->IsAudioActive(), TrackerAction::Edit);
     break;
   case Ui2ProjectCommandType::RemoveUnusedInstruments:
     projectLifecycle_.RequestPurgeUnusedInstruments(
-        Player::GetInstance()->IsRunning(), TrackerAction::Edit);
+        Player::GetInstance()->IsAudioActive(), TrackerAction::Edit);
     break;
   case Ui2ProjectCommandType::AdjustTempo:
   case Ui2ProjectCommandType::AdjustTranspose:

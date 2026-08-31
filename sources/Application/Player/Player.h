@@ -105,6 +105,9 @@ public:
   bool IsPlaying();
 
   bool IsRunning();
+  // True for every producer that can keep audio-owned project data alive,
+  // including direct MIDI/sample-preview voices while transport is stopped.
+  [[nodiscard]] bool IsAudioActive();
   bool GetStopAtEnd() { return stopAtEnd_; }
 
   void ProcessCommands();
@@ -116,6 +119,9 @@ public:
 
   void StartRecordStreaming(uint16_t *srcBuffer, uint32_t size, bool stereo);
   void StopRecordStreaming();
+  // Project/model lifetime boundary: stop transport, direct voices and both
+  // auxiliary stream owners before their backing resources can be released.
+  void StopAllAudio();
 
   // Channel data
 

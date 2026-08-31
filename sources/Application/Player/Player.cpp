@@ -437,6 +437,16 @@ void Player::OnSongStartButton(unsigned int from, unsigned int to,
 
 bool Player::IsRunning() { return isRunning_.load(std::memory_order_acquire); };
 
+bool Player::IsAudioActive() {
+  // AudioActivity is mutated by both the application task and the serialized
+  // audio tick. Read it under the same mixer lock instead of adding an atomic
+  // read-modify-write to every audio buffer.
+  mixer_.Lock();
+  const bool active = audioActivity_.IsActive();
+  mixer_.Unlock();
+  return active;
+}
+
 stereosample Player::GetMasterLevel() { return mixer_.GetMasterOutLevel(); }
 
 PlayerTransportSnapshot Player::CaptureTransportSnapshot() const {
@@ -1351,6 +1361,15 @@ void Player::StopRecordStreaming() {
   audioActivity_.Set(PlayerAudioActivity::Source::RecordStream, false);
   RefreshAudioActive();
   mixer_.Unlock();
+}
+
+void Player::StopAllAudio() {
+  // Stop() owns sequencer voices (including direct MIDI/preview voices), while
+  // the two stream methods own their independent activity bits. Keeping these
+  // paths explicit preserves ordinary transport-stop semantics.
+  Stop();
+  StopStreaming();
+  StopRecordStreaming();
 }
 
 void Player::RefreshAudioActive() {

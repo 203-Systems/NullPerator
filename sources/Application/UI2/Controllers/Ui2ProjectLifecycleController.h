@@ -130,15 +130,15 @@ public:
   }
 
   void RequestPurgeUnusedSamples(
-      bool playerRunning, TrackerAction trigger = TrackerAction::Count) {
+      bool audioActive, TrackerAction trigger = TrackerAction::Count) {
     RequestPurge(Purpose::ConfirmPurgeSamples, "Remove unused samples?",
-                 playerRunning, trigger);
+                 audioActive, trigger);
   }
 
   void RequestPurgeUnusedInstruments(
-      bool playerRunning, TrackerAction trigger = TrackerAction::Count) {
+      bool audioActive, TrackerAction trigger = TrackerAction::Count) {
     RequestPurge(Purpose::ConfirmPurgeInstruments,
-                 "Remove unused instruments?", playerRunning, trigger);
+                 "Remove unused instruments?", audioActive, trigger);
   }
 
   void WarnPendingRename() { ShowInfo("Save project rename first"); }
@@ -263,12 +263,12 @@ private:
   }
 
   void RequestPurge(Purpose purpose, const char *prompt,
-                    bool playerRunning, TrackerAction trigger) {
+                    bool audioActive, TrackerAction trigger) {
     // Legacy exposed these actions while playback was active, even though
     // they can release live instruments or delete sample files. UI2 keeps the
     // established prompt when idle and reuses its existing running guard so
     // confirmation can never mutate resources currently owned by Player.
-    if (playerRunning) {
+    if (audioActive) {
       ShowInfo("Not while running!", nullptr, false, trigger);
       return;
     }

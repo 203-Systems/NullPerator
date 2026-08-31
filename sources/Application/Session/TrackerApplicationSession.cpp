@@ -82,8 +82,10 @@ TrackerApplicationSession::LoadResult TrackerApplicationSession::LoadProject(
   }
 
   Player *player = Player::GetInstance();
-  if (player->IsRunning())
-    player->Stop();
+  // Direct MIDI and sample-preview voices can outlive transport. Stop them
+  // before resetModel releases the instrument/sample pools as well.
+  if (player->IsAudioActive())
+    player->StopAllAudio();
 
   SamplePool *pool = SamplePool::GetInstance();
   auto resetModel = [this, pool](const char *name) {

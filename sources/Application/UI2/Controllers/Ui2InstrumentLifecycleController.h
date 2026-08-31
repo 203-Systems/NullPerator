@@ -46,14 +46,14 @@ public:
 
   Ui2InstrumentLifecycleCommand RequestTypeChange(
       InstrumentType requested, InstrumentType current,
-      bool needsConfirmation, bool playerRunning,
+      bool needsConfirmation, bool audioActive,
       TrackerAction trigger = TrackerAction::Count) {
     // NONE is a valid explicit target; values outside the type enum are not.
     if (requested < IT_NONE || requested >= IT_LAST)
       return {};
     if (requested == current)
       return {};
-    if (playerRunning) {
+    if (audioActive) {
       Show(Purpose::PlayingBlocked, UiDialogAction::Ok, UiDialogAction::Ok,
            1U);
       BlockUntilRelease(trigger);
