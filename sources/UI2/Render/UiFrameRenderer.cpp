@@ -23,6 +23,10 @@ void UiFrameRenderer::RenderRegion(const UiFrameScene &scene,
   region = Intersect(region, RectI16::Screen());
   if (region.Empty()) return;
 
+  // The background clear writes the complete clipped region, so every later
+  // command is already covered by this one damage mark. Avoid repeating tile
+  // bookkeeping for each fill, glyph, and sparse waveform pixel.
+  [[maybe_unused]] auto damageBatch = surface.BatchDamage(region);
   surface.FillRect(region, palette.Index(UiColorToken::SurfaceBackground));
   surface.FillRect({0, 0, kScreenWidth, scene.topHeight},
                    palette.Index(scene.topBackground), region);

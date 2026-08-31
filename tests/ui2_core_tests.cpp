@@ -2036,6 +2036,28 @@ TEST_CASE("UI2 region rendering restores exact pixels without a backbuffer") {
                    expected.Pixels().begin(), expected.Pixels().end()));
 }
 
+TEST_CASE("UI2 region rendering marks its clipped damage once") {
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiSongView::Build(ui2::test::ApprovedSongFixture(), palette,
+                                 scene) == ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  surface.ClearDirty();
+
+  ui2::UiFrameRenderer::RenderRegion(scene, surface, palette,
+                                     {9, 17, 10, 9});
+
+  ui2::DirtyStripList strips;
+  REQUIRE(surface.DirtyTiles().Collect(strips));
+  REQUIRE(strips.Size() == 1U);
+  const ui2::DirtyStrip strip = strips.Strips().front();
+  CHECK(strip.x == 8U);
+  CHECK(strip.y == 16U);
+  CHECK(strip.width == 16U);
+  CHECK(strip.height == 16U);
+}
+
 TEST_CASE("UI2 Song damage geometry keeps stereo VU channels separate") {
   CHECK(ui2::UiSongView::VuDamageRect(0) == ui2::RectI16{219, 47, 7, 153});
   CHECK(ui2::UiSongView::VuDamageRect(1) == ui2::RectI16{228, 47, 7, 153});

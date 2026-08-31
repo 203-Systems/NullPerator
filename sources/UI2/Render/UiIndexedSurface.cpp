@@ -27,7 +27,7 @@ void UiIndexedSurface::FillRect(RectI16 rect, PaletteIndex color,
     auto begin = storage_.pixels.begin() + Offset(rect.x, y);
     std::fill_n(begin, rect.width, color);
   }
-  storage_.dirty.Mark(rect);
+  MarkDamage(rect);
 }
 
 void UiIndexedSurface::FillRoundedRect(RectI16 rect, PaletteIndex fill,
@@ -62,7 +62,7 @@ void UiIndexedSurface::FillRoundedRect(RectI16 rect, PaletteIndex fill,
   setCorner(rect.x, static_cast<std::int16_t>(rect.Bottom() - 1));
   setCorner(static_cast<std::int16_t>(rect.Right() - 1),
             static_cast<std::int16_t>(rect.Bottom() - 1));
-  storage_.dirty.Mark(visible);
+  MarkDamage(visible);
 }
 
 void UiIndexedSurface::FillCoverageRoundedRect(
@@ -107,7 +107,7 @@ void UiIndexedSurface::FillCoverageRoundedRect(
                 static_cast<std::int16_t>(rect.Bottom() - 1));
   restoreCorner(3U, static_cast<std::int16_t>(rect.Right() - 1),
                 static_cast<std::int16_t>(rect.Bottom() - 1));
-  storage_.dirty.Mark(visible);
+  MarkDamage(visible);
 }
 
 void UiIndexedSurface::DrawGlyph5x7(
@@ -128,15 +128,17 @@ void UiIndexedSurface::DrawGlyph5x7(
       }
     }
   }
-  storage_.dirty.Mark(visible);
+  MarkDamage(visible);
 }
 
 void UiIndexedSurface::SetPixel(std::int16_t x, std::int16_t y,
                                 PaletteIndex color) {
   if (x < 0 || y < 0 || x >= kScreenWidth || y >= kScreenHeight) return;
   storage_.pixels[Offset(x, y)] = color;
-  storage_.dirty.MarkPixel(static_cast<std::uint16_t>(x),
-                           static_cast<std::uint16_t>(y));
+  if (damageBatchDepth_ == 0U) {
+    storage_.dirty.MarkPixel(static_cast<std::uint16_t>(x),
+                             static_cast<std::uint16_t>(y));
+  }
 }
 
 PaletteIndex UiIndexedSurface::Pixel(std::int16_t x, std::int16_t y) const {
