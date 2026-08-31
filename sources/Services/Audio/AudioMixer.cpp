@@ -11,9 +11,27 @@
 #include "System/Console/Trace.h"
 #include "System/System/System.h"
 
+#include <algorithm>
+#include <cstdint>
+#include <limits>
+
 #ifdef __EMSCRIPTEN__
 #include "Adapters/wasm/tracing/WasmProfiler.h"
 #endif
+
+namespace {
+
+std::uint32_t FixedMagnitude(fixed value) {
+  const std::uint32_t bits = static_cast<std::uint32_t>(value);
+  return value < 0 ? std::uint32_t{0} - bits : bits;
+}
+
+std::uint16_t PeakLevel(std::uint32_t magnitude) {
+  return static_cast<std::uint16_t>(std::min<std::uint32_t>(
+      magnitude >> FIXED_SHIFT, std::numeric_limits<std::uint16_t>::max()));
+}
+
+} // namespace
 
 fixed AudioMixer::renderBuffer_[MAX_SAMPLE_COUNT * 2];
 
@@ -51,8 +69,8 @@ bool AudioMixer::Render(fixed *buffer, int samplecount) {
   WASM_TRACE_SCOPE(WasmTraceCategory::Mixer, WasmTraceName::MixerRender);
 #endif
   bool gotData = false;
-  fixed peakL = 0;
-  fixed peakR = 0;
+  std::uint32_t peakL = 0;
+  std::uint32_t peakR = 0;
 
   for (auto *mod : modules_) {
     if (!mod) {
@@ -108,12 +126,12 @@ bool AudioMixer::Render(fixed *buffer, int samplecount) {
     if (volume_ == FP_ONE) {
       // unity gain, no calculations to be done, just grab the levels
       for (int i = 0; i < samplecount; i += 32, c += 64) {
-        fixed r = *c;
-        fixed l = *(c + 1);
-        if (r > peakR)
-          peakR = r;
+        const std::uint32_t l = FixedMagnitude(*c);
+        const std::uint32_t r = FixedMagnitude(*(c + 1));
         if (l > peakL)
           peakL = l;
+        if (r > peakR)
+          peakR = r;
       }
     } else {
       int i = 0;
@@ -140,19 +158,20 @@ bool AudioMixer::Render(fixed *buffer, int samplecount) {
       }
 
       for (int j = 0; j < samplecount; j += 32) {
-        fixed r = buffer[j * 2];
-        fixed l = buffer[j * 2 + 1];
-        if (r > peakR)
-          peakR = r;
+        const std::uint32_t l = FixedMagnitude(buffer[j * 2]);
+        const std::uint32_t r = FixedMagnitude(buffer[j * 2 + 1]);
         if (l > peakL)
           peakL = l;
+        if (r > peakR)
+          peakR = r;
       }
     }
   }
 
   // Always update peakMixerLevel_ regardless of whether we got data
   // This ensures VU meters update properly in all scenarios
-  peakMixerLevel_ = fp2i(peakL) << 16 | fp2i(peakR);
+  peakMixerLevel_ = static_cast<stereosample>(PeakLevel(peakL)) << 16U |
+                    static_cast<stereosample>(PeakLevel(peakR));
 
   if (enableRendering_ && writer_.IsOpen()) {
     if (!gotData) {

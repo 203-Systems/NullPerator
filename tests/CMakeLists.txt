@@ -166,6 +166,23 @@ target_include_directories(midi_in_device_tests PRIVATE
 target_compile_definitions(midi_in_device_tests PRIVATE HOST_TEST)
 add_test(NAME midi_in_device COMMAND midi_in_device_tests)
 
+add_executable(audio_mixer_tests
+  test_main.cpp
+  audio_mixer_tests.cpp
+  ../sources/Services/Audio/AudioMixer.cpp
+)
+
+target_include_directories(audio_mixer_tests PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/audio_mixer_stubs
+  ${CMAKE_CURRENT_LIST_DIR}/stubs
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals/SRC/include
+  ${CMAKE_CURRENT_LIST_DIR}/../sources
+)
+
+target_compile_definitions(audio_mixer_tests PRIVATE HOST_TEST)
+add_test(NAME audio_mixer COMMAND audio_mixer_tests)
+
 add_executable(autosave_coordinator_tests
   test_main.cpp
   autosave_coordinator_tests.cpp
