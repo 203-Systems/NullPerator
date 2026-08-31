@@ -22,12 +22,7 @@ bool MidiInDevice::dumpEvents_ = false;
 int8_t MidiInDevice::channelToInstrument_[16] = {
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
 
-MidiInDevice::MidiInDevice(const char *name) : isRunning_(false) {
-  for (int channel = 0; channel < 16; channel++) {
-    // Initialize the new channel-to-instrument mapping
-    channelToInstrument_[channel] = -1; // -1 means no instrument assigned
-  }
-
+MidiInDevice::MidiInDevice(const char *) : isRunning_(false) {
   // Initialize the note tracker
   noteTracker_.clear();
 };

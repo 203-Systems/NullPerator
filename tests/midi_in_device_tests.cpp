@@ -50,6 +50,14 @@ TEST_CASE("MIDI input honors channel-to-instrument assignments") {
   CHECK(Player::GetInstance()->stoppedNotes[0].voice == 0U);
 }
 
+TEST_CASE("Constructing another MIDI input preserves shared routing") {
+  TestMidiInDevice first;
+  MidiInDevice::AssignInstrumentToChannel(6, 9);
+
+  TestMidiInDevice second;
+  CHECK(MidiInDevice::GetInstrumentForChannel(6) == 9);
+}
+
 TEST_CASE("Unassigned MIDI input channels do not consume a live voice") {
   Player::ResetTestState();
   TestMidiInDevice device;

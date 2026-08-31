@@ -47,7 +47,7 @@ bool MidiService::Init() {
 
   // Initialize the new channel-to-instrument mapping
   for (short i = 0; i < 16; i++) {
-    inList_[0]->AssignInstrumentToChannel(i, i);
+    MidiInDevice::AssignInstrumentToChannel(i, i);
   }
 
   auto config = Config::GetInstance();
