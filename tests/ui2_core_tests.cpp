@@ -413,6 +413,35 @@ TEST_CASE(
   CHECK(surface.Pixel(12, 14) == 2);
 }
 
+TEST_CASE("UI2 coverage rounded fill preserves clipped corner backgrounds") {
+  ui2::UiPalette palette;
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  const auto background = palette.Index(ui2::UiColorToken::SurfaceBackground);
+  const auto topRightBackground = palette.Index(ui2::UiColorToken::TextDim);
+  const auto bottomRightBackground =
+      palette.Index(ui2::UiColorToken::SelectionActive);
+  const auto fill = palette.Index(ui2::UiColorToken::CursorPrimary);
+  surface.Clear(background);
+  surface.SetPixel(14, 12, topRightBackground);
+  surface.SetPixel(14, 16, bottomRightBackground);
+  surface.ClearDirty();
+
+  surface.FillCoverageRoundedRect({10, 12, 5, 5}, fill, palette,
+                                  ui2::UiCoverage::Cursor, 1,
+                                  {11, 12, 4, 5});
+
+  CHECK(surface.Pixel(10, 12) == background);
+  CHECK(surface.Pixel(10, 16) == background);
+  CHECK(surface.Pixel(14, 12) ==
+        palette.CoverageIndex(ui2::UiCoverage::Cursor, topRightBackground));
+  CHECK(surface.Pixel(14, 16) ==
+        palette.CoverageIndex(ui2::UiCoverage::Cursor,
+                              bottomRightBackground));
+  CHECK(surface.Pixel(11, 12) == fill);
+  CHECK(surface.Pixel(12, 14) == fill);
+}
+
 TEST_CASE("UI2 dirty tiles merge a full frame into one strip") {
   ui2::UiDirtyTiles dirty;
   ui2::DirtyStripList strips;

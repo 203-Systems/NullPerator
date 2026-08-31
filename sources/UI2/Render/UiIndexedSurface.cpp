@@ -49,12 +49,19 @@ void UiIndexedSurface::FillRoundedRect(RectI16 rect, PaletteIndex fill,
   // The approved UI has fully crisp edges. Only the original four corner
   // pixels use a precomposited coverage color; clipping never invents corners.
   for (std::int16_t y = visible.y; y < visible.Bottom(); ++y) {
-    for (std::int16_t x = visible.x; x < visible.Right(); ++x) {
-      const bool edgeX = x == rect.x || x == rect.Right() - 1;
-      const bool edgeY = y == rect.y || y == rect.Bottom() - 1;
-      storage_.pixels[Offset(x, y)] = edgeX && edgeY ? corner : fill;
-    }
+    std::fill_n(storage_.pixels.begin() + Offset(visible.x, y), visible.width,
+                fill);
   }
+  const auto setCorner = [&](std::int16_t x, std::int16_t y) {
+    if (x >= visible.x && y >= visible.y && x < visible.Right() &&
+        y < visible.Bottom())
+      storage_.pixels[Offset(x, y)] = corner;
+  };
+  setCorner(rect.x, rect.y);
+  setCorner(static_cast<std::int16_t>(rect.Right() - 1), rect.y);
+  setCorner(rect.x, static_cast<std::int16_t>(rect.Bottom() - 1));
+  setCorner(static_cast<std::int16_t>(rect.Right() - 1),
+            static_cast<std::int16_t>(rect.Bottom() - 1));
   storage_.dirty.Mark(visible);
 }
 
@@ -67,17 +74,39 @@ void UiIndexedSurface::FillCoverageRoundedRect(
     FillRect(rect, fill, clip);
     return;
   }
+  std::array<PaletteIndex, 4> cornerColors{};
+  std::uint8_t visibleCorners = 0U;
+  const auto captureCorner = [&](std::uint8_t index, std::int16_t x,
+                                 std::int16_t y) {
+    if (x < visible.x || y < visible.y || x >= visible.Right() ||
+        y >= visible.Bottom())
+      return;
+    const std::size_t offset = Offset(x, y);
+    visibleCorners |= static_cast<std::uint8_t>(1U << index);
+    cornerColors[index] =
+        palette.CoverageIndex(coverage, storage_.pixels[offset]);
+  };
+  captureCorner(0U, rect.x, rect.y);
+  captureCorner(1U, static_cast<std::int16_t>(rect.Right() - 1), rect.y);
+  captureCorner(2U, rect.x,
+                static_cast<std::int16_t>(rect.Bottom() - 1));
+  captureCorner(3U, static_cast<std::int16_t>(rect.Right() - 1),
+                static_cast<std::int16_t>(rect.Bottom() - 1));
   for (std::int16_t y = visible.y; y < visible.Bottom(); ++y) {
-    for (std::int16_t x = visible.x; x < visible.Right(); ++x) {
-      const bool edgeX = x == rect.x || x == rect.Right() - 1;
-      const bool edgeY = y == rect.y || y == rect.Bottom() - 1;
-      const std::size_t offset = Offset(x, y);
-      storage_.pixels[offset] =
-          edgeX && edgeY
-              ? palette.CoverageIndex(coverage, storage_.pixels[offset])
-              : fill;
-    }
+    std::fill_n(storage_.pixels.begin() + Offset(visible.x, y), visible.width,
+                fill);
   }
+  const auto restoreCorner = [&](std::uint8_t index, std::int16_t x,
+                                 std::int16_t y) {
+    if ((visibleCorners & static_cast<std::uint8_t>(1U << index)) != 0U)
+      storage_.pixels[Offset(x, y)] = cornerColors[index];
+  };
+  restoreCorner(0U, rect.x, rect.y);
+  restoreCorner(1U, static_cast<std::int16_t>(rect.Right() - 1), rect.y);
+  restoreCorner(2U, rect.x,
+                static_cast<std::int16_t>(rect.Bottom() - 1));
+  restoreCorner(3U, static_cast<std::int16_t>(rect.Right() - 1),
+                static_cast<std::int16_t>(rect.Bottom() - 1));
   storage_.dirty.Mark(visible);
 }
 
