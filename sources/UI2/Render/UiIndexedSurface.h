@@ -54,7 +54,8 @@ public:
 
 private:
   [[nodiscard]] static std::size_t Offset(std::int16_t x, std::int16_t y) {
-    return static_cast<std::size_t>(y) * kScreenWidth + x;
+    return static_cast<std::size_t>(y) * kScreenWidth +
+           static_cast<std::size_t>(x);
   }
 
   UiSurfaceStorage &storage_;
