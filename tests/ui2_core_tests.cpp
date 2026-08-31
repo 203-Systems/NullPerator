@@ -354,6 +354,28 @@ TEST_CASE("UI2 dirty tiles preserve separated cursor regions") {
   CHECK(strips.Strips()[1].height == 8);
 }
 
+TEST_CASE("UI2 dirty tiles merge only matching runs across adjacent rows") {
+  ui2::UiDirtyTiles dirty;
+  ui2::DirtyStripList strips;
+  dirty.Mark({0, 0, 8, 24});
+  dirty.Mark({16, 0, 8, 8});
+  dirty.Mark({16, 16, 8, 8});
+  REQUIRE(dirty.Collect(strips));
+  REQUIRE(strips.Size() == 3);
+  CHECK(strips.Strips()[0].x == 0);
+  CHECK(strips.Strips()[0].y == 0);
+  CHECK(strips.Strips()[0].width == 8);
+  CHECK(strips.Strips()[0].height == 24);
+  CHECK(strips.Strips()[1].x == 16);
+  CHECK(strips.Strips()[1].y == 0);
+  CHECK(strips.Strips()[1].width == 8);
+  CHECK(strips.Strips()[1].height == 8);
+  CHECK(strips.Strips()[2].x == 16);
+  CHECK(strips.Strips()[2].y == 16);
+  CHECK(strips.Strips()[2].width == 8);
+  CHECK(strips.Strips()[2].height == 8);
+}
+
 TEST_CASE("UI2 command lists fail closed instead of allocating") {
   ui2::UiCommandList<2> commands;
   CHECK(commands.FillRect({0, 0, 1, 1}, 1));

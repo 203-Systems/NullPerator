@@ -55,12 +55,14 @@ bool UiDirtyTiles::Collect(DirtyStripList &output) const {
     std::uint16_t width = 0;
     std::size_t strip = 0;
   };
-  std::array<Run, kColumns> previous{};
+  std::array<Run, kColumns> firstRow{};
+  std::array<Run, kColumns> secondRow{};
+  auto *previous = &firstRow;
+  auto *current = &secondRow;
   std::size_t previousCount = 0;
   output.Clear();
 
   for (std::uint16_t tileY = 0; tileY < kRows; ++tileY) {
-    std::array<Run, kColumns> current{};
     std::size_t currentCount = 0;
     std::uint16_t tileX = 0;
     while (tileX < kColumns) {
@@ -75,8 +77,9 @@ bool UiDirtyTiles::Collect(DirtyStripList &output) const {
               static_cast<std::uint16_t>(runWidth * kTileSize), 0};
       bool merged = false;
       for (std::size_t index = 0; index < previousCount; ++index) {
-        if (previous[index].x == run.x && previous[index].width == run.width) {
-          run.strip = previous[index].strip;
+        if ((*previous)[index].x == run.x &&
+            (*previous)[index].width == run.width) {
+          run.strip = (*previous)[index].strip;
           output.At(run.strip).height += kTileSize;
           merged = true;
           break;
@@ -89,9 +92,9 @@ bool UiDirtyTiles::Collect(DirtyStripList &output) const {
           return false;
         }
       }
-      current[currentCount++] = run;
+      (*current)[currentCount++] = run;
     }
-    previous = current;
+    std::swap(previous, current);
     previousCount = currentCount;
   }
   return true;
