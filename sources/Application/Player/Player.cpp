@@ -321,28 +321,20 @@ bool Player::IsChannelPlaying(int channel) {
 void Player::OnStartButton(PlayMode origin, unsigned int from,
                            bool startFromPrevious, unsigned char chainPos,
                            MixerServiceMode msmMode, bool stopAtEnd) {
-
-  switch (GetSequencerMode()) {
-
-  case SM_SONG:
-
-    // If sequencer not running, start otherwise stop
-
-    if (isRunning_ && viewData_->playMode_ != PM_AUDITION) {
-      Stop();
-    } else {
-      for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {
-        liveQueueingMode_[i] = QM_NONE;
-      };
-      const PlayerStartPlan plan =
-          ResolveContextStartPlan<SONG_CHANNEL_COUNT, PHRASES_PER_CHAIN>(
-              origin, startFromPrevious, stopAtEnd, from, chainPos);
-      Start(plan.mode, plan.resumeLastSongPosition, msmMode, plan.stopAtEnd,
-            plan.contextChannel, plan.contextChainPosition);
-    }
-    break;
-  case SM_LIVE: // doesn't make much sense here
-    break;
+  // SequencerMode is the persistent SONG/LIVE selector for Song-screen
+  // actions. Context screens still own their local transport while that
+  // selector is LIVE; only OnSongStartButton applies Live cue semantics.
+  if (isRunning_ && viewData_->playMode_ != PM_AUDITION) {
+    Stop();
+  } else {
+    for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {
+      liveQueueingMode_[i] = QM_NONE;
+    };
+    const PlayerStartPlan plan =
+        ResolveContextStartPlan<SONG_CHANNEL_COUNT, PHRASES_PER_CHAIN>(
+            origin, startFromPrevious, stopAtEnd, from, chainPos);
+    Start(plan.mode, plan.resumeLastSongPosition, msmMode, plan.stopAtEnd,
+          plan.contextChannel, plan.contextChainPosition);
   }
 }
 
