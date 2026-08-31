@@ -352,7 +352,12 @@ TEST_CASE("UI2 sample controllers clear preview state after an external stop") {
   editor.StopPreview();
   CHECK_FALSE(editor.Snapshot().playing);
   CHECK(editor.Snapshot().markers.count == 2U);
+  CHECK_FALSE(editor.Handle(TrackerAction::Play, true).HasValue());
   CHECK_FALSE(editor.Handle(TrackerAction::Play, false).HasValue());
+  CHECK(editor.Handle(TrackerAction::Play, true).type ==
+        Ui2SampleEditorCommandType::PreviewStart);
+  CHECK(editor.Handle(TrackerAction::Play, false).type ==
+        Ui2SampleEditorCommandType::PreviewStop);
 
   editor.Close();
   Ui2SampleSlicesController slices(waveform);
@@ -364,7 +369,12 @@ TEST_CASE("UI2 sample controllers clear preview state after an external stop") {
   slices.StopPreview();
   CHECK_FALSE(slices.Snapshot().previewActive);
   CHECK_FALSE(slices.Snapshot().previewPlayheadVisible);
+  CHECK_FALSE(slices.Handle(TrackerAction::Play, true).HasValue());
   CHECK_FALSE(slices.Handle(TrackerAction::Play, false).HasValue());
+  CHECK(slices.Handle(TrackerAction::Play, true).type ==
+        Ui2SampleSlicesCommandType::PreviewStart);
+  CHECK(slices.Handle(TrackerAction::Play, false).type ==
+        Ui2SampleSlicesCommandType::PreviewStop);
 }
 
 TEST_CASE("UI2 Sample Editor keeps operation browsing read-only") {

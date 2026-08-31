@@ -146,6 +146,7 @@ public:
   }
 
   Ui2SampleEditorCommand Handle(TrackerAction action, bool pressed) {
+    const bool repeatedPress = pressed && input_.Held(action);
     if (!active_ || !input_.Update(action, pressed))
       return {};
 
@@ -160,7 +161,7 @@ public:
     }
 
     if (action == TrackerAction::Play) {
-      if (previewHeld_)
+      if (repeatedPress || previewHeld_)
         return {};
       StartPreview(start_);
       Ui2SampleEditorCommand command =

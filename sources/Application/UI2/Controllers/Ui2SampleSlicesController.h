@@ -153,6 +153,7 @@ public:
   }
 
   Ui2SampleSlicesCommand Handle(TrackerAction action, bool pressed) {
+    const bool repeatedPress = pressed && input_.Held(action);
     if (!active_ || !input_.Update(action, pressed))
       return {};
     if (!pressed) {
@@ -166,7 +167,7 @@ public:
     }
 
     if (action == TrackerAction::Play) {
-      if (previewHeld_ || waveform_.FrameCount() == 0U)
+      if (repeatedPress || previewHeld_ || waveform_.FrameCount() == 0U)
         return {};
       const std::uint32_t start = SelectedSliceStart();
       StartPreview(start);
