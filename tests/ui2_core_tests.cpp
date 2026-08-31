@@ -1462,12 +1462,10 @@ TEST_CASE("UI2 application runtime consumes the pure state-source boundary") {
   ui2::UiApplicationRuntime runtime(presenter);
   TestApplicationStateSource source;
 
-  CHECK(runtime.Supports(source));
   CHECK(runtime.Present(source) == ui2::PresentResult::Presented);
   CHECK(presenter.calls == 1);
 
   source.page = ui2::UiApplicationPage::None;
-  CHECK_FALSE(runtime.Supports(source));
   CHECK(runtime.Present(source) == ui2::PresentResult::Deferred);
   CHECK(presenter.calls == 1);
 }

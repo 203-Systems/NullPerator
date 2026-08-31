@@ -74,7 +74,6 @@ public:
   explicit UiApplicationRuntime(IUiPresenter &presenter)
       : engine_(engineStorage_, presenter) {}
 
-  [[nodiscard]] bool Supports(const IUiApplicationStateSource &source) const;
   [[nodiscard]] PresentResult Present(IUiApplicationStateSource &source);
   void ApplyThemeColors(
       const std::array<std::uint32_t, UiPalette::kUserColorCount> &colors);

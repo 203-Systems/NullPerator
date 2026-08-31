@@ -251,11 +251,6 @@ void UiApplicationRuntime::CommitDialog() {
   dialogPreviousValid_ = true;
 }
 
-bool UiApplicationRuntime::Supports(
-    const IUiApplicationStateSource &source) const {
-  return source.ActivePage() != RuntimePage::None;
-}
-
 PresentResult UiApplicationRuntime::Present(IUiApplicationStateSource &source) {
   const RuntimePage page = source.ActivePage();
   if (page == RuntimePage::None)
