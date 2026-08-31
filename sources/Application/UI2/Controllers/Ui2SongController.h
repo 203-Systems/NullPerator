@@ -53,13 +53,14 @@ public:
   constexpr Ui2TrackerCommandBatch<> Handle(TrackerAction action,
                                             bool pressed) {
     Ui2TrackerCommandBatch<> output;
+    const bool wasHeld = input_.Held(action);
     if (!input_.Update(action, pressed))
       return output;
 
     if (!pressed) {
       if (action == TrackerAction::Shift)
         clonePending_ = false;
-      if (action == TrackerAction::Edit) {
+      if (action == TrackerAction::Edit && wasHeld) {
         const bool committedValueEdits = valueEditDirty_;
         if (committedValueEdits) {
           output.Push(Command(Ui2TrackerCommandType::CommitValueEdits));

@@ -372,6 +372,19 @@ TEST_CASE("UI2 Song EDIT PLAY launches immediately only in LIVE mode") {
   CHECK(selectedLiveController.Selection().active);
 }
 
+TEST_CASE("UI2 Song LIVE ignores Edit releases without an active press") {
+  Ui2SongController controller(3, 4, 8, true);
+
+  CHECK(controller.Handle(TrackerAction::Edit, false).Empty());
+
+  CHECK(controller.Handle(TrackerAction::Edit, true).Empty());
+  const auto edit = controller.Handle(TrackerAction::Edit, false);
+  REQUIRE(edit.count == 1U);
+  CHECK(edit[0].type == Ui2TrackerCommandType::PasteLast);
+
+  CHECK(controller.Handle(TrackerAction::Edit, false).Empty());
+}
+
 TEST_CASE("UI2 Song LIVE Left Play cues the current row across all tracks") {
   Ui2SongController liveController(4, 3, 8, true);
 
