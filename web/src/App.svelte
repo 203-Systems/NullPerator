@@ -47,9 +47,10 @@
     if (developerMode) mobileSettingsOpen = false
   }
   function setDeveloperMode(enabled){
-    synchronizeDeveloperMode(Boolean(enabled))
+    const preference = Boolean(enabled)
+    synchronizeDeveloperMode(preference)
     mobileSettingsOpen = false
-    settingsStore.update({ developerMode })
+    settingsStore.update({ developerMode: preference })
     if (!developerMode) { activeSection='Device'; openTools=[] }
   }
 

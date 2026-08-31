@@ -129,3 +129,20 @@ test('automatic mode follows live viewport changes and clears a departing settin
   await expect(page.getByRole('dialog', { name: 'Settings' })).toHaveCount(0)
   await expect(workspace).not.toHaveAttribute('inert', '')
 })
+
+test('forced developer mode preserves an explicit disabled preference', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 568 })
+  await page.goto('/?audio=disabled&dev=1')
+
+  const dashboard = page.locator('.dashboard')
+  const toggle = page.getByRole('button', { name: 'Developer mode' })
+  await expect(dashboard).toHaveAttribute('data-developer-mode', 'true')
+  await toggle.click()
+  await expect(dashboard).toHaveAttribute('data-developer-mode', 'true')
+  await expect.poll(() => page.evaluate(() => JSON.parse(
+    localStorage.getItem('picotracker.wasm.settings.v4'),
+  ).developerMode)).toBe(false)
+
+  await page.goto('/?audio=disabled')
+  await expect(dashboard).toHaveAttribute('data-developer-mode', 'false')
+})
