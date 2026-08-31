@@ -90,6 +90,7 @@ public:
 
   [[nodiscard]] bool Active() const { return active_; }
   [[nodiscard]] Ui2SampleBrowserMode Mode() const { return mode_; }
+  void SetNavigationHeld(bool held) { input_.SetNavigationHeld(held); }
   [[nodiscard]] bool DialogActive() const { return dialogActive_; }
   [[nodiscard]] std::uint32_t DialogInstanceId() const {
     return dialogInstanceId_;

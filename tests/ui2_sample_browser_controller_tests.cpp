@@ -234,6 +234,31 @@ TEST_CASE("UI2 Sample Browser can enter the import library directly") {
   CHECK(std::strcmp(snapshot.actions[2].data(), "BACK") == 0);
 }
 
+TEST_CASE("UI2 Sample Browser inherits Shift when returning from editor") {
+  using namespace ui2;
+  SampleBrowserFileSystem fileSystem;
+  Ui2SampleBrowserController controller;
+  REQUIRE(controller.OpenLibrary("DEMO"));
+
+  // The editor can return to this still-open controller with SHIFT held. The
+  // inherited latch changes no browser state or command by itself, but the
+  // next PLAY must retain the library's SHIFT+PLAY import contract.
+  controller.SetNavigationHeld(true);
+  CHECK(controller.Mode() == Ui2SampleBrowserMode::Library);
+  const Ui2SampleBrowserCommand import =
+      controller.Handle(TrackerAction::Play, true);
+  CHECK(import.type == Ui2SampleBrowserCommandType::Import);
+  CHECK(std::strcmp(import.filename.data(), "KICK.WAV") == 0);
+  CHECK(controller.Handle(TrackerAction::Play, false).type ==
+        Ui2SampleBrowserCommandType::None);
+
+  controller.SetNavigationHeld(false);
+  CHECK(controller.Handle(TrackerAction::Play, true).type ==
+        Ui2SampleBrowserCommandType::PreviewStart);
+  CHECK(controller.Handle(TrackerAction::Play, false).type ==
+        Ui2SampleBrowserCommandType::PreviewStop);
+}
+
 TEST_CASE("UI2 Sample Browser keeps project pool flat and root-addressed") {
   using namespace ui2;
   SampleBrowserFileSystem fileSystem;

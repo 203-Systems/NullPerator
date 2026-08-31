@@ -345,6 +345,7 @@ void Ui2TrackerApplication::SynchronizeNonGridNavigationHeld(bool held) {
   groove_.SetNavigationHeld(held);
   mixer_.SetNavigationHeld(held);
   instrument_.SetNavigationHeld(held);
+  sampleBrowser_.SetNavigationHeld(held);
 }
 
 void Ui2TrackerApplication::DispatchLogicalAction(TrackerAction action,
