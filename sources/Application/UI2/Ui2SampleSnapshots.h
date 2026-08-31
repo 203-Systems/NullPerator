@@ -42,9 +42,10 @@ struct SampleEditorViewUi2Snapshot {
   bool playing = false;
   bool singleCycle = false;
   bool projectPool = false;
-  // This remains fail-closed until the complete file mutation transaction is
-  // implemented and connected through the application command handlers.
+  // Rewrite and rename are independent transactions. Do not expose NAME just
+  // because APPLY/SAVE can safely promote a same-name working copy.
   bool fileMutationAvailable = false;
+  bool renameAvailable = false;
 };
 
 enum class SampleSlicesViewUi2Focus : std::uint8_t {

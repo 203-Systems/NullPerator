@@ -8,6 +8,7 @@
 #include "Application/UI2/Controllers/Ui2ControllerPrimitives.h"
 #include "Application/UI2/Ui2SampleSnapshots.h"
 #include "Application/UI2/Ui2SampleWaveformBackend.h"
+#include "Application/Views/ModalDialogs/Ui2DialogSnapshot.h"
 
 #include <algorithm>
 #include <array>
@@ -28,16 +29,16 @@ enum class Ui2SampleEditorCommandType : std::uint8_t {
   SetEnd,
   RequestRename,
   RequestApplyOperation,
+  ApplyConfirmed,
   RequestSave,
   RequestSaveAndLoad,
   RequestDiscard,
   NavigateBack,
 };
 
-// Commands describe intent only. Save/overwrite/trim/normalize/discard may
-// require confirmation, progress, rollback, or error UI; those side effects
-// deliberately remain outside the controller until those modal states have an
-// approved design.
+// Commands describe intent only. The controller owns the approved confirmation
+// state, while file mutation, rollback, progress, and error handling remain in
+// the application transaction layer.
 struct Ui2SampleEditorCommand {
   Ui2SampleEditorCommandType type = Ui2SampleEditorCommandType::None;
   Ui2SampleEditorOperation operation = Ui2SampleEditorOperation::Trim;
@@ -105,6 +106,95 @@ public:
   }
   [[nodiscard]] Ui2SampleWaveformBuildResult LastWaveformBuild() const {
     return lastBuild_;
+  }
+
+  void SetTransactionCapabilities(bool rewriteAvailable,
+                                  bool renameAvailable = false) {
+    rewriteAvailable_ = rewriteAvailable;
+    renameAvailable_ = renameAvailable;
+    if (!FocusAvailable(focus_))
+      focus_ = SampleEditorViewUi2Focus::Waveform;
+  }
+
+  [[nodiscard]] bool ReloadWorkingCopy(FileSystem &fileSystem,
+                                       const char *path) {
+    if (!active_ || path == nullptr || path[0] == '\0')
+      return false;
+    const auto result = waveform_.LoadPath(fileSystem, path);
+    if (result != Ui2SampleWaveformLoadResult::Loaded)
+      return false;
+    start_ = 0U;
+    end_ = waveform_.FrameCount() - 1U;
+    selectedMarker_ = 0U;
+    focusDigit_ = 0U;
+    previewHeld_ = playing_ = previewPlayheadVisible_ = false;
+    waveform_.CenterOn(0U);
+    RebuildWaveform();
+    if (!FocusAvailable(focus_))
+      focus_ = SampleEditorViewUi2Focus::Waveform;
+    return waveformReady_;
+  }
+
+  [[nodiscard]] bool DialogActive() const { return dialogActive_; }
+  [[nodiscard]] std::uint32_t DialogInstanceId() const {
+    return dialogInstanceId_;
+  }
+
+  void RequestApplyConfirmation(
+      Ui2SampleEditorOperation operation, std::uint32_t start,
+      std::uint32_t end,
+      TrackerAction trigger = TrackerAction::Count) {
+    if (!active_ || !rewriteAvailable_ || end < start)
+      return;
+    pendingOperation_ = operation;
+    pendingStart_ = start;
+    pendingEnd_ = end;
+    dialogSelectedAction_ = 1U; // NO is the conservative legacy default.
+    dialogInput_ = {};
+    dialogReleaseGate_.Reset();
+    if (trigger < TrackerAction::Count)
+      input_.Update(trigger, false);
+    dialogReleaseGate_.BlockUntilRelease(trigger);
+    dialogActive_ = true;
+    ++dialogInstanceId_;
+  }
+
+  Ui2SampleEditorCommand HandleDialog(TrackerAction action, bool pressed) {
+    if (!dialogActive_ || !dialogInput_.Update(action, pressed) ||
+        !dialogReleaseGate_.Update(action, pressed) || !pressed)
+      return {};
+    if (action == TrackerAction::Left || action == TrackerAction::Right) {
+      dialogSelectedAction_ = static_cast<std::uint8_t>(
+          1U - std::min<std::uint8_t>(dialogSelectedAction_, 1U));
+      return {};
+    }
+    if (action != TrackerAction::Edit)
+      return {};
+    const bool confirmed = dialogSelectedAction_ == 0U;
+    dialogActive_ = false;
+    dialogInput_ = {};
+    dialogReleaseGate_.Reset();
+    if (!confirmed)
+      return {};
+    Ui2SampleEditorCommand command =
+        MakeCommand(Ui2SampleEditorCommandType::ApplyConfirmed);
+    command.operation = pendingOperation_;
+    command.start = pendingStart_;
+    command.end = pendingEnd_;
+    return command;
+  }
+
+  [[nodiscard]] Ui2DialogSnapshot DialogSnapshot() const {
+    Ui2DialogSnapshot snapshot;
+    snapshot.kind = UiDialogKind::Message;
+    snapshot.SetTitle(pendingOperation_ == Ui2SampleEditorOperation::Trim
+                          ? "Apply TRIM?"
+                          : "Apply NORMALIZE?");
+    snapshot.SetLabel("Saved only after Save");
+    snapshot.PushAction(UiDialogAction::Yes);
+    snapshot.PushAction(UiDialogAction::No);
+    snapshot.SetSelectedAction(dialogSelectedAction_, true);
+    return snapshot;
   }
 
   bool SetFocus(SampleEditorViewUi2Focus focus) {
@@ -301,7 +391,8 @@ public:
     snapshot.playing = playing_;
     snapshot.singleCycle = IsSingleCycle();
     snapshot.projectPool = projectPool_;
-    snapshot.fileMutationAvailable = waveform_.SupportsEditorTransactions();
+    snapshot.fileMutationAvailable = rewriteAvailable_;
+    snapshot.renameAvailable = renameAvailable_;
 
     PushMarker(snapshot, start_, Ui2WaveformMarkerKind::Start,
                selectedMarker_ == 0U);
@@ -332,12 +423,13 @@ private:
   }
 
   [[nodiscard]] bool FocusAvailable(SampleEditorViewUi2Focus focus) const {
-    if (focus == SampleEditorViewUi2Focus::Name ||
-        focus == SampleEditorViewUi2Focus::Apply ||
+    if (focus == SampleEditorViewUi2Focus::Name)
+      return renameAvailable_;
+    if (focus == SampleEditorViewUi2Focus::Apply ||
         focus == SampleEditorViewUi2Focus::Save)
-      return waveform_.SupportsEditorTransactions();
+      return rewriteAvailable_;
     if (focus == SampleEditorViewUi2Focus::SaveAndLoad)
-      return waveform_.SupportsEditorTransactions() && !projectPool_;
+      return rewriteAvailable_ && !projectPool_;
     return focus != SampleEditorViewUi2Focus::Unknown;
   }
 
@@ -362,6 +454,13 @@ private:
     projectPool_ = active_ = waveformReady_ = false;
     previewHeld_ = playing_ = previewPlayheadVisible_ = false;
     lastBuild_ = Ui2SampleWaveformBuildResult::NotLoaded;
+    rewriteAvailable_ = renameAvailable_ = false;
+    dialogInput_ = {};
+    dialogReleaseGate_.Reset();
+    dialogActive_ = false;
+    dialogSelectedAction_ = 1U;
+    pendingOperation_ = Ui2SampleEditorOperation::Trim;
+    pendingStart_ = pendingEnd_ = 0U;
   }
 
   void FinishOpen(const char *displayPath, bool projectPool) {
@@ -497,7 +596,7 @@ private:
   }
 
   void MoveBottomFocus(int delta) {
-    if (!waveform_.SupportsEditorTransactions()) {
+    if (!rewriteAvailable_) {
       focus_ = SampleEditorViewUi2Focus::Discard;
       return;
     }
@@ -561,8 +660,18 @@ private:
   bool previewHeld_ = false;
   bool playing_ = false;
   bool previewPlayheadVisible_ = false;
+  bool rewriteAvailable_ = false;
+  bool renameAvailable_ = false;
+  Ui2ControllerInputState dialogInput_{};
+  Ui2InputReleaseGate dialogReleaseGate_{};
+  std::uint32_t dialogInstanceId_ = 0U;
+  std::uint32_t pendingStart_ = 0U;
+  std::uint32_t pendingEnd_ = 0U;
+  Ui2SampleEditorOperation pendingOperation_ = Ui2SampleEditorOperation::Trim;
+  std::uint8_t dialogSelectedAction_ = 1U;
+  bool dialogActive_ = false;
 };
 
-static_assert(sizeof(Ui2SampleEditorController) <= 1'200U);
+static_assert(sizeof(Ui2SampleEditorController) <= 1'300U);
 
 } // namespace ui2

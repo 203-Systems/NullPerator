@@ -82,7 +82,8 @@ inline bool EqualEditorCapture(const SampleEditorViewUi2Snapshot &left,
          left.playing == right.playing &&
          left.singleCycle == right.singleCycle &&
          left.projectPool == right.projectPool &&
-         left.fileMutationAvailable == right.fileMutationAvailable;
+         left.fileMutationAvailable == right.fileMutationAvailable &&
+         left.renameAvailable == right.renameAvailable;
 }
 
 inline bool EqualSlicesCapture(const SampleSlicesViewUi2Snapshot &left,
@@ -188,7 +189,7 @@ inline UiSampleEditorControllerState MakeUiSampleEditorControllerState(
   std::string_view help;
   switch (snapshot.focus) {
   case SampleEditorViewUi2Focus::Name:
-    if (!snapshot.fileMutationAvailable) {
+    if (!snapshot.renameAvailable) {
       help = "NAME READ ONLY";
     } else {
       state.cursor = UiSampleEditorCursor::Name;

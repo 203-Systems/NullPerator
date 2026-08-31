@@ -427,7 +427,6 @@ TEST_CASE("UI2 Sample Editor exposes a read-only runtime model") {
   SampleWaveFileSystem fileSystem;
   fileSystem.BuildPcm(1024U);
   Ui2SampleWaveformBackend waveform;
-  CHECK_FALSE(waveform.SupportsEditorTransactions());
   Ui2SampleEditorController controller(waveform);
   REQUIRE(controller.OpenLibrary(fileSystem, "VOICE.WAV") ==
           Ui2SampleWaveformLoadResult::Loaded);
@@ -468,6 +467,97 @@ TEST_CASE("UI2 Sample Editor exposes a read-only runtime model") {
   CHECK(controller.Focus() == SampleEditorViewUi2Focus::Discard);
   CHECK_FALSE(controller.SetFocus(SampleEditorViewUi2Focus::Save));
   CHECK(controller.Snapshot().projectPool);
+}
+
+TEST_CASE("UI2 Sample Editor exposes rewrite without enabling rename") {
+  using namespace ui2;
+  Config::SetImportResampler(0);
+  SampleWaveFileSystem fileSystem;
+  fileSystem.BuildPcm(1024U);
+  Ui2SampleWaveformBackend waveform;
+  Ui2SampleEditorController controller(waveform);
+  REQUIRE(controller.OpenLibrary(fileSystem, "VOICE.WAV") ==
+          Ui2SampleWaveformLoadResult::Loaded);
+  controller.SetTransactionCapabilities(true);
+
+  CHECK(controller.Snapshot().fileMutationAvailable);
+  CHECK_FALSE(controller.Snapshot().renameAvailable);
+  CHECK_FALSE(controller.SetFocus(SampleEditorViewUi2Focus::Name));
+  REQUIRE(controller.SetFocus(SampleEditorViewUi2Focus::Apply));
+  CHECK(Tap(controller, TrackerAction::Edit).type ==
+        Ui2SampleEditorCommandType::RequestApplyOperation);
+  CHECK(controller.SetFocus(SampleEditorViewUi2Focus::Save));
+  CHECK(controller.SetFocus(SampleEditorViewUi2Focus::SaveAndLoad));
+
+  const UiSampleEditorViewData library =
+      MakeUiSampleEditorControllerState(controller.Snapshot()).ToViewData();
+  CHECK(library.field4Label == "APPLY");
+  CHECK(library.bottomActionCount == 3U);
+  CHECK(library.bottomActions[0] == "SAVE");
+  CHECK(library.bottomActions[1] == "SAVE&LOAD");
+  CHECK(library.bottomActions[2] == "DISCARD");
+
+  controller.Close();
+  REQUIRE(controller.OpenProjectPool(fileSystem, "DEMO", "VOICE.WAV") ==
+          Ui2SampleWaveformLoadResult::Loaded);
+  CHECK_FALSE(controller.Snapshot().fileMutationAvailable);
+  controller.SetTransactionCapabilities(true);
+  CHECK_FALSE(controller.SetFocus(SampleEditorViewUi2Focus::SaveAndLoad));
+  REQUIRE(controller.SetFocus(SampleEditorViewUi2Focus::Save));
+  const UiSampleEditorViewData pool =
+      MakeUiSampleEditorControllerState(controller.Snapshot()).ToViewData();
+  CHECK(pool.bottomActionCount == 2U);
+  CHECK(pool.bottomActions[0] == "SAVE");
+  CHECK(pool.bottomActions[1] == "DISCARD");
+}
+
+TEST_CASE("UI2 Sample Editor apply confirmation defaults to no") {
+  using namespace ui2;
+  Config::SetImportResampler(0);
+  SampleWaveFileSystem fileSystem;
+  fileSystem.BuildPcm(1024U);
+  Ui2SampleWaveformBackend waveform;
+  Ui2SampleEditorController controller(waveform);
+  REQUIRE(controller.OpenLibrary(fileSystem, "VOICE.WAV") ==
+          Ui2SampleWaveformLoadResult::Loaded);
+  controller.SetTransactionCapabilities(true);
+  REQUIRE(controller.SetFocus(SampleEditorViewUi2Focus::Apply));
+
+  const Ui2SampleEditorCommand request =
+      controller.Handle(TrackerAction::Edit, true);
+  REQUIRE(request.type == Ui2SampleEditorCommandType::RequestApplyOperation);
+  const std::uint32_t previousDialog = controller.DialogInstanceId();
+  controller.RequestApplyConfirmation(request.operation, request.start,
+                                      request.end, TrackerAction::Edit);
+  CHECK(controller.DialogActive());
+  CHECK(controller.DialogInstanceId() == previousDialog + 1U);
+  const Ui2DialogSnapshot dialog = controller.DialogSnapshot();
+  CHECK(std::strcmp(dialog.title.data(), "Apply TRIM?") == 0);
+  CHECK(std::strcmp(dialog.label.data(), "Saved only after Save") == 0);
+  CHECK(dialog.selectedAction == 1U);
+
+  controller.HandleDialog(TrackerAction::Edit, false);
+  controller.Handle(TrackerAction::Edit, false);
+  CHECK_FALSE(controller.HandleDialog(TrackerAction::Edit, true).HasValue());
+  CHECK_FALSE(controller.DialogActive());
+  controller.HandleDialog(TrackerAction::Edit, false);
+
+  controller.RequestApplyConfirmation(
+      Ui2SampleEditorOperation::Normalize, 4U, 900U);
+  REQUIRE(controller.DialogActive());
+  controller.HandleDialog(TrackerAction::Left, true);
+  controller.HandleDialog(TrackerAction::Left, false);
+  const Ui2SampleEditorCommand confirmed =
+      controller.HandleDialog(TrackerAction::Edit, true);
+  CHECK(confirmed.type == Ui2SampleEditorCommandType::ApplyConfirmed);
+  CHECK(confirmed.operation == Ui2SampleEditorOperation::Normalize);
+  CHECK(confirmed.start == 4U);
+  CHECK(confirmed.end == 900U);
+  CHECK_FALSE(controller.DialogActive());
+  controller.HandleDialog(TrackerAction::Edit, false);
+
+  controller.Close();
+  CHECK_FALSE(controller.DialogActive());
 }
 
 TEST_CASE("UI2 Sample Editor endpoints cannot cross or leave the WAV") {

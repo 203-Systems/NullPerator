@@ -71,11 +71,6 @@ public:
   [[nodiscard]] std::uint32_t ViewStart() const { return viewStart_; }
   [[nodiscard]] std::uint32_t ViewEnd() const { return viewEnd_; }
   [[nodiscard]] const char *Path() const { return path_.data(); }
-  // This backend deliberately owns read/decimation only. This conservative
-  // capability may become true only when rename, rewrite/rollback, and every
-  // corresponding application command handler form one complete transaction.
-  [[nodiscard]] bool SupportsEditorTransactions() const { return false; }
-
   bool SetZoomLevel(std::uint8_t level, std::uint32_t centerSample);
   bool AdjustZoom(std::int8_t delta, std::uint32_t centerSample);
   bool CenterOn(std::uint32_t sample);
