@@ -202,9 +202,7 @@ test('PicoTracker 2.0 bt9 MIDI project loads from another project without a samp
   await page.getByRole('button', { name: 'Device', exact: true }).click()
   await chord(page, 'x', 'w')
   await tap(page, 'd')
-  await tap(page, 'd')
   await tap(page, 'k')
-  await tap(page, 's')
   await tap(page, 'k')
   await expectModel(page, {
     projectName: 'bt9-midi',
@@ -216,9 +214,7 @@ test('PicoTracker 2.0 bt9 MIDI project loads from another project without a samp
   // as the startup project. Exercise that exact browser workflow too.
   await chord(page, 'x', 'w')
   await tap(page, 'd')
-  await tap(page, 'd')
   await tap(page, 'k')
-  await tap(page, 's')
   await tap(page, 's')
   await tap(page, 'k')
   await expectModel(page, {
@@ -301,13 +297,14 @@ test('real oneCycAc project imports, trims, plays, and survives reload plus runt
   await expectModel(page, { playerRunning: false })
 
   // Exercise the real fixed Node controls instead of a diagnostic view jump:
-  // SHIFT+UP opens Project, then EDIT+RIGHT changes tempo and EDIT saves it.
+  // SHIFT+UP opens Project, then EDIT+RIGHT changes tempo. Project's name
+  // actions are NEW, LOAD, SAVE, RENAME, so two RIGHT presses select SAVE.
   await chord(page, 'x', 'w')
-  await tap(page, 's')
   await tap(page, 's')
   await chord(page, 'k', 'd')
   await expectModel(page, { tempo: 164 })
   await tap(page, 'w')
+  await tap(page, 'd')
   await tap(page, 'd')
 
   const beforeSave = await storageSnapshot(page)
@@ -413,7 +410,6 @@ test('real oneCycAc project imports, trims, plays, and survives reload plus runt
   // persist the model after assigning the new sample to the current instrument.
   await chord(page, 'x', 'a')
   for (let index = 0; index < 5; index += 1) await tap(page, 'w')
-  await tap(page, 'd')
   const beforeImportedProjectSave = await storageSnapshot(page)
   await tap(page, 'k')
   await expect.poll(
