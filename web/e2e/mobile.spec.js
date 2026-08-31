@@ -96,6 +96,7 @@ for (const viewport of mobileViewports) {
     await dialog.getByRole('button', { name: 'Developer mode' }).click()
 
     await expect(dashboard).toHaveAttribute('data-developer-mode', 'true')
+    await expect(page.getByRole('button', { name: 'Developer mode' })).toBeFocused()
     const navigation = page.getByRole('navigation', { name: 'Workbench sections' })
     await expect(navigation).toBeVisible()
     const developerToggle = page.getByRole('button', { name: 'Developer mode' })
@@ -117,7 +118,7 @@ for (const viewport of mobileViewports) {
 
     await page.getByRole('button', { name: 'Developer mode' }).click()
     await expect(dashboard).toHaveAttribute('data-developer-mode', 'false')
-    await expect(page.getByRole('button', { name: 'Settings', exact: true })).toHaveCount(1)
+    await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeFocused()
     await expect.poll(() => page.locator('.operator-device').evaluate(
       (element) => element.style.getPropertyValue('--device-scale'),
     )).toBe('1')
@@ -163,6 +164,7 @@ test('forced developer mode preserves an explicit disabled preference', async ({
   await expect(dashboard).toHaveAttribute('data-developer-mode', 'true')
   await toggle.click()
   await expect(dashboard).toHaveAttribute('data-developer-mode', 'true')
+  await expect(toggle).toBeFocused()
   await expect.poll(() => page.evaluate(() => JSON.parse(
     localStorage.getItem('picotracker.wasm.settings.v4'),
   ).developerMode)).toBe(false)

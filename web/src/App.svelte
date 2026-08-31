@@ -46,12 +46,14 @@
     developerMode = resolveDeveloperMode(preference)
     if (developerMode) mobileSettingsOpen = false
   }
-  function setDeveloperMode(enabled){
+  async function setDeveloperMode(enabled){
     const preference = Boolean(enabled)
     synchronizeDeveloperMode(preference)
     mobileSettingsOpen = false
     settingsStore.update({ developerMode: preference })
     if (!developerMode) { activeSection='Device'; openTools=[] }
+    await tick()
+    document.querySelector(developerMode ? '.developer-toggle' : '.settings-trigger')?.focus({ preventScroll: true })
   }
 
   onMount(()=>{
