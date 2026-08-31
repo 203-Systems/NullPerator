@@ -5,6 +5,8 @@ const mobileViewports = [
   { name: 'portrait', width: 320, height: 568 },
   { name: 'narrow landscape', width: 480, height: 320 },
   { name: 'landscape', width: 568, height: 320 },
+  { name: 'modern phone landscape', width: 844, height: 390 },
+  { name: 'large phone landscape', width: 932, height: 430 },
 ]
 
 for (const viewport of mobileViewports) {

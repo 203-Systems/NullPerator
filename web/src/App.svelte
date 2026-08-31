@@ -20,7 +20,7 @@
   const sections = ['Device', 'Files', 'MIDI', 'Logs', 'Trace', 'Settings', 'About']
   const query = new URLSearchParams(window.location.search)
   const forceDeveloperMode = query.get('dev') === '1' || query.get('views-test') === '1' || query.get('inputDiagnostics') === '1'
-  const mobileViewport = window.matchMedia('(max-width: 720px)')
+  const mobileViewport = window.matchMedia('(max-width: 720px), (orientation: landscape) and (max-width: 960px) and (max-height: 539px)')
   const resolveDeveloperMode = (preference) => forceDeveloperMode || (preference === 'auto'
     ? !mobileViewport.matches
     : Boolean(preference))
