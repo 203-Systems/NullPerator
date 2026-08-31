@@ -19,7 +19,6 @@
 PlayerChannel::PlayerChannel(int index) {
   index_ = index;
   instr_ = 0;
-  muted_ = false;
   mixBus_ = 0;
   busIndex_ = -1;
 }
@@ -55,7 +54,7 @@ bool PlayerChannel::Render(fixed *buffer, int samplecount) {
 #endif
     bool tableSlice = SyncMaster::GetInstance()->TableSlice();
     bool status = instr_->Render(index_, buffer, samplecount, tableSlice);
-    return ((status) && (!muted_));
+    return status && !muted_.load(std::memory_order_relaxed);
   } else {
     return false;
   }
@@ -63,9 +62,13 @@ bool PlayerChannel::Render(fixed *buffer, int samplecount) {
 
 I_Instrument *PlayerChannel::GetInstrument() { return instr_; };
 
-void PlayerChannel::SetMute(bool muted) { muted_ = muted; }
+void PlayerChannel::SetMute(bool muted) {
+  muted_.store(muted, std::memory_order_relaxed);
+}
 
-bool PlayerChannel::IsMuted() { return muted_; }
+bool PlayerChannel::IsMuted() {
+  return muted_.load(std::memory_order_relaxed);
+}
 
 void PlayerChannel::SetMixBus(int i) {
 
@@ -89,6 +92,6 @@ void PlayerChannel::Reset() {
     mixBus_->RemoveModule(*this);
     mixBus_ = nullptr;
   }
-  muted_ = false;
+  muted_.store(false, std::memory_order_relaxed);
   busIndex_ = -1;
 };

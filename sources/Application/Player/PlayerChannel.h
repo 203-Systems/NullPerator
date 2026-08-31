@@ -14,6 +14,8 @@
 #include "Application/Mixer/MixBus.h"
 #include "Services/Audio/AudioModule.h"
 
+#include <atomic>
+
 class PlayerChannel : public AudioModule {
 public:
   PlayerChannel(int index);
@@ -31,7 +33,10 @@ public:
 private:
   int index_;
   I_Instrument *instr_;
-  bool muted_;
+  // UI2 changes mute state on the application task while Render() consumes it
+  // on the audio task. It is an independent flag, so relaxed ordering is
+  // sufficient and avoids a barrier in the render hot path.
+  std::atomic<bool> muted_{false};
   int busIndex_;
   MixBus *mixBus_;
 };
