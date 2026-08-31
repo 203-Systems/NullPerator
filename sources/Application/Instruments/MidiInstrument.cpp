@@ -80,16 +80,18 @@ bool MidiInstrument::Start(int c, unsigned char note, bool retrigger) {
 
   first_[c] = true;
   lastNotes_[c][0] = note;
+  VoiceState &voice = voiceState_[c];
 
   Variable *v = FindVariable(FourCC::MidiInstrumentNoteLength);
-  remainingTicks_ = v->GetInt();
-  if (remainingTicks_ == 0) {
-    remainingTicks_ = -1;
+  voice.remainingTicks = v->GetInt();
+  if (voice.remainingTicks == 0) {
+    voice.remainingTicks = -1;
   }
 
   // set initial velocity (changed via InstrumentCommandVelocity)
-  velocity_ = INITIAL_NOTE_VELOCITY;
-  retrig_ = false;
+  voice.velocity = INITIAL_NOTE_VELOCITY;
+  voice.retrig = false;
+  voice.retrigLoop = 0;
   pitchBend_ = false;
   useLogCurve_ = false;
 
@@ -120,6 +122,8 @@ void MidiInstrument::Stop(int c) {
   first_[c] = false;
   // clear last notes array
   lastNotes_[c].fill(NO_NOTE);
+  voiceState_[c].remainingTicks = -1;
+  voiceState_[c].retrig = false;
 };
 
 bool MidiInstrument::Render(int channel, fixed *buffer, int size,
@@ -128,12 +132,13 @@ bool MidiInstrument::Render(int channel, fixed *buffer, int size,
   // We do it here so we have the opportunity to send some command before
   Variable *v = FindVariable(FourCC::MidiInstrumentChannel);
   int mchannel = v->GetInt();
+  VoiceState &voice = voiceState_[channel];
   if (first_[channel]) {
     // send note
     MidiMessage msg;
     msg.status_ = MidiMessage::MIDI_NOTE_ON + mchannel;
     msg.data1_ = lastNotes_[channel][0];
-    msg.data2_ = velocity_;
+    msg.data2_ = voice.velocity;
     svc_->QueueMessage(msg);
 
     first_[channel] = false;
@@ -197,21 +202,21 @@ bool MidiInstrument::Render(int channel, fixed *buffer, int size,
     }
   }
 
-  if (updateTick && remainingTicks_ > 0) {
-    remainingTicks_--;
-    if (remainingTicks_ == 0) {
-      if (!retrig_) {
+  if (updateTick && voice.remainingTicks > 0) {
+    voice.remainingTicks--;
+    if (voice.remainingTicks == 0) {
+      if (!voice.retrig) {
         Stop(channel);
       } else {
         MidiMessage msg;
-        remainingTicks_ = retrigLoop_;
+        voice.remainingTicks = voice.retrigLoop;
         msg.status_ = MidiMessage::MIDI_NOTE_OFF + mchannel;
         msg.data1_ = lastNotes_[channel][0];
         msg.data2_ = 0x00;
         svc_->QueueMessage(msg);
         msg.status_ = MidiMessage::MIDI_NOTE_ON + mchannel;
         msg.data1_ = lastNotes_[channel][0];
-        msg.data2_ = velocity_;
+        msg.data2_ = voice.velocity;
         svc_->QueueMessage(msg);
       };
     };
@@ -227,17 +232,18 @@ void MidiInstrument::ProcessCommand(int channel, FourCC cc, ushort value) {
 
   Variable *v = FindVariable(FourCC::MidiInstrumentChannel);
   int mchannel = v->GetInt();
+  VoiceState &voice = voiceState_[channel];
 
   switch (cc) {
 
   case FourCC::InstrumentCommandRetrigger: {
     unsigned char loop = (value & 0xFF); // number of ticks before repeat
     if (loop != 0) {
-      retrig_ = true;
-      retrigLoop_ = loop;
-      remainingTicks_ = loop;
+      voice.retrig = true;
+      voice.retrigLoop = loop;
+      voice.remainingTicks = loop;
     } else {
-      retrig_ = false;
+      voice.retrig = false;
     }
   } break;
 
@@ -266,7 +272,7 @@ void MidiInstrument::ProcessCommand(int channel, FourCC cc, ushort value) {
   case FourCC::InstrumentCommandVelocity: {
     // VELM cmds set velocity for MIDI steps
     // Ensure velocity doesn't exceed 127 (MIDI spec maximum)
-    velocity_ = value & 0x7F;
+    voice.velocity = value & 0x7F;
   }; break;
 
   case FourCC::InstrumentCommandVolume: {
@@ -317,7 +323,7 @@ void MidiInstrument::ProcessCommand(int channel, FourCC cc, ushort value) {
         MidiMessage msg;
         msg.status_ = MidiMessage::MIDI_NOTE_ON + mchannel;
         msg.data1_ = note;
-        msg.data2_ = velocity_;
+        msg.data2_ = voice.velocity;
         // Trace::Debug("MIDI chord note ON[%d]: %d", i, msg.data1_);
         svc_->QueueMessage(msg);
       }

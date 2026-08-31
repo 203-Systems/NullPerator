@@ -75,14 +75,18 @@ public:
   void SendProgramChange(int channel, int program);
 
 private:
+  struct VoiceState {
+    int remainingTicks = -1;
+    uint8_t retrigLoop = 0;
+    uint8_t velocity = INITIAL_NOTE_VELOCITY;
+    bool retrig = false;
+  };
+
   etl::vector<Variable *, 6> variables_;
 
   etl::array<uint8_t, midi_queue_budget::kNotesPerTrack>
       lastNotes_[SONG_CHANNEL_COUNT]{};
-  int remainingTicks_ = -1;
-  bool retrig_ = false;
-  int retrigLoop_ = 0;
-  char velocity_ = 127;
+  VoiceState voiceState_[SONG_CHANNEL_COUNT]{};
   TableSaveState tableState_;
   bool first_[SONG_CHANNEL_COUNT]{};
   uint8_t pitchBendTarget_ = PB_7BIT_MAX;

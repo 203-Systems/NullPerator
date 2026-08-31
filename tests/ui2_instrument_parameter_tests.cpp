@@ -545,6 +545,82 @@ TEST_CASE("MIDI note length advances on tracker ticks, not audio buffers") {
   CHECK(capturedMidiMessages[1].data1_ == 60U);
 }
 
+TEST_CASE("MIDI note lengths remain independent across tracker channels") {
+  InstallFakeMidiService();
+  MidiInstrument instrument;
+  REQUIRE(instrument.Init());
+  capturedMidiMessages.clear();
+  instrument.FindVariable(FourCC::MidiInstrumentNoteLength)->SetInt(2);
+  REQUIRE(instrument.Start(0, 60));
+  REQUIRE(instrument.Start(1, 64));
+  std::array<fixed, 8> buffer{};
+  instrument.Render(0, buffer.data(), 4, false);
+  instrument.Render(1, buffer.data(), 4, false);
+  capturedMidiMessages.clear();
+
+  instrument.Render(0, buffer.data(), 4, true);
+  instrument.Render(1, buffer.data(), 4, true);
+  CHECK(capturedMidiMessages.empty());
+
+  instrument.Render(0, buffer.data(), 4, true);
+  REQUIRE(capturedMidiMessages.size() == 1U);
+  CHECK(capturedMidiMessages[0].status_ == MidiMessage::MIDI_NOTE_OFF);
+  CHECK(capturedMidiMessages[0].data1_ == 60U);
+
+  instrument.Render(1, buffer.data(), 4, true);
+  REQUIRE(capturedMidiMessages.size() == 2U);
+  CHECK(capturedMidiMessages[1].status_ == MidiMessage::MIDI_NOTE_OFF);
+  CHECK(capturedMidiMessages[1].data1_ == 64U);
+}
+
+TEST_CASE("MIDI deferred velocities remain independent across tracker channels") {
+  InstallFakeMidiService();
+  MidiInstrument instrument;
+  REQUIRE(instrument.Init());
+  capturedMidiMessages.clear();
+
+  REQUIRE(instrument.Start(0, 60));
+  instrument.ProcessCommand(0, FourCC::InstrumentCommandVelocity, 0x20);
+  REQUIRE(instrument.Start(1, 64));
+  instrument.ProcessCommand(1, FourCC::InstrumentCommandVelocity, 0x40);
+
+  std::array<fixed, 8> buffer{};
+  instrument.Render(0, buffer.data(), 4, false);
+  instrument.Render(1, buffer.data(), 4, false);
+
+  REQUIRE(capturedMidiMessages.size() == 2U);
+  CHECK(capturedMidiMessages[0].data1_ == 60U);
+  CHECK(capturedMidiMessages[0].data2_ == 0x20U);
+  CHECK(capturedMidiMessages[1].data1_ == 64U);
+  CHECK(capturedMidiMessages[1].data2_ == 0x40U);
+}
+
+TEST_CASE("MIDI retrigger remains independent across tracker channels") {
+  InstallFakeMidiService();
+  MidiInstrument instrument;
+  REQUIRE(instrument.Init());
+  capturedMidiMessages.clear();
+  REQUIRE(instrument.Start(0, 60));
+  instrument.ProcessCommand(0, FourCC::InstrumentCommandRetrigger, 2);
+  REQUIRE(instrument.Start(1, 64));
+
+  std::array<fixed, 8> buffer{};
+  instrument.Render(0, buffer.data(), 4, false);
+  instrument.Render(1, buffer.data(), 4, false);
+  capturedMidiMessages.clear();
+
+  instrument.Render(0, buffer.data(), 4, true);
+  instrument.Render(1, buffer.data(), 4, true);
+  CHECK(capturedMidiMessages.empty());
+  instrument.Render(0, buffer.data(), 4, true);
+
+  REQUIRE(capturedMidiMessages.size() == 2U);
+  CHECK(capturedMidiMessages[0].status_ == MidiMessage::MIDI_NOTE_OFF);
+  CHECK(capturedMidiMessages[0].data1_ == 60U);
+  CHECK(capturedMidiMessages[1].status_ == MidiMessage::MIDI_NOTE_ON);
+  CHECK(capturedMidiMessages[1].data1_ == 60U);
+}
+
 TEST_CASE("Macro render starts its gain envelope from silence") {
   alignas(MacroInstrument)
       std::array<std::byte, sizeof(MacroInstrument)> layoutStorage{};
