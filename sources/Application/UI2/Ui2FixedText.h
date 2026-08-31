@@ -75,4 +75,24 @@ inline void FormatUiVolume(int value, std::array<char, 4> &destination) {
   }
 }
 
+// Device capture writes the current output/brightness percentages every frame
+// and five neighboring values while either numeric selector is active. Format
+// the complete uint16_t domain directly so those fixed buffers avoid printf.
+template <std::size_t Size>
+inline void FormatUiPercent(std::uint16_t value,
+                            std::array<char, Size> &destination) {
+  static_assert(Size >= 7U);
+  destination.fill('\0');
+  std::uint16_t divisor = 10'000U;
+  while (divisor > 1U && value < divisor)
+    divisor = static_cast<std::uint16_t>(divisor / 10U);
+  std::size_t index = 0U;
+  do {
+    destination[index++] = static_cast<char>('0' + value / divisor);
+    value = static_cast<std::uint16_t>(value % divisor);
+    divisor = static_cast<std::uint16_t>(divisor / 10U);
+  } while (divisor > 0U);
+  destination[index] = '%';
+}
+
 } // namespace ui2

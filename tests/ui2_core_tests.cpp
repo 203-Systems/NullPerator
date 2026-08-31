@@ -426,6 +426,22 @@ TEST_CASE("UI2 mixer volume formatting clamps and clears every boundary") {
   }
 }
 
+TEST_CASE("UI2 percent formatting covers uint16 boundaries and stale bytes") {
+  constexpr std::array<std::uint16_t, 10> values{
+      0U,   9U,    10U,   99U,     100U,
+      999U, 1000U, 9999U, 10'000U, std::numeric_limits<std::uint16_t>::max(),
+  };
+  for (const std::uint16_t value : values) {
+    std::array<char, 8> expected{};
+    std::snprintf(expected.data(), expected.size(), "%u%%",
+                  static_cast<unsigned>(value));
+    std::array<char, 8> actual{'X', 'X', 'X', 'X', 'X', 'X', 'X', 'X'};
+    ui2::FormatUiPercent(value, actual);
+    CAPTURE(value);
+    CHECK(actual == expected);
+  }
+}
+
 TEST_CASE("UI2 indexed surface owns no RGB framebuffer and clips fills") {
   ui2::UiSurfaceStorage storage;
   ui2::UiIndexedSurface surface(storage);

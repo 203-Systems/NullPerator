@@ -752,10 +752,10 @@ Ui2NativeApplicationStateSource::CaptureDevice(UiDeviceFrameState &state) {
              currentText(Ui2DeviceField::Resampler, resamplers, 2U));
   CopyUiText(state.lineOut,
              currentText(Ui2DeviceField::LineOut, lineOutputs, 3U));
-  std::snprintf(state.volume.data(), state.volume.size(), "%u%%",
-                device_.Selector(Ui2DeviceField::Volume).current);
-  std::snprintf(state.brightness.data(), state.brightness.size(), "%u%%",
-                device_.Selector(Ui2DeviceField::Brightness).current);
+  FormatUiPercent(device_.Selector(Ui2DeviceField::Volume).current,
+                  state.volume);
+  FormatUiPercent(device_.Selector(Ui2DeviceField::Brightness).current,
+                  state.brightness);
   if (Config *config = Config::GetInstance()) {
     if (Variable *theme = config->FindVariable(FourCC::VarThemeName))
       CopyUiText(state.theme, theme->GetString().c_str());
@@ -808,9 +808,8 @@ Ui2NativeApplicationStateSource::CaptureDevice(UiDeviceFrameState &state) {
           std::min<std::uint16_t>(visible, bottom.count));
       state.selectorCurrent = static_cast<std::uint8_t>(bottom.current - start);
       for (std::uint8_t index = 0; index < state.selectorCount; ++index) {
-        std::snprintf(state.selectorOptions[index].data(),
-                      state.selectorOptions[index].size(), "%u%%",
-                      start + index);
+        FormatUiPercent(static_cast<std::uint16_t>(start + index),
+                        state.selectorOptions[index]);
       }
       optionCount = 0U;
     } else {
