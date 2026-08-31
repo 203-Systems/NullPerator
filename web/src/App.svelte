@@ -20,12 +20,14 @@
   const sections = ['Device', 'Files', 'MIDI', 'Logs', 'Trace', 'Settings', 'About']
   const query = new URLSearchParams(window.location.search)
   const forceDeveloperMode = query.get('dev') === '1' || query.get('views-test') === '1' || query.get('inputDiagnostics') === '1'
+  const mobileViewport = window.matchMedia('(max-width: 720px)')
   const resolveDeveloperMode = (preference) => forceDeveloperMode || (preference === 'auto'
-    ? !window.matchMedia('(max-width: 720px)').matches
+    ? !mobileViewport.matches
     : Boolean(preference))
+  let developerPreference = settingsStore.snapshot().developerMode
   let activeSection = 'Device'
   let openTools = []
-  let developerMode = resolveDeveloperMode(settingsStore.snapshot().developerMode)
+  let developerMode = resolveDeveloperMode(developerPreference)
   let mobileSettingsOpen = false
   let runtime = runtimeStore.getSnapshot()
   let audio = runtime.audio?.snapshot?.() ?? { state:'unavailable', metrics:null, capability:null }
@@ -39,8 +41,13 @@
   async function applySettingsRestart(){ const enabled=settingsStore.snapshot().lowLatencyAudio; const url=new URL(location.href); const active=url.searchParams.get('audio')==='worklet'; if(active!==enabled){enabled?url.searchParams.set('audio','worklet'):url.searchParams.delete('audio');location.assign(url);return} await restart() }
   function selectSection(section){ activeSection=section }
   function toggleDock(tool){ openTools=toggleTool(openTools,tool) }
+  function synchronizeDeveloperMode(preference = developerPreference) {
+    developerPreference = preference
+    developerMode = resolveDeveloperMode(preference)
+    if (developerMode) mobileSettingsOpen = false
+  }
   function setDeveloperMode(enabled){
-    developerMode = Boolean(enabled)
+    synchronizeDeveloperMode(Boolean(enabled))
     mobileSettingsOpen = false
     settingsStore.update({ developerMode })
     if (!developerMode) { activeSection='Device'; openTools=[] }
@@ -48,6 +55,8 @@
 
   onMount(()=>{
     const workbenchHandle = Object.freeze({ restart, stop: stopRuntime })
+    const handleViewportChange = () => synchronizeDeveloperMode()
+    mobileViewport.addEventListener?.('change', handleViewportChange)
     globalThis.__picoTrackerWorkbench = workbenchHandle
     const unsubscribe=runtimeStore.subscribe((snapshot)=>{
       runtime=snapshot; detachAudio();detachMidi();detachStorage()
@@ -57,11 +66,11 @@
       if(snapshot.trace&&snapshot.trace.snapshot().state!=='capturing')snapshot.trace.setMask(settingsStore.snapshot().traceMask)
     })
     detachSettings=settingsStore.subscribe((next)=>{
-      developerMode=resolveDeveloperMode(next.developerMode)
+      synchronizeDeveloperMode(next.developerMode)
       if(runtime.trace?.snapshot?.().state!=='capturing')runtime.trace?.setMask?.(next.traceMask)
     })
     runtimeStore.start().catch(()=>{})
-    return()=>{if(globalThis.__picoTrackerWorkbench===workbenchHandle)delete globalThis.__picoTrackerWorkbench;unsubscribe();detachAudio();detachMidi();detachStorage();detachSettings();runtimeStore.stop().catch(()=>{})}
+    return()=>{mobileViewport.removeEventListener?.('change', handleViewportChange);if(globalThis.__picoTrackerWorkbench===workbenchHandle)delete globalThis.__picoTrackerWorkbench;unsubscribe();detachAudio();detachMidi();detachStorage();detachSettings();runtimeStore.stop().catch(()=>{})}
   })
 </script>
 
