@@ -1,6 +1,7 @@
 #include "doctest/doctest.h"
 
 #include "Application/Instruments/OpalInstrumentParameterEncoding.h"
+#include "Application/Instruments/MacroInstrument.h"
 #include "Application/Instruments/MidiInstrument.h"
 #include "Application/Instruments/SampleRenderingParams.h"
 #include "Application/Instruments/SIDInstrument.h"
@@ -16,6 +17,14 @@
 #include <memory>
 #include <string_view>
 #include <vector>
+
+struct MacroInstrumentTestPeer {
+  static std::size_t GainOffset(MacroInstrument &instrument) {
+    const auto *object = reinterpret_cast<const std::byte *>(&instrument);
+    const auto *gain = reinterpret_cast<const std::byte *>(&instrument.gain_lp_);
+    return static_cast<std::size_t>(gain - object);
+  }
+};
 
 namespace {
 std::vector<MidiMessage> capturedMidiMessages;
@@ -257,6 +266,35 @@ TEST_CASE("MIDI note zero receives a matching note off") {
   CHECK(capturedMidiMessages[0].data1_ == 0U);
   CHECK(capturedMidiMessages[1].status_ == MidiMessage::MIDI_NOTE_OFF);
   CHECK(capturedMidiMessages[1].data1_ == 0U);
+
+  std::destroy_at(instrument);
+}
+
+TEST_CASE("Macro render starts its gain envelope from silence") {
+  alignas(MacroInstrument)
+      std::array<std::byte, sizeof(MacroInstrument)> layoutStorage{};
+  MacroInstrument *layout = std::construct_at(
+      reinterpret_cast<MacroInstrument *>(layoutStorage.data()));
+  const std::size_t gainOffset = MacroInstrumentTestPeer::GainOffset(*layout);
+  std::destroy_at(layout);
+  REQUIRE(gainOffset + sizeof(std::uint16_t) <= sizeof(MacroInstrument));
+
+  // Poison only the gain state so unrelated legacy Braids state stays valid.
+  alignas(MacroInstrument)
+      std::array<std::byte, sizeof(MacroInstrument)> storage{};
+  storage[gainOffset] = std::byte{0xFF};
+  storage[gainOffset + 1U] = std::byte{0xFF};
+  MacroInstrument *instrument =
+      std::construct_at(reinterpret_cast<MacroInstrument *>(storage.data()));
+  REQUIRE(instrument->Init());
+  // A slow attack also keeps Braids' legacy signed Mix arithmetic in range.
+  instrument->FindVariable(FourCC::MacroInstrumentAttack)->SetInt(127);
+  REQUIRE(instrument->Start(0, 60));
+  std::array<fixed, 2> buffer{123, 123};
+
+  REQUIRE(instrument->Render(0, buffer.data(), 1, false));
+  CHECK(buffer[0] == 0);
+  CHECK(buffer[1] == 0);
 
   std::destroy_at(instrument);
 }

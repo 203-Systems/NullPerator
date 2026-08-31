@@ -24,6 +24,10 @@
 
 class MacroInstrument : public I_Instrument, I_Observer {
 
+#ifdef HOST_TEST
+  friend struct MacroInstrumentTestPeer;
+#endif
+
 public:
   MacroInstrument();
   virtual ~MacroInstrument();
@@ -71,7 +75,7 @@ private:
   Variable decay_;
   Variable signature_;
 
-  uint16_t gain_lp_;
+  uint16_t gain_lp_ = 0;
   uint16_t remain_;
 };
 #endif

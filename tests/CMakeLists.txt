@@ -50,9 +50,15 @@ add_executable(picoTracker_tests
   ../sources/Services/Audio/AudioDriver.cpp
   ../sources/Adapters/wasm/input/InputMap.cpp
   ../sources/Application/Instruments/WavHeader.cpp
+  ../sources/Application/Instruments/MacroInstrument.cpp
   ../sources/Application/Instruments/MidiInstrument.cpp
   ../sources/Application/Instruments/SIDInstrument.cpp
   ../sources/Externals/cRSID/SID.cpp
+  ../sources/Externals/braids/analog_oscillator.cc
+  ../sources/Externals/braids/digital_oscillator.cc
+  ../sources/Externals/braids/macro_oscillator.cc
+  ../sources/Externals/braids/random.cc
+  ../sources/Externals/braids/resources.cc
   ../sources/Application/Instruments/I_Instrument.cpp
   ../sources/Application/UI2/Ui2SampleWaveformBackend.cpp
   ../sources/Application/Utils/HexBuffers.cpp
