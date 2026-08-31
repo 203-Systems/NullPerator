@@ -41,6 +41,62 @@ describe('browser audio state', () => {
     expect(audio.snapshot().state).toBe('failed')
   })
 
+  it('retries resume from trusted gestures for cached live audio states', async () => {
+    let state = 3
+    const listeners = new Map()
+    const gestureTarget = {
+      addEventListener: (name, listener) => listeners.set(name, listener),
+      removeEventListener: (name, listener) => {
+        if (listeners.get(name) === listener) listeners.delete(name)
+      },
+    }
+    const bridge = {
+      getAudioState: () => state,
+      getAudioMetrics: () => ({ version: 5, size: 68 }),
+      unlockAudio: vi.fn(() => 1),
+      stopAudio: vi.fn(() => { state = 6 }),
+    }
+    const audio = createAudioStore(bridge, { poll: false, gestureTarget })
+    await audio.initialize()
+
+    listeners.get('pointerdown')({ isTrusted: false, repeat: false })
+    expect(bridge.unlockAudio).not.toHaveBeenCalled()
+
+    listeners.get('pointerdown')({ isTrusted: true, repeat: false })
+    await vi.waitFor(() => expect(bridge.unlockAudio).toHaveBeenCalledTimes(1))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    state = 2
+    await audio.refresh()
+    listeners.get('keydown')({ isTrusted: true, repeat: false })
+    await vi.waitFor(() => expect(bridge.unlockAudio).toHaveBeenCalledTimes(2))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    state = 4
+    await audio.refresh()
+    listeners.get('pointerdown')({ isTrusted: true, repeat: false })
+    await vi.waitFor(() => expect(bridge.unlockAudio).toHaveBeenCalledTimes(3))
+
+    listeners.get('keydown')({ isTrusted: true, repeat: true })
+    expect(bridge.unlockAudio).toHaveBeenCalledTimes(3)
+    await audio.stop()
+    expect(listeners.has('pointerdown')).toBe(false)
+    expect(listeners.has('keydown')).toBe(false)
+  })
+
+  it('keeps native resume in the synchronous trusted-gesture call path', async () => {
+    const source = await readFile(
+      new URL('../../sources/Adapters/wasm/audio/WasmAudio.cpp', import.meta.url),
+      'utf8',
+    )
+    const unlock = source.match(
+      /bool WasmAudio::Unlock\(\) noexcept \{[\s\S]*?\n\}\n\nvoid WasmAudio::StopBrowserAudio/,
+    )?.[0]
+
+    expect(unlock).toBeTruthy()
+    expect(unlock).toMatch(
+      /WasmAudioState::Running[\s\S]*WasmAudioState::Starting[\s\S]*WasmAudioState::Suspended[\s\S]*emscripten_resume_audio_context_async/,
+    )
+  })
+
   it('rejects incompatible metrics copies rather than exposing stale data', async () => {
     const audio = createAudioStore({
       getAudioState: () => 1,

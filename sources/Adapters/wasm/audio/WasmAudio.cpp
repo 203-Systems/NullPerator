@@ -183,13 +183,30 @@ bool WasmAudio::Unlock() noexcept {
       std::memory_order_release);
 #endif
   const auto current = State();
-  if (current == WasmAudioState::Running || current == WasmAudioState::Starting ||
-      current == WasmAudioState::Suspended) {
-    return true;
-  }
   if (current == WasmAudioState::Unavailable || current == WasmAudioState::Failed ||
       current == WasmAudioState::Stopped) {
     return false;
+  }
+  if (current == WasmAudioState::Running ||
+      current == WasmAudioState::Starting ||
+      current == WasmAudioState::Suspended) {
+    const int context = context_.load(std::memory_order_acquire);
+    if (context <= 0) {
+      MarkFailed(
+          "The browser AudioContext is unavailable. Restart the runtime and retry.");
+      return false;
+    }
+    // WebKit can stop worklet callbacks after backgrounding without first
+    // publishing a suspended context, so the cached state may still be
+    // Running. WebAudio resume() is idempotent; repeat it from each trusted
+    // Web gesture and retain Running until the callback reports otherwise.
+    if (current != WasmAudioState::Running) {
+      SetState(WasmAudioState::Starting);
+    }
+#ifdef __EMSCRIPTEN__
+    emscripten_resume_audio_context_async(context, ContextResumed, nullptr);
+#endif
+    return true;
   }
   bool expected = false;
   if (!unlockStarted_.compare_exchange_strong(expected, true,
