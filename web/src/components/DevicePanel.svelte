@@ -75,6 +75,7 @@
     unlockButton?.focus({ preventScroll: true })
   }
   function isTrackerActive(event) {
+    if (runtime.state !== 'ready') return false
     if (audioBlocked) return false
     if (!panel || panel.getClientRects().length === 0) return false
     const active = document.activeElement

@@ -189,6 +189,11 @@ test('short-screen runtime recovery remains fully visible and restarts in place'
   expect(recoveryBox.y).toBeGreaterThanOrEqual(workspaceBox.y)
   await expect(page.getByRole('button', { name: 'Retry runtime' })).toBeInViewport()
 
+  const down = page.getByRole('button', { name: 'Down', exact: true })
+  await page.keyboard.down('s')
+  await expect(down).toHaveAttribute('aria-pressed', 'false')
+  await page.keyboard.up('s')
+
   await page.getByRole('button', { name: 'Retry runtime' }).click()
   await expect(page.locator('#picotracker-canvas')).toHaveAttribute('data-frame-content', 'rendered', { timeout: 20_000 })
   await expect.poll(() => workspace.evaluate((element) => element.scrollTop)).toBe(0)
