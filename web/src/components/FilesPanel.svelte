@@ -1,5 +1,5 @@
 <script>
-  import { onDestroy } from 'svelte'
+  import { onDestroy, tick } from 'svelte'
 
   import ConflictDialog from './ConflictDialog.svelte'
   import { createFilesStore } from '../stores/files.js'
@@ -22,6 +22,7 @@
   let uploadInput
   let restoreInput
   let pendingRestore = null
+  let hostActionFocusTarget = null
   let feedback = ''
   $: hostBusy = hostSnapshot?.state === 'syncing' || hostSnapshot?.state === 'conflict'
   $: mutatingDisabled = disabled || !fileStore || snapshot.loading || storageSnapshot?.state === 'syncing' || storageSnapshot?.syncing || storageSnapshot?.mutating || hostBusy
@@ -106,14 +107,17 @@
     if (typeof storage?.flushNow !== 'function') throw new Error('Persistent storage is unavailable')
     await storage.flushNow('manual-retry')
   })
-  const hostAction = (work) => run(async () => {
+  const hostAction = (work, focusTarget = document.activeElement) => run(async () => {
+    hostActionFocusTarget = focusTarget
     feedback = ''
     await work()
     await fileStore?.refresh?.()
+    await tick()
+    focusTarget?.focus?.({ preventScroll: true })
   })
   const resolveHostConflict = (policy) => {
     const conflict = hostSnapshot?.conflicts?.[0]
-    if (conflict) hostAction(() => hostFolder.resolveConflict(conflict.path, policy))
+    if (conflict) return hostAction(() => hostFolder.resolveConflict(conflict.path, policy), hostActionFocusTarget)
   }
 </script>
 
@@ -181,7 +185,7 @@
       <button type="button" onclick={() => (pendingRestore = null)}>Cancel</button>
     </div>
   {/if}
-  <ConflictDialog conflict={hostSnapshot?.conflicts?.[0] ?? null} resolve={resolveHostConflict} />
+  <ConflictDialog conflict={hostSnapshot?.conflicts?.[0] ?? null} resolve={resolveHostConflict} returnFocus={hostActionFocusTarget} />
   {#if feedback || snapshot.error}
     <p class="file-feedback" role="status">{feedback || snapshot.error}</p>
   {/if}
