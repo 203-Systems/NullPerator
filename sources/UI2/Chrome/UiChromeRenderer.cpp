@@ -22,7 +22,9 @@ void DrawSegments(BarBuilder &builder,
                   const std::array<UiColoredText, 3> &segments,
                   std::uint8_t count, std::int16_t y) {
   std::int16_t x = 9;
-  for (std::uint8_t index = 0; index < count; ++index) {
+  const std::size_t safeCount =
+      std::min<std::size_t>(count, segments.size());
+  for (std::size_t index = 0; index < safeCount; ++index) {
     const std::int16_t segmentX =
         segments[index].x >= 0 ? segments[index].x : x;
     if (segments[index].userData)
@@ -357,13 +359,18 @@ UiBuildStatus UiChromeRenderer::BuildBottom(const UiBottomBarModel &model,
     }
     break;
   case UiBottomBarKind::Actions: {
-    if (model.actions.count == 0)
+    const std::size_t count = std::min<std::size_t>(
+        model.actions.count, model.actions.actions.size());
+    if (count == 0U)
       break;
-    const std::int16_t width = 240 / model.actions.count;
-    for (std::uint8_t index = 0; index < model.actions.count; ++index) {
+    const std::int16_t width =
+        static_cast<std::int16_t>(240 / static_cast<std::int16_t>(count));
+    for (std::size_t index = 0; index < count; ++index) {
       builder.CenteredText(
           model.actions.actions[index],
-          static_cast<std::int16_t>(width * index + width / 2), 220,
+          static_cast<std::int16_t>(width * static_cast<std::int16_t>(index) +
+                                    width / 2),
+          220,
           index == model.actions.active ? UiColorToken::TextColored
                                         : UiColorToken::TextDim);
     }

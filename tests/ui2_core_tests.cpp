@@ -1256,6 +1256,26 @@ TEST_CASE("UI2 saving spinner replaces the top-right battery presentation") {
   CHECK(scene.Size() == 5U);
 }
 
+TEST_CASE("UI2 bottom renderer bounds externally supplied item counts") {
+  ui2::UiBarScene scene;
+  ui2::UiBottomBarModel actions{.kind = ui2::UiBottomBarKind::Actions};
+  actions.actions.actions = {"ONE", "TWO", "THREE", "FOUR"};
+  actions.actions.count = 0xFFU;
+  REQUIRE(ui2::UiChromeRenderer::BuildBottom(actions, scene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK(scene.Size() == actions.actions.actions.size());
+
+  ui2::UiBottomBarModel context{.kind = ui2::UiBottomBarKind::Context};
+  context.context.firstLine = {{{"A"}, {"B"}, {"C"}}};
+  context.context.secondLine = {{{"D"}, {"E"}, {"F"}}};
+  context.context.firstLineCount = 0xFFU;
+  context.context.secondLineCount = 0xFFU;
+  REQUIRE(ui2::UiChromeRenderer::BuildBottom(context, scene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK(scene.Size() == context.context.firstLine.size() +
+                            context.context.secondLine.size());
+}
+
 TEST_CASE("UI2 selection mode overrides page and edit bottom bars") {
   ui2::UiBottomBarModel context{.kind = ui2::UiBottomBarKind::Context};
   ui2::UiAdjustmentLegendModel adjustment{};
