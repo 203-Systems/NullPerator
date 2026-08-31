@@ -662,6 +662,31 @@ TEST_CASE("UI2 selection paste registers referenced tracker resources") {
   CHECK(song.phrase_.param1_[2] == 8U);
 }
 
+TEST_CASE("UI2 Table selection paste registers referenced tables") {
+  TableHolder *tables = TableHolder::GetInstance();
+  tables->Reset();
+  TrackerApplicationSession session;
+  Ui2TrackerSessionModelPort port(session);
+
+  for (std::uint8_t index = 0U; index < 7U; ++index)
+    tables->SetUsed(index);
+
+  Table &table = tables->GetTable(0U);
+  table.cmd1_[0] = FourCC::InstrumentCommandTable;
+  table.param1_[0] = 7U;
+  table.cmd1_[1] = FourCC::InstrumentCommandTable;
+  port.ApplyGridCommand(SelectionCommand(
+      Ui2TrackerCommandType::CopySelection, Ui2TrackerPage::PhraseTable, 0, 0,
+      1, 0));
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::PasteSelection,
+                                    Ui2TrackerPage::PhraseTable, 1, 0));
+
+  table.cmd1_[2] = FourCC::InstrumentCommandTable;
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::AllocateNext,
+                                    Ui2TrackerPage::PhraseTable, 2, 1));
+  CHECK(table.param1_[2] == 8U);
+}
+
 TEST_CASE("UI2 model port rejects Phrase note selections in Table") {
   TableHolder *tables = TableHolder::GetInstance();
   tables->Reset();
