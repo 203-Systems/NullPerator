@@ -29,6 +29,10 @@ MidiInstrument::MidiInstrument()
       tableAuto_(FourCC::MidiInstrumentTableAutomation, false),
       program_(FourCC::MidiInstrumentProgram, VAR_OFF) {
 
+  for (auto &notes : lastNotes_) {
+    notes.fill(NO_NOTE);
+  }
+
   if (svc_ == 0) {
     svc_ = MidiService::GetInstance();
   };
@@ -110,7 +114,7 @@ void MidiInstrument::Stop(int c) {
   int channel = v->GetInt();
 
   for (int i = 0; i < MAX_MIDI_CHORD_NOTES + 1; i++) {
-    if (lastNotes_[c][i] == 0) {
+    if (lastNotes_[c][i] == NO_NOTE) {
       continue;
     }
     MidiMessage msg;
@@ -121,7 +125,7 @@ void MidiInstrument::Stop(int c) {
     Trace::Debug("MIDI chord note OFF[%d]:%d", i, msg.data1_);
   }
   // clear last notes array
-  lastNotes_[c].fill(0);
+  lastNotes_[c].fill(NO_NOTE);
   playing_ = false;
 };
 

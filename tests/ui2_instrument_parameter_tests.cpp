@@ -237,6 +237,30 @@ TEST_CASE("MIDI playback state is deterministic before the first note") {
   std::destroy_at(instrument);
 }
 
+TEST_CASE("MIDI note zero receives a matching note off") {
+  InstallFakeMidiService();
+  alignas(MidiInstrument)
+      std::array<std::byte, sizeof(MidiInstrument)> storage{};
+  storage.fill(std::byte{0xFF});
+  MidiInstrument *instrument =
+      std::construct_at(reinterpret_cast<MidiInstrument *>(storage.data()));
+  REQUIRE(instrument->Init());
+  capturedMidiMessages.clear();
+
+  REQUIRE(instrument->Start(0, 0));
+  std::array<fixed, 8> buffer{};
+  instrument->Render(0, buffer.data(), 4, false);
+  instrument->Stop(0);
+
+  REQUIRE(capturedMidiMessages.size() == 2U);
+  CHECK(capturedMidiMessages[0].status_ == MidiMessage::MIDI_NOTE_ON);
+  CHECK(capturedMidiMessages[0].data1_ == 0U);
+  CHECK(capturedMidiMessages[1].status_ == MidiMessage::MIDI_NOTE_OFF);
+  CHECK(capturedMidiMessages[1].data1_ == 0U);
+
+  std::destroy_at(instrument);
+}
+
 TEST_CASE("Sample size queries keep the default sentinel outside render state") {
   CHECK_FALSE(IsSampleRenderChannel(-1, SONG_CHANNEL_COUNT));
   CHECK(IsSampleRenderChannel(0, SONG_CHANNEL_COUNT));
