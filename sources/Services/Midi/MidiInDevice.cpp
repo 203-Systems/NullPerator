@@ -163,15 +163,11 @@ void MidiInDevice::treatChannelEvent(MidiMessage &event) {
 
     Player *player = Player::GetInstance();
     if (player) {
-      // Check if this specific note is active on this MIDI channel
-      if (noteTracker_.isNoteActiveOnChannel(note, midiChannel)) {
-        // Get the audio channel this note is playing on
-        int audioChannel = noteTracker_.unregisterNote(note, midiChannel);
-        if (audioChannel >= 0) {
-          Trace::Debug("Stopping note %d on MIDI channel %d, audio channel %d",
-                       note, midiChannel, audioChannel);
-          player->StopNote(instrumentIndex, audioChannel);
-        }
+      int audioChannel = noteTracker_.unregisterNote(note, midiChannel);
+      if (audioChannel >= 0) {
+        Trace::Debug("Stopping note %d on MIDI channel %d, audio channel %d",
+                     note, midiChannel, audioChannel);
+        player->StopNote(instrumentIndex, audioChannel);
       } else {
         Trace::Debug("Note %d not active on MIDI channel %d, not stopping",
                      note, midiChannel);
@@ -190,15 +186,12 @@ void MidiInDevice::treatChannelEvent(MidiMessage &event) {
     if (player) {
       // If velocity is 0, it's actually a note off in MIDI
       if (value == 0) {
-        // Handle as note off - only stop if this note is active on this channel
-        if (noteTracker_.isNoteActiveOnChannel(note, midiChannel)) {
-          int audioChannel = noteTracker_.unregisterNote(note, midiChannel);
-          if (audioChannel >= 0) {
-            Trace::Debug("Note off (vel=0): Stopping note %d on MIDI channel "
-                         "%d, audio channel %d",
-                         note, midiChannel, audioChannel);
-            player->StopNote(instrumentIndex, audioChannel);
-          }
+        int audioChannel = noteTracker_.unregisterNote(note, midiChannel);
+        if (audioChannel >= 0) {
+          Trace::Debug("Note off (vel=0): Stopping note %d on MIDI channel "
+                       "%d, audio channel %d",
+                       note, midiChannel, audioChannel);
+          player->StopNote(instrumentIndex, audioChannel);
         } else {
           Trace::Debug("Note off (vel=0): Note %d not active on MIDI channel "
                        "%d, not stopping",

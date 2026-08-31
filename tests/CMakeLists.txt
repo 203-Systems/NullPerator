@@ -23,6 +23,7 @@ add_executable(picoTracker_tests
   wasm_logging_tests.cpp
   wasm_trace_tests.cpp
   wasm_platform_tests.cpp
+  midi_note_tracker_tests.cpp
   node_path_resolver_tests.cpp
   project_defaults_tests.cpp
   sample_pool_loading_tests.cpp
@@ -42,6 +43,7 @@ add_executable(picoTracker_tests
   ../sources/Adapters/wasm/tracing/WasmProfiler.cpp
   ../sources/Adapters/wasm/tracing/Benchmark.cpp
   ../sources/Services/Midi/MidiOutDevice.cpp
+  ../sources/Services/Midi/MidiNoteTracker.cpp
   ../sources/Adapters/wasm/audio/AudioRenderOracle.cpp
   ../sources/Adapters/wasm/audio/AudioWorklet.cpp
   ../sources/Adapters/wasm/audio/WasmAudioDriver.cpp
