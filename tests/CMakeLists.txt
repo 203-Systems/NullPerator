@@ -50,6 +50,7 @@ add_executable(picoTracker_tests
   ../sources/Services/Audio/AudioDriver.cpp
   ../sources/Adapters/wasm/input/InputMap.cpp
   ../sources/Application/Instruments/WavHeader.cpp
+  ../sources/Application/Instruments/MidiInstrument.cpp
   ../sources/Application/Instruments/SIDInstrument.cpp
   ../sources/Externals/cRSID/SID.cpp
   ../sources/Application/Instruments/I_Instrument.cpp
@@ -66,6 +67,7 @@ add_executable(picoTracker_tests
   ../sources/Application/Model/Phrase.cpp
   ../sources/Application/Model/ProjectParameterRestore.cpp
   ../sources/Application/Model/Song.cpp
+  ../sources/Application/Model/Scale.cpp
   ../sources/Foundation/Services/Service.cpp
   ../sources/Foundation/Services/ServiceRegistry.cpp
   ../sources/Foundation/Services/SubService.cpp

@@ -80,21 +80,22 @@ public:
 private:
   etl::vector<Variable *, 6> variables_;
 
-  etl::array<uint8_t, MAX_MIDI_CHORD_NOTES + 1> lastNotes_[SONG_CHANNEL_COUNT];
-  int remainingTicks_;
-  bool playing_;
-  bool retrig_;
-  int retrigLoop_;
+  etl::array<uint8_t, MAX_MIDI_CHORD_NOTES + 1>
+      lastNotes_[SONG_CHANNEL_COUNT]{};
+  int remainingTicks_ = -1;
+  bool playing_ = false;
+  bool retrig_ = false;
+  int retrigLoop_ = 0;
   char velocity_ = 127;
   TableSaveState tableState_;
-  bool first_[SONG_CHANNEL_COUNT];
-  uint8_t pitchBendTarget_;
-  uint8_t pitchBendSpeed_;
-  float pitchBendCurrent_;
-  float pitchBendStep_;
+  bool first_[SONG_CHANNEL_COUNT]{};
+  uint8_t pitchBendTarget_ = PB_7BIT_MAX;
+  uint8_t pitchBendSpeed_ = 0;
+  float pitchBendCurrent_ = PB_7BIT_MAX;
+  float pitchBendStep_ = 1.0f;
   float interpolationAlpha_ = 0.1f;
-  bool pitchBend_;
-  bool useLogCurve_;
+  bool pitchBend_ = false;
+  bool useLogCurve_ = false;
 
   Variable channel_;
   Variable noteLen_;

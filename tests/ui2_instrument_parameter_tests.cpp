@@ -1,6 +1,7 @@
 #include "doctest/doctest.h"
 
 #include "Application/Instruments/OpalInstrumentParameterEncoding.h"
+#include "Application/Instruments/MidiInstrument.h"
 #include "Application/Instruments/SampleRenderingParams.h"
 #include "Application/Instruments/SIDInstrument.h"
 #include "Application/UI2/Controllers/Ui2InstrumentLifecycleController.h"
@@ -14,6 +15,35 @@
 #include <cstdint>
 #include <memory>
 #include <string_view>
+#include <vector>
+
+namespace {
+std::vector<MidiMessage> capturedMidiMessages;
+
+class FakeMidiService final : public MidiService {};
+
+void InstallFakeMidiService() {
+  static FakeMidiService service;
+  MidiService::Install(&service);
+}
+}
+
+// This focused host target does not link a platform MidiService. Keep the
+// production factory boundary while recording exactly what MidiInstrument
+// asks the service to send.
+MidiService::MidiService() = default;
+MidiService::~MidiService() = default;
+void MidiService::QueueMessage(MidiMessage &message) {
+  capturedMidiMessages.push_back(message);
+}
+void MidiService::RegisterActiveChannel(uint8_t channel) { (void)channel; }
+void MidiService::Update(Observable &observable, I_ObservableData *data) {
+  (void)observable;
+  (void)data;
+}
+void MidiService::updateActiveDevicesList(unsigned short config) {
+  (void)config;
+}
 
 // The focused host binary does not link TablePlayback.cpp; provide its small
 // value-state reset so the production SID lifecycle can be exercised directly.
@@ -172,6 +202,38 @@ TEST_CASE("SID render is inert before the first note starts") {
   CHECK_FALSE(instrument->Render(0, buffer.data(), 4, false));
   for (fixed sample : buffer)
     CHECK(sample == 123);
+  std::destroy_at(instrument);
+}
+
+TEST_CASE("MIDI playback state is deterministic before the first note") {
+  InstallFakeMidiService();
+  alignas(MidiInstrument)
+      std::array<std::byte, sizeof(MidiInstrument)> storage{};
+  storage.fill(std::byte{0xFF});
+  MidiInstrument *instrument =
+      std::construct_at(reinterpret_cast<MidiInstrument *>(storage.data()));
+  REQUIRE(instrument->Init());
+  capturedMidiMessages.clear();
+
+  instrument->Stop(0);
+  CHECK(capturedMidiMessages.empty());
+
+  std::array<fixed, 8> buffer{};
+  CHECK_FALSE(instrument->Render(0, buffer.data(), 4, false));
+  CHECK(capturedMidiMessages.empty());
+
+  REQUIRE(instrument->Start(0, 60));
+  instrument->Render(0, buffer.data(), 4, false);
+  REQUIRE(capturedMidiMessages.size() == 1U);
+  CHECK(capturedMidiMessages[0].status_ == MidiMessage::MIDI_NOTE_ON);
+  CHECK(capturedMidiMessages[0].data1_ == 60U);
+  CHECK(capturedMidiMessages[0].data2_ == INITIAL_NOTE_VELOCITY);
+
+  capturedMidiMessages.clear();
+  instrument->ProcessCommand(0, FourCC::InstrumentCommandPitchSlide, 0x007F);
+  instrument->Render(0, buffer.data(), 4, true);
+  CHECK(capturedMidiMessages.empty());
+
   std::destroy_at(instrument);
 }
 
