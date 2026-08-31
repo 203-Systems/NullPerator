@@ -394,7 +394,9 @@ UiBuildStatus UiChromeRenderer::BuildBottom(const UiBottomBarModel &model,
     };
     if (model.selector.options.size() == 1) {
       centeredOption(model.selector.options[0], 120,
-                     UiColorToken::TextColored);
+                     model.selector.highlightCurrent
+                         ? UiColorToken::TextColored
+                         : UiColorToken::TextDim);
       builder.Text("<", 7, 220, UiColorToken::DerivedTextFaint);
       builder.Text(">", 228, 220, UiColorToken::DerivedTextFaint);
       break;
@@ -403,7 +405,8 @@ UiBuildStatus UiChromeRenderer::BuildBottom(const UiBottomBarModel &model,
       for (std::uint8_t index = 0; index < 2; ++index) {
         centeredOption(model.selector.options[index],
                        index == 0 ? 60 : 180,
-                       index == model.selector.current
+                       model.selector.highlightCurrent &&
+                               index == model.selector.current
                            ? UiColorToken::TextColored
                            : UiColorToken::TextDim);
       }
@@ -423,7 +426,10 @@ UiBuildStatus UiChromeRenderer::BuildBottom(const UiBottomBarModel &model,
     };
     const int current = model.selector.current;
     centeredOption(optionAt(current - 1), 60, UiColorToken::TextDim);
-    centeredOption(optionAt(current), 120, UiColorToken::TextColored);
+    centeredOption(optionAt(current), 120,
+                   model.selector.highlightCurrent
+                       ? UiColorToken::TextColored
+                       : UiColorToken::TextDim);
     centeredOption(optionAt(current + 1), 180, UiColorToken::TextDim);
     builder.Text("<", 7, 220, UiColorToken::DerivedTextFaint);
     builder.Text(">", 228, 220, UiColorToken::DerivedTextFaint);

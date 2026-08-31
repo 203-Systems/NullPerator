@@ -122,6 +122,9 @@ struct UiSelectorBarModel {
   std::span<const std::string_view> options;
   std::uint8_t current = 0;
   bool wrap = false;
+  // Keep an inactive selector visible without implying that its current
+  // option can be activated from the page's focused row.
+  bool highlightCurrent = true;
   // Preserve option spelling when letter case is the value being selected.
   bool preserveCase = false;
 };

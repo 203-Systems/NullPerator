@@ -3492,6 +3492,49 @@ TEST_CASE("UI2 Font bottom bar exposes only BROWSE and DEFAULT") {
         nullptr);
 }
 
+TEST_CASE("UI2 Font highlights bottom actions only while FONT is focused") {
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  ui2::UiFontViewData data;
+
+  REQUIRE(ui2::UiFontView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  const ui2::UiCommand *browse =
+      FindTextCommand(scene.bottom.Stream(), "BROWSE");
+  const ui2::UiCommand *restoreDefault =
+      FindTextCommand(scene.bottom.Stream(), "DEFAULT");
+  REQUIRE(browse != nullptr);
+  REQUIRE(restoreDefault != nullptr);
+  CHECK(browse->color ==
+        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextDim));
+  CHECK(restoreDefault->color ==
+        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextDim));
+
+  data.cursor = ui2::UiFontCursor::Browse;
+  REQUIRE(ui2::UiFontView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  browse = FindTextCommand(scene.bottom.Stream(), "BROWSE");
+  restoreDefault = FindTextCommand(scene.bottom.Stream(), "DEFAULT");
+  REQUIRE(browse != nullptr);
+  REQUIRE(restoreDefault != nullptr);
+  CHECK(browse->color ==
+        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextColored));
+  CHECK(restoreDefault->color ==
+        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextDim));
+
+  data.action = ui2::UiFontAction::Default;
+  REQUIRE(ui2::UiFontView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  browse = FindTextCommand(scene.bottom.Stream(), "BROWSE");
+  restoreDefault = FindTextCommand(scene.bottom.Stream(), "DEFAULT");
+  REQUIRE(browse != nullptr);
+  REQUIRE(restoreDefault != nullptr);
+  CHECK(browse->color ==
+        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextDim));
+  CHECK(restoreDefault->color ==
+        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextColored));
+}
+
 TEST_CASE("UI2 Theme and Font adapters retain owned fixed-capacity text") {
   ThemeViewUi2Snapshot themeSnapshot;
   constexpr std::array themeName{'N', 'I', 'G', 'H', 'T', '\0'};

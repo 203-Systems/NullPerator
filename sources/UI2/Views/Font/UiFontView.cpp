@@ -76,7 +76,7 @@ void UiFontView::RenderDelta(const UiFontViewData &previous,
     render(ExpandedCursorDamage(previousCursor));
     render(ExpandedCursorDamage(currentCursor));
   }
-  if (previous.action != current.action)
+  if (previous.action != current.action || previous.cursor != current.cursor)
     render({0, 208, 240, 32});
 }
 
@@ -96,6 +96,7 @@ UiBuildStatus UiFontView::Build(const UiFontViewData &data, UiPalette &,
   UiBottomBarModel bottom{.kind = UiBottomBarKind::Selector};
   bottom.selector.options = actions;
   bottom.selector.current = data.action == UiFontAction::Browse ? 0U : 1U;
+  bottom.selector.highlightCurrent = data.cursor == UiFontCursor::Browse;
   bottom.selector.preserveCase = true;
   const UiBuildStatus bottomStatus =
       UiChromeRenderer::BuildBottom(bottom, scene.bottom);
