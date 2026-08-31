@@ -99,6 +99,19 @@ template <typename Controller> void CheckCommonPlaybackChords() {
   CHECK(selectedEditPlay.Handle(TrackerAction::Play, true).Empty());
 }
 
+template <typename Controller>
+void CheckSelectionSoloDoesNotCopy(Controller controller) {
+  BeginSelection(controller);
+  REQUIRE(controller.Selection().active);
+  controller.Handle(TrackerAction::Option, true);
+  const auto solo = controller.Handle(TrackerAction::Play, true);
+  REQUIRE(solo.count == 1U);
+  CHECK(solo[0].type == Ui2TrackerCommandType::ToggleSolo);
+  controller.Handle(TrackerAction::Play, false);
+  CHECK(controller.Handle(TrackerAction::Option, false).Empty());
+  CHECK(controller.Selection().active);
+}
+
 } // namespace
 
 TEST_CASE("UI2 Song owns a 16-row cursor and independent viewport") {
@@ -362,6 +375,14 @@ TEST_CASE("UI2 grid selections retain Option then Shift mute") {
   REQUIRE(tableMute.count == 1U);
   CHECK(tableMute[0].type == Ui2TrackerCommandType::ToggleMute);
   CHECK(tableMute[0].track == 6U);
+}
+
+TEST_CASE("UI2 grid selection solo does not also copy on Option release") {
+  CheckSelectionSoloDoesNotCopy(Ui2SongController(1, 2, 3));
+  CheckSelectionSoloDoesNotCopy(Ui2ChainController(2, 1, 3, 0));
+  CheckSelectionSoloDoesNotCopy(Ui2PhraseController(2, 1, 3, 0));
+  CheckSelectionSoloDoesNotCopy(
+      Ui2TableController(Ui2TrackerPage::PhraseTable, 2, 1, 3, 0));
 }
 
 TEST_CASE("UI2 Song EDIT PLAY launches immediately only in LIVE mode") {

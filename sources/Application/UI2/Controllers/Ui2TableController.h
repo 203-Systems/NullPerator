@@ -80,6 +80,7 @@ public:
 
     if (action == TrackerAction::Play && input_.Held(TrackerAction::Option) &&
         !input_.Held(TrackerAction::Edit)) {
+      clonePending_ = false;
       output.Push(Command(input_.Held(TrackerAction::Shift)
                               ? Ui2TrackerCommandType::UnmuteAll
                               : Ui2TrackerCommandType::ToggleSolo));

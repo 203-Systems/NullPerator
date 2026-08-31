@@ -126,6 +126,7 @@ public:
     if (action == TrackerAction::Play &&
         input_.Held(TrackerAction::Option) &&
         !input_.Held(TrackerAction::Edit)) {
+      copyPending_ = false;
       return MakeCommand(input_.Held(TrackerAction::Shift)
                              ? Ui2GrooveCommandType::UnmuteAll
                              : Ui2GrooveCommandType::ToggleSolo);

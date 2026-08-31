@@ -1199,6 +1199,23 @@ TEST_CASE("UI2 Groove selection retains Option then Shift mute") {
   CHECK(controller.Selection().active);
 }
 
+TEST_CASE("UI2 Groove selection solo does not also copy on Option release") {
+  using namespace ui2;
+  Ui2GrooveController controller(0, 3);
+  controller.Handle(TrackerAction::Shift, true);
+  Tap(controller, TrackerAction::Option);
+  controller.Handle(TrackerAction::Shift, false);
+  REQUIRE(controller.Selection().active);
+
+  controller.Handle(TrackerAction::Option, true);
+  const Ui2GrooveCommand solo =
+      controller.Handle(TrackerAction::Play, true);
+  REQUIRE(solo.type == Ui2GrooveCommandType::ToggleSolo);
+  controller.Handle(TrackerAction::Play, false);
+  CHECK_FALSE(controller.Handle(TrackerAction::Option, false).HasValue());
+  CHECK(controller.Selection().active);
+}
+
 TEST_CASE("UI2 Groove step policy initializes only empty cells and clamps") {
   using namespace ui2;
   CHECK(Ui2GrooveStepPolicy::Initialize(0xFFU) == 6U);
