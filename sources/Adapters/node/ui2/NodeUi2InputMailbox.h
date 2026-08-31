@@ -107,10 +107,14 @@ private:
 
   std::array<std::uint32_t, 4U> nextRepeatMs_{};
   std::array<std::uint8_t, 4U> repeatDebt_{};
-  // Modifier state observed when each ordinary action was accepted. This lets
-  // Drain reconstruct a short modifier chord that completed entirely between
-  // UI-task drains instead of serializing it as two unrelated taps.
-  std::array<std::uint16_t, 6U> pendingModifierContext_{};
+  // Modifier state observed when each action was accepted. This lets Drain
+  // reconstruct a short chord that completed entirely between UI-task drains
+  // instead of serializing it as unrelated taps.
+  // Tracker modifier bits fit in one byte. Indexing every action directly is
+  // smaller than the former uint16 ordinary-only table and also retains the
+  // order of modifier-to-modifier chords such as SHIFT then OPTION.
+  std::array<std::uint8_t, static_cast<std::size_t>(TrackerAction::Count)>
+      pendingModifierContext_{};
   std::uint16_t latestPhysicalHeldMask_ = 0U;
   std::uint16_t acceptedHeldMask_ = 0U;
   std::uint16_t deliveredHeldMask_ = 0U;

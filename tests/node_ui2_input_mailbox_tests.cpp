@@ -132,6 +132,60 @@ TEST_CASE("Node UI2 mailbox preserves completed modifier direction chords") {
   CheckEvent(batch, 3U, TrackerAction::Shift, false);
 }
 
+TEST_CASE("Node UI2 mailbox preserves completed selection modifier chord") {
+  InputMailbox mailbox;
+  mailbox.PublishSample(0U, false, 100U);
+  (void)mailbox.Drain();
+
+  mailbox.PublishSample(Mask({TrackerAction::Shift}), false, 110U);
+  mailbox.PublishSample(
+      Mask({TrackerAction::Shift, TrackerAction::Option}), false, 120U);
+  mailbox.PublishSample(0U, false, 130U);
+  const InputMailbox::Batch batch = mailbox.Drain();
+
+  REQUIRE(batch.size == 4U);
+  CheckEvent(batch, 0U, TrackerAction::Shift, true);
+  CheckEvent(batch, 1U, TrackerAction::Option, true);
+  CheckEvent(batch, 2U, TrackerAction::Option, false);
+  CheckEvent(batch, 3U, TrackerAction::Shift, false);
+}
+
+TEST_CASE("Node UI2 mailbox preserves completed mute modifier order") {
+  InputMailbox mailbox;
+  mailbox.PublishSample(0U, false, 100U);
+  (void)mailbox.Drain();
+
+  mailbox.PublishSample(Mask({TrackerAction::Option}), false, 110U);
+  mailbox.PublishSample(
+      Mask({TrackerAction::Option, TrackerAction::Shift}), false, 120U);
+  mailbox.PublishSample(0U, false, 130U);
+  const InputMailbox::Batch batch = mailbox.Drain();
+
+  REQUIRE(batch.size == 4U);
+  CheckEvent(batch, 0U, TrackerAction::Option, true);
+  CheckEvent(batch, 1U, TrackerAction::Shift, true);
+  CheckEvent(batch, 2U, TrackerAction::Shift, false);
+  CheckEvent(batch, 3U, TrackerAction::Option, false);
+}
+
+TEST_CASE("Node UI2 mailbox preserves selection order when Option stays held") {
+  InputMailbox mailbox;
+  mailbox.PublishSample(0U, false, 100U);
+  (void)mailbox.Drain();
+
+  mailbox.PublishSample(Mask({TrackerAction::Shift}), false, 110U);
+  mailbox.PublishSample(
+      Mask({TrackerAction::Shift, TrackerAction::Option}), false, 120U);
+  mailbox.PublishSample(Mask({TrackerAction::Option}), false, 130U);
+  const InputMailbox::Batch batch = mailbox.Drain();
+
+  REQUIRE(batch.size == 3U);
+  CheckEvent(batch, 0U, TrackerAction::Shift, true);
+  CheckEvent(batch, 1U, TrackerAction::Option, true);
+  CheckEvent(batch, 2U, TrackerAction::Shift, false);
+  CHECK(batch.heldMask == Mask({TrackerAction::Option}));
+}
+
 TEST_CASE("Node UI2 mailbox does not combine separate completed taps") {
   InputMailbox mailbox;
   mailbox.PublishSample(0U, false, 100U);

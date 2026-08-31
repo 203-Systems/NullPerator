@@ -24,14 +24,6 @@ constexpr std::array<TrackerAction, 4U> kDirectionOrder = {
     TrackerAction::Left, TrackerAction::Down, TrackerAction::Right,
     TrackerAction::Up};
 
-constexpr std::size_t OrdinaryIndex(TrackerAction action) {
-  for (std::size_t index = 0U; index < kOrdinaryOrder.size(); ++index) {
-    if (kOrdinaryOrder[index] == action)
-      return index;
-  }
-  return kOrdinaryOrder.size();
-}
-
 } // namespace
 
 bool InputMailbox::Batch::Push(TrackerAction action, bool pressed,
@@ -59,13 +51,23 @@ void InputMailbox::AcceptPresses(std::uint16_t mask, std::uint32_t nowMs) {
   if (mask == 0U)
     return;
 
-  const std::uint16_t acceptedWithPresses =
-      static_cast<std::uint16_t>(acceptedHeldMask_ | mask);
+  std::uint16_t acceptedWithPresses = acceptedHeldMask_;
+  // Preserve ordering between modifiers. If several arrive in one physical
+  // sample, the same deterministic order used for ordinary delivery applies.
+  for (const TrackerAction action : kModifierOrder) {
+    const std::uint16_t bit = Bit(action);
+    if ((mask & bit) == 0U)
+      continue;
+    pendingModifierContext_[static_cast<std::size_t>(action)] =
+        static_cast<std::uint8_t>(acceptedWithPresses & kModifierMask);
+    acceptedWithPresses =
+        static_cast<std::uint16_t>(acceptedWithPresses | bit);
+  }
   for (const TrackerAction action : kOrdinaryOrder) {
     if ((mask & Bit(action)) == 0U)
       continue;
-    pendingModifierContext_[OrdinaryIndex(action)] =
-        static_cast<std::uint16_t>(acceptedWithPresses & kModifierMask);
+    pendingModifierContext_[static_cast<std::size_t>(action)] =
+        static_cast<std::uint8_t>(acceptedWithPresses & kModifierMask);
   }
   acceptedHeldMask_ |= mask;
   pendingPressedMask_ |= mask;
@@ -173,22 +175,32 @@ InputMailbox::Batch InputMailbox::Drain() {
 
   // A common short chord (for example SHIFT+LEFT navigation) can be pressed
   // and released while the UI task is transferring LCD rows. When exactly one
-  // ordinary action completed, its sampled modifier context is unambiguous;
-  // keep those modifiers down around the action tap. More complex coalesced
-  // histories retain the conservative legacy ordering because bit masks alone
+  // action began under a sampled modifier context, its ordering is
+  // unambiguous; keep those modifiers down around that action. This includes
+  // modifier-to-modifier chords such as SHIFT then OPTION. More complex
+  // coalesced histories retain conservative ordering because bit masks alone
   // cannot recover their chronology without guessing.
   TrackerAction completedChordAction = TrackerAction::Count;
   std::uint16_t completedChordModifiers = 0U;
-  std::uint8_t tappedOrdinaryCount = 0U;
-  for (const TrackerAction action : kOrdinaryOrder) {
-    if ((tappedMask & Bit(action)) == 0U)
+  std::uint8_t chordActionCount = 0U;
+  for (const TrackerAction action : kAllActionOrder) {
+    if ((pendingPressedMask_ & Bit(action)) == 0U)
       continue;
-    ++tappedOrdinaryCount;
+    const std::uint16_t context =
+        pendingModifierContext_[static_cast<std::size_t>(action)];
+    if (context == 0U)
+      continue;
+    ++chordActionCount;
     completedChordAction = action;
-    completedChordModifiers = pendingModifierContext_[OrdinaryIndex(action)];
+    completedChordModifiers = context;
   }
-  if (tappedOrdinaryCount != 1U || completedChordModifiers == 0U ||
-      (acceptedHeldMask_ & kModifierMask & ~completedChordModifiers) != 0U) {
+  const std::uint16_t completedActionBit =
+      completedChordAction < TrackerAction::Count
+          ? Bit(completedChordAction)
+          : 0U;
+  if (chordActionCount != 1U || completedChordModifiers == 0U ||
+      (acceptedHeldMask_ & kModifierMask &
+       ~(completedChordModifiers | completedActionBit)) != 0U) {
     completedChordAction = TrackerAction::Count;
     completedChordModifiers = 0U;
   }
@@ -222,7 +234,8 @@ InputMailbox::Batch InputMailbox::Drain() {
   const auto pressStage = [&](const auto &order) {
     for (const TrackerAction action : order) {
       const std::uint16_t bit = Bit(action);
-      if ((acceptedHeldMask_ & bit) == 0U ||
+      if (action == completedChordAction ||
+          (acceptedHeldMask_ & bit) == 0U ||
           (deliveredHeldMask_ & bit) != 0U)
         continue;
 
@@ -267,8 +280,13 @@ InputMailbox::Batch InputMailbox::Drain() {
       (void)batch.Push(modifier, true);
       deliveredHeldMask_ |= bit;
     }
+    const std::uint16_t actionBit = Bit(completedChordAction);
     (void)batch.Push(completedChordAction, true);
-    (void)batch.Push(completedChordAction, false);
+    deliveredHeldMask_ |= actionBit;
+    if ((acceptedHeldMask_ & actionBit) == 0U) {
+      (void)batch.Push(completedChordAction, false);
+      deliveredHeldMask_ &= static_cast<std::uint16_t>(~actionBit);
+    }
     for (auto iterator = kModifierOrder.rbegin();
          iterator != kModifierOrder.rend(); ++iterator) {
       const std::uint16_t bit = Bit(*iterator);
