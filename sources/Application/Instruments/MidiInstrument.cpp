@@ -299,6 +299,15 @@ void MidiInstrument::ProcessCommand(int channel, FourCC cc, ushort value) {
     // split into 4 note offsets
     for (std::size_t i = 0; i < midi_queue_budget::kChordNotesPerTrack; i++) {
       uint8_t noteOffset = (value >> (i * 4)) & 0xF;
+      uint8_t &chordNote = lastNotes_[channel][i + 1];
+      if (chordNote != NO_NOTE) {
+        MidiMessage msg;
+        msg.status_ = MidiMessage::MIDI_NOTE_OFF + mchannel;
+        msg.data1_ = chordNote;
+        msg.data2_ = 0x00;
+        svc_->QueueMessage(msg);
+        chordNote = NO_NOTE;
+      }
       if (noteOffset == 0) {
         continue;
       }
@@ -317,7 +326,7 @@ void MidiInstrument::ProcessCommand(int channel, FourCC cc, ushort value) {
       //              noteOffset);
 
       // save the chord note for sending a note off later
-      lastNotes_[channel][i + 1] = note;
+      chordNote = note;
 
       if (noteOffset != 0) {
         MidiMessage msg;
