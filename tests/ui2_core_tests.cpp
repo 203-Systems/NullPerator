@@ -395,6 +395,21 @@ TEST_CASE("UI2 indexed surface owns no RGB framebuffer and clips fills") {
   CHECK(sizeof(storage) < 58'000);
 }
 
+TEST_CASE("UI2 indexed surface marks one exact tile for a pixel write") {
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  surface.SetPixel(17, 23, 7);
+
+  ui2::DirtyStripList strips;
+  REQUIRE(surface.DirtyTiles().Collect(strips));
+  REQUIRE(strips.Size() == 1);
+  const ui2::DirtyStrip strip = strips.Strips().front();
+  CHECK(strip.x == 16);
+  CHECK(strip.y == 16);
+  CHECK(strip.width == 8);
+  CHECK(strip.height == 8);
+}
+
 TEST_CASE(
     "UI2 rounded bubble keeps straight edges crisp and softens corners only") {
   ui2::UiSurfaceStorage storage;

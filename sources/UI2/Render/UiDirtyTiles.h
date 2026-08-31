@@ -15,6 +15,8 @@
 
 namespace ui2 {
 
+class UiIndexedSurface;
+
 class DirtyStripList {
 public:
   static constexpr std::size_t kMaxStrips = 450;
@@ -48,10 +50,16 @@ public:
   bool Collect(DirtyStripList &output) const;
 
 private:
+  void MarkPixel(std::uint16_t x, std::uint16_t y) {
+    Set(static_cast<std::uint16_t>(x / kTileSize),
+        static_cast<std::uint16_t>(y / kTileSize));
+  }
   [[nodiscard]] bool Test(std::uint16_t x, std::uint16_t y) const;
   void Set(std::uint16_t x, std::uint16_t y);
 
   std::array<std::uint32_t, kWordCount> words_{};
+
+  friend class UiIndexedSurface;
 };
 
 static_assert(UiDirtyTiles::kColumns == 30);

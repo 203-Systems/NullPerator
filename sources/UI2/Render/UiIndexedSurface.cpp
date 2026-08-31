@@ -135,7 +135,8 @@ void UiIndexedSurface::SetPixel(std::int16_t x, std::int16_t y,
                                 PaletteIndex color) {
   if (x < 0 || y < 0 || x >= kScreenWidth || y >= kScreenHeight) return;
   storage_.pixels[Offset(x, y)] = color;
-  storage_.dirty.Mark({x, y, 1, 1});
+  storage_.dirty.MarkPixel(static_cast<std::uint16_t>(x),
+                           static_cast<std::uint16_t>(y));
 }
 
 PaletteIndex UiIndexedSurface::Pixel(std::int16_t x, std::int16_t y) const {
