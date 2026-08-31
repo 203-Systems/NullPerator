@@ -1,15 +1,12 @@
 #include "AudioDriver.h"
-#include "Adapters/node/hal/nullperator/audio/audio.h"
 #include "Adapters/node/platform/platform.h"
 #include "Adapters/node/system/TaskStackTelemetry.h"
 #include "Application/Model/Config.h"
-#include "Services/Midi/MidiService.h"
-#include "System/System/System.h"
+#include "System/Console/Trace.h"
 #include "config/MemorySections.h"
+
+#include <cstddef>
 #include <cstdint>
-#include <math.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 #include "esp_log.h"
@@ -270,9 +267,9 @@ bool NodeAudioDriver::InitDriver() {
 }
 
 void NodeAudioDriver::SetVolume(int v) {
-  volume_ = (v <= 100) ? v : 100;
-  audio_codec_set_volume(volume_);
-  Trace::Debug("Setting volume to %d", volume_);
+  const int volume = (v <= 100) ? v : 100;
+  audio_codec_set_volume(volume);
+  Trace::Debug("Setting volume to %d", volume);
 };
 
 int NodeAudioDriver::GetVolume() { return audio_codec_get_volume(); };

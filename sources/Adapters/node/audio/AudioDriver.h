@@ -1,14 +1,10 @@
 #ifndef _NODEAUDIO_DRIVER_H_
 #define _NODEAUDIO_DRIVER_H_
 
-#include "Foundation/T_Singleton.h"
 #include "Services/Audio/AudioDriver.h"
-#include "driver/i2s_std.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
+
 #include <atomic>
 #include <cstdint>
-
 
 #define MINI_BLANK_SIZE 128 // Samples
 
@@ -38,7 +34,6 @@ private:
   static void I2SThread(void* arg);
   static NodeAudioDriver *instance_;
   static uint8_t miniBlank_[MINI_BLANK_SIZE * 2U * sizeof(int16_t)];
-  int volume_;
   // Node's two worker tasks run on different cores, so their run gate needs a
   // real cross-core synchronization primitive.
   std::atomic<bool> driverPlaying_{false};
