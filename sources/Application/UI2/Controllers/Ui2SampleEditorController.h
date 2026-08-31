@@ -116,8 +116,7 @@ public:
       focus_ = SampleEditorViewUi2Focus::Waveform;
   }
 
-  [[nodiscard]] bool ReloadWorkingCopy(FileSystem &fileSystem,
-                                       const char *path) {
+  [[nodiscard]] bool ReloadPath(FileSystem &fileSystem, const char *path) {
     if (!active_ || path == nullptr || path[0] == '\0')
       return false;
     const auto result = waveform_.LoadPath(fileSystem, path);

@@ -38,6 +38,7 @@
 #include "Application/UI2/Ui2NativeApplicationStateSource.h"
 #include "Application/UI2/Ui2PersistenceStatus.h"
 #include "Application/UI2/Ui2ProjectRenderBackend.h"
+#include "Application/UI2/Ui2SampleEditorTransaction.h"
 #include "Application/UI2/Ui2SampleWaveformBackend.h"
 #include "Application/UI2/Ui2StatusBridge.h"
 #include "Application/UI2/Ui2TrackerSessionModelPort.h"
@@ -112,7 +113,12 @@ private:
   void ExecuteSampleBrowser(Ui2SampleBrowserCommand command);
   void CloseSampleBrowser();
   void HandleSampleEditor(TrackerAction action, bool pressed);
+  void HandleSampleEditorDialog(TrackerAction action, bool pressed);
   void ExecuteSampleEditor(Ui2SampleEditorCommand command);
+  [[nodiscard]] bool CloseSampleEditor();
+  [[nodiscard]] bool RecoverSampleEditorDestination();
+  [[nodiscard]] bool ImportSampleToCurrentInstrument(const char *path,
+                                                      const char *&error);
   void HandleSampleSlices(TrackerAction action, bool pressed);
   void ExecuteSampleSlices(Ui2SampleSlicesCommand command);
   [[nodiscard]] bool OpenSampleEditor(const char *path, bool projectPool,
@@ -180,6 +186,7 @@ private:
   Ui2SampleBrowserController sampleBrowser_{};
   Ui2SampleWaveformBackend sampleWaveform_{};
   Ui2SampleEditorController sampleEditor_{sampleWaveform_};
+  Ui2SampleEditorTransaction sampleEditorTransaction_{};
   Ui2SampleSlicesController sampleSlices_{sampleWaveform_};
   Ui2RecordController record_{};
   Ui2ControllerInputState projectInput_{};

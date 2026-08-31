@@ -301,6 +301,10 @@ void Ui2TrackerApplication::Shutdown() {
   if (configSave_.Dirty())
     (void)FlushConfig();
   StopSamplePreview();
+  if (sampleEditorTransaction_.Active())
+    (void)sampleEditorTransaction_.Discard();
+  sampleEditorTransaction_.Reset();
+  sampleEditor_.Close();
   if (session_.IsLoaded())
     session_.CloseProject();
   (void)firmwareLifecycle_.CloseMidi();
@@ -385,6 +389,11 @@ void Ui2TrackerApplication::DispatchLogicalAction(TrackerAction action,
   }
   if (sampleBrowser_.DialogActive()) {
     HandleSampleBrowserDialog(action, pressed);
+    finishModalRelease();
+    return;
+  }
+  if (sampleEditor_.DialogActive()) {
+    HandleSampleEditorDialog(action, pressed);
     finishModalRelease();
     return;
   }
@@ -698,8 +707,8 @@ bool Ui2TrackerApplication::ActivatePage(UiApplicationPage page) {
     deferredProjectSave_.Cancel();
   if (changed && activePage_ == UiApplicationPage::SampleEditor &&
       page != UiApplicationPage::SampleEditor && sampleEditor_.Active()) {
-    StopSamplePreview();
-    sampleEditor_.Close();
+    if (!CloseSampleEditor())
+      return false;
   }
   if (changed && activePage_ == UiApplicationPage::SampleSlices &&
       page != UiApplicationPage::SampleSlices && sampleSlices_.Active()) {
@@ -1111,47 +1120,62 @@ void Ui2TrackerApplication::ExecuteSampleBrowser(
     sampleBrowser_.SetError("IMPORT UNAVAILABLE");
     return;
   }
-  if (pool->GetNameListSize() >= MAX_SAMPLES) {
-    sampleBrowser_.SetError("SAMPLE POOL FULL");
+  const char *error = nullptr;
+  if (!ImportSampleToCurrentInstrument(command.filename.data(), error)) {
+    sampleBrowser_.SetError(error);
     return;
+  }
+  sampleBrowser_.ClearError();
+}
+
+bool Ui2TrackerApplication::ImportSampleToCurrentInstrument(
+    const char *path, const char *&error) {
+  error = "IMPORT FAILED";
+  FileSystem *fileSystem = FileSystem::GetInstance();
+  SamplePool *pool = SamplePool::GetInstance();
+  if (path == nullptr || path[0] == '\0' || fileSystem == nullptr ||
+      pool == nullptr) {
+    error = "IMPORT UNAVAILABLE";
+    return false;
+  }
+  if (pool->GetNameListSize() >= MAX_SAMPLES) {
+    error = "SAMPLE POOL FULL";
+    return false;
   }
 
   // Validate before opening the project destination. ImportSample applies the
-  // Config import-resampler setting while copying, exactly as the legacy path.
+  // configured resampler while copying, exactly as the established browser
+  // path, and the preflight keeps a failed import from replacing an existing
+  // project sample.
   WavFile sourceWave;
-  const auto opened = sourceWave.Open(command.filename.data());
-  if (!opened) {
-    sampleBrowser_.SetError("INVALID SAMPLE");
-    return;
+  if (!sourceWave.Open(path)) {
+    error = "INVALID SAMPLE";
+    return false;
   }
   const std::uint32_t sourceBytes = sourceWave.GetDiskSize(-1);
   sourceWave.Close();
   if (sourceBytes == 0U || !pool->CheckSampleFits(sourceBytes)) {
-    sampleBrowser_.SetError("SAMPLE TOO LARGE");
-    return;
+    error = "SAMPLE TOO LARGE";
+    return false;
   }
 
   Ui2ProjectSampleName importedName{};
   Ui2ProjectSamplePath importedPath{};
-  if (!Ui2ResolveImportedSampleName(command.filename.data(), importedName) ||
+  if (!Ui2ResolveImportedSampleName(path, importedName) ||
       !Ui2BuildProjectSamplePath(session_.ProjectName(), importedName.data(),
                                  importedPath) ||
       fileSystem->exists(importedPath.data())) {
-    // Never truncate/overwrite an existing project sample. The legacy direct
-    // "w" open could destroy it before a later decode/allocation failure.
-    sampleBrowser_.SetError("SAMPLE ALREADY EXISTS");
-    return;
+    error = "SAMPLE ALREADY EXISTS";
+    return false;
   }
 
-  const int sampleId =
-      pool->ImportSample(command.filename.data(), session_.ProjectName());
+  const int sampleId = pool->ImportSample(path, session_.ProjectName());
   if (sampleId < 0) {
-    // This destination did not exist at preflight, so deleting it only removes
-    // a partial file left by the failed import and preserves project state.
+    // The destination did not exist at preflight, so this can only remove a
+    // partial file created by the failed import.
     if (fileSystem->exists(importedPath.data()))
-      fileSystem->DeleteFile(importedPath.data());
-    sampleBrowser_.SetError("IMPORT FAILED");
-    return;
+      (void)fileSystem->DeleteFile(importedPath.data());
+    return false;
   }
 
   InstrumentBank *bank = session_.ProjectModel().GetInstrumentBank();
@@ -1164,8 +1188,9 @@ void Ui2TrackerApplication::ExecuteSampleBrowser(
     sample->AssignSample(sampleId);
     sample->ClearSlices();
   }
-  sampleBrowser_.ClearError();
+  error = nullptr;
   MarkProjectDirty();
+  return true;
 }
 
 bool Ui2TrackerApplication::OpenSampleEditor(const char *path,
@@ -1175,20 +1200,94 @@ bool Ui2TrackerApplication::OpenSampleEditor(const char *path,
   if (fileSystem == nullptr || path == nullptr || path[0] == '\0')
     return false;
   StopSamplePreview();
-  if (sampleEditor_.Active())
-    sampleEditor_.Close();
+  if (sampleEditor_.Active() && !CloseSampleEditor())
+    return false;
   if (sampleSlices_.Active())
     sampleSlices_.Close();
+
+  Ui2ProjectSamplePath projectDestination{};
+  const char *destination = path;
+  if (projectPool) {
+    if (!Ui2BuildProjectSamplePath(session_.ProjectName(), path,
+                                   projectDestination))
+      return false;
+    destination = projectDestination.data();
+  }
+  // Recover an interrupted promotion before the waveform tries to open the
+  // authoritative destination. Loading first would make a valid backup
+  // unreachable whenever the prior SAVE left the destination absent.
+  if (sampleEditorTransaction_.Begin(*fileSystem, destination) !=
+      Ui2SampleEditorTransactionResult::Ready)
+    return false;
+
   const Ui2SampleWaveformLoadResult result =
       projectPool
           ? sampleEditor_.OpenProjectPool(*fileSystem, session_.ProjectName(),
                                           path)
           : sampleEditor_.OpenPath(*fileSystem, path, false);
-  if (result != Ui2SampleWaveformLoadResult::Loaded)
+  if (result != Ui2SampleWaveformLoadResult::Loaded) {
+    (void)sampleEditorTransaction_.Discard();
+    sampleEditorTransaction_.Reset();
+    sampleEditor_.Close();
     return false;
+  }
+  // Same-name rewrite is transactional. Rename remains fail-closed because it
+  // also has to update pool references and collision UI atomically.
+  sampleEditor_.SetTransactionCapabilities(true, false);
   sampleReturnPage_ = returnPage;
-  ActivatePage(UiApplicationPage::SampleEditor);
-  return activePage_ == UiApplicationPage::SampleEditor;
+  if (!ActivatePage(UiApplicationPage::SampleEditor)) {
+    (void)CloseSampleEditor();
+    return false;
+  }
+  return true;
+}
+
+bool Ui2TrackerApplication::CloseSampleEditor() {
+  StopSamplePreview();
+  if (sampleEditorTransaction_.Active() &&
+      sampleEditorTransaction_.Discard() !=
+          Ui2SampleEditorTransactionResult::Discarded) {
+    ShowFeedbackError("SAMPLE DISCARD FAILED");
+    return false;
+  }
+  sampleEditorTransaction_.Reset();
+  sampleEditor_.Close();
+  return true;
+}
+
+bool Ui2TrackerApplication::RecoverSampleEditorDestination() {
+  StopSamplePreview();
+  const auto failClosed = [this]() {
+    // Journal files are intentionally left in place when cleanup/recovery
+    // itself fails. A later Begin() can recover the destination without
+    // exposing a controller whose waveform path may no longer exist.
+    sampleEditorTransaction_.Reset();
+    sampleEditor_.Close();
+    (void)ActivatePage(sampleReturnPage_);
+    ShowFeedbackError("SAMPLE RECOVERY FAILED");
+    return false;
+  };
+
+  FileSystem *fileSystem = FileSystem::GetInstance();
+  std::array<char, PFILENAME_SIZE> destination{};
+  const int written =
+      std::snprintf(destination.data(), destination.size(), "%s",
+                    sampleEditorTransaction_.DestinationPath());
+  if (fileSystem == nullptr || written <= 0 ||
+      static_cast<std::size_t>(written) >= destination.size())
+    return failClosed();
+
+  if (sampleEditorTransaction_.Discard() !=
+      Ui2SampleEditorTransactionResult::Discarded)
+    return failClosed();
+  if (sampleEditorTransaction_.Begin(*fileSystem, destination.data()) !=
+          Ui2SampleEditorTransactionResult::Ready ||
+      !sampleEditor_.ReloadPath(*fileSystem, destination.data())) {
+    (void)sampleEditorTransaction_.Discard();
+    return failClosed();
+  }
+  sampleEditor_.SetTransactionCapabilities(true, false);
+  return true;
 }
 
 bool Ui2TrackerApplication::OpenSampleSlices(const char *path,
@@ -1197,8 +1296,8 @@ bool Ui2TrackerApplication::OpenSampleSlices(const char *path,
   if (fileSystem == nullptr || path == nullptr || path[0] == '\0')
     return false;
   StopSamplePreview();
-  if (sampleEditor_.Active())
-    sampleEditor_.Close();
+  if (sampleEditor_.Active() && !CloseSampleEditor())
+    return false;
   if (sampleSlices_.Active())
     sampleSlices_.Close();
   if (sampleSlices_.OpenProjectPool(*fileSystem, session_.ProjectName(), path) !=
@@ -1220,6 +1319,11 @@ void Ui2TrackerApplication::HandleSampleEditor(TrackerAction action,
       return;
   }
   ExecuteSampleEditor(sampleEditor_.Handle(action, pressed));
+}
+
+void Ui2TrackerApplication::HandleSampleEditorDialog(TrackerAction action,
+                                                     bool pressed) {
+  ExecuteSampleEditor(sampleEditor_.HandleDialog(action, pressed));
 }
 
 void Ui2TrackerApplication::ExecuteSampleEditor(
@@ -1270,7 +1374,7 @@ void Ui2TrackerApplication::ExecuteSampleEditor(
     break;
   case Ui2SampleEditorCommandType::NavigateBack:
   case Ui2SampleEditorCommandType::RequestDiscard:
-    ActivatePage(sampleReturnPage_);
+    (void)ActivatePage(sampleReturnPage_);
     break;
   case Ui2SampleEditorCommandType::SetStart:
   case Ui2SampleEditorCommandType::SetEnd:
@@ -1278,13 +1382,76 @@ void Ui2TrackerApplication::ExecuteSampleEditor(
     // They stay local until SAVE/APPLY succeeds, matching the legacy editor.
     break;
   case Ui2SampleEditorCommandType::RequestRename:
-  case Ui2SampleEditorCommandType::RequestApplyOperation:
-  case Ui2SampleEditorCommandType::RequestSave:
-  case Ui2SampleEditorCommandType::RequestSaveAndLoad:
-    // These operations can overwrite or rewrite a WAV. UI2 intentionally
-    // leaves them inert until the overwrite/progress/error states have an
-    // approved 240x240 design; the controller still exposes typed requests.
+    // NAME stays unreachable while renameAvailable is false. Keep an explicit
+    // fail-closed response if a future caller constructs this command itself.
+    ShowFeedbackError("SAMPLE RENAME UNAVAILABLE");
     break;
+  case Ui2SampleEditorCommandType::RequestApplyOperation:
+    StopSamplePreview();
+    sampleEditor_.RequestApplyConfirmation(
+        command.operation, command.start, command.end, TrackerAction::Edit);
+    break;
+  case Ui2SampleEditorCommandType::ApplyConfirmed: {
+    StopSamplePreview();
+    const Ui2SampleEditorTransactionResult result =
+        command.operation == Ui2SampleEditorOperation::Trim
+            ? sampleEditorTransaction_.ApplyTrim(command.start, command.end)
+            : sampleEditorTransaction_.ApplyNormalize();
+    FileSystem *fileSystem = FileSystem::GetInstance();
+    if (result == Ui2SampleEditorTransactionResult::Applied &&
+        fileSystem != nullptr &&
+        sampleEditor_.ReloadPath(*fileSystem,
+                                 sampleEditorTransaction_.WorkingPath())) {
+      break;
+    }
+    if (RecoverSampleEditorDestination())
+      ShowFeedbackError("SAMPLE OPERATION FAILED");
+    break;
+  }
+  case Ui2SampleEditorCommandType::RequestSave:
+  case Ui2SampleEditorCommandType::RequestSaveAndLoad: {
+    StopSamplePreview();
+    std::array<char, PFILENAME_SIZE> destination{};
+    const int written =
+        std::snprintf(destination.data(), destination.size(), "%s",
+                      sampleEditorTransaction_.DestinationPath());
+    if (written <= 0 ||
+        static_cast<std::size_t>(written) >= destination.size()) {
+      ShowFeedbackError("SAMPLE SAVE FAILED");
+      break;
+    }
+    const Ui2SampleEditorTransactionResult result =
+        sampleEditorTransaction_.Save();
+    if (result != Ui2SampleEditorTransactionResult::Saved &&
+        result != Ui2SampleEditorTransactionResult::NoChanges) {
+      if (RecoverSampleEditorDestination())
+        ShowFeedbackError("SAMPLE SAVE FAILED");
+      break;
+    }
+
+    if (command.type == Ui2SampleEditorCommandType::RequestSaveAndLoad) {
+      const char *error = nullptr;
+      const bool imported =
+          ImportSampleToCurrentInstrument(destination.data(), error);
+      if (imported)
+        (void)sampleBrowser_.Open(session_.ProjectName());
+      (void)ActivatePage(imported ? UiApplicationPage::Browser
+                                  : sampleReturnPage_);
+      if (!imported)
+        ShowFeedbackError("SAMPLE SAVED; LOAD FAILED");
+      break;
+    }
+
+    const bool projectPool = command.projectPool;
+    (void)ActivatePage(sampleReturnPage_);
+    if (projectPool) {
+      System *system = System::GetInstance();
+      feedback_.ShowMessage("RELOAD PROJECT TO APPLY",
+                            system == nullptr ? 0U : system->Millis());
+      runtime_.Invalidate();
+    }
+    break;
+  }
   case Ui2SampleEditorCommandType::None:
     break;
   }
@@ -2262,6 +2429,9 @@ void Ui2TrackerApplication::ExecuteProjectLifecycle(
 
 void Ui2TrackerApplication::ResetControllersAfterProjectBoundary() {
   StopSamplePreview();
+  if (sampleEditorTransaction_.Active())
+    (void)sampleEditorTransaction_.Discard();
+  sampleEditorTransaction_.Reset();
   if (sampleEditor_.Active())
     sampleEditor_.Close();
   if (sampleSlices_.Active())

@@ -91,8 +91,8 @@ public:
   [[nodiscard]] bool HasDialog() const override {
     return projectRender_.Active() || projectLifecycle_.Active() ||
            sampleBrowser_.DialogActive() || deviceLifecycle_.Active() ||
-           instrumentLifecycle_.Active() || rename_.Active() ||
-           feedback_.Active();
+           instrumentLifecycle_.Active() || sampleEditor_.DialogActive() ||
+           rename_.Active() || feedback_.Active();
   }
   [[nodiscard]] Ui2DialogSnapshot DialogSnapshot() const override {
     if (projectRender_.Active())
@@ -105,6 +105,8 @@ public:
       return deviceLifecycle_.Snapshot();
     if (instrumentLifecycle_.Active())
       return instrumentLifecycle_.Snapshot();
+    if (sampleEditor_.DialogActive())
+      return sampleEditor_.DialogSnapshot();
     return rename_.Active() ? rename_.Snapshot() : feedback_.Snapshot();
   }
   [[nodiscard]] std::uint32_t DialogInstanceId() const override {
@@ -122,6 +124,8 @@ public:
       return (deviceLifecycle_.InstanceId() << tagBits) | 4U;
     if (instrumentLifecycle_.Active())
       return (instrumentLifecycle_.InstanceId() << tagBits) | 5U;
+    if (sampleEditor_.DialogActive())
+      return (sampleEditor_.DialogInstanceId() << tagBits) | 7U;
     if (rename_.Active())
       return rename_.InstanceId() << tagBits;
     return (feedback_.InstanceId() << tagBits) | 6U;
