@@ -1231,9 +1231,9 @@ bool Ui2TrackerApplication::OpenSampleEditor(const char *path,
     sampleEditor_.Close();
     return false;
   }
-  // Same-name rewrite is transactional. Rename remains fail-closed because it
-  // also has to update pool references and collision UI atomically.
-  sampleEditor_.SetTransactionCapabilities(true, false);
+  // Expose only the transactional same-name rewrite. Pool-aware rename is not
+  // part of the editor contract until references and collisions are atomic.
+  sampleEditor_.SetTransactionCapabilities(true);
   sampleReturnPage_ = returnPage;
   if (!ActivatePage(UiApplicationPage::SampleEditor)) {
     (void)CloseSampleEditor();
@@ -1286,7 +1286,7 @@ bool Ui2TrackerApplication::RecoverSampleEditorDestination() {
     (void)sampleEditorTransaction_.Discard();
     return failClosed();
   }
-  sampleEditor_.SetTransactionCapabilities(true, false);
+  sampleEditor_.SetTransactionCapabilities(true);
   return true;
 }
 
@@ -1380,11 +1380,6 @@ void Ui2TrackerApplication::ExecuteSampleEditor(
   case Ui2SampleEditorCommandType::SetEnd:
     // START/END are an editor transaction, not live Instrument parameters.
     // They stay local until SAVE/APPLY succeeds, matching the legacy editor.
-    break;
-  case Ui2SampleEditorCommandType::RequestRename:
-    // NAME stays unreachable while renameAvailable is false. Keep an explicit
-    // fail-closed response if a future caller constructs this command itself.
-    ShowFeedbackError("SAMPLE RENAME UNAVAILABLE");
     break;
   case Ui2SampleEditorCommandType::RequestApplyOperation:
     StopSamplePreview();

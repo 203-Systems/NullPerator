@@ -27,7 +27,6 @@ enum class Ui2SampleEditorCommandType : std::uint8_t {
   PreviewStop,
   SetStart,
   SetEnd,
-  RequestRename,
   RequestApplyOperation,
   ApplyConfirmed,
   RequestSave,
@@ -108,10 +107,8 @@ public:
     return lastBuild_;
   }
 
-  void SetTransactionCapabilities(bool rewriteAvailable,
-                                  bool renameAvailable = false) {
+  void SetTransactionCapabilities(bool rewriteAvailable) {
     rewriteAvailable_ = rewriteAvailable;
-    renameAvailable_ = renameAvailable;
     if (!FocusAvailable(focus_))
       focus_ = SampleEditorViewUi2Focus::Waveform;
   }
@@ -338,10 +335,6 @@ public:
       return {};
 
     switch (focus_) {
-    case SampleEditorViewUi2Focus::Name:
-      return FocusAvailable(focus_)
-                 ? MakeCommand(Ui2SampleEditorCommandType::RequestRename)
-                 : Ui2SampleEditorCommand{};
     case SampleEditorViewUi2Focus::Apply: {
       if (!FocusAvailable(focus_))
         return {};
@@ -391,7 +384,6 @@ public:
     snapshot.singleCycle = IsSingleCycle();
     snapshot.projectPool = projectPool_;
     snapshot.fileMutationAvailable = rewriteAvailable_;
-    snapshot.renameAvailable = renameAvailable_;
 
     PushMarker(snapshot, start_, Ui2WaveformMarkerKind::Start,
                selectedMarker_ == 0U);
@@ -404,8 +396,7 @@ public:
   }
 
 private:
-  static constexpr std::array<SampleEditorViewUi2Focus, 9> kLibraryFocusOrder{
-      SampleEditorViewUi2Focus::Name,
+  static constexpr std::array<SampleEditorViewUi2Focus, 8> kLibraryFocusOrder{
       SampleEditorViewUi2Focus::Waveform,
       SampleEditorViewUi2Focus::Start,
       SampleEditorViewUi2Focus::End,
@@ -422,8 +413,6 @@ private:
   }
 
   [[nodiscard]] bool FocusAvailable(SampleEditorViewUi2Focus focus) const {
-    if (focus == SampleEditorViewUi2Focus::Name)
-      return renameAvailable_;
     if (focus == SampleEditorViewUi2Focus::Apply ||
         focus == SampleEditorViewUi2Focus::Save)
       return rewriteAvailable_;
@@ -453,7 +442,7 @@ private:
     projectPool_ = active_ = waveformReady_ = false;
     previewHeld_ = playing_ = previewPlayheadVisible_ = false;
     lastBuild_ = Ui2SampleWaveformBuildResult::NotLoaded;
-    rewriteAvailable_ = renameAvailable_ = false;
+    rewriteAvailable_ = false;
     dialogInput_ = {};
     dialogReleaseGate_.Reset();
     dialogActive_ = false;
@@ -660,7 +649,6 @@ private:
   bool playing_ = false;
   bool previewPlayheadVisible_ = false;
   bool rewriteAvailable_ = false;
-  bool renameAvailable_ = false;
   Ui2ControllerInputState dialogInput_{};
   Ui2InputReleaseGate dialogReleaseGate_{};
   std::uint32_t dialogInstanceId_ = 0U;

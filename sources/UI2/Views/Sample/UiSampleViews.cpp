@@ -78,8 +78,6 @@ void DrawUserSection(UiSceneBuilder<256, 1024> &builder,
 
 RectI16 UiSampleEditorView::CursorTargetRect(UiSampleEditorCursor cursor) {
   switch (cursor) {
-  case UiSampleEditorCursor::Name:
-    return {7, 41, 226, 9};
   case UiSampleEditorCursor::Waveform:
     return {7, 58, 226, 76};
   case UiSampleEditorCursor::Start:
@@ -179,9 +177,6 @@ UiBuildStatus UiSampleEditorView::Build(const UiSampleEditorViewData &data,
     builder.Selection(cursor);
   if (data.cursorInkVisible) {
     switch (data.cursor) {
-    case UiSampleEditorCursor::Name:
-      builder.UserText(data.name, 9, 42, UiColorToken::TextHighlighted);
-      break;
     case UiSampleEditorCursor::Start:
       if (data.enterDigitFocus && !data.start.empty()) {
         const std::uint8_t digit = std::min<std::uint8_t>(

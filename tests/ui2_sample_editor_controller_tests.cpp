@@ -408,7 +408,6 @@ TEST_CASE("UI2 Sample Editor keeps operation browsing read-only") {
   controller.SetFocus(SampleEditorViewUi2Focus::Operation);
   Tap(controller, TrackerAction::Right);
   CHECK(controller.Operation() == Ui2SampleEditorOperation::Normalize);
-  CHECK_FALSE(controller.SetFocus(SampleEditorViewUi2Focus::Name));
   CHECK_FALSE(controller.SetFocus(SampleEditorViewUi2Focus::Apply));
   CHECK_FALSE(controller.SetFocus(SampleEditorViewUi2Focus::Save));
   CHECK_FALSE(controller.SetFocus(SampleEditorViewUi2Focus::SaveAndLoad));
@@ -469,7 +468,7 @@ TEST_CASE("UI2 Sample Editor exposes a read-only runtime model") {
   CHECK(controller.Snapshot().projectPool);
 }
 
-TEST_CASE("UI2 Sample Editor exposes rewrite without enabling rename") {
+TEST_CASE("UI2 Sample Editor exposes rewrite transactions") {
   using namespace ui2;
   Config::SetImportResampler(0);
   SampleWaveFileSystem fileSystem;
@@ -481,8 +480,6 @@ TEST_CASE("UI2 Sample Editor exposes rewrite without enabling rename") {
   controller.SetTransactionCapabilities(true);
 
   CHECK(controller.Snapshot().fileMutationAvailable);
-  CHECK_FALSE(controller.Snapshot().renameAvailable);
-  CHECK_FALSE(controller.SetFocus(SampleEditorViewUi2Focus::Name));
   REQUIRE(controller.SetFocus(SampleEditorViewUi2Focus::Apply));
   CHECK(Tap(controller, TrackerAction::Edit).type ==
         Ui2SampleEditorCommandType::RequestApplyOperation);

@@ -35,7 +35,6 @@ struct UiSampleWaveformMarker {
 };
 
 enum class UiSampleEditorCursor : std::uint8_t {
-  Name,
   Waveform,
   Start,
   End,

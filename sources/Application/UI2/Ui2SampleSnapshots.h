@@ -14,7 +14,6 @@
 #include <type_traits>
 
 enum class SampleEditorViewUi2Focus : std::uint8_t {
-  Name,
   Start,
   End,
   Operation,
@@ -42,10 +41,9 @@ struct SampleEditorViewUi2Snapshot {
   bool playing = false;
   bool singleCycle = false;
   bool projectPool = false;
-  // Rewrite and rename are independent transactions. Do not expose NAME just
-  // because APPLY/SAVE can safely promote a same-name working copy.
+  // APPLY/SAVE can safely promote a same-name working copy. The displayed
+  // sample name remains read-only until an atomic pool-aware rename exists.
   bool fileMutationAvailable = false;
-  bool renameAvailable = false;
 };
 
 enum class SampleSlicesViewUi2Focus : std::uint8_t {
