@@ -83,10 +83,28 @@ void MixerService::Close() {
 };
 
 bool MixerService::Start() {
-  MidiService::GetInstance()->Start();
-  if (out_) {
-    out_->AddObserver(*this);
-    out_->Start();
+  if (out_ == nullptr) {
+    Trace::Error("MIXERSERVICE", "Cannot start without an audio output");
+    return false;
+  }
+
+  MidiService *midi = MidiService::GetInstance();
+  if (!midi->Start()) {
+    Trace::Error("MIXERSERVICE", "Failed to start MIDI service");
+    return false;
+  }
+
+  // Install the callback before starting the output: some drivers may request
+  // their first buffer synchronously from Start(). If startup fails, restore
+  // the pre-start observer/service state instead of leaving a half-started
+  // mixer behind.
+  out_->AddObserver(*this);
+  if (!out_->Start()) {
+    out_->RemoveObserver(*this);
+    out_->Stop();
+    midi->Stop();
+    Trace::Error("MIXERSERVICE", "Failed to start audio output");
+    return false;
   }
   return true;
 };

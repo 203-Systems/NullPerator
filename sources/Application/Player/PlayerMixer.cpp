@@ -118,7 +118,11 @@ bool PlayerMixer::Start() {
         std::memory_order_relaxed);
   };
 
-  return ms->Start();
+  if (!ms->Start()) {
+    ms->RemoveObserver(*this);
+    return false;
+  }
+  return true;
 };
 
 void PlayerMixer::Stop() {
