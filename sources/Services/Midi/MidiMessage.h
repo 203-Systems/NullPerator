@@ -11,10 +11,41 @@
 
 #include "Foundation/Observable.h"
 #include "Foundation/Types/Types.h"
+#include <cstddef>
 
-// if all 8 channels play a 4 note chord at once and we also send clock &
-// start/stop messages & CCs
-#define MIDI_MAX_MESG_QUEUE 8 * 4 + 2 + 3
+namespace midi_queue_budget {
+
+// A tracker voice can send its base note plus four chord notes. At a playback
+// boundary, the current time slice may already contain one realtime clock. A
+// full note-off batch, one All Notes Off CC for every MIDI protocol channel,
+// and the final transport message must still fit after it.
+inline constexpr std::size_t kTrackerChannelCount = 8U;
+inline constexpr std::size_t kChordNotesPerTrack = 4U;
+inline constexpr std::size_t kBaseNotesPerTrack = 1U;
+inline constexpr std::size_t kNotesPerTrack =
+    kBaseNotesPerTrack + kChordNotesPerTrack;
+inline constexpr std::size_t kFullNoteBatch =
+    kTrackerChannelCount * kNotesPerTrack;
+inline constexpr std::size_t kMidiProtocolChannelCount = 16U;
+inline constexpr std::size_t kRealtimeMessages = 1U;
+inline constexpr std::size_t kTransportMessages = 1U;
+inline constexpr std::size_t kSetupMessagesPerInstrument = 2U;
+inline constexpr std::size_t kPlaybackStartMessages =
+    kRealtimeMessages + kFullNoteBatch + kTransportMessages;
+inline constexpr std::size_t kPlaybackStopMessages =
+    kRealtimeMessages + kFullNoteBatch + kMidiProtocolChannelCount +
+    kTransportMessages;
+inline constexpr std::size_t kPlaybackBoundaryMessages =
+    kPlaybackStartMessages > kPlaybackStopMessages ? kPlaybackStartMessages
+                                                   : kPlaybackStopMessages;
+
+static_assert(kPlaybackBoundaryMessages >= kPlaybackStartMessages);
+static_assert(kPlaybackBoundaryMessages >= kPlaybackStopMessages);
+
+} // namespace midi_queue_budget
+
+inline constexpr std::size_t MIDI_MAX_MESG_QUEUE =
+    midi_queue_budget::kPlaybackBoundaryMessages;
 
 struct MidiMessage : public I_ObservableData {
   enum Type {

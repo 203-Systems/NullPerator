@@ -103,7 +103,7 @@ void MidiInstrument::Stop(int c) {
   Variable *v = FindVariable(FourCC::MidiInstrumentChannel);
   int channel = v->GetInt();
 
-  for (int i = 0; i < MAX_MIDI_CHORD_NOTES + 1; i++) {
+  for (std::size_t i = 0; i < midi_queue_budget::kNotesPerTrack; i++) {
     if (lastNotes_[c][i] == NO_NOTE) {
       continue;
     }
@@ -112,7 +112,8 @@ void MidiInstrument::Stop(int c) {
     msg.data1_ = lastNotes_[c][i];
     msg.data2_ = 0x00;
     svc_->QueueMessage(msg);
-    Trace::Debug("MIDI chord note OFF[%d]:%d", i, msg.data1_);
+    Trace::Debug("MIDI chord note OFF[%u]:%d", static_cast<unsigned int>(i),
+                 msg.data1_);
   }
   // Stop may be reached through a KILL command before the first Render call.
   // Cancel that deferred note-on before clearing its note value.
@@ -290,7 +291,7 @@ void MidiInstrument::ProcessCommand(int channel, FourCC cc, ushort value) {
 
   case FourCC::InstrumentCommandMidiChord: {
     // split into 4 note offsets
-    for (int i = 0; i < MAX_MIDI_CHORD_NOTES; i++) {
+    for (std::size_t i = 0; i < midi_queue_budget::kChordNotesPerTrack; i++) {
       uint8_t noteOffset = (value >> (i * 4)) & 0xF;
       if (noteOffset == 0) {
         continue;

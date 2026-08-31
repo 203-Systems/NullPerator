@@ -443,6 +443,67 @@ TEST_CASE("MIDI kill before first render cancels the pending note on") {
   CHECK(capturedMidiMessages.size() == 1U);
 }
 
+TEST_CASE("MIDI queue budget retains the full playback stop tail") {
+  etl::vector<MidiMessage, MIDI_MAX_MESG_QUEUE> startQueue;
+  const auto appendStart = [&startQueue](uint8_t status, uint8_t data1,
+                                         uint8_t data2) {
+    REQUIRE_FALSE(startQueue.full());
+    startQueue.emplace_back(status, data1, data2);
+  };
+
+  appendStart(MidiMessage::MIDI_CLOCK, MidiMessage::UNUSED_BYTE,
+              MidiMessage::UNUSED_BYTE);
+  for (std::size_t note = 0; note < midi_queue_budget::kFullNoteBatch;
+       ++note) {
+    appendStart(MidiMessage::MIDI_NOTE_ON, static_cast<uint8_t>(note), 0x7FU);
+  }
+  appendStart(MidiMessage::MIDI_START, MidiMessage::UNUSED_BYTE,
+              MidiMessage::UNUSED_BYTE);
+
+  REQUIRE(startQueue.size() == midi_queue_budget::kPlaybackStartMessages);
+  CHECK(startQueue.back().status_ == MidiMessage::MIDI_START);
+
+  etl::vector<MidiMessage, MIDI_MAX_MESG_QUEUE> stopQueue;
+  const auto appendStop = [&stopQueue](uint8_t status, uint8_t data1,
+                                       uint8_t data2) {
+    REQUIRE_FALSE(stopQueue.full());
+    stopQueue.emplace_back(status, data1, data2);
+  };
+
+  appendStop(MidiMessage::MIDI_CLOCK, MidiMessage::UNUSED_BYTE,
+             MidiMessage::UNUSED_BYTE);
+  for (std::size_t track = 0;
+       track < midi_queue_budget::kTrackerChannelCount; ++track) {
+    for (std::size_t note = 0; note < midi_queue_budget::kNotesPerTrack;
+         ++note) {
+      appendStop(
+          MidiMessage::MIDI_NOTE_OFF,
+          static_cast<uint8_t>(track * midi_queue_budget::kNotesPerTrack +
+                               note),
+          0U);
+    }
+  }
+  for (std::size_t channel = 0;
+       channel < midi_queue_budget::kMidiProtocolChannelCount; ++channel) {
+    appendStop(
+        static_cast<uint8_t>(MidiMessage::MIDI_CONTROL_CHANGE + channel),
+        MidiCC::CC_ALL_NOTES_OFF, 0U);
+  }
+  appendStop(MidiMessage::MIDI_STOP, MidiMessage::UNUSED_BYTE,
+             MidiMessage::UNUSED_BYTE);
+
+  REQUIRE(stopQueue.size() == midi_queue_budget::kPlaybackStopMessages);
+  CHECK(stopQueue.size() == MIDI_MAX_MESG_QUEUE);
+  CHECK(stopQueue.full());
+  CHECK(stopQueue[midi_queue_budget::kRealtimeMessages].status_ ==
+        MidiMessage::MIDI_NOTE_OFF);
+  const std::size_t cleanupStart =
+      midi_queue_budget::kRealtimeMessages +
+      midi_queue_budget::kFullNoteBatch;
+  CHECK(stopQueue[cleanupStart].data1_ == MidiCC::CC_ALL_NOTES_OFF);
+  CHECK(stopQueue.back().status_ == MidiMessage::MIDI_STOP);
+}
+
 TEST_CASE("MIDI instant pitch bend emits once for targets above 127") {
   InstallFakeMidiService();
   MidiInstrument instrument;
