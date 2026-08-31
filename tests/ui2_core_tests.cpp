@@ -398,6 +398,34 @@ TEST_CASE("UI2 elapsed clock preserves fixed wrapping display semantics") {
   }
 }
 
+TEST_CASE("UI2 mixer volume formatting clamps and clears every boundary") {
+  struct Case {
+    int value;
+    std::array<char, 4> expected;
+  };
+  constexpr std::array<Case, 12> cases{{
+      {std::numeric_limits<int>::min(), {'0', '\0', '\0', '\0'}},
+      {-1, {'0', '\0', '\0', '\0'}},
+      {0, {'0', '\0', '\0', '\0'}},
+      {1, {'1', '\0', '\0', '\0'}},
+      {9, {'9', '\0', '\0', '\0'}},
+      {10, {'1', '0', '\0', '\0'}},
+      {99, {'9', '9', '\0', '\0'}},
+      {100, {'1', '0', '0', '\0'}},
+      {998, {'9', '9', '8', '\0'}},
+      {999, {'9', '9', '9', '\0'}},
+      {1000, {'9', '9', '9', '\0'}},
+      {std::numeric_limits<int>::max(), {'9', '9', '9', '\0'}},
+  }};
+
+  for (const Case &test : cases) {
+    std::array<char, 4> actual{'X', 'X', 'X', 'X'};
+    ui2::FormatUiVolume(test.value, actual);
+    CAPTURE(test.value);
+    CHECK(actual == test.expected);
+  }
+}
+
 TEST_CASE("UI2 indexed surface owns no RGB framebuffer and clips fills") {
   ui2::UiSurfaceStorage storage;
   ui2::UiIndexedSurface surface(storage);

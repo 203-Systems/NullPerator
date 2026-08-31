@@ -45,4 +45,34 @@ inline void FormatUiElapsed(int seconds, std::array<char, 6> &destination) {
   };
 }
 
+// Mixer capture formats all eight channel volumes plus the master volume on
+// every 30 Hz frame. Keep that bounded decimal conversion independent of the
+// general printf machinery while preserving the existing 0..999 clamp.
+inline void FormatUiVolume(int value, std::array<char, 4> &destination) {
+  const std::uint32_t volume =
+      static_cast<std::uint32_t>(std::clamp(value, 0, 999));
+  if (volume >= 100U) {
+    destination = {
+        static_cast<char>('0' + volume / 100U),
+        static_cast<char>('0' + (volume / 10U) % 10U),
+        static_cast<char>('0' + volume % 10U),
+        '\0',
+    };
+  } else if (volume >= 10U) {
+    destination = {
+        static_cast<char>('0' + volume / 10U),
+        static_cast<char>('0' + volume % 10U),
+        '\0',
+        '\0',
+    };
+  } else {
+    destination = {
+        static_cast<char>('0' + volume),
+        '\0',
+        '\0',
+        '\0',
+    };
+  }
+}
+
 } // namespace ui2

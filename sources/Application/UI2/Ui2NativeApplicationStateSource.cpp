@@ -90,10 +90,6 @@ void FormatCommand(FourCC command, std::array<char, 4> &text) {
     CopyUiText(text, "???");
 }
 
-void FormatVolume(int value, std::array<char, 4> &text) {
-  std::snprintf(text.data(), text.size(), "%d", std::clamp(value, 0, 999));
-}
-
 UiDeviceCursor DeviceCursorFor(Ui2DeviceField field) {
   switch (field) {
   case Ui2DeviceField::MidiDevice:
@@ -963,8 +959,8 @@ Ui2NativeApplicationStateSource::CaptureMixer(UiMixerFrameState &state) {
   Project &project = session_.ProjectModel();
   state.selectedChannel = static_cast<std::int8_t>(mixer_.SelectedChannel());
   for (std::uint8_t channel = 0; channel < SONG_CHANNEL_COUNT; ++channel)
-    FormatVolume(project.GetChannelVolume(channel), state.volumes[channel]);
-  FormatVolume(project.GetMasterVolume(), state.volumes[SONG_CHANNEL_COUNT]);
+    FormatUiVolume(project.GetChannelVolume(channel), state.volumes[channel]);
+  FormatUiVolume(project.GetMasterVolume(), state.volumes[SONG_CHANNEL_COUNT]);
 
   Player *player = Player::GetInstance();
   if (player == nullptr)
