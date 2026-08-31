@@ -452,7 +452,10 @@ bool WavFileWriter::NormalizeFile(const char *path, void *scratchBuffer,
 
   reportProgress(progressCallback, dataChunkSize, dataChunkSize);
 
-  file->Sync();
+  if (!file->Sync()) {
+    Trace::Error("WavFileWriter: Failed syncing normalized data");
+    return false;
+  }
 
   result.normalized = true;
   result.gainApplied =

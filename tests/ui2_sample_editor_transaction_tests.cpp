@@ -15,8 +15,9 @@ namespace {
 
 class SampleEditMemoryFile final : public I_File {
 public:
-  SampleEditMemoryFile(std::vector<std::uint8_t> &bytes, bool writable)
-      : bytes_(bytes), writable_(writable) {}
+  SampleEditMemoryFile(std::vector<std::uint8_t> &bytes, bool writable,
+                       const bool &failSync)
+      : bytes_(bytes), failSync_(failSync), writable_(writable) {}
 
   int Read(void *destination, int size) override {
     if (destination == nullptr || size <= 0)
@@ -71,7 +72,7 @@ public:
 
   long Tell() override { return static_cast<long>(position_); }
   int Error() override { return error_ ? 1 : 0; }
-  bool Sync() override { return true; }
+  bool Sync() override { return !failSync_; }
   void Dispose() override { delete this; }
 
 protected:
@@ -79,6 +80,7 @@ protected:
 
 private:
   std::vector<std::uint8_t> &bytes_;
+  const bool &failSync_;
   std::size_t position_ = 0U;
   bool writable_ = false;
   bool error_ = false;
@@ -100,7 +102,8 @@ public:
       return {};
     const bool writable = std::strchr(mode, '+') != nullptr ||
                           std::strchr(mode, 'w') != nullptr;
-    return MakeFileHandle(new SampleEditMemoryFile(found->second, writable));
+    return MakeFileHandle(
+        new SampleEditMemoryFile(found->second, writable, failSync_));
   }
 
   bool chdir(const char *) override { return false; }
@@ -150,6 +153,7 @@ public:
     return files_.at(path);
   }
   void FailCopy(bool fail) { failCopy_ = fail; }
+  void FailSync(bool fail) { failSync_ = fail; }
   void FailMove(const char *source, const char *destination) {
     failMove_ = {source, destination};
   }
@@ -158,6 +162,7 @@ public:
   }
   void ClearFailures() {
     failCopy_ = false;
+    failSync_ = false;
     failMove_ = {};
     failMove2_ = {};
     failDelete_.clear();
@@ -170,6 +175,7 @@ private:
   std::pair<std::string, std::string> failMove2_{};
   std::string failDelete_{};
   bool failCopy_ = false;
+  bool failSync_ = false;
 };
 
 void AppendU16(std::vector<std::uint8_t> &bytes, std::uint16_t value) {
@@ -436,4 +442,21 @@ TEST_CASE("UI2 sample normalize rejects encodings it cannot transform") {
     CHECK(fileSystem.Bytes(source) == original);
     CHECK_FALSE(transaction.HasWorkingCopy());
   }
+}
+
+TEST_CASE("UI2 sample normalize propagates durable sync failure") {
+  using namespace ui2;
+  constexpr const char *source = "/samples/VOICE.wav";
+  SampleEditMemoryFileSystem fileSystem;
+  const std::vector<std::uint8_t> original = MakeWav();
+  fileSystem.Put(source, original);
+  Ui2SampleEditorTransaction transaction;
+  REQUIRE(transaction.Begin(fileSystem, source) ==
+          Ui2SampleEditorTransactionResult::Ready);
+  fileSystem.FailSync(true);
+
+  CHECK(transaction.ApplyNormalize() ==
+        Ui2SampleEditorTransactionResult::MutationFailed);
+  CHECK(fileSystem.Bytes(source) == original);
+  CHECK_FALSE(transaction.HasWorkingCopy());
 }
