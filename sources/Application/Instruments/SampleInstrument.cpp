@@ -11,7 +11,6 @@
 #include "Application/Instruments/Filters.h"
 #include "Application/Model/Table.h"
 #include "Application/Persistency/PersistencyAttribute.h"
-#include "Application/Player/PlayerMixer.h" // For MIX_BUFFER_SIZE.. kick out pls
 #include "Application/Player/SyncMaster.h"
 #include "Application/Utils/fixed.h"
 #include "CommandList.h"

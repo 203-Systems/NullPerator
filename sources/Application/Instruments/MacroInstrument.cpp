@@ -10,7 +10,6 @@
 #include "MacroInstrument.h"
 #include "Application/Instruments/Filters.h"
 #include "Application/Model/Table.h"
-#include "Application/Player/PlayerMixer.h" // For MIX_BUFFER_SIZE.. kick out pls
 #include "Application/Player/SyncMaster.h"
 #include "CommandList.h"
 #include "I_Instrument.h"
