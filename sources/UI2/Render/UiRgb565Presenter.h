@@ -44,8 +44,6 @@ public:
                         std::span<const DirtyStrip> strips) override;
 
 private:
-  [[nodiscard]] std::uint16_t TransportColor(std::uint16_t rgb565) const;
-
   std::uint16_t *transfer_ = nullptr;
   std::size_t transferPixelCount_ = 0;
   WriteChunkFunction writeChunk_ = nullptr;

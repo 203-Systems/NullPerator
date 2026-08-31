@@ -1676,6 +1676,16 @@ TEST_CASE("UI2 RGB565 presenter chunks dirty strips without a framebuffer") {
   CHECK(probe.records[0].last ==
         static_cast<std::uint16_t>((field565 >> 8U) | (field565 << 8U)));
 
+  Rgb565WriteProbe nativeProbe;
+  ui2::UiRgb565Presenter nativePresenter(
+      transfer.data(), transfer.size(), &Rgb565WriteProbe::Write,
+      &nativeProbe, ui2::UiRgb565ByteOrder::Native);
+  CHECK(nativePresenter.Present(surface, palette, strips) ==
+        ui2::PresentResult::Presented);
+  REQUIRE(nativeProbe.calls == 1);
+  CHECK(nativeProbe.records[0].first == cursor565);
+  CHECK(nativeProbe.records[0].last == field565);
+
   probe = {};
   probe.failOnCall = 1;
   CHECK(presenter.Present(surface, palette, strips) ==

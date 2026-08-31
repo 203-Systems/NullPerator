@@ -13,12 +13,6 @@
 
 namespace ui2 {
 
-std::uint16_t
-UiRgb565Presenter::TransportColor(std::uint16_t rgb565) const {
-  if (byteOrder_ == UiRgb565ByteOrder::Native) return rgb565;
-  return static_cast<std::uint16_t>((rgb565 >> 8U) | (rgb565 << 8U));
-}
-
 PresentResult
 UiRgb565Presenter::Present(const UiIndexedSurface &surface,
                            const UiPalette &palette,
@@ -54,9 +48,18 @@ UiRgb565Presenter::Present(const UiIndexedSurface &surface,
             static_cast<std::size_t>(y + row) * kScreenWidth + left;
         const std::size_t destination =
             static_cast<std::size_t>(row) * width;
-        for (std::uint16_t x = 0; x < width; ++x) {
-          transfer_[destination + x] =
-              TransportColor(rgb565[pixels[source + x]]);
+        // Keep byte-order selection outside the pixel loop. The ESP32 -Os
+        // build otherwise emits a non-inlined conversion call per pixel.
+        if (byteOrder_ == UiRgb565ByteOrder::Native) {
+          for (std::uint16_t x = 0; x < width; ++x) {
+            transfer_[destination + x] = rgb565[pixels[source + x]];
+          }
+        } else {
+          for (std::uint16_t x = 0; x < width; ++x) {
+            const std::uint16_t color = rgb565[pixels[source + x]];
+            transfer_[destination + x] = static_cast<std::uint16_t>(
+                (color >> 8U) | (color << 8U));
+          }
         }
       }
       if (!writeChunk_(context_, left, y, width, height, transfer_)) {
