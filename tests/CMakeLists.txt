@@ -56,6 +56,7 @@ add_executable(picoTracker_tests
   ../sources/Application/Audio/RecordStreamer.cpp
   ../sources/Adapters/wasm/input/InputMap.cpp
   ../sources/Application/Instruments/WavHeader.cpp
+  ../sources/Application/Instruments/WavFileWriter.cpp
   ../sources/Application/Instruments/WavFile.cpp
   ../sources/Application/Instruments/MacroInstrument.cpp
   ../sources/Application/Instruments/MidiInstrument.cpp
@@ -469,6 +470,7 @@ target_sources(picoTracker_tests PRIVATE
   ui2_project_browser_controller_tests.cpp
   ui2_sample_browser_controller_tests.cpp
   ui2_sample_editor_controller_tests.cpp
+  ui2_sample_editor_transaction_tests.cpp
   ui2_settings_controller_tests.cpp
   ui2_tracker_grid_controller_tests.cpp
   ui2_tracker_controller_hub_tests.cpp
