@@ -29,6 +29,19 @@ constexpr std::size_t kSoundBufferCount = 4U;
 constexpr std::size_t kSoundBufferMaxBytes =
     MAX_SAMPLE_COUNT * 2U * sizeof(int16_t);
 
+constexpr std::size_t bounded_sample_count(int samplecount) noexcept {
+  if (samplecount <= 0) {
+    return 0U;
+  }
+  const std::size_t count = static_cast<std::size_t>(samplecount);
+  return count > MAX_SAMPLE_COUNT ? MAX_SAMPLE_COUNT : count;
+}
+
+static_assert(bounded_sample_count(-1) == 0U);
+static_assert(bounded_sample_count(0) == 0U);
+static_assert(bounded_sample_count(MAX_SAMPLE_COUNT) == MAX_SAMPLE_COUNT);
+static_assert(bounded_sample_count(MAX_SAMPLE_COUNT + 1) == MAX_SAMPLE_COUNT);
+
 struct NodeAudioBuffer {
   uint8_t buffer[kSoundBufferMaxBytes];
   std::size_t size = 0U;
@@ -171,9 +184,8 @@ void NodeAudioDriver::BufferNeeded() {
 }
 
 void NodeAudioDriver::AddBuffer(short *buffer, int samplecount) {
-  int len = samplecount * 2 * sizeof(short);
-
-  if (!driverPlaying_.load(std::memory_order_acquire)) {
+  if (buffer == nullptr || samplecount <= 0 ||
+      !driverPlaying_.load(std::memory_order_acquire)) {
     return;
   }
 
@@ -183,17 +195,16 @@ void NodeAudioDriver::AddBuffer(short *buffer, int samplecount) {
     return;
   }
 
-  if (static_cast<std::size_t>(len) > kSoundBufferMaxBytes) {
+  const std::size_t sampleCount = bounded_sample_count(samplecount);
+  if (sampleCount != static_cast<std::size_t>(samplecount)) {
     ESP_LOGW("NodeAudioDriver", "Audio buffer exceeded, clamping samples=%d",
              samplecount);
-    samplecount = MAX_SAMPLE_COUNT;
-    len = static_cast<int>(kSoundBufferMaxBytes);
   }
+  const std::size_t len = sampleCount * 2U * sizeof(int16_t);
 
   uint8_t bufferIndex = static_cast<uint8_t>(renderBufferIndex_);
-  memcpy(audioBufferPool[bufferIndex].buffer, buffer,
-         static_cast<std::size_t>(len));
-  audioBufferPool[bufferIndex].size = static_cast<std::size_t>(len);
+  memcpy(audioBufferPool[bufferIndex].buffer, buffer, len);
+  audioBufferPool[bufferIndex].size = len;
 
   if (xQueueSend(filledAudioBuffers, &bufferIndex, 0) != pdTRUE) {
     ESP_LOGW("NodeAudioDriver", "filled buffer queue full index=%u",
