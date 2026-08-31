@@ -459,12 +459,14 @@ private:
     const Ui2InstrumentCursorPosition cursor = Cursor();
     if (cursor.kind == Ui2InstrumentCursorKind::Name)
       return {};
-    if (cursor.kind == Ui2InstrumentCursorKind::Type &&
-        (direction == Ui2InstrumentValueDirection::Left ||
-         direction == Ui2InstrumentValueDirection::Right)) {
-      return HandleHorizontal(direction == Ui2InstrumentValueDirection::Left
-                                  ? -1
-                                  : 1);
+    if (cursor.kind == Ui2InstrumentCursorKind::Type) {
+      if (direction == Ui2InstrumentValueDirection::Left ||
+          direction == Ui2InstrumentValueDirection::Right) {
+        return HandleHorizontal(direction == Ui2InstrumentValueDirection::Left
+                                    ? -1
+                                    : 1);
+      }
+      return {};
     }
     if (subfieldMode_ != Ui2InstrumentSubfieldMode::None &&
         subfieldCount_ > 0U) {

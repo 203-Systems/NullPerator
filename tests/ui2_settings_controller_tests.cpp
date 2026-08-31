@@ -931,6 +931,20 @@ TEST_CASE("UI2 Instrument modal handoff releases its triggering arrow") {
   CHECK(afterModal.value == 3);
 }
 
+TEST_CASE("UI2 Instrument type row rejects field-only vertical edits") {
+  using namespace ui2;
+  Ui2InstrumentController controller;
+  Tap(controller, TrackerAction::Down);
+  REQUIRE(controller.Cursor().kind == Ui2InstrumentCursorKind::Type);
+
+  CHECK_FALSE(controller.Handle(TrackerAction::Edit, true).HasValue());
+  CHECK_FALSE(controller.Handle(TrackerAction::Up, true).HasValue());
+  controller.Handle(TrackerAction::Up, false);
+  CHECK_FALSE(controller.Handle(TrackerAction::Down, true).HasValue());
+  controller.Handle(TrackerAction::Down, false);
+  CHECK_FALSE(controller.Handle(TrackerAction::Edit, false).HasValue());
+}
+
 TEST_CASE("UI2 Instrument scrolls a fixed list including both OPAL columns") {
   using namespace ui2;
   Ui2InstrumentController controller(0, 0, 12, 6, {}, {5U, 0U, true}, 5);
