@@ -34,9 +34,12 @@ bool SampleEditorFileJournal::ValidateWav(FileSystem &fileSystem,
 bool SampleEditorFileJournal::RecoverDestination(FileSystem &fileSystem,
                                                  const char *destination) {
   std::array<char, PFILENAME_SIZE> working{};
+  std::array<char, PFILENAME_SIZE> operation{};
   std::array<char, PFILENAME_SIZE> backup{};
   if (!BuildPath(destination, Generation::Working, working.data(),
                  working.size()) ||
+      !BuildPath(destination, Generation::Operation, operation.data(),
+                 operation.size()) ||
       !BuildPath(destination, Generation::Backup, backup.data(),
                  backup.size()))
     return false;
@@ -57,8 +60,11 @@ bool SampleEditorFileJournal::RecoverDestination(FileSystem &fileSystem,
       return false;
   }
 
-  return !fileSystem.exists(working.data()) ||
-         fileSystem.DeleteFile(working.data());
+  const bool workingClean = !fileSystem.exists(working.data()) ||
+                            fileSystem.DeleteFile(working.data());
+  const bool operationClean = !fileSystem.exists(operation.data()) ||
+                              fileSystem.DeleteFile(operation.data());
+  return workingClean && operationClean;
 }
 
 bool SampleEditorFileJournal::RecoverCurrentDirectory(
@@ -107,6 +113,29 @@ bool SampleEditorFileJournal::RecoverCurrentDirectory(
     // when that destination remains a valid WAV.
     if (ValidateWav(fileSystem, destination.data()) &&
         !fileSystem.DeleteFile(working.data()))
+      return false;
+  }
+
+  // A second operation stages into a separate generation so cancellation or
+  // failure cannot destroy the previous unsaved edit. It is disposable only
+  // when the destination remains authoritative; backup recovery above has
+  // already removed both transient generations when it was not.
+  entries.clear();
+  if (!fileSystem.listChecked(&entries, ".o", false, true) || entries.full())
+    return false;
+  for (const int entry : entries) {
+    if (fileSystem.getFileType(entry) != PFT_FILE)
+      continue;
+    std::array<char, PFILENAME_SIZE> operation{};
+    std::array<char, PFILENAME_SIZE> destination{};
+    fileSystem.getFileName(entry, operation.data(),
+                           static_cast<int>(operation.size()));
+    operation.back() = '\0';
+    if (!DecodeOperationPath(operation.data(), destination.data(),
+                             destination.size()))
+      continue;
+    if (ValidateWav(fileSystem, destination.data()) &&
+        !fileSystem.DeleteFile(operation.data()))
       return false;
   }
   return true;

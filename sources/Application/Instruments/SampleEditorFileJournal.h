@@ -14,15 +14,19 @@ class FileSystem;
 // Sample edit generations are hidden siblings whose leaf is exactly as long
 // as the source WAV leaf:
 //
-//   KICK.wav -> .KICK.w0 (working), .KICK.b0 (backup)
-//   KICK.WAV -> .KICK.w7 (working), .KICK.b7 (backup)
+//   KICK.wav -> .KICK.w0 (working), .KICK.o0 (operation), .KICK.b0 (backup)
+//   KICK.WAV -> .KICK.w7 (working), .KICK.o7 (operation), .KICK.b7 (backup)
 //
 // The final nibble preserves the extension's case. This mapping is injective,
 // reversible during directory recovery, bounded by the original FAT-safe
 // filename, and does not recursively hex-encode long names.
 class SampleEditorFileJournal final {
 public:
-  enum class Generation : char { Working = 'w', Backup = 'b' };
+  enum class Generation : char {
+    Working = 'w',
+    Operation = 'o',
+    Backup = 'b'
+  };
 
   static bool BuildPath(const char *source, Generation generation,
                         char *destination, std::size_t capacity) {
@@ -69,6 +73,11 @@ public:
   static bool DecodeWorkingPath(const char *working, char *destination,
                                 std::size_t capacity) {
     return DecodePath(working, Generation::Working, destination, capacity);
+  }
+
+  static bool DecodeOperationPath(const char *operation, char *destination,
+                                  std::size_t capacity) {
+    return DecodePath(operation, Generation::Operation, destination, capacity);
   }
 
   static bool ValidateWav(FileSystem &fileSystem, const char *path);

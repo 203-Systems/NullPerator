@@ -107,6 +107,7 @@ add_executable(picoTracker_tests
   ../sources/Application/Instruments/SampleEditorFileJournal.cpp
   ../sources/Adapters/wasm/gui/WasmUiPresenter.cpp
   ../sources/Application/UI2/Ui2ApplicationRuntime.cpp
+  ../sources/Application/UI2/Ui2SampleEditorTransaction.cpp
   ../sources/Foundation/Observable.cpp
   ../sources/System/Timer/Timer.cpp
   ../sources/UI2/Chrome/UiBarResolver.cpp

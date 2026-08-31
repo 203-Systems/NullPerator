@@ -130,8 +130,8 @@ TEST_CASE("sample pool recreates a missing legacy samples directory") {
   CHECK(indexes.empty());
   CHECK(filesystem.makeDirCalls == 1);
   CHECK(filesystem.chdirCalls == 4);
-  // Backup and orphan-working recovery scans, then the visible WAV listing.
-  CHECK(filesystem.listCalls == 3);
+  // Backup plus both transient generations, then the visible WAV listing.
+  CHECK(filesystem.listCalls == 4);
 }
 
 TEST_CASE("sample pool accepts a missing legacy samples directory read-only") {

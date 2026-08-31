@@ -17,12 +17,18 @@ namespace {
 class SampleEditMemoryFile final : public I_File {
 public:
   SampleEditMemoryFile(std::vector<std::uint8_t> &bytes, bool writable,
+                       const bool &failRead, const bool &failWrite,
                        const bool &failSync, std::uint32_t &syncCalls,
                        const std::uint32_t &failSyncAfter)
-      : bytes_(bytes), failSync_(failSync), syncCalls_(syncCalls),
+      : bytes_(bytes), failRead_(failRead), failWrite_(failWrite),
+        failSync_(failSync), syncCalls_(syncCalls),
         failSyncAfter_(failSyncAfter), writable_(writable) {}
 
   int Read(void *destination, int size) override {
+    if (failRead_) {
+      error_ = true;
+      return 0;
+    }
     if (destination == nullptr || size <= 0)
       return 0;
     const std::size_t count = std::min<std::size_t>(
@@ -39,6 +45,10 @@ public:
   }
 
   int Write(const void *source, int size, int count) override {
+    if (failWrite_) {
+      error_ = true;
+      return 0;
+    }
     if (!writable_ || source == nullptr || size <= 0 || count <= 0)
       return 0;
     const std::size_t bytes =
@@ -86,6 +96,8 @@ protected:
 
 private:
   std::vector<std::uint8_t> &bytes_;
+  const bool &failRead_;
+  const bool &failWrite_;
   const bool &failSync_;
   std::uint32_t &syncCalls_;
   const std::uint32_t &failSyncAfter_;
@@ -114,7 +126,8 @@ public:
     const bool writable = std::strchr(mode, '+') != nullptr ||
                           std::strchr(mode, 'w') != nullptr;
     return MakeFileHandle(new SampleEditMemoryFile(
-        found->second, writable, failSync_, syncCalls_, failSyncAfter_));
+        found->second, writable, failRead_, failWrite_, failSync_, syncCalls_,
+        failSyncAfter_));
   }
 
   bool chdir(const char *) override { return true; }
@@ -185,6 +198,8 @@ public:
     return files_.at(path);
   }
   void FailCopy(bool fail) { failCopy_ = fail; }
+  void FailRead(bool fail) { failRead_ = fail; }
+  void FailWrite(bool fail) { failWrite_ = fail; }
   void FailSyncAfter(std::uint32_t successfulCalls) {
     failSync_ = true;
     syncCalls_ = 0U;
@@ -198,6 +213,8 @@ public:
   }
   void ClearFailures() {
     failCopy_ = false;
+    failRead_ = false;
+    failWrite_ = false;
     failSync_ = false;
     syncCalls_ = 0U;
     failSyncAfter_ = 0U;
@@ -214,6 +231,8 @@ private:
   std::pair<std::string, std::string> failMove2_{};
   std::string failDelete_{};
   bool failCopy_ = false;
+  bool failRead_ = false;
+  bool failWrite_ = false;
   bool failSync_ = false;
   std::uint32_t syncCalls_ = 0U;
   std::uint32_t failSyncAfter_ = 0U;
@@ -251,6 +270,31 @@ std::vector<std::uint8_t> MakeWav() {
   AppendU16(bytes, 200U);
   AppendU16(bytes, 300U);
   AppendU16(bytes, 400U);
+  return bytes;
+}
+
+std::vector<std::uint8_t> MakeLargeWav(std::uint32_t frames,
+                                       std::int16_t sample = 100) {
+  std::vector<std::uint8_t> bytes;
+  const auto appendFourCc = [&bytes](const char *value) {
+    bytes.insert(bytes.end(), value, value + 4U);
+  };
+  const std::uint32_t dataBytes = frames * 2U;
+  appendFourCc("RIFF");
+  AppendU32(bytes, 36U + dataBytes);
+  appendFourCc("WAVE");
+  appendFourCc("fmt ");
+  AppendU32(bytes, 16U);
+  AppendU16(bytes, 1U);
+  AppendU16(bytes, 1U);
+  AppendU32(bytes, 44100U);
+  AppendU32(bytes, 88200U);
+  AppendU16(bytes, 2U);
+  AppendU16(bytes, 16U);
+  appendFourCc("data");
+  AppendU32(bytes, dataBytes);
+  for (std::uint32_t frame = 0U; frame < frames; ++frame)
+    AppendU16(bytes, static_cast<std::uint16_t>(sample));
   return bytes;
 }
 
@@ -629,4 +673,149 @@ TEST_CASE("UI2 sample no-op preserves an earlier unsaved edit") {
         Ui2SampleEditorTransactionResult::NoChanges);
   CHECK(transaction.HasWorkingCopy());
   CHECK(fileSystem.Bytes(transaction.WorkingPath()) == edited);
+}
+
+TEST_CASE("UI2 sample cooperative apply honors its per-step I/O budget") {
+  using namespace ui2;
+  constexpr const char *source = "/samples/LARGE.wav";
+  constexpr std::uint32_t budget = 129U;
+  SampleEditMemoryFileSystem fileSystem;
+  fileSystem.Put(source, MakeLargeWav(16'384U));
+  Ui2SampleEditorTransaction transaction;
+  REQUIRE(transaction.Begin(fileSystem, source) ==
+          Ui2SampleEditorTransactionResult::Ready);
+  Ui2SampleEditorTransactionResult result =
+      transaction.BeginTrim(1U, 16'382U);
+  REQUIRE(result == Ui2SampleEditorTransactionResult::InProgress);
+
+  std::uint8_t previousProgress = 0U;
+  std::uint32_t steps = 0U;
+  while (result == Ui2SampleEditorTransactionResult::InProgress) {
+    result = transaction.StepApply(budget);
+    CHECK(transaction.LastStepPayloadIoBytes() <= budget);
+    CHECK(transaction.ApplyProgress() >= previousProgress);
+    previousProgress = transaction.ApplyProgress();
+    ++steps;
+    REQUIRE(steps < 2'000U);
+  }
+  CHECK(result == Ui2SampleEditorTransactionResult::Applied);
+  CHECK(steps > 2U);
+  CHECK(transaction.ApplyProgress() == 100U);
+}
+
+TEST_CASE("UI2 sample apply rejects a budget that can never advance") {
+  using namespace ui2;
+  constexpr const char *source = "/samples/LARGE.wav";
+  SampleEditMemoryFileSystem fileSystem;
+  const std::vector<std::uint8_t> original = MakeLargeWav(4'096U);
+  fileSystem.Put(source, original);
+  Ui2SampleEditorTransaction transaction;
+  REQUIRE(transaction.Begin(fileSystem, source) ==
+          Ui2SampleEditorTransactionResult::Ready);
+  REQUIRE(transaction.BeginTrim(1U, 4'094U) ==
+          Ui2SampleEditorTransactionResult::InProgress);
+
+  CHECK(transaction.StepApply(
+            Ui2SampleEditorTransaction::MinimumStepBudget - 1U) ==
+        Ui2SampleEditorTransactionResult::MutationFailed);
+  CHECK_FALSE(transaction.ApplyActive());
+  CHECK_FALSE(transaction.HasWorkingCopy());
+  CHECK(fileSystem.Bytes(source) == original);
+  CHECK_FALSE(fileSystem.exists(transaction.WorkingPath()));
+}
+
+TEST_CASE("UI2 sample normalize scans a no-op before creating a copy") {
+  using namespace ui2;
+  constexpr const char *source = "/samples/SILENT.wav";
+  SampleEditMemoryFileSystem fileSystem;
+  const std::vector<std::uint8_t> silent = MakeLargeWav(8'192U, 0);
+  fileSystem.Put(source, silent);
+  Ui2SampleEditorTransaction transaction;
+  REQUIRE(transaction.Begin(fileSystem, source) ==
+          Ui2SampleEditorTransactionResult::Ready);
+  Ui2SampleEditorTransactionResult result = transaction.BeginNormalize();
+  REQUIRE(result == Ui2SampleEditorTransactionResult::InProgress);
+  CHECK_FALSE(fileSystem.exists(transaction.WorkingPath()));
+  while (result == Ui2SampleEditorTransactionResult::InProgress)
+    result = transaction.StepApply(256U);
+
+  CHECK(result == Ui2SampleEditorTransactionResult::NoChanges);
+  CHECK_FALSE(transaction.HasWorkingCopy());
+  CHECK_FALSE(fileSystem.exists(transaction.WorkingPath()));
+  CHECK(fileSystem.Bytes(source) == silent);
+}
+
+TEST_CASE("UI2 sample second apply preserves the previous edit on failure") {
+  using namespace ui2;
+  constexpr const char *source = "/samples/LARGE.wav";
+  SampleEditMemoryFileSystem fileSystem;
+  const std::vector<std::uint8_t> original = MakeLargeWav(4'096U);
+  fileSystem.Put(source, original);
+  Ui2SampleEditorTransaction transaction;
+  REQUIRE(transaction.Begin(fileSystem, source) ==
+          Ui2SampleEditorTransactionResult::Ready);
+  REQUIRE(transaction.ApplyTrim(1U, 4'095U) ==
+          Ui2SampleEditorTransactionResult::Applied);
+  const std::string previousPath = transaction.WorkingPath();
+  const std::vector<std::uint8_t> previousEdit =
+      fileSystem.Bytes(previousPath.c_str());
+  REQUIRE(transaction.BeginTrim(1U, 4'093U) ==
+          Ui2SampleEditorTransactionResult::InProgress);
+
+  Ui2SampleEditorTransactionResult result =
+      Ui2SampleEditorTransactionResult::MutationFailed;
+  SUBCASE("cancel") {
+    REQUIRE(transaction.StepApply(128U) ==
+            Ui2SampleEditorTransactionResult::InProgress);
+    result = transaction.CancelApply();
+    CHECK(result == Ui2SampleEditorTransactionResult::Cancelled);
+  }
+  SUBCASE("read failure") {
+    fileSystem.FailRead(true);
+    result = transaction.StepApply(128U);
+    CHECK(result == Ui2SampleEditorTransactionResult::CopyFailed);
+  }
+  SUBCASE("write failure") {
+    fileSystem.FailWrite(true);
+    result = transaction.StepApply(128U);
+    CHECK(result == Ui2SampleEditorTransactionResult::CopyFailed);
+  }
+  SUBCASE("copy sync failure") {
+    fileSystem.FailSyncAfter(0U);
+    do {
+      result = transaction.StepApply(256U);
+    } while (result == Ui2SampleEditorTransactionResult::InProgress);
+    CHECK(result == Ui2SampleEditorTransactionResult::CopyFailed);
+  }
+  SUBCASE("mutation sync failure") {
+    // Let the staging copy become durable, then fail the trim header/data
+    // finalization. The previous generation must remain the active edit.
+    fileSystem.FailSyncAfter(1U);
+    do {
+      result = transaction.StepApply(256U);
+    } while (result == Ui2SampleEditorTransactionResult::InProgress);
+    CHECK(result == Ui2SampleEditorTransactionResult::MutationFailed);
+  }
+
+  CHECK_FALSE(transaction.ApplyActive());
+  CHECK(transaction.HasWorkingCopy());
+  CHECK(std::strcmp(transaction.WorkingPath(), previousPath.c_str()) == 0);
+  CHECK(fileSystem.Bytes(previousPath.c_str()) == previousEdit);
+  CHECK(fileSystem.Bytes(source) == original);
+}
+
+TEST_CASE("sample directory scan removes an interrupted operation copy") {
+  constexpr const char *source = "VOICE.wav";
+  SampleEditMemoryFileSystem fileSystem;
+  const std::vector<std::uint8_t> original = MakeWav();
+  fileSystem.Put(source, original);
+  char operation[PFILENAME_SIZE]{};
+  REQUIRE(SampleEditorFileJournal::BuildPath(
+      source, SampleEditorFileJournal::Generation::Operation, operation,
+      sizeof(operation)));
+  fileSystem.Put(operation, MakeWav());
+
+  REQUIRE(SampleEditorFileJournal::RecoverCurrentDirectory(fileSystem));
+  CHECK(fileSystem.Bytes(source) == original);
+  CHECK_FALSE(fileSystem.exists(operation));
 }
