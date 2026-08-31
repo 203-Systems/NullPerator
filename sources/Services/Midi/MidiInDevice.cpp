@@ -42,13 +42,13 @@ bool MidiInDevice::Start() {
   // Starting an already-used device must not discard ownership metadata for
   // notes that are still sounding.
   stopTrackedNotes();
-  isRunning_ = true;
 
   // Reset the MIDI parser state
   midiStatus = 0;
   midiDataCount = 0;
 
-  return startDriver();
+  isRunning_ = startDriver();
+  return isRunning_;
 };
 
 void MidiInDevice::Stop() {

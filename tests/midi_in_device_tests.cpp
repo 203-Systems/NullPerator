@@ -20,13 +20,14 @@ public:
 
   int driverStarts = 0;
   int driverStops = 0;
+  bool startSucceeds = true;
 
 protected:
   bool initDriver() override { return true; }
   void closeDriver() override {}
   bool startDriver() override {
     ++driverStarts;
-    return true;
+    return startSucceeds;
   }
   void stopDriver() override { ++driverStops; }
 };
@@ -97,4 +98,14 @@ TEST_CASE("Restarting MIDI input cannot orphan a tracked voice") {
   REQUIRE(device.Start());
   REQUIRE(Player::GetInstance()->stoppedNotes.size() == 1U);
   CHECK(Player::GetInstance()->stoppedNotes[0].voice == 0U);
+}
+
+TEST_CASE("MIDI input stays stopped when its driver fails to start") {
+  Player::ResetTestState();
+  TestMidiInDevice device;
+  device.startSucceeds = false;
+
+  CHECK_FALSE(device.Start());
+  CHECK_FALSE(device.IsRunning());
+  CHECK(device.driverStarts == 1);
 }
