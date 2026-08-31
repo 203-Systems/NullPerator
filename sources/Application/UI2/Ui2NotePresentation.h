@@ -7,6 +7,7 @@
 #pragma once
 
 #include "Application/Model/Song.h"
+#include "Application/UI2/Ui2FixedText.h"
 #include "Application/Utils/char.h"
 
 #include <array>
@@ -43,6 +44,27 @@ inline void FormatUiNote(std::uint8_t value, std::array<char, 5> &text) {
     octave = -octave;
   }
   text[cursor] = static_cast<char>('0' + octave);
+}
+
+// Capture bottom-bar notes from the numeric mixer state. Player's legacy
+// GetPlayedNote/GetPlayedOctive methods return the same shared character
+// buffer, so retaining the first pointer across the second call corrupts the
+// pitch. Reading the numeric value is both allocation-free and race-equivalent
+// to those accessors without the aliasing hazard.
+template <typename PlayerLike, typename Notes>
+void CaptureUiTrackNotes(PlayerLike *player, bool playing, Notes &notes) {
+  for (std::size_t track = 0U; track < notes.size(); ++track) {
+    if (!playing || player == nullptr || player->IsChannelMuted(track)) {
+      CopyUiText(notes[track], "--");
+      continue;
+    }
+    const int value = player->GetPlayedNoteValue(track);
+    if (value < 0 || value > HIGHEST_NOTE) {
+      CopyUiText(notes[track], "--");
+      continue;
+    }
+    FormatUiNote(static_cast<std::uint8_t>(value), notes[track]);
+  }
 }
 
 } // namespace ui2

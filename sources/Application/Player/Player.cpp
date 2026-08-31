@@ -259,6 +259,10 @@ const char *Player::GetPlayedOctive(int channel) {
   return mixer_.GetPlayedOctive(channel);
 }
 
+int Player::GetPlayedNoteValue(int channel) {
+  return mixer_.GetChannelNote(channel);
+}
+
 const char *Player::GetPlayedInstrument(int channel) {
   if ((mixer_.GetPlayedOctive(channel))[1] == ' ') {
     return mixer_.GetPlayedOctive(channel);

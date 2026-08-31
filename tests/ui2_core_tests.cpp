@@ -60,6 +60,7 @@
 #include <cstdint>
 #include <limits>
 #include <span>
+#include <string_view>
 #include <utility>
 
 namespace {
@@ -337,6 +338,48 @@ TEST_CASE("UI2 note presentation matches the complete tracker byte domain") {
     ui2::FormatUiNote(value, actual);
     CHECK(actual == expected);
   }
+}
+
+TEST_CASE("UI2 track notes avoid the legacy shared text buffer alias") {
+  struct AliasingPlayer {
+    std::array<int, 8> values{73, 73, NO_NOTE, 73, 73, 73, 73, 73};
+    std::array<bool, 8> muted{false, true, false, false,
+                              false, false, false, false};
+    std::array<char, 5> shared{};
+    std::size_t rawReads = 0U;
+
+    const char *GetPlayedNote(std::size_t) {
+      shared = {'C', '#', '\0', '\0', '\0'};
+      return shared.data();
+    }
+    const char *GetPlayedOctive(std::size_t) {
+      shared = {' ', '4', '\0', '\0', '\0'};
+      return shared.data();
+    }
+    bool IsChannelMuted(std::size_t track) const { return muted[track]; }
+    int GetPlayedNoteValue(std::size_t track) {
+      ++rawReads;
+      return values[track];
+    }
+  } player;
+
+  const char *pitch = player.GetPlayedNote(0U);
+  CHECK(std::string_view(pitch) == "C#");
+  const char *octave = player.GetPlayedOctive(0U);
+  CHECK(pitch == octave);
+  CHECK(std::string_view(pitch) == " 4");
+
+  std::array<std::array<char, 5>, 8> notes{};
+  ui2::CaptureUiTrackNotes(&player, true, notes);
+  CHECK(std::string_view(notes[0].data()) == "C#4");
+  CHECK(std::string_view(notes[1].data()) == "--");
+  CHECK(std::string_view(notes[2].data()) == "--");
+  CHECK(player.rawReads == 7U);
+
+  ui2::CaptureUiTrackNotes(&player, false, notes);
+  for (const auto &note : notes)
+    CHECK(std::string_view(note.data()) == "--");
+  CHECK(player.rawReads == 7U);
 }
 
 TEST_CASE("UI2 indexed surface owns no RGB framebuffer and clips fills") {

@@ -120,30 +120,6 @@ UiDeviceCursor DeviceCursorFor(Ui2DeviceField field) {
   return UiDeviceCursor::MidiDevice;
 }
 
-template <typename Notes> void CaptureTrackNotes(Notes &notes) {
-  Player *player = Player::GetInstance();
-  const bool playing = PlayerRunning();
-  for (std::uint8_t track = 0; track < SONG_CHANNEL_COUNT; ++track) {
-    if (!playing) {
-      CopyUiText(notes[track], "--");
-      continue;
-    }
-    const char *pitch = player->GetPlayedNote(track);
-    const char *octave = player->GetPlayedOctive(track);
-    if (pitch[0] == ' ' || octave[1] == '-') {
-      CopyUiText(notes[track], "--");
-    } else if (pitch[1] == ' ') {
-      std::snprintf(notes[track].data(), notes[track].size(),
-                    octave[0] == '-' ? "%c-%c" : "%c%c", pitch[0],
-                    octave[1]);
-    } else {
-      std::snprintf(notes[track].data(), notes[track].size(),
-                    octave[0] == '-' ? "%c%c-%c" : "%c%c%c", pitch[0],
-                    pitch[1], octave[1]);
-    }
-  }
-}
-
 template <std::size_t LeadSize, std::size_t TailSize,
           std::size_t DescriptionSize>
 void CaptureHelp(FourCC command, std::array<char, LeadSize> &lead,
@@ -258,7 +234,7 @@ Ui2NativeApplicationStateSource::CaptureSong(UiSongFrameState &state) {
   state.playing = PlayerRunning();
   state.liveMode = controller.LiveMode();
   FormatElapsed(state.elapsed);
-  CaptureTrackNotes(state.notes);
+  CaptureUiTrackNotes(Player::GetInstance(), state.playing, state.notes);
   const PlayerTransportSnapshot transport = player->CaptureTransportSnapshot();
   // Browser previews deliberately support audio=disabled. Player still owns
   // transport and publishes the current pattern note even before a mixer
@@ -313,7 +289,8 @@ Ui2NativeApplicationStateSource::CaptureChain(UiChainFrameState &state) {
   std::copy_n(song.chain_.data_ + base, 16, state.phrases.begin());
   std::copy_n(song.chain_.transpose_ + base, 16, state.transposes.begin());
   FormatElapsed(state.elapsed);
-  CaptureTrackNotes(state.trackNotes);
+  CaptureUiTrackNotes(Player::GetInstance(), PlayerRunning(),
+                      state.trackNotes);
   Player *player = Player::GetInstance();
   const PlayerTransportSnapshot transport = player->CaptureTransportSnapshot();
   if (transport.running && transport.mode != PM_AUDITION) {
@@ -375,7 +352,8 @@ Ui2NativeApplicationStateSource::CapturePhrase(UiPhraseFrameState &state) {
     hexshort2char(phrase.param2_[index], state.rows[row].parameter2.data());
   }
   FormatElapsed(state.elapsed);
-  CaptureTrackNotes(state.trackNotes);
+  CaptureUiTrackNotes(Player::GetInstance(), PlayerRunning(),
+                      state.trackNotes);
   Player *player = Player::GetInstance();
   const PlayerTransportSnapshot transport = player->CaptureTransportSnapshot();
   if (transport.running && transport.mode != PM_AUDITION) {
@@ -461,7 +439,8 @@ Ui2NativeApplicationStateSource::CaptureTable(UiTableFrameState &state) {
     hexshort2char(table.param3_[row], state.rows[row].parameter3.data());
   }
   FormatElapsed(state.elapsed);
-  CaptureTrackNotes(state.trackNotes);
+  CaptureUiTrackNotes(Player::GetInstance(), PlayerRunning(),
+                      state.trackNotes);
   const int selectedTrack = controller.SelectedTrack();
   const PlayerTransportSnapshot transport =
       Player::GetInstance()->CaptureTransportSnapshot();
@@ -676,7 +655,8 @@ UiApplicationActivityState Ui2NativeApplicationStateSource::CaptureInstrument(
   state.selectedSubfield = instrument_.Subfield();
   state.subfieldTextOffset = activeSubfields.textOffset;
   FormatElapsed(state.elapsed);
-  CaptureTrackNotes(state.trackNotes);
+  CaptureUiTrackNotes(Player::GetInstance(), PlayerRunning(),
+                      state.trackNotes);
   return {.active = PlayerRunning()};
 }
 
@@ -763,13 +743,13 @@ Ui2NativeApplicationStateSource::CaptureDevice(UiDeviceFrameState &state) {
     return options[std::min<std::size_t>(selector.current, count - 1U)];
   };
   CopyUiText(state.midiDevice,
-           currentText(Ui2DeviceField::MidiDevice, midiDevices, 4U));
+             currentText(Ui2DeviceField::MidiDevice, midiDevices, 4U));
   CopyUiText(state.midiSync,
-           currentText(Ui2DeviceField::MidiSync, boolean, 2U));
+             currentText(Ui2DeviceField::MidiSync, boolean, 2U));
   CopyUiText(state.resampler,
-           currentText(Ui2DeviceField::Resampler, resamplers, 2U));
+             currentText(Ui2DeviceField::Resampler, resamplers, 2U));
   CopyUiText(state.lineOut,
-           currentText(Ui2DeviceField::LineOut, lineOutputs, 3U));
+             currentText(Ui2DeviceField::LineOut, lineOutputs, 3U));
   std::snprintf(state.volume.data(), state.volume.size(), "%u%%",
                 device_.Selector(Ui2DeviceField::Volume).current);
   std::snprintf(state.brightness.data(), state.brightness.size(), "%u%%",
