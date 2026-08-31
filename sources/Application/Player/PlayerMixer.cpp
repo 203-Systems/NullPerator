@@ -38,10 +38,10 @@ std::int8_t PlayedSliceFor(std::uint8_t note, I_Instrument *instrument) {
 
 } // namespace
 
-PlayerMixer::PlayerMixer() {
+PlayerMixer::PlayerMixer() : project_(nullptr) {
 
   for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {
-    lastInstrument_[i] = 0;
+    lastInstrument_[i] = nullptr;
     channelTelemetry_[i].store(PlayerMixerTelemetry::Pack(NO_NOTE, -1, false),
                                std::memory_order_relaxed);
   };
@@ -71,7 +71,9 @@ bool PlayerMixer::Init(Project *project) {
 
   // Init states
   for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {
-    lastInstrument_[i] = 0;
+    lastInstrument_[i] = nullptr;
+    channelTelemetry_[i].store(PlayerMixerTelemetry::Pack(NO_NOTE, -1, false),
+                               std::memory_order_relaxed);
   };
 
   // Setup mixbus
@@ -91,7 +93,7 @@ void PlayerMixer::BindProject(Project *project) {
   fileStreamer_.SetProject(project);
 
   for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {
-    lastInstrument_[i] = 0;
+    lastInstrument_[i] = nullptr;
     channelTelemetry_[i].store(PlayerMixerTelemetry::Pack(NO_NOTE, -1, false),
                                std::memory_order_relaxed);
   }
@@ -101,7 +103,12 @@ void PlayerMixer::Close() {
 
   for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {
     channel_[i]->Reset();
+    lastInstrument_[i] = nullptr;
+    channelTelemetry_[i].store(PlayerMixerTelemetry::Pack(NO_NOTE, -1, false),
+                               std::memory_order_relaxed);
   }
+  project_ = nullptr;
+  fileStreamer_.SetProject(nullptr);
 
   MixerService *ms = MixerService::GetInstance();
   ms->Close();
