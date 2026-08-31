@@ -69,12 +69,15 @@ bool Player::Init(Project *project, TrackerSessionState *viewData) {
 
   if (project_ == nullptr || viewData_ == nullptr) {
     Trace::Error("PLAYER", "Cannot initialize without project/session state");
+    project_ = nullptr;
+    viewData_ = nullptr;
     return false;
   }
   audioActivity_.Reset();
   audioActive_ = false;
 
   if (!mixer_.Init(project)) {
+    RollbackInitialization();
     return false;
   }
 
@@ -82,7 +85,24 @@ bool Player::Init(Project *project, TrackerSessionState *viewData) {
   SyncMaster *sync = SyncMaster::GetInstance();
   sync->SetTempo(project_->GetTempo());
   PublishTransportSnapshotLocked();
-  return audioReadiness_.CompleteInitialization(mixer_.Start());
+  if (!mixer_.Start()) {
+    RollbackInitialization();
+    return false;
+  }
+  return audioReadiness_.CompleteInitialization(true);
+}
+
+void Player::RollbackInitialization() {
+  // PlayerMixer::Start() rolls back the lower-level output/MIDI observers on
+  // failure. Remove the Player edge and close the initialized mixer graph so
+  // a later Init() rebuilds it exactly once.
+  mixer_.RemoveObserver(*this);
+  audioActivity_.Reset();
+  SetAudioActive(false);
+  mixer_.Close();
+  viewData_ = nullptr;
+  project_ = nullptr;
+  audioReadiness_.Close();
 }
 
 void Player::BindProject(Project *project, TrackerSessionState *viewData) {

@@ -160,6 +160,10 @@ protected:
   bool findPlayable(uchar *row, int col, uchar chainPos = 0);
 
 private:
+  // Undo every observer/module edge installed by Init() before publishing a
+  // failed transaction. TrackerApplicationSession may then retry Init()
+  // without accumulating callbacks or stale project pointers.
+  void RollbackInitialization();
   // Caller owns MixerService's lock. Both UI Stop() and stop-at-end use this
   // single teardown path so render completion cannot leave transport-owned
   // tables, sync state or audio activity alive.

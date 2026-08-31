@@ -309,6 +309,26 @@ target_include_directories(player_direct_note_bounds_tests PRIVATE
 target_compile_definitions(player_direct_note_bounds_tests PRIVATE HOST_TEST)
 add_test(NAME player_direct_note_bounds COMMAND player_direct_note_bounds_tests)
 
+# A failed platform-audio transaction must leave the process-global Player
+# eligible for a later retry; only a successful Init may switch project loads
+# to the BindProject fast path.
+add_executable(tracker_player_initialization_tests
+  test_main.cpp
+  tracker_player_initialization_tests.cpp
+)
+
+target_include_directories(tracker_player_initialization_tests PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals/SRC/include
+  ${CMAKE_CURRENT_LIST_DIR}/../sources
+)
+
+target_compile_definitions(tracker_player_initialization_tests PRIVATE
+  HOST_TEST
+)
+add_test(NAME tracker_player_initialization
+         COMMAND tracker_player_initialization_tests)
+
 # Cross-core Table telemetry is fixed-size. Keep its no-tearing publication
 # contract in a focused threaded binary suitable for ASan/UBSan and TSan
 # without booting the full audio graph.

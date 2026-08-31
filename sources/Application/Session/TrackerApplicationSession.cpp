@@ -5,6 +5,7 @@
  */
 
 #include "TrackerApplicationSession.h"
+#include "TrackerPlayerInitialization.h"
 #include "TrackerProjectLoadPolicy.h"
 
 #include "Application/Commands/ApplicationCommandDispatcher.h"
@@ -63,7 +64,6 @@ TrackerApplicationSession::LoadResult TrackerApplicationSession::LoadProject(
 
   char previousProjectName[MAX_PROJECT_NAME_LENGTH + 1]{};
   const bool hadLoadedProject = loaded_;
-  const bool previousAudioReady = audioReady_;
   const TrackerSessionState previousEditorState = editorState_;
   bool rollbackPrepared = false;
   bool stagingTransactionStarted = false;
@@ -111,14 +111,10 @@ TrackerApplicationSession::LoadResult TrackerApplicationSession::LoadProject(
     ApplicationCommandDispatcher::GetInstance()->Init(&project_);
     editorState_.Load(&project_);
 
-    bool playerReady = true;
-    if (!playerInitialized_) {
-      playerReady = player->Init(&project_, &editorState_);
-      playerInitialized_ = true;
-    } else {
-      player->BindProject(&project_, &editorState_);
-    }
-    audioReady_ = playerReady;
+    audioReady_ = tracker_session_detail::ActivatePlayer(
+        playerInitialized_,
+        [this, player]() { return player->Init(&project_, &editorState_); },
+        [this, player]() { player->BindProject(&project_, &editorState_); });
     UpdateProjectName();
     loaded_ = true;
   };
@@ -155,7 +151,6 @@ TrackerApplicationSession::LoadResult TrackerApplicationSession::LoadProject(
     editorState_ = previousEditorState;
     editorState_.project_ = &project_;
     editorState_.song_ = &project_.song_;
-    audioReady_ = previousAudioReady;
     if (persist->SaveProjectState_(
             previousProjectName,
             std::strcmp(previousProjectName, UNNAMED_PROJECT_NAME) == 0) !=
