@@ -1121,20 +1121,33 @@ int Player::getChannelHop(int channel, int pos) {
 void Player::moveToNextStep() {
   // we'll need to know if any channel is playing
 
-  bool playingChannel = false;
+  const std::uint32_t immediateChannels =
+      TriggerAllImmediateChannels<SONG_CHANNEL_COUNT>(
+          [&](unsigned int channel) {
+            return liveQueueingMode_[channel] == QM_TICKSTART;
+          },
+          [&](unsigned int channel) {
+            liveQueueingMode_[channel] = QM_NONE;
+            if (!findPlayable(&liveQueuePosition_[channel], channel,
+                              liveQueueChainPosition_[channel])) {
+              return false;
+            }
+            mixer_.StartChannel(channel);
+            updateSongPos(liveQueuePosition_[channel], channel,
+                          liveQueueChainPosition_[channel]);
+            return true;
+          });
+
+  bool playingChannel = immediateChannels != 0;
 
   for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {
-    bool liveTriggered = false;
+    const bool liveTriggered =
+        (immediateChannels & (std::uint32_t{1} << i)) != 0;
 
     switch (liveQueueingMode_[i]) {
     case QM_TICKSTART:
-      liveQueueingMode_[i] = QM_NONE;
-      if (findPlayable(&(liveQueuePosition_[i]), i,
-                       liveQueueChainPosition_[i])) {
-        liveTriggered = true;
-        updateSongPos(liveQueuePosition_[i], i, liveQueueChainPosition_[i]);
-      }
-      return;
+      // Immediate queues are consumed together above so one selected track
+      // cannot prevent a later selected track from starting in this tick.
       break;
     case QM_PHRASESTART:
     case QM_PHRASESTOP:
