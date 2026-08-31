@@ -16,6 +16,7 @@ add_executable(picoTracker_tests
   test_main.cpp
   foundation_types_tests.cpp
   fourcc_persistency_tests.cpp
+  groove_telemetry_tests.cpp
   wavheader_tests.cpp
   wasm_audio_tests.cpp
   record_streamer_tests.cpp

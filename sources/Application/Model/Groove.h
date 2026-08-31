@@ -15,6 +15,9 @@
 #include "Application/Utils/HexBuffers.h"
 #include "Foundation/T_Singleton.h"
 
+#include <atomic>
+#include <cstdint>
+
 #define MAX_GROOVES 0x20
 #define NO_GROOVE_DATA 0xFF
 
@@ -40,7 +43,12 @@ public:
   virtual void RestoreContent(PersistencyDocument *doc);
 
 private:
+  void PublishChannelTelemetry(int channel);
+
   ChannelGroove channelGroove_[SONG_CHANNEL_COUNT];
+  // UI2 needs the selected groove and row as one logical value. Packing both
+  // bytes avoids racing or pairing fields from adjacent audio ticks.
+  std::atomic<std::uint32_t> channelTelemetry_[SONG_CHANNEL_COUNT]{};
   static unsigned char data_[MAX_GROOVES][16];
 };
 #endif

@@ -12,6 +12,9 @@
 #include <array>
 #include <cstring>
 
+static_assert(std::atomic<std::uint32_t>::is_always_lock_free,
+              "groove telemetry requires lock-free 32-bit atomics");
+
 unsigned char Groove::data_[MAX_GROOVES][16];
 
 Groove::Groove() : Persistent("GROOVES") { Clear(); };
@@ -31,6 +34,7 @@ void Groove::Clear() {
     channelGroove_[i].groove_ = 0;
     channelGroove_[i].position_ = 0;
     channelGroove_[i].ticks_ = data_[0][0];
+    PublishChannelTelemetry(i);
   };
 };
 // Resest groove data at song startup
@@ -41,14 +45,24 @@ void Groove::Reset() {
     ChannelGroove &c = channelGroove_[i];
     c.position_ = 0;
     c.ticks_ = data_[c.groove_][c.position_];
+    PublishChannelTelemetry(i);
   }
 };
 
 void Groove::GetChannelData(int channel, int *groove, int *position) {
-  ChannelGroove &c = channelGroove_[channel];
-  *groove = c.groove_;
-  *position = c.position_;
+  const std::uint32_t telemetry =
+      channelTelemetry_[channel].load(std::memory_order_relaxed);
+  *groove = static_cast<int>(telemetry & 0xFFU);
+  *position = static_cast<int>((telemetry >> 8U) & 0xFFU);
 };
+
+void Groove::PublishChannelTelemetry(int channel) {
+  const ChannelGroove &groove = channelGroove_[channel];
+  const std::uint32_t telemetry =
+      static_cast<std::uint32_t>(groove.groove_) |
+      (static_cast<std::uint32_t>(groove.position_) << 8U);
+  channelTelemetry_[channel].store(telemetry, std::memory_order_relaxed);
+}
 
 void Groove::SaveContent(tinyxml2::XMLPrinter *printer) {
   saveHexBuffer(printer, "DATA", (unsigned char *)data_, 16 * MAX_GROOVES);
@@ -106,7 +120,8 @@ void Groove::RestoreContent(PersistencyDocument *doc) {
 void Groove::Trigger() {
   for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {
     ChannelGroove &c = channelGroove_[i];
-    UpdateGroove(c, false);
+    if (UpdateGroove(c, false))
+      PublishChannelTelemetry(i);
   }
 };
 
@@ -152,6 +167,7 @@ void Groove::SetGroove(int channel, int groove) {
   channelGroove_[channel].position_ = 0;
   channelGroove_[channel].ticks_ =
       data_[channelGroove_[channel].groove_][channelGroove_[channel].position_];
+  PublishChannelTelemetry(channel);
 };
 
 // Returns true if, according to current groove setting it is time to go
