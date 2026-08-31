@@ -312,14 +312,17 @@ UiBuildStatus UiChromeRenderer::BuildBottom(const UiBottomBarModel &model,
   case UiBottomBarKind::Hidden:
     break;
   case UiBottomBarKind::TrackNotes: {
-    for (std::int16_t index = 0; index < 8; ++index) {
-      const std::int16_t center = static_cast<std::int16_t>(15 + index * 30);
-      std::array<char, 3> track{'T', static_cast<char>('1' + index), 0};
+    for (std::size_t index = 0; index < model.trackNotes.notes.size();
+         ++index) {
+      const std::int16_t center = static_cast<std::int16_t>(
+          15 + static_cast<std::int16_t>(index) * 30);
+      std::array<char, 3> track{
+          'T', static_cast<char>('1' + static_cast<int>(index)), 0};
       builder.CenteredText(track.data(), center, 213, UiColorToken::TextDim);
       const std::string_view note = model.trackNotes.notes[index];
       const UiColorToken noteColor =
           note == "--" ? UiColorToken::DerivedTextFaint : UiColorToken::TextNormal;
-      if (index == model.trackNotes.selectedNote) {
+      if (static_cast<std::int8_t>(index) == model.trackNotes.selectedNote) {
         const std::int16_t width = UiFont5x7::TextWidth(note.size());
         builder.Fill({static_cast<std::int16_t>(center - width / 2 - 2), 226,
                       static_cast<std::int16_t>(width + 4), 9},
@@ -409,13 +412,14 @@ UiBuildStatus UiChromeRenderer::BuildBottom(const UiBottomBarModel &model,
     const auto optionAt = [&](int index) -> std::string_view {
       if (model.selector.wrap) {
         const int count = static_cast<int>(model.selector.options.size());
-        return model.selector.options[(index % count + count) % count];
+        const int wrapped = (index % count + count) % count;
+        return model.selector.options[static_cast<std::size_t>(wrapped)];
       }
       if (index < 0 ||
           index >= static_cast<int>(model.selector.options.size())) {
         return {};
       }
-      return model.selector.options[index];
+      return model.selector.options[static_cast<std::size_t>(index)];
     };
     const int current = model.selector.current;
     centeredOption(optionAt(current - 1), 60, UiColorToken::TextDim);
