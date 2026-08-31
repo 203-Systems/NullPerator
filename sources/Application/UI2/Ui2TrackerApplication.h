@@ -115,6 +115,9 @@ private:
   void HandleSampleEditor(TrackerAction action, bool pressed);
   void HandleSampleEditorDialog(TrackerAction action, bool pressed);
   void ExecuteSampleEditor(Ui2SampleEditorCommand command);
+  void TickSampleEditorApply();
+  void CompleteSampleEditorApply(Ui2SampleEditorTransactionResult result);
+  [[nodiscard]] bool ReloadSampleEditorTransactionView();
   [[nodiscard]] bool CloseSampleEditor();
   [[nodiscard]] bool RecoverSampleEditorDestination();
   [[nodiscard]] bool ImportSampleToCurrentInstrument(const char *path,

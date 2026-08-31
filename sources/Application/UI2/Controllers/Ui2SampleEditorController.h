@@ -29,6 +29,7 @@ enum class Ui2SampleEditorCommandType : std::uint8_t {
   SetEnd,
   RequestApplyOperation,
   ApplyConfirmed,
+  CancelApply,
   RequestSave,
   RequestSaveAndLoad,
   RequestDiscard,
@@ -136,6 +137,41 @@ public:
     return dialogInstanceId_;
   }
 
+  void BeginApplyProgress(
+      Ui2SampleEditorOperation operation,
+      TrackerAction trigger = TrackerAction::Count) {
+    pendingOperation_ = operation;
+    dialogProgress_ = true;
+    dialogProgressPercent_ = 0U;
+    dialogSelectedAction_ = 0U;
+    dialogInput_ = {};
+    dialogReleaseGate_.Reset();
+    if (trigger < TrackerAction::Count)
+      input_.Update(trigger, false);
+    dialogReleaseGate_.BlockUntilRelease(trigger);
+    dialogActive_ = true;
+    ++dialogInstanceId_;
+  }
+
+  void UpdateApplyProgress(std::uint8_t percent) {
+    if (dialogActive_ && dialogProgress_)
+      dialogProgressPercent_ = std::min<std::uint8_t>(percent, 100U);
+  }
+
+  void FinishApplyProgress() {
+    if (!dialogProgress_)
+      return;
+    dialogActive_ = false;
+    dialogProgress_ = false;
+    dialogProgressPercent_ = 0U;
+    dialogInput_ = {};
+    dialogReleaseGate_.Reset();
+  }
+
+  [[nodiscard]] bool ApplyProgressActive() const {
+    return dialogActive_ && dialogProgress_;
+  }
+
   void RequestApplyConfirmation(
       Ui2SampleEditorOperation operation, std::uint32_t start,
       std::uint32_t end,
@@ -146,6 +182,8 @@ public:
     pendingStart_ = start;
     pendingEnd_ = end;
     dialogSelectedAction_ = 1U; // NO is the conservative legacy default.
+    dialogProgress_ = false;
+    dialogProgressPercent_ = 0U;
     dialogInput_ = {};
     dialogReleaseGate_.Reset();
     if (trigger < TrackerAction::Count)
@@ -159,6 +197,12 @@ public:
     if (!dialogActive_ || !dialogInput_.Update(action, pressed) ||
         !dialogReleaseGate_.Update(action, pressed) || !pressed)
       return {};
+    if (dialogProgress_) {
+      if (action != TrackerAction::Edit)
+        return {};
+      FinishApplyProgress();
+      return MakeCommand(Ui2SampleEditorCommandType::CancelApply);
+    }
     if (action == TrackerAction::Left || action == TrackerAction::Right) {
       dialogSelectedAction_ = static_cast<std::uint8_t>(
           1U - std::min<std::uint8_t>(dialogSelectedAction_, 1U));
@@ -182,6 +226,21 @@ public:
 
   [[nodiscard]] Ui2DialogSnapshot DialogSnapshot() const {
     Ui2DialogSnapshot snapshot;
+    if (dialogProgress_) {
+      snapshot.kind = UiDialogKind::RenderProgress;
+      snapshot.SetTitle(pendingOperation_ == Ui2SampleEditorOperation::Trim
+                            ? "Applying Trim"
+                            : "Applying Normalize");
+      snapshot.SetLabel("Working copy");
+      char percent[Ui2DialogSnapshot::ElapsedCapacity]{};
+      std::snprintf(percent, sizeof(percent), "%u%%",
+                    static_cast<unsigned>(dialogProgressPercent_));
+      snapshot.SetElapsed(percent);
+      snapshot.SetProgressPercent(dialogProgressPercent_);
+      snapshot.PushAction(UiDialogAction::Cancel);
+      snapshot.SetSelectedAction(0, true);
+      return snapshot;
+    }
     snapshot.kind = UiDialogKind::Message;
     snapshot.SetTitle(pendingOperation_ == Ui2SampleEditorOperation::Trim
                           ? "Apply TRIM?"
@@ -446,6 +505,8 @@ private:
     dialogInput_ = {};
     dialogReleaseGate_.Reset();
     dialogActive_ = false;
+    dialogProgress_ = false;
+    dialogProgressPercent_ = 0U;
     dialogSelectedAction_ = 1U;
     pendingOperation_ = Ui2SampleEditorOperation::Trim;
     pendingStart_ = pendingEnd_ = 0U;
@@ -656,6 +717,8 @@ private:
   std::uint32_t pendingEnd_ = 0U;
   Ui2SampleEditorOperation pendingOperation_ = Ui2SampleEditorOperation::Trim;
   std::uint8_t dialogSelectedAction_ = 1U;
+  std::uint8_t dialogProgressPercent_ = 0U;
+  bool dialogProgress_ = false;
   bool dialogActive_ = false;
 };
 

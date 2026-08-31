@@ -640,6 +640,7 @@ void Ui2TrackerApplication::Tick(std::uint32_t nowMs) {
     (void)FlushConfig();
   (void)firmwareLifecycle_.Execute(firmwareCommand);
   projectRender_.Tick();
+  TickSampleEditorApply();
   UpdateSamplePreview(nowMs);
   SynchronizeProjectMutationState();
   if (pendingSave_ != PendingSaveKind::None) {
@@ -696,6 +697,8 @@ Ui2TrackerApplication::AutoSaveConditions() const {
 
 bool Ui2TrackerApplication::ActivatePage(UiApplicationPage page) {
   if (page == UiApplicationPage::None)
+    return false;
+  if (page != activePage_ && sampleEditorTransaction_.ApplyActive())
     return false;
   if (activePage_ == UiApplicationPage::Project &&
       page != UiApplicationPage::Project && projectSaveAsPending_) {
@@ -1243,6 +1246,8 @@ bool Ui2TrackerApplication::OpenSampleEditor(const char *path,
 }
 
 bool Ui2TrackerApplication::CloseSampleEditor() {
+  if (sampleEditorTransaction_.ApplyActive())
+    return false;
   StopSamplePreview();
   if (sampleEditorTransaction_.Active() &&
       sampleEditorTransaction_.Discard() !=
@@ -1325,6 +1330,51 @@ void Ui2TrackerApplication::HandleSampleEditorDialog(TrackerAction action,
   ExecuteSampleEditor(sampleEditor_.HandleDialog(action, pressed));
 }
 
+bool Ui2TrackerApplication::ReloadSampleEditorTransactionView() {
+  FileSystem *fileSystem = FileSystem::GetInstance();
+  if (fileSystem == nullptr || !sampleEditor_.Active() ||
+      !sampleEditorTransaction_.Active())
+    return false;
+  const char *const path = sampleEditorTransaction_.HasWorkingCopy()
+                               ? sampleEditorTransaction_.WorkingPath()
+                               : sampleEditorTransaction_.DestinationPath();
+  return sampleEditor_.ReloadPath(*fileSystem, path);
+}
+
+void Ui2TrackerApplication::CompleteSampleEditorApply(
+    Ui2SampleEditorTransactionResult result) {
+  sampleEditor_.FinishApplyProgress();
+  runtime_.Invalidate();
+  if (result == Ui2SampleEditorTransactionResult::NoChanges)
+    return;
+  if (result == Ui2SampleEditorTransactionResult::Applied) {
+    if (!ReloadSampleEditorTransactionView())
+      ShowFeedbackError("SAMPLE RELOAD FAILED");
+    return;
+  }
+  if (result == Ui2SampleEditorTransactionResult::Cancelled)
+    return;
+
+  // Apply never changes the authoritative destination or the previous valid
+  // working generation. Keep the controller's markers, zoom and viewport
+  // exactly intact; reopening recovery here would discard a preserved prior
+  // edit, while an unnecessary reload would reset the editor's local state.
+  ShowFeedbackError(result == Ui2SampleEditorTransactionResult::RecoveryFailed
+                        ? "SAMPLE RECOVERY REQUIRED"
+                        : "SAMPLE OPERATION FAILED");
+}
+
+void Ui2TrackerApplication::TickSampleEditorApply() {
+  if (!sampleEditorTransaction_.ApplyActive())
+    return;
+  const Ui2SampleEditorTransactionResult result =
+      sampleEditorTransaction_.StepApply();
+  sampleEditor_.UpdateApplyProgress(sampleEditorTransaction_.ApplyProgress());
+  runtime_.Invalidate();
+  if (result != Ui2SampleEditorTransactionResult::InProgress)
+    CompleteSampleEditorApply(result);
+}
+
 void Ui2TrackerApplication::ExecuteSampleEditor(
     Ui2SampleEditorCommand command) {
   if (!command.HasValue())
@@ -1389,19 +1439,21 @@ void Ui2TrackerApplication::ExecuteSampleEditor(
     StopSamplePreview();
     const Ui2SampleEditorTransactionResult result =
         command.operation == Ui2SampleEditorOperation::Trim
-            ? sampleEditorTransaction_.ApplyTrim(command.start, command.end)
-            : sampleEditorTransaction_.ApplyNormalize();
-    if (result == Ui2SampleEditorTransactionResult::NoChanges)
-      break;
-    FileSystem *fileSystem = FileSystem::GetInstance();
-    if (result == Ui2SampleEditorTransactionResult::Applied &&
-        fileSystem != nullptr &&
-        sampleEditor_.ReloadPath(*fileSystem,
-                                 sampleEditorTransaction_.WorkingPath())) {
+            ? sampleEditorTransaction_.BeginTrim(command.start, command.end)
+            : sampleEditorTransaction_.BeginNormalize();
+    if (result == Ui2SampleEditorTransactionResult::InProgress) {
+      sampleEditor_.BeginApplyProgress(command.operation, TrackerAction::Edit);
+      runtime_.Invalidate();
       break;
     }
-    if (RecoverSampleEditorDestination())
-      ShowFeedbackError("SAMPLE OPERATION FAILED");
+    CompleteSampleEditorApply(result);
+    break;
+  }
+  case Ui2SampleEditorCommandType::CancelApply: {
+    StopSamplePreview();
+    const Ui2SampleEditorTransactionResult result =
+        sampleEditorTransaction_.CancelApply();
+    CompleteSampleEditorApply(result);
     break;
   }
   case Ui2SampleEditorCommandType::RequestSave:

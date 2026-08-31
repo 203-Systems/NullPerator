@@ -557,6 +557,70 @@ TEST_CASE("UI2 Sample Editor apply confirmation defaults to no") {
   CHECK_FALSE(controller.DialogActive());
 }
 
+TEST_CASE("UI2 Sample Editor apply progress accepts only explicit cancel") {
+  using namespace ui2;
+  Config::SetImportResampler(0);
+  SampleWaveFileSystem fileSystem;
+  fileSystem.BuildPcm(1024U);
+  Ui2SampleWaveformBackend waveform;
+  Ui2SampleEditorController controller(waveform);
+  REQUIRE(controller.OpenLibrary(fileSystem, "VOICE.WAV") ==
+          Ui2SampleWaveformLoadResult::Loaded);
+  REQUIRE(controller.SetFocus(SampleEditorViewUi2Focus::Waveform));
+  REQUIRE(Chord(controller, TrackerAction::Edit, TrackerAction::Right)
+              .HasValue());
+  REQUIRE(controller.SetFocus(SampleEditorViewUi2Focus::End));
+  const SampleEditorViewUi2Snapshot before = controller.Snapshot();
+
+  const std::uint32_t previousDialog = controller.DialogInstanceId();
+  controller.BeginApplyProgress(Ui2SampleEditorOperation::Normalize,
+                                TrackerAction::Edit);
+  controller.UpdateApplyProgress(42U);
+  REQUIRE(controller.ApplyProgressActive());
+  CHECK(controller.DialogInstanceId() == previousDialog + 1U);
+  const Ui2DialogSnapshot dialog = controller.DialogSnapshot();
+  CHECK(dialog.kind == UiDialogKind::RenderProgress);
+  CHECK(std::strcmp(dialog.title.data(), "Applying Normalize") == 0);
+  CHECK(std::strcmp(dialog.elapsed.data(), "42%") == 0);
+  CHECK(dialog.actionCount == 1U);
+  CHECK(dialog.actions[0] == UiDialogAction::Cancel);
+
+  // The EDIT that confirmed the operation cannot immediately cancel it, and
+  // directions do not create an accidental progress-dialog selection.
+  CHECK_FALSE(controller.HandleDialog(TrackerAction::Left, true).HasValue());
+  CHECK_FALSE(controller.HandleDialog(TrackerAction::Left, false).HasValue());
+  CHECK_FALSE(controller.HandleDialog(TrackerAction::Edit, false).HasValue());
+  CHECK(controller.ApplyProgressActive());
+  CHECK_FALSE(controller.HandleDialog(TrackerAction::Right, true).HasValue());
+  CHECK_FALSE(controller.HandleDialog(TrackerAction::Right, false).HasValue());
+
+  const Ui2SampleEditorCommand cancelled =
+      controller.HandleDialog(TrackerAction::Edit, true);
+  CHECK(cancelled.type == Ui2SampleEditorCommandType::CancelApply);
+  CHECK_FALSE(controller.DialogActive());
+  const SampleEditorViewUi2Snapshot after = controller.Snapshot();
+  CHECK(std::strcmp(after.start.data(), before.start.data()) == 0);
+  CHECK(std::strcmp(after.end.data(), before.end.data()) == 0);
+  CHECK(after.focus == before.focus);
+  CHECK(after.focusDigit == before.focusDigit);
+  CHECK(after.waveform.revision == before.waveform.revision);
+  CHECK(after.waveform.encoded == before.waveform.encoded);
+  controller.HandleDialog(TrackerAction::Edit, false);
+
+  // The application closes the same progress state on transaction failure;
+  // that path must likewise leave all editor-local navigation untouched.
+  controller.BeginApplyProgress(Ui2SampleEditorOperation::Trim);
+  controller.UpdateApplyProgress(73U);
+  controller.FinishApplyProgress();
+  const SampleEditorViewUi2Snapshot failed = controller.Snapshot();
+  CHECK(std::strcmp(failed.start.data(), before.start.data()) == 0);
+  CHECK(std::strcmp(failed.end.data(), before.end.data()) == 0);
+  CHECK(failed.focus == before.focus);
+  CHECK(failed.focusDigit == before.focusDigit);
+  CHECK(failed.waveform.revision == before.waveform.revision);
+  CHECK(failed.waveform.encoded == before.waveform.encoded);
+}
+
 TEST_CASE("UI2 Sample Editor endpoints cannot cross or leave the WAV") {
   using namespace ui2;
   Config::SetImportResampler(0);
