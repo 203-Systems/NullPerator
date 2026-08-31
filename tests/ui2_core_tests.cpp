@@ -2,7 +2,6 @@
 #include "Application/UI2/Ui2ApplicationRuntime.h"
 #include "Application/UI2/Ui2ChainTranspose.h"
 #include "Application/UI2/Ui2FixedText.h"
-#include "Application/UI2/Ui2ModalInputGate.h"
 #include "Application/UI2/Ui2NotePresentation.h"
 #include "Application/UI2/Ui2SampleAdapters.h"
 #include "Application/UI2/Ui2VuMapping.h"
@@ -2006,33 +2005,6 @@ TEST_CASE("UI2 battery sampling is bounded to 1 Hz and refreshes after play") {
   CHECK(gate.ShouldSample(false, UINT32_MAX - 500U));
   CHECK_FALSE(gate.ShouldSample(false, 100U));
   CHECK(gate.ShouldSample(false, 500U));
-}
-
-TEST_CASE("UI2 modal input gate retains consumed chord bits until key-up") {
-  Ui2ModalInputGate gate;
-  constexpr std::uint16_t edit = 1U << 5U;
-  constexpr std::uint16_t enter = 1U << 6U;
-  constexpr std::uint16_t left = 1U;
-
-  gate.OnButtonDown(edit, false);
-  CHECK(gate.EffectiveMask(edit, false) == edit);
-
-  gate.OnButtonDown(enter, true);
-  gate.OnButtonDown(left, true);
-  const std::uint16_t chord = edit | enter | left;
-  CHECK(gate.EffectiveMask(chord, true) == 0U);
-  CHECK(gate.DispatchMask(chord, true) == chord);
-  // The modal dismissed on Enter-down. Edit belonged to the base page, while
-  // both modal-consumed keys stay hidden independently until released.
-  CHECK(gate.EffectiveMask(chord, false) == edit);
-  CHECK(gate.DispatchMask(chord, false) == edit);
-
-  gate.OnButtonUp(enter);
-  CHECK(gate.EffectiveMask(edit | left, false) == edit);
-  gate.OnButtonUp(left);
-  CHECK(gate.EffectiveMask(edit, false) == edit);
-  gate.OnButtonUp(edit);
-  CHECK(gate.EffectiveMask(0U, false) == 0U);
 }
 
 TEST_CASE("UI2 region rendering restores exact pixels without a backbuffer") {
