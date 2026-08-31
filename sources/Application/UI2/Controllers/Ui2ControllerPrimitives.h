@@ -50,9 +50,11 @@ private:
 };
 
 // Platform key-repeat sources resend key-down while the physical key remains
-// held. Direction repeats are intentional for navigation and value editing;
-// action/modifier repeats must remain a single edge so SAVE, IMPORT, PLAY,
-// and modal openers cannot fire again before their matching key-up.
+// held. Plain, EDIT, and OPTION direction repeats are intentional for list and
+// value movement. SHIFT+direction is a page-navigation chord, so one physical
+// direction press must cross at most one page. Action/modifier repeats likewise
+// remain a single edge so SAVE, IMPORT, PLAY, and modal openers cannot fire
+// again before their matching key-up.
 [[nodiscard]] constexpr bool
 Ui2AcceptInputEvent(TrackerAction action, bool pressed,
                     std::uint16_t heldBefore) {
@@ -60,8 +62,34 @@ Ui2AcceptInputEvent(TrackerAction action, bool pressed,
     return false;
   if (!pressed || (heldBefore & TrackerActionBit(action)) == 0U)
     return true;
-  return action == TrackerAction::Left || action == TrackerAction::Right ||
-         action == TrackerAction::Up || action == TrackerAction::Down;
+  const bool direction =
+      action == TrackerAction::Left || action == TrackerAction::Right ||
+      action == TrackerAction::Up || action == TrackerAction::Down;
+  return direction &&
+         (heldBefore & TrackerActionBit(TrackerAction::Shift)) == 0U;
+}
+
+// A press keeps the page that first accepted it until key-up, even when the
+// press itself changes the active page. This is especially important for
+// SHIFT+direction: the release belongs to the page that initiated navigation,
+// while a later direction press (with SHIFT still held) may claim the new page.
+template <typename Owner>
+[[nodiscard]] constexpr Owner Ui2ClaimPressOwner(Owner &pressOwner,
+                                                 Owner activeOwner,
+                                                 Owner noOwner) {
+  if (pressOwner == noOwner)
+    pressOwner = activeOwner;
+  return pressOwner;
+}
+
+template <typename Owner>
+[[nodiscard]] constexpr Owner Ui2ReleasePressOwner(Owner &pressOwner,
+                                                   Owner activeOwner,
+                                                   Owner noOwner) {
+  const Owner releaseOwner =
+      pressOwner == noOwner ? activeOwner : pressOwner;
+  pressOwner = noOwner;
+  return releaseOwner;
 }
 
 // A newly opened controller must not consume the press (or held companion
@@ -307,6 +335,9 @@ static_assert(sizeof(Ui2ControllerInputState) == 2U);
 static_assert(sizeof(Ui2InputReleaseGate) == 2U);
 static_assert(Ui2AcceptInputEvent(TrackerAction::Up, true,
                                  TrackerActionBit(TrackerAction::Up)));
+static_assert(!Ui2AcceptInputEvent(
+    TrackerAction::Up, true, TrackerActionBit(TrackerAction::Up) |
+                                 TrackerActionBit(TrackerAction::Shift)));
 static_assert(!Ui2AcceptInputEvent(TrackerAction::Edit, true,
                                   TrackerActionBit(TrackerAction::Edit)));
 static_assert(Ui2MoveListIndex(3U, 12U, -8) == 0U);

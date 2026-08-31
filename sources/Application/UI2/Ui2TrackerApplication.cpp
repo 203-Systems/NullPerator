@@ -381,20 +381,20 @@ void Ui2TrackerApplication::DispatchLogicalAction(TrackerAction action,
     return;
   }
   if (pressed &&
-      (physicalHeldMask_ & TrackerActionBit(TrackerAction::Shift)) != 0U &&
-      TryNavigate(action))
-    return;
-  UiApplicationPage owner = activePage_;
-  if (pressed) {
-    if (pressOwners_[actionIndex] == UiApplicationPage::None)
-      pressOwners_[actionIndex] = activePage_;
-    owner = pressOwners_[actionIndex];
-  } else {
-    owner = pressOwners_[actionIndex] == UiApplicationPage::None
-                ? activePage_
-                : pressOwners_[actionIndex];
-    pressOwners_[actionIndex] = UiApplicationPage::None;
+      (physicalHeldMask_ & TrackerActionBit(TrackerAction::Shift)) != 0U) {
+    const UiApplicationPage navigationOwner = activePage_;
+    if (TryNavigate(action)) {
+      (void)Ui2ClaimPressOwner(pressOwners_[actionIndex], navigationOwner,
+                               UiApplicationPage::None);
+      return;
+    }
   }
+
+  const UiApplicationPage owner =
+      pressed ? Ui2ClaimPressOwner(pressOwners_[actionIndex], activePage_,
+                                   UiApplicationPage::None)
+              : Ui2ReleasePressOwner(pressOwners_[actionIndex], activePage_,
+                                     UiApplicationPage::None);
 
   DispatchPageAction(owner, action, pressed);
 }

@@ -109,18 +109,49 @@ TEST_CASE("UI2 config save state retains failed writes for retry") {
   CHECK(attempts == 2);
 }
 
-TEST_CASE("UI2 input repeats only directional movement") {
+TEST_CASE("UI2 input repeats keep navigation chords edge-triggered") {
   using namespace ui2;
   constexpr std::uint16_t up = TrackerActionBit(TrackerAction::Up);
+  constexpr std::uint16_t down = TrackerActionBit(TrackerAction::Down);
+  constexpr std::uint16_t shift = TrackerActionBit(TrackerAction::Shift);
+  constexpr std::uint16_t option = TrackerActionBit(TrackerAction::Option);
   constexpr std::uint16_t edit = TrackerActionBit(TrackerAction::Edit);
   constexpr std::uint16_t play = TrackerActionBit(TrackerAction::Play);
 
   CHECK(Ui2AcceptInputEvent(TrackerAction::Up, true, 0U));
   CHECK(Ui2AcceptInputEvent(TrackerAction::Up, true, up));
+  CHECK(Ui2AcceptInputEvent(TrackerAction::Up, true, up | edit));
+  CHECK(Ui2AcceptInputEvent(TrackerAction::Up, true, up | option));
+  CHECK(Ui2AcceptInputEvent(TrackerAction::Down, true, shift));
+  CHECK_FALSE(
+      Ui2AcceptInputEvent(TrackerAction::Down, true, shift | down));
+  CHECK(Ui2AcceptInputEvent(TrackerAction::Down, false, shift | down));
+  // Releasing only the direction makes another physical press an edge even
+  // while SHIFT remains held, so deliberate multi-page navigation still works.
+  CHECK(Ui2AcceptInputEvent(TrackerAction::Down, true, shift));
   CHECK(Ui2AcceptInputEvent(TrackerAction::Edit, true, 0U));
   CHECK_FALSE(Ui2AcceptInputEvent(TrackerAction::Edit, true, edit));
   CHECK_FALSE(Ui2AcceptInputEvent(TrackerAction::Play, true, play));
   CHECK(Ui2AcceptInputEvent(TrackerAction::Edit, false, edit));
+}
+
+TEST_CASE("UI2 navigation direction release returns to its press owner") {
+  using namespace ui2;
+  enum class Page : std::uint8_t { None, Device, Project, Song };
+  Page owner = Page::None;
+
+  CHECK(Ui2ClaimPressOwner(owner, Page::Device, Page::None) == Page::Device);
+  CHECK(owner == Page::Device);
+
+  // Navigation has made Project active, but the matching release still goes
+  // to Device and clears the claim.
+  CHECK(Ui2ReleasePressOwner(owner, Page::Project, Page::None) == Page::Device);
+  CHECK(owner == Page::None);
+
+  // SHIFT may remain held: the next physical direction press claims the page
+  // reached by the previous navigation edge.
+  CHECK(Ui2ClaimPressOwner(owner, Page::Project, Page::None) == Page::Project);
+  CHECK(Ui2ReleasePressOwner(owner, Page::Song, Page::None) == Page::Project);
 }
 
 TEST_CASE("UI2 brightness percentage preserves a visible hardware floor") {
