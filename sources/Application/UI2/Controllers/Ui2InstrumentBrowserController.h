@@ -22,7 +22,6 @@ namespace ui2 {
 enum class Ui2InstrumentBrowserCommandType : std::uint8_t {
   None,
   Import,
-  Back,
 };
 
 struct Ui2InstrumentBrowserCommand {

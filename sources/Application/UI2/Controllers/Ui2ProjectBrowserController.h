@@ -25,7 +25,6 @@ enum class Ui2ProjectBrowserCommandType : std::uint8_t {
   None,
   Load,
   Delete,
-  Back,
 };
 
 struct Ui2ProjectBrowserCommand {

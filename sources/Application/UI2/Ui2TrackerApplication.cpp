@@ -872,12 +872,6 @@ void Ui2TrackerApplication::HandleBrowser(TrackerAction action, bool pressed) {
   if (instrumentBrowserActive_) {
     const Ui2InstrumentBrowserCommand command =
         instrumentBrowser_.Handle(action, pressed);
-    if (command.type == Ui2InstrumentBrowserCommandType::Back) {
-      instrumentBrowserActive_ = false;
-      source_.SetInstrumentBrowserActive(false);
-      ActivatePage(UiApplicationPage::Instrument);
-      return;
-    }
     if (command.type != Ui2InstrumentBrowserCommandType::Import)
       return;
 
@@ -926,10 +920,6 @@ void Ui2TrackerApplication::HandleBrowser(TrackerAction action, bool pressed) {
   }
   const Ui2ProjectBrowserCommand command =
       projectBrowser_.Handle(action, pressed);
-  if (command.type == Ui2ProjectBrowserCommandType::Back) {
-    ActivatePage(UiApplicationPage::Project);
-    return;
-  }
   Ui2ProjectLifecycleCommand lifecycleCommand;
   if (command.type == Ui2ProjectBrowserCommandType::Load) {
     lifecycleCommand =
