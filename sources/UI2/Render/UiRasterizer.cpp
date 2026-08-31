@@ -67,8 +67,9 @@ void UiRasterizer::Render(UiCommandStream stream, UiIndexedSurface &surface,
       const auto byteAt = [&](std::size_t index) {
         return static_cast<std::uint8_t>(stream.text[index]);
       };
-      const std::size_t length = byteAt(command.payload) |
-                                 (byteAt(command.payload + 1U) << 8U);
+      const std::size_t length =
+          static_cast<std::size_t>(byteAt(command.payload)) |
+          (static_cast<std::size_t>(byteAt(command.payload + 1U)) << 8U);
       std::size_t cursor = command.payload + 2U;
       if (length > stream.text.size() - cursor) break;
       const std::size_t end = cursor + length;

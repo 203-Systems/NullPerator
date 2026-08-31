@@ -202,8 +202,9 @@ std::int16_t Ui2SampleWaveformBackend::DecodeFirstChannel(
       return static_cast<std::int16_t>(
           (static_cast<std::int16_t>(frame[0]) - 128) * 256);
     case 2U: {
-      const std::uint16_t raw = static_cast<std::uint16_t>(frame[0]) |
-                                (static_cast<std::uint16_t>(frame[1]) << 8U);
+      const std::uint16_t raw = static_cast<std::uint16_t>(
+          static_cast<std::uint32_t>(frame[0]) |
+          (static_cast<std::uint32_t>(frame[1]) << 8U));
       return static_cast<std::int16_t>(raw);
     }
     case 3U: {
