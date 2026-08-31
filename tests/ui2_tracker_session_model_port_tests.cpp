@@ -31,6 +31,16 @@ Ui2TrackerCommand SelectionCommand(Ui2TrackerCommandType type,
   return command;
 }
 
+template <typename Controller>
+auto ApplyControllerEvent(Controller &controller,
+                          Ui2TrackerSessionModelPort &port,
+                          TrackerAction action, bool pressed) {
+  const auto batch = controller.Handle(action, pressed);
+  for (std::uint8_t index = 0; index < batch.count; ++index)
+    port.ApplyGridCommand(batch[index]);
+  return batch;
+}
+
 } // namespace
 
 TEST_CASE("UI2 model port exposes one mutation generation for all workflows") {
@@ -423,6 +433,24 @@ TEST_CASE("UI2 atomic cell cut preserves empty and invalid storage") {
       GridCommand(Ui2TrackerCommandType::CutCell, Ui2TrackerPage::Song, 0, 0));
   CHECK(port.ProjectMutationGeneration() == 0U);
 
+  port.ApplyGridCommand(
+      GridCommand(Ui2TrackerCommandType::CutCell, Ui2TrackerPage::Chain, 0, 0));
+  port.ApplyGridCommand(
+      GridCommand(Ui2TrackerCommandType::CutCell, Ui2TrackerPage::Chain, 0, 1));
+  for (const std::uint8_t column : {1U, 2U, 3U, 4U, 5U})
+    port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::CutCell,
+                                      Ui2TrackerPage::Phrase, 0, column));
+
+  TableHolder::GetInstance()->Reset();
+  for (const Ui2TrackerPage page :
+       {Ui2TrackerPage::PhraseTable, Ui2TrackerPage::InstrumentTable}) {
+    port.ApplyGridCommand(
+        GridCommand(Ui2TrackerCommandType::CutCell, page, 0, 0));
+    port.ApplyGridCommand(
+        GridCommand(Ui2TrackerCommandType::CutCell, page, 0, 1));
+  }
+  CHECK(port.ProjectMutationGeneration() == 0U);
+
   Ui2TrackerCommand invalid =
       GridCommand(Ui2TrackerCommandType::CutCell, Ui2TrackerPage::Song, 0, 8);
   port.ApplyGridCommand(invalid);
@@ -435,6 +463,180 @@ TEST_CASE("UI2 atomic cell cut preserves empty and invalid storage") {
   CHECK(song.phrase_.note_[0] == NOTE_OFF);
   CHECK(song.phrase_.instr_[0] == 8U);
   CHECK(port.ProjectMutationGeneration() == 1U);
+}
+
+TEST_CASE("UI2 cell Cut orders preserve value round trips on every grid") {
+  const auto cut = [](auto &controller, Ui2TrackerSessionModelPort &port,
+                      bool editFirst) {
+    if (editFirst) {
+      (void)ApplyControllerEvent(controller, port, TrackerAction::Edit, true);
+      return ApplyControllerEvent(controller, port, TrackerAction::Option,
+                                  true);
+    }
+    (void)ApplyControllerEvent(controller, port, TrackerAction::Option, true);
+    return ApplyControllerEvent(controller, port, TrackerAction::Edit, true);
+  };
+  const auto releaseCut = [](auto &controller, Ui2TrackerSessionModelPort &port,
+                             bool editFirst) {
+    if (editFirst) {
+      (void)ApplyControllerEvent(controller, port, TrackerAction::Option,
+                                 false);
+      (void)ApplyControllerEvent(controller, port, TrackerAction::Edit, false);
+    } else {
+      (void)ApplyControllerEvent(controller, port, TrackerAction::Edit, false);
+      (void)ApplyControllerEvent(controller, port, TrackerAction::Option,
+                                 false);
+    }
+  };
+  const auto pasteNextRow = [](auto &controller,
+                               Ui2TrackerSessionModelPort &port) {
+    (void)ApplyControllerEvent(controller, port, TrackerAction::Down, true);
+    (void)ApplyControllerEvent(controller, port, TrackerAction::Down, false);
+    (void)ApplyControllerEvent(controller, port, TrackerAction::Edit, true);
+    (void)ApplyControllerEvent(controller, port, TrackerAction::Edit, false);
+  };
+
+  for (const bool editFirst : {false, true}) {
+    CAPTURE(editFirst);
+    {
+      TrackerApplicationSession session;
+      Ui2TrackerSessionModelPort port(session);
+      Song &song = session.ProjectModel().song_;
+      song.data_[3 * SONG_CHANNEL_COUNT + 2] = 0x23U;
+      ui2::Ui2SongController controller(2, 3, 0);
+
+      const auto batch = cut(controller, port, editFirst);
+      REQUIRE(batch.count == 1U);
+      CHECK(batch[0].type == Ui2TrackerCommandType::CutCell);
+      CHECK(song.data_[3 * SONG_CHANNEL_COUNT + 2] == 0xFFU);
+      releaseCut(controller, port, editFirst);
+      pasteNextRow(controller, port);
+      CHECK(song.data_[4 * SONG_CHANNEL_COUNT + 2] == 0x23U);
+      CHECK(port.ProjectMutationGeneration() == 2U);
+    }
+
+    {
+      TrackerApplicationSession session;
+      Ui2TrackerSessionModelPort port(session);
+      Song &song = session.ProjectModel().song_;
+      session.EditorState().currentChain_ = 3;
+      constexpr int base = 3 * PHRASES_PER_CHAIN;
+      const std::uint8_t transpose =
+          static_cast<std::uint8_t>(static_cast<std::int8_t>(-12));
+      song.chain_.data_[base + 5] = 0x21U;
+      song.chain_.transpose_[base + 5] = transpose;
+      song.chain_.data_[base + 6] = 0x22U;
+      ui2::Ui2ChainController controller(3, 0, 5, 1);
+
+      const auto batch = cut(controller, port, editFirst);
+      REQUIRE(batch.count == 1U);
+      CHECK(batch[0].type == Ui2TrackerCommandType::CutCell);
+      CHECK(song.chain_.data_[base + 5] == 0x21U);
+      CHECK(song.chain_.transpose_[base + 5] == 0U);
+      releaseCut(controller, port, editFirst);
+      pasteNextRow(controller, port);
+      CHECK(song.chain_.data_[base + 6] == 0x22U);
+      CHECK(song.chain_.transpose_[base + 6] == transpose);
+      CHECK(port.ProjectMutationGeneration() == 2U);
+    }
+
+    {
+      TrackerApplicationSession session;
+      Ui2TrackerSessionModelPort port(session);
+      session.EditorState().currentPhrase_ = 2;
+      Phrase &phrase = session.ProjectModel().song_.phrase_;
+      constexpr int base = 2 * STEPS_PER_PHRASE;
+      phrase.cmd1_[base + 5] = FourCC::InstrumentCommandVolume;
+      phrase.param1_[base + 5] = 0x55U;
+      ui2::Ui2PhraseController controller(2, 0, 5, 2);
+
+      const auto batch = cut(controller, port, editFirst);
+      REQUIRE(batch.count == 1U);
+      CHECK(batch[0].type == Ui2TrackerCommandType::CutCell);
+      CHECK(phrase.cmd1_[base + 5] == FourCC::InstrumentCommandNone);
+      CHECK(phrase.param1_[base + 5] == 0U);
+      releaseCut(controller, port, editFirst);
+      pasteNextRow(controller, port);
+      CHECK(phrase.cmd1_[base + 6] == FourCC::InstrumentCommandVolume);
+      CHECK(phrase.param1_[base + 6] == 0x55U);
+      CHECK(port.ProjectMutationGeneration() == 2U);
+    }
+
+    for (const Ui2TrackerPage page :
+         {Ui2TrackerPage::PhraseTable, Ui2TrackerPage::InstrumentTable}) {
+      CAPTURE(static_cast<int>(page));
+      {
+        TableHolder::GetInstance()->Reset();
+        TrackerApplicationSession session;
+        Ui2TrackerSessionModelPort port(session);
+        Table &table = TableHolder::GetInstance()->GetTable(0);
+        table.cmd1_[5] = FourCC::InstrumentCommandVolume;
+        table.param1_[5] = 0x55U;
+        ui2::Ui2TableController controller(page, 0, 0, 5, 0);
+
+        const auto batch = cut(controller, port, editFirst);
+        REQUIRE(batch.count == 1U);
+        CHECK(batch[0].type == Ui2TrackerCommandType::CutCell);
+        CHECK(table.cmd1_[5] == FourCC::InstrumentCommandNone);
+        CHECK(table.param1_[5] == 0U);
+        releaseCut(controller, port, editFirst);
+        pasteNextRow(controller, port);
+        CHECK(table.cmd1_[6] == FourCC::InstrumentCommandVolume);
+        CHECK(table.param1_[6] == 0x55U);
+        CHECK(port.ProjectMutationGeneration() == 2U);
+      }
+    }
+  }
+}
+
+TEST_CASE("UI2 Phrase Cut orders end audition and preserve Note semantics") {
+  for (const bool filled : {false, true}) {
+    for (const bool editFirst : {false, true}) {
+      CAPTURE(filled);
+      CAPTURE(editFirst);
+      TrackerApplicationSession session;
+      Ui2TrackerSessionModelPort port(session);
+      Player *player = Player::GetInstance();
+      player->Reset();
+      session.EditorState().currentPhrase_ = 0;
+      Phrase &phrase = session.ProjectModel().song_.phrase_;
+      phrase.note_[1] = filled ? 60U : NO_NOTE;
+      phrase.instr_[1] = 7U;
+      ui2::Ui2PhraseController controller(0, 0, 1, 0);
+
+      if (editFirst) {
+        const auto prefix =
+            ApplyControllerEvent(controller, port, TrackerAction::Edit, true);
+        REQUIRE(prefix.count == 1U);
+        CHECK(prefix[0].type == Ui2TrackerCommandType::StartAudition);
+        CHECK(port.ProjectMutationGeneration() == 0U);
+        CHECK(phrase.note_[1] == (filled ? 60U : NO_NOTE));
+      } else {
+        CHECK(
+            ApplyControllerEvent(controller, port, TrackerAction::Option, true)
+                .Empty());
+      }
+
+      const auto cutBatch = ApplyControllerEvent(
+          controller, port,
+          editFirst ? TrackerAction::Option : TrackerAction::Edit, true);
+      REQUIRE(cutBatch.count == (editFirst ? 2U : 1U));
+      CHECK(cutBatch[cutBatch.count - 1U].type ==
+            Ui2TrackerCommandType::CutCell);
+      CHECK_FALSE(player->IsRunning());
+      CHECK(phrase.note_[1] == (filled ? NO_NOTE : NOTE_OFF));
+      CHECK(phrase.instr_[1] == (filled ? 0xFFU : 7U));
+      CHECK(port.ProjectMutationGeneration() == 1U);
+
+      if (editFirst) {
+        CHECK(player->startCalls == 1);
+        CHECK(player->stopCalls == 1);
+      } else {
+        CHECK(player->startCalls == 0);
+        CHECK(player->stopCalls == 0);
+      }
+    }
+  }
 }
 
 TEST_CASE("UI2 model port clones loaded Song chain references safely") {
@@ -1146,13 +1348,55 @@ TEST_CASE("UI2 Phrase note adjustment retriggers an active audition") {
 
   Ui2TrackerCommand adjust = GridCommand(Ui2TrackerCommandType::AdjustCell,
                                          Ui2TrackerPage::Phrase, 6, 0);
+  adjust.track = 4U;
   adjust.direction = Ui2TrackerEditDirection::Right;
+  adjust.flag = true;
   port.ApplyGridCommand(adjust);
   CHECK(player->stopCalls == 1);
   CHECK(player->startCalls == 2);
   CHECK(player->lastOrigin == PM_AUDITION);
   CHECK(player->lastFrom == 4U);
   CHECK(player->lastChainPosition == 7U);
+}
+
+TEST_CASE("UI2 Phrase controller retriggers audition after every INS change") {
+  TrackerApplicationSession session;
+  Ui2TrackerSessionModelPort port(session);
+  Player *player = Player::GetInstance();
+  player->Reset();
+  session.EditorState().currentPhrase_ = 0;
+  session.EditorState().songX_ = 3;
+  session.EditorState().chainRow_ = 4;
+  Phrase &phrase = session.ProjectModel().song_.phrase_;
+  phrase.note_[6] = 60U;
+  phrase.instr_[6] = 3U;
+  ui2::Ui2PhraseController controller(0, 3, 6, 1);
+
+  const auto begin =
+      ApplyControllerEvent(controller, port, TrackerAction::Edit, true);
+  REQUIRE(begin.count == 1U);
+  CHECK(begin[0].type == Ui2TrackerCommandType::StartAudition);
+  REQUIRE(player->startCalls == 1);
+
+  for (const std::uint8_t expected : {19U, 35U}) {
+    const auto adjust =
+        ApplyControllerEvent(controller, port, TrackerAction::Up, true);
+    REQUIRE(adjust.count >= 1U);
+    CHECK(adjust[adjust.count - 1U].type == Ui2TrackerCommandType::AdjustCell);
+    CHECK(adjust[adjust.count - 1U].flag);
+    CHECK(phrase.instr_[6] == expected);
+    (void)ApplyControllerEvent(controller, port, TrackerAction::Up, false);
+  }
+  CHECK(player->startCalls == 3);
+  CHECK(player->stopCalls == 2);
+
+  const auto release =
+      ApplyControllerEvent(controller, port, TrackerAction::Edit, false);
+  REQUIRE(release.count == 2U);
+  CHECK(release[0].type == Ui2TrackerCommandType::CommitValueEdits);
+  CHECK(release[1].type == Ui2TrackerCommandType::StopAudition);
+  CHECK_FALSE(player->IsRunning());
+  CHECK(player->stopCalls == 3);
 }
 
 TEST_CASE("UI2 Phrase audition never commandeers ordinary transport") {
@@ -1170,6 +1414,16 @@ TEST_CASE("UI2 Phrase audition never commandeers ordinary transport") {
   CHECK(player->startCalls == 1);
   CHECK(player->stopCalls == 0);
   CHECK(player->IsRunning());
+  session.ProjectModel().song_.phrase_.instr_[4] = 1U;
+  Ui2TrackerCommand adjust = GridCommand(Ui2TrackerCommandType::AdjustCell,
+                                         Ui2TrackerPage::Phrase, 4, 1);
+  adjust.track = 2U;
+  adjust.direction = Ui2TrackerEditDirection::Right;
+  adjust.flag = true;
+  port.ApplyGridCommand(adjust);
+  CHECK(session.ProjectModel().song_.phrase_.instr_[4] == 2U);
+  CHECK(player->startCalls == 1);
+  CHECK(player->stopCalls == 0);
 
   Ui2TrackerCommand stop = start;
   stop.type = Ui2TrackerCommandType::StopAudition;

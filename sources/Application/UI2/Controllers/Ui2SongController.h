@@ -76,15 +76,15 @@ public:
         if (committedValueEdits) {
           output.Push(Command(Ui2TrackerCommandType::CommitValueEdits));
           valueEditDirty_ = false;
-        } else if (liveMode_ && !editChordConsumed_) {
+          deferredEdit_.Cancel();
+        } else if (deferredEdit_.Take()) {
           HandlePrimaryEdit(output);
         }
-        editChordConsumed_ = false;
       }
       return output;
     }
 
-    if (action != TrackerAction::Edit)
+    if (action != TrackerAction::Edit && !deferredEdit_.Owed())
       newEntryPending_ = false;
 
     if (action == TrackerAction::Play && input_.Held(TrackerAction::Option) &&
@@ -106,7 +106,7 @@ public:
         input_.Held(TrackerAction::Shift) &&
         !input_.Held(TrackerAction::Option)) {
       clonePending_ = false;
-      editChordConsumed_ = true;
+      deferredEdit_.Cancel();
       selection_.Clear();
       output.Push(Command(Ui2TrackerCommandType::CloneCell));
       return output;
@@ -133,6 +133,7 @@ public:
     // M8 distinguishes modifier order: SHIFT then OPTION begins selection;
     // OPTION then SHIFT toggles mute.
     if (action == TrackerAction::Option && input_.Held(TrackerAction::Shift)) {
+      deferredEdit_.Cancel();
       selection_.Begin(track_, AbsoluteRow());
       clonePending_ = true;
       return output;
@@ -141,16 +142,15 @@ public:
       output.Push(Command(Ui2TrackerCommandType::ToggleMute));
       return output;
     }
+    if (Ui2CompletesCellCut(action, input_, deferredEdit_, wasHeld)) {
+      deferredEdit_.Cancel();
+      newEntryPending_ = false;
+      output.Push(Command(Ui2TrackerCommandType::CutCell));
+      return output;
+    }
     if (input_.Held(TrackerAction::Option)) {
-      if (((action == TrackerAction::Option &&
-            input_.Held(TrackerAction::Edit)) ||
-           (action == TrackerAction::Edit &&
-            input_.Held(TrackerAction::Option))) &&
-          !input_.Held(TrackerAction::Shift)) {
-        output.Push(Command(Ui2TrackerCommandType::CutCell));
-        editChordConsumed_ = true;
-      } else if (input_.Held(TrackerAction::Shift) ||
-                 input_.Held(TrackerAction::Edit)) {
+      if (input_.Held(TrackerAction::Shift) ||
+          input_.Held(TrackerAction::Edit)) {
         return output;
       } else if (direction == Ui2TrackerEditDirection::Up ||
                  direction == Ui2TrackerEditDirection::Down) {
@@ -171,7 +171,7 @@ public:
     }
 
     if (action == TrackerAction::Edit && input_.Held(TrackerAction::Shift)) {
-      editChordConsumed_ = true;
+      deferredEdit_.Cancel();
       output.Push(Command(Ui2TrackerCommandType::PasteSelection));
       return output;
     }
@@ -179,20 +179,24 @@ public:
     if (input_.Held(TrackerAction::Edit)) {
       if (action == TrackerAction::Play && liveMode_ &&
           !input_.Held(TrackerAction::Shift)) {
+        deferredEdit_.Cancel();
+        newEntryPending_ = false;
         output.Push(Command(Ui2TrackerCommandType::StartImmediate));
-        editChordConsumed_ = true;
       } else if (direction != Ui2TrackerEditDirection::None) {
+        if (deferredEdit_.Take() && !liveMode_)
+          HandlePrimaryEdit(output);
+        newEntryPending_ = false;
         Ui2TrackerCommand command = Command(Ui2TrackerCommandType::AdjustCell);
         command.direction = direction;
         command.value = CellDelta(direction);
         output.Push(command);
         valueEditDirty_ = true;
-        editChordConsumed_ = true;
       } else if (action == TrackerAction::Edit &&
                  input_.Mask() == TrackerActionBit(TrackerAction::Edit)) {
-        editChordConsumed_ = false;
-        if (!liveMode_)
-          HandlePrimaryEdit(output);
+        deferredEdit_.Begin();
+      } else {
+        deferredEdit_.Cancel();
+        newEntryPending_ = false;
       }
       return output;
     }
@@ -279,11 +283,6 @@ private:
     // Clone is a strict next-action gesture. Once selection handles anything
     // other than the matching EDIT path above, the pending clone is canceled.
     clonePending_ = false;
-    // LIVE defers a plain EDIT until release so EDIT+PLAY can be recognized.
-    // While a selection owns EDIT, consume that deferred cell edit even when
-    // no selection adjustment follows; releasing EDIT must not paste a cell.
-    if (action == TrackerAction::Edit)
-      editChordConsumed_ = true;
     const Ui2TrackerEditDirection direction = Ui2TrackerDirectionFor(action);
     if (action == TrackerAction::Shift && input_.Held(TrackerAction::Option)) {
       Ui2TrackerCommand command = Command(Ui2TrackerCommandType::ToggleMute);
@@ -310,7 +309,6 @@ private:
       Ui2TrackerCommand command = Command(Ui2TrackerCommandType::CutSelection);
       command.selection = selection_;
       output.Push(command);
-      editChordConsumed_ = true;
       selection_.Clear();
       return;
     }
@@ -322,7 +320,6 @@ private:
       Ui2TrackerCommand command = Command(Ui2TrackerCommandType::CutSelection);
       command.selection = selection_;
       output.Push(command);
-      editChordConsumed_ = true;
       selection_.Clear();
       return;
     }
@@ -400,7 +397,7 @@ private:
   bool newEntryPending_ = false;
   bool valueEditDirty_ = false;
   bool clonePending_ = false;
-  bool editChordConsumed_ = false;
+  Ui2DeferredEdit deferredEdit_{};
 };
 
 static_assert(std::is_trivially_copyable_v<Ui2SongController>);

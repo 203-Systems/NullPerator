@@ -88,9 +88,11 @@ TEST_CASE("UI2 tracker executor applies typed command then stores navigation") {
   executor.Handle(TrackerAction::Edit, true);
   const auto batch = executor.Handle(TrackerAction::Up, true);
 
-  REQUIRE(batch.count == 1);
-  CHECK(batch[0].type == ui2::Ui2TrackerCommandType::AdjustCell);
+  REQUIRE(batch.count == 2);
+  CHECK(batch[0].type == ui2::Ui2TrackerCommandType::PasteLast);
+  CHECK(batch[1].type == ui2::Ui2TrackerCommandType::AdjustCell);
   CHECK(port.appliedCount == 2);
+  CHECK(port.applied[0].type == ui2::Ui2TrackerCommandType::PasteLast);
   CHECK(port.applied[1].type == ui2::Ui2TrackerCommandType::AdjustCell);
   CHECK(port.storeCount == 2);
   CHECK(port.navigation.activePage == ui2::Ui2TrackerPage::Song);

@@ -320,6 +320,12 @@ void Ui2TrackerSessionModelPort::ApplyGridCommand(
   switch (command.type) {
   case Ui2TrackerCommandType::AdjustCell:
     ApplyAdjustCell(command);
+    if (command.flag && command.sourcePage == Ui2TrackerPage::Phrase &&
+        command.column <= 1U) {
+      Ui2TrackerCommand audition = command;
+      audition.type = Ui2TrackerCommandType::StartAudition;
+      ApplyTransport(audition);
+    }
     break;
   case Ui2TrackerCommandType::AdjustSelection:
     ApplyAdjustSelection(command);
@@ -538,17 +544,6 @@ void Ui2TrackerSessionModelPort::ApplyAdjustCell(
           phrase.note_[index], noteDelta);
       if (playableCell)
         lastNote_ = phrase.note_[index];
-      if (Player *player = Player::GetInstance();
-          playableCell && auditionOwned_ && player->IsRunning()) {
-        player->Stop();
-        player->OnStartButton(
-            PM_AUDITION,
-            static_cast<std::uint8_t>(
-                std::clamp(editor.songX_, 0, SONG_CHANNEL_COUNT - 1)),
-            false,
-            static_cast<std::uint8_t>(
-                std::clamp(editor.chainRow_, 0, PHRASES_PER_CHAIN - 1)));
-      }
       break;
     }
     case 1:
@@ -1489,7 +1484,8 @@ void Ui2TrackerSessionModelPort::ApplyTransport(
   case Ui2TrackerCommandType::StartAudition:
     // EDIT is also a data-entry gesture. Never let its transient audition
     // commandeer or stop an already-running Song/Chain/Phrase transport.
-    if (player->IsRunning() && session_.EditorState().playMode_ != PM_AUDITION) {
+    if (player->IsRunning() && !auditionOwned_ &&
+        session_.EditorState().playMode_ != PM_AUDITION) {
       auditionOwned_ = false;
       break;
     }

@@ -178,6 +178,35 @@ template <std::size_t Capacity = 2> struct Ui2TrackerCommandBatch {
   }
 };
 
+// A bare EDIT press is also the prefix of EDIT->OPTION Cut. Defer its ordinary
+// edit until another input proves the chord is not Cut, or until EDIT release.
+// This keeps destructive chords atomic without timers or platform-specific
+// ordering assumptions.
+class Ui2DeferredEdit {
+public:
+  constexpr void Begin() { pending_ = true; }
+  constexpr void Cancel() { pending_ = false; }
+  [[nodiscard]] constexpr bool Pending() const { return pending_; }
+  [[nodiscard]] constexpr bool Owed() const { return pending_; }
+  constexpr bool Take() {
+    const bool pending = pending_;
+    pending_ = false;
+    return pending;
+  }
+
+private:
+  bool pending_ = false;
+};
+
+[[nodiscard]] constexpr bool
+Ui2CompletesCellCut(TrackerAction action, const Ui2ControllerInputState &input,
+                    const Ui2DeferredEdit &deferredEdit, bool actionWasHeld) {
+  return !input.Held(TrackerAction::Shift) && !actionWasHeld &&
+         input.Held(TrackerAction::Option) && input.Held(TrackerAction::Edit) &&
+         (action == TrackerAction::Edit ||
+          (action == TrackerAction::Option && deferredEdit.Pending()));
+}
+
 template <std::uint8_t ColumnCount> class Ui2FixedGridCursor {
 public:
   static_assert(ColumnCount > 0U);
@@ -271,6 +300,7 @@ Ui2MakeTrackerCommand(Ui2TrackerCommandType type, Ui2TrackerPage page,
   return command;
 }
 
+static_assert(std::is_trivially_copyable_v<Ui2DeferredEdit>);
 static_assert(std::is_trivially_copyable_v<Ui2GridSelectionState>);
 static_assert(std::is_trivially_copyable_v<Ui2TrackerCommand>);
 static_assert(std::is_trivially_copyable_v<Ui2TrackerCommandBatch<>>);
