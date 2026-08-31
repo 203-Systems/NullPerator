@@ -5,8 +5,6 @@
 #include "Application/UI2/Ui2ModalInputGate.h"
 #include "Application/UI2/Ui2NotePresentation.h"
 #include "Application/UI2/Ui2SampleAdapters.h"
-#include "Application/UI2/Ui2SettingsAdapters.h"
-#include "Application/UI2/Ui2SettingsControllerAdapters.h"
 #include "Application/UI2/Ui2VuMapping.h"
 #include "UI2/Animation/UiMotionTrack.h"
 #include "UI2/Chrome/UiBarResolver.h"
@@ -722,6 +720,27 @@ TEST_CASE(
             palette.Index(ui2::UiColorToken::SurfaceBackground))) != oldCorner);
 }
 
+TEST_CASE("UI2 batch theme colors match sequential palette updates") {
+  std::array<ui2::Rgb888, ui2::UiPalette::kUserColorCount> colors{};
+  for (std::size_t index = 0; index < colors.size(); ++index) {
+    const std::uint32_t packed =
+        static_cast<std::uint32_t>(0x010203U + index * 0x070B0DU) & 0x00FFFFFFU;
+    colors[index] = {static_cast<std::uint8_t>(packed >> 16U),
+                     static_cast<std::uint8_t>(packed >> 8U),
+                     static_cast<std::uint8_t>(packed)};
+  }
+
+  ui2::UiPalette batch;
+  batch.SetUserColors(colors);
+  ui2::UiPalette sequential;
+  for (std::size_t index = 0; index < colors.size(); ++index)
+    sequential.Set(static_cast<ui2::PaletteIndex>(index), colors[index]);
+  for (std::size_t index = 0; index < ui2::UiPalette::kColorCount; ++index) {
+    CHECK(batch.Get(static_cast<ui2::PaletteIndex>(index)) ==
+          sequential.Get(static_cast<ui2::PaletteIndex>(index)));
+  }
+}
+
 TEST_CASE("UI2 screen background covers the full 240 by 240 surface") {
   ui2::UiPalette palette;
   ui2::UiFrameScene scene;
@@ -1224,7 +1243,7 @@ TEST_CASE("UI2 vertical list reveals items and reconciles contextual bars") {
 TEST_CASE("UI2 Theme reveal keeps the final color row above its bottom bar") {
   ui2::UiThemeViewData data;
   data.selectedColor =
-      static_cast<std::int8_t>(ui2::Ui2ThemeController::ColorCount - 1U);
+      static_cast<std::int8_t>(ui2::UiPalette::kUserColorCount - 1U);
   data.scrollOffset = ui2::UiThemeView::RevealCursor(0, data);
 
   const ui2::RectI16 cursor = ui2::UiThemeView::CursorTargetRect(data);
@@ -3535,19 +3554,14 @@ TEST_CASE("UI2 Font highlights bottom actions only while FONT is focused") {
         static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextColored));
 }
 
-TEST_CASE("UI2 Theme and Font adapters retain owned fixed-capacity text") {
-  ThemeViewUi2Snapshot themeSnapshot;
+TEST_CASE("UI2 Theme and Font retained states own fixed-capacity text") {
+  ui2::UiThemeViewState themeState;
   constexpr std::array themeName{'N', 'I', 'G', 'H', 'T', '\0'};
-  std::copy(themeName.begin(), themeName.end(), themeSnapshot.name.begin());
-  themeSnapshot.focus = ThemeViewUi2Focus::Color;
-  themeSnapshot.selectedColor = 11;
-  themeSnapshot.nameAction = 2;
-  themeSnapshot.colorsValid = true;
-  themeSnapshot.colors[11] = 0x123456U;
-
-  const ui2::UiThemeViewState themeState =
-      ui2::MakeUiThemeViewState(themeSnapshot, ui2::UiPowerState::BatteryHigh);
-  themeSnapshot.name[0] = 'X';
+  std::copy(themeName.begin(), themeName.end(), themeState.name.begin());
+  themeState.selectedColor = 11;
+  themeState.selectedRgb = {0x12U, 0x34U, 0x56U};
+  themeState.nameAction = 2;
+  themeState.power = ui2::UiPowerState::BatteryHigh;
   const ui2::UiThemeViewData themeData = themeState.ToViewData();
   CHECK(themeData.name == "NIGHT");
   CHECK(themeData.selectedColor == 11);
@@ -3556,116 +3570,13 @@ TEST_CASE("UI2 Theme and Font adapters retain owned fixed-capacity text") {
   CHECK(themeData.nameAction == 2);
   CHECK(themeData.power == ui2::UiPowerState::BatteryHigh);
 
-  FontViewUi2Snapshot fontSnapshot;
+  ui2::UiFontViewState fontState;
   constexpr std::array fontName{'W', 'I', 'D', 'E', '\0'};
-  std::copy(fontName.begin(), fontName.end(), fontSnapshot.font.begin());
-  const ui2::UiFontViewState fontState =
-      ui2::MakeUiFontViewState(fontSnapshot, ui2::UiPowerState::Charging);
-  fontSnapshot.font[0] = 'X';
+  std::copy(fontName.begin(), fontName.end(), fontState.font.begin());
+  fontState.power = ui2::UiPowerState::Charging;
   const ui2::UiFontViewData fontData = fontState.ToViewData();
   CHECK(fontData.font == "WIDE");
   CHECK(fontData.power == ui2::UiPowerState::Charging);
-}
-
-TEST_CASE("UI2 settings adapters terminate malformed fixed-capacity text") {
-  ThemeViewUi2Snapshot themeSnapshot;
-  themeSnapshot.name.fill('N');
-  themeSnapshot.focus = ThemeViewUi2Focus::Color;
-  themeSnapshot.selectedColor = 99;
-  themeSnapshot.nameAction = 99;
-  const ui2::UiThemeViewState themeState =
-      ui2::MakeUiThemeViewState(themeSnapshot);
-  CHECK(themeState.ToViewData().name.size() ==
-        ThemeViewUi2Snapshot::NameCapacity - 1U);
-  CHECK(themeState.ToViewData().selectedColor == -1);
-  CHECK(themeState.ToViewData().nameAction == 0);
-
-  FontViewUi2Snapshot fontSnapshot;
-  fontSnapshot.font.fill('F');
-  const ui2::UiFontViewState fontState = ui2::MakeUiFontViewState(fontSnapshot);
-  CHECK(fontState.ToViewData().font.size() ==
-        FontViewUi2Snapshot::FontCapacity - 1U);
-}
-
-TEST_CASE("UI2 legacy Theme focus adapter exposes real controller coverage") {
-  CHECK(ui2::AdaptLegacyThemeFocus(0).focus == ThemeViewUi2Focus::Name);
-  CHECK(ui2::AdaptLegacyThemeFocus(0).nameAction ==
-        static_cast<std::uint8_t>(ui2::UiThemeNameAction::Rename));
-  CHECK(ui2::AdaptLegacyThemeFocus(1).nameAction ==
-        static_cast<std::uint8_t>(ui2::UiThemeNameAction::Load));
-  CHECK(ui2::AdaptLegacyThemeFocus(2).nameAction ==
-        static_cast<std::uint8_t>(ui2::UiThemeNameAction::Save));
-  CHECK(ui2::AdaptLegacyThemeFocus(3).focus == ThemeViewUi2Focus::Font);
-  CHECK(ui2::AdaptLegacyThemeFocus(4).focus == ThemeViewUi2Focus::Unknown);
-  for (std::int16_t component = 5; component <= 7; ++component) {
-    CHECK(ui2::AdaptLegacyThemeFocus(component).focus ==
-          ThemeViewUi2Focus::Color);
-    CHECK(ui2::AdaptLegacyThemeFocus(component).selectedColor == 3);
-  }
-  CHECK(ui2::AdaptLegacyThemeFocus(8).focus == ThemeViewUi2Focus::Unknown);
-  // Legacy Highlight1 is not the source of any one independently editable
-  // semantic UI2 row; pretending it is text.dim would edit Emphasis instead.
-  CHECK(ui2::AdaptLegacyThemeFocus(15).focus == ThemeViewUi2Focus::Unknown);
-  CHECK(ui2::AdaptLegacyThemeFocus(60).selectedColor == 4);
-  CHECK(ui2::AdaptLegacyThemeFocus(64).focus == ThemeViewUi2Focus::Unknown);
-
-  ThemeViewUi2Snapshot legacy;
-  legacy.nameActionMask = ui2::kLegacyThemeNameActionMask;
-  legacy.editableColorMask = ui2::kLegacyThemeEditableColorMask;
-  CHECK_FALSE(legacy.HasNameAction(
-      static_cast<std::uint8_t>(ui2::UiThemeNameAction::New)));
-  CHECK(legacy.HasNameAction(
-      static_cast<std::uint8_t>(ui2::UiThemeNameAction::Load)));
-  CHECK(legacy.IsColorEditable(3));
-  CHECK_FALSE(legacy.IsColorEditable(18));
-  CHECK_FALSE(ui2::ThemeControllerCoversApprovedContract(legacy));
-
-  legacy.nameActionMask = ui2::kApprovedThemeNameActionMask;
-  legacy.editableColorMask = ui2::kApprovedThemeEditableColorMask;
-  CHECK(ui2::ThemeControllerCoversApprovedContract(legacy));
-}
-
-TEST_CASE("UI2 Theme palette synchronization is explicit and reversible") {
-  ThemeViewUi2Snapshot snapshot;
-  snapshot.colorsValid = true;
-  for (std::size_t index = 0; index < snapshot.colors.size(); ++index) {
-    snapshot.colors[index] =
-        static_cast<std::uint32_t>(0x010203U + index * 0x070B0DU) & 0x00FFFFFFU;
-  }
-
-  ui2::UiPalette palette;
-  const ui2::Rgb888 before = palette.Get(0);
-  const auto state = ui2::MakeUiThemeViewState(snapshot);
-  CHECK(state.ToViewData().name == "");
-  CHECK(palette.Get(0) == before);
-
-  CHECK(ui2::ApplyThemeSnapshotToPalette(snapshot, palette));
-  ui2::UiPalette sequentialReference;
-  for (std::size_t index = 0; index < snapshot.colors.size(); ++index) {
-    const std::uint32_t packed = snapshot.colors[index];
-    const ui2::Rgb888 expected{static_cast<std::uint8_t>(packed >> 16U),
-                               static_cast<std::uint8_t>(packed >> 8U),
-                               static_cast<std::uint8_t>(packed)};
-    CHECK(palette.Get(static_cast<ui2::PaletteIndex>(index)) == expected);
-    sequentialReference.Set(static_cast<ui2::PaletteIndex>(index), expected);
-  }
-  for (std::size_t index = 0; index < ui2::UiPalette::kColorCount; ++index)
-    CHECK(palette.Get(static_cast<ui2::PaletteIndex>(index)) ==
-          sequentialReference.Get(static_cast<ui2::PaletteIndex>(index)));
-
-  ThemeViewUi2Snapshot roundTrip;
-  ui2::CopyPaletteToThemeSnapshot(palette, roundTrip);
-  CHECK(roundTrip.colorsValid);
-  CHECK(roundTrip.colors == snapshot.colors);
-}
-
-TEST_CASE("UI2 Theme rejects an invalid compatibility palette snapshot") {
-  ThemeViewUi2Snapshot snapshot;
-  snapshot.colors.fill(0x00FF00U);
-  ui2::UiPalette palette;
-  const ui2::Rgb888 before = palette.Get(0);
-  CHECK_FALSE(ui2::ApplyThemeSnapshotToPalette(snapshot, palette));
-  CHECK(palette.Get(0) == before);
 }
 
 TEST_CASE("UI2 Theme bottom action changes use a pixel-identical delta") {

@@ -8,7 +8,6 @@
 
 #include "Application/Persistency/PersistenceConstants.h"
 #include "Application/UI2/Ui2SampleAdapters.h"
-#include "Application/UI2/Ui2SettingsAdapters.h"
 #include "Application/Views/ModalDialogs/Ui2DialogSnapshot.h"
 #include "Application/Views/Ui2BrowserSnapshot.h"
 #include "Application/Views/Ui2RecordSnapshot.h"
@@ -372,7 +371,7 @@ struct UiBrowserFrameState {
 
 struct UiThemeFrameState {
   UiThemeViewState view{};
-  std::array<std::uint32_t, ThemeViewUi2Snapshot::ColorCount> colors{};
+  std::array<std::uint32_t, UiPalette::kUserColorCount> colors{};
   bool colorsValid = false;
 
   bool operator==(const UiThemeFrameState &) const = default;
