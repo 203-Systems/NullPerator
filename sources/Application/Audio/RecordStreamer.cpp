@@ -15,6 +15,11 @@ RecordStreamer::~RecordStreamer(){};
 
 bool RecordStreamer::Start(uint16_t *srcBuffer, uint32_t size, bool stereo) {
   Trace::Debug("Starting to stream from record buffer");
+  if (srcBuffer == nullptr || size == 0U) {
+    Trace::Error("Cannot stream an empty record buffer");
+    mode_ = RSM_STOPPED;
+    return false;
+  }
   mode_ = RSM_PLAYING;
   srcBuffer_ = srcBuffer;
   bufferSize_ = size;

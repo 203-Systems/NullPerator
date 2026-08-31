@@ -18,6 +18,7 @@ add_executable(picoTracker_tests
   fourcc_persistency_tests.cpp
   wavheader_tests.cpp
   wasm_audio_tests.cpp
+  record_streamer_tests.cpp
   wasm_application_snapshot_tests.cpp
   wasm_midi_tests.cpp
   wasm_logging_tests.cpp
@@ -50,6 +51,7 @@ add_executable(picoTracker_tests
   ../sources/Adapters/wasm/audio/OutputResampler.cpp
   ../sources/Adapters/wasm/platform/WasmApplicationSnapshot.cpp
   ../sources/Services/Audio/AudioDriver.cpp
+  ../sources/Application/Audio/RecordStreamer.cpp
   ../sources/Adapters/wasm/input/InputMap.cpp
   ../sources/Application/Instruments/WavHeader.cpp
   ../sources/Application/Instruments/WavFile.cpp
