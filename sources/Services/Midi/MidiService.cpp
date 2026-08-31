@@ -12,10 +12,6 @@
 #include "Application/Player/SyncMaster.h"
 #include "Services/Audio/AudioDriver.h"
 #include "System/Console/Trace.h"
-#include "System/System/System.h"
-#include "System/Timer/Timer.h"
-#include <cstdint>
-#include <cstring>
 
 #ifdef SendMessage
 #undef SendMessage

@@ -16,8 +16,7 @@
 #include "Foundation/Variables/WatchedVariable.h"
 #include "MidiInDevice.h"
 #include "MidiOutDevice.h"
-#include "System/Timer/Timer.h"
-#include <string>
+#include <cstdint>
 
 #define MIDI_MAX_BUFFERS 20
 
