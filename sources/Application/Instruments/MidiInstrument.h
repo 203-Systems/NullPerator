@@ -83,7 +83,6 @@ private:
   etl::array<uint8_t, MAX_MIDI_CHORD_NOTES + 1>
       lastNotes_[SONG_CHANNEL_COUNT]{};
   int remainingTicks_ = -1;
-  bool playing_ = false;
   bool retrig_ = false;
   int retrigLoop_ = 0;
   char velocity_ = 127;

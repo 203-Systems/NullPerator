@@ -98,7 +98,6 @@ bool MidiInstrument::Start(int c, unsigned char note, bool retrigger) {
 
   // set initial velocity (changed via InstrumentCommandVelocity)
   velocity_ = INITIAL_NOTE_VELOCITY;
-  playing_ = true;
   retrig_ = false;
   pitchBend_ = false;
   useLogCurve_ = false;
@@ -126,7 +125,6 @@ void MidiInstrument::Stop(int c) {
   }
   // clear last notes array
   lastNotes_[c].fill(NO_NOTE);
-  playing_ = false;
 };
 
 void MidiInstrument::SetChannel(int channel) {
