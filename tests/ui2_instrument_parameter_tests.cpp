@@ -1,5 +1,6 @@
 #include "doctest/doctest.h"
 
+#include "Application/Instruments/OpalInstrumentParameterEncoding.h"
 #include "Application/Instruments/SampleRenderingParams.h"
 #include "Application/UI2/Controllers/Ui2InstrumentLifecycleController.h"
 #include "Application/UI2/Ui2InstrumentParameters.h"
@@ -121,6 +122,13 @@ TEST_CASE("UI2 Instrument booleans use NO and YES labels") {
             descriptor, 0, ui2::Ui2InstrumentValueDirection::Left) == 1);
   CHECK(ui2::Ui2AdjustInstrumentParameter(
             descriptor, 1, ui2::Ui2InstrumentValueDirection::Right) == 0);
+}
+
+TEST_CASE("OPAL output levels retain each operator keyscale") {
+  constexpr OpalOutputLevelRegisters encoded =
+      EncodeOpalOutputLevels(1, 0x17, 3, 0x05);
+  CHECK(encoded.operator1 == 0x57U);
+  CHECK(encoded.operator2 == 0xC5U);
 }
 
 TEST_CASE("Sample size queries keep the default sentinel outside render state") {

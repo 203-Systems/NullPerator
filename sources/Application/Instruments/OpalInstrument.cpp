@@ -11,6 +11,7 @@
 #include "CommandList.h"
 #include "Externals/etl/include/etl/to_string.h"
 #include "I_Instrument.h"
+#include "OpalInstrumentParameterEncoding.h"
 #include "System/Console/Trace.h"
 #include "bit.h"
 #include <iterator>
@@ -131,10 +132,11 @@ bool OpalInstrument::Start(int channel, unsigned char note, bool retrigger) {
   uint8_t waveform1 = op1WaveShape_.GetInt();
   uint8_t waveform2 = op2WaveShape_.GetInt();
 
-  uint8_t keyscale = (op1KeyScaleLevel_.GetInt() & 0x03);
-  // level is bottom 6 bits, keyscale top 2 bits
-  uint8_t keyscaleOutLvl1 = (keyscale << 6) + (op1Level_.GetInt() & 0x3F);
-  uint8_t keyscaleOutLvl2 = (keyscale << 6) + (op2Level_.GetInt() & 0x3F);
+  // Level occupies the bottom six bits and each operator owns its own
+  // keyscale in the top two bits.
+  const OpalOutputLevelRegisters outputLevels = EncodeOpalOutputLevels(
+      op1KeyScaleLevel_.GetInt(), op1Level_.GetInt(),
+      op2KeyScaleLevel_.GetInt(), op2Level_.GetInt());
 
   uint16_t adsr1 = op1ADSR_.GetInt();
   uint16_t adsr2 = op2ADSR_.GetInt();
@@ -144,8 +146,8 @@ bool OpalInstrument::Start(int channel, unsigned char note, bool retrigger) {
   opl_.Port(0xE1 + CHANNEL, waveform2);
 
   // Key Scale Level/Output Level
-  opl_.Port(0x40 + CHANNEL, keyscaleOutLvl1);
-  opl_.Port(0x41 + CHANNEL, keyscaleOutLvl2);
+  opl_.Port(0x40 + CHANNEL, outputLevels.operator1);
+  opl_.Port(0x41 + CHANNEL, outputLevels.operator2);
 
   // Attack Rate/Decay Rate
   opl_.Port(0x60 + CHANNEL, adsr1 >> 8);
