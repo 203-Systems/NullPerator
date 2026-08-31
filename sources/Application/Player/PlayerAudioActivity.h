@@ -34,6 +34,10 @@ public:
   }
 
   void ClearVoices() { sources_ &= static_cast<std::uint16_t>(~VoiceMask); }
+  void ClearTransport() {
+    ClearVoices();
+    Set(Source::Transport, false);
+  }
   void Reset() { sources_ = 0U; }
 
   [[nodiscard]] bool IsActive() const { return sources_ != 0U; }

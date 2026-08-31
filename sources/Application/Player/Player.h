@@ -160,6 +160,10 @@ protected:
   bool findPlayable(uchar *row, int col, uchar chainPos = 0);
 
 private:
+  // Caller owns MixerService's lock. Both UI Stop() and stop-at-end use this
+  // single teardown path so render completion cannot leave transport-owned
+  // tables, sync state or audio activity alive.
+  void StopLocked();
   [[nodiscard]] PlayerTransportSnapshot BuildTransportSnapshotLocked() const;
   void PublishTransportSnapshotLocked();
   void QueueChannelLocked(int i, QueueingMode mode, unsigned char position,

@@ -547,11 +547,12 @@ TEST_CASE("WASM audio activity remains owned until every source stops") {
 
   activity.Set(PlayerAudioActivity::Source::Transport, true);
   activity.SetVoice(7U, true);
+  activity.Set(PlayerAudioActivity::Source::FileStream, true);
   publish();
-  activity.ClearVoices();
+  activity.ClearTransport();
   publish();
   CHECK(driver.IsActive());
-  activity.Set(PlayerAudioActivity::Source::Transport, false);
+  activity.Set(PlayerAudioActivity::Source::FileStream, false);
   publish();
   CHECK_FALSE(driver.IsActive());
 

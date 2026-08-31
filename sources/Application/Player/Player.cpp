@@ -263,7 +263,11 @@ void Player::Stop() {
   }
 
   mixer_.Lock();
+  StopLocked();
+  mixer_.Unlock();
+}
 
+void Player::StopLocked() {
   for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {
     mixer_.StopChannel(i);
     TablePlayback::GetTablePlayback(i).Stop();
@@ -274,15 +278,12 @@ void Player::Stop() {
 
   SyncMaster::GetInstance()->Stop();
   isRunning_ = false;
-  audioActivity_.ClearVoices();
-  audioActivity_.Set(PlayerAudioActivity::Source::Transport, false);
+  audioActivity_.ClearTransport();
   SetChanged();
   PlayerEvent pe(PET_STOP);
   NotifyObservers(&pe);
   RefreshAudioActive();
   PublishTransportSnapshotLocked();
-
-  mixer_.Unlock();
 }
 
 int Player::GetPlayedNoteValue(int channel) {
@@ -1357,20 +1358,9 @@ void Player::moveToNextChain(int channel, int hop) {
     if (loopBack) {
       // If stopAtEnd is enabled and we need to loop back, stop playback instead
       if (stopAtEnd_) {
-        // Stop all channels
-        for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {
-          mixer_.StopChannel(i);
-        }
-        MidiService::GetInstance()->OnPlayerStop();
-        mixer_.OnPlayerStop();
-
-        isRunning_ = false;
-        PublishTransportSnapshotLocked();
-        SetChanged();
-        PlayerEvent pe(PET_STOP);
-        NotifyObservers(&pe);
-        // We're already inside a locked context, so we don't need to call
-        // Stop() as that will cause a deadlock
+        // Audio ticks already hold MixerService's mutex. Reuse the complete
+        // lock-owning teardown path instead of recursively calling Stop().
+        StopLocked();
         return;
       }
 
