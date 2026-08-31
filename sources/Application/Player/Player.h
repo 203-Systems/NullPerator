@@ -13,6 +13,7 @@
 #include "Externals/etl/include/etl/string.h"
 #include "Foundation/Observable.h"
 #include "Foundation/T_Singleton.h"
+#include "PlayerAudioReadiness.h"
 #include "PlayerAudioActivity.h"
 #include "PlayerMixer.h"
 #include "PlayerTransportSnapshot.h"
@@ -174,6 +175,7 @@ private:
   // Publishing this edge atomically guarantees the UI observes the final
   // stopped frame and clears transport-dependent indicators such as VU meters.
   std::atomic<bool> isRunning_{false};
+  PlayerAudioReadiness audioReadiness_;
   bool stopAtEnd_;
 
   unsigned long startClock_; // .Used to time display live queued chains

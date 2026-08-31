@@ -62,8 +62,14 @@ Player::Player() : mixer_() {
 
 bool Player::Init(Project *project, TrackerSessionState *viewData) {
 
+  audioReadiness_.BeginInitialization();
   viewData_ = viewData;
   project_ = project;
+
+  if (project_ == nullptr || viewData_ == nullptr) {
+    Trace::Error("PLAYER", "Cannot initialize without project/session state");
+    return false;
+  }
   audioActivity_.Reset();
   audioActive_ = false;
 
@@ -75,7 +81,7 @@ bool Player::Init(Project *project, TrackerSessionState *viewData) {
   SyncMaster *sync = SyncMaster::GetInstance();
   sync->SetTempo(project_->GetTempo());
   PublishTransportSnapshotLocked();
-  return mixer_.Start();
+  return audioReadiness_.CompleteInitialization(mixer_.Start());
 }
 
 void Player::BindProject(Project *project, TrackerSessionState *viewData) {
@@ -98,6 +104,7 @@ void Player::Reset() {
 };
 
 void Player::Close() {
+  audioReadiness_.Close();
   audioActivity_.Reset();
   SetAudioActive(false);
   mixer_.Stop();
@@ -115,6 +122,12 @@ bool Player::IsChannelMuted(int channel) {
 void Player::Start(PlayMode mode, bool forceSongMode, MixerServiceMode msmMode,
                    bool stopAtEnd, int contextChannel,
                    int contextChainPosition) {
+
+  if (!audioReadiness_.IsReady() || project_ == nullptr ||
+      viewData_ == nullptr) {
+    Trace::Error("PLAYER", "Ignoring playback start: audio is not ready");
+    return;
+  }
 
   mixer_.Lock();
 
@@ -243,6 +256,11 @@ void Player::Start(PlayMode mode, bool forceSongMode, MixerServiceMode msmMode,
 }
 
 void Player::Stop() {
+  if (!audioReadiness_.IsReady()) {
+    isRunning_.store(false, std::memory_order_release);
+    return;
+  }
+
   mixer_.Lock();
 
   for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {
