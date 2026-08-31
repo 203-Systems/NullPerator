@@ -80,6 +80,18 @@ void CheckCellCutAcceptsEitherModifierOrder(Controller controller) {
   CHECK(controller.Handle(TrackerAction::Option, false).Empty());
 }
 
+template <typename Controller>
+void CheckCellCutDoesNotConsumeMuteChord(Controller controller) {
+  CHECK(controller.Handle(TrackerAction::Option, true).Empty());
+  const auto mute = controller.Handle(TrackerAction::Shift, true);
+  REQUIRE(mute.count == 1U);
+  CHECK(mute[0].type == Ui2TrackerCommandType::ToggleMute);
+  CHECK(controller.Handle(TrackerAction::Edit, true).Empty());
+  CHECK(controller.Handle(TrackerAction::Edit, false).Empty());
+  CHECK(controller.Handle(TrackerAction::Shift, false).Empty());
+  CHECK(controller.Handle(TrackerAction::Option, false).Empty());
+}
+
 template <typename Controller> void CheckCommonPlaybackChords() {
   Controller plain;
   const auto play = plain.Handle(TrackerAction::Play, true);
@@ -236,6 +248,14 @@ TEST_CASE("UI2 grid cell cut is independent of modifier press order") {
   CheckCellCutAcceptsEitherModifierOrder(Ui2ChainController(2, 1, 3, 0));
   CheckCellCutAcceptsEitherModifierOrder(Ui2PhraseController(2, 1, 3, 0));
   CheckCellCutAcceptsEitherModifierOrder(
+      Ui2TableController(Ui2TrackerPage::PhraseTable, 2, 1, 3, 0));
+}
+
+TEST_CASE("UI2 grid cell cut does not consume the mute modifier chord") {
+  CheckCellCutDoesNotConsumeMuteChord(Ui2SongController(1, 2, 3));
+  CheckCellCutDoesNotConsumeMuteChord(Ui2ChainController(2, 1, 3, 0));
+  CheckCellCutDoesNotConsumeMuteChord(Ui2PhraseController(2, 1, 3, 0));
+  CheckCellCutDoesNotConsumeMuteChord(
       Ui2TableController(Ui2TrackerPage::PhraseTable, 2, 1, 3, 0));
 }
 
