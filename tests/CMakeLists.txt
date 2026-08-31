@@ -50,6 +50,7 @@ add_executable(picoTracker_tests
   ../sources/Services/Audio/AudioDriver.cpp
   ../sources/Adapters/wasm/input/InputMap.cpp
   ../sources/Application/Instruments/WavHeader.cpp
+  ../sources/Application/Instruments/WavFile.cpp
   ../sources/Application/Instruments/MacroInstrument.cpp
   ../sources/Application/Instruments/MidiInstrument.cpp
   ../sources/Application/Instruments/OpalInstrument.cpp

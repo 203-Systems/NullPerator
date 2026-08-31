@@ -62,11 +62,29 @@ void SampleVariable::Update(Observable &observable, I_ObservableData *data) {
   (void)data;
 }
 
-SoundSource *SamplePool::GetSource(uint32_t index) {
-  (void)index;
-  return nullptr;
+namespace {
+std::array<SoundSource *, MAX_SAMPLES> availableSampleSources{};
+std::size_t availableSampleSourceCount = 0;
 }
-int SamplePool::GetNameListSize() { return 0; }
+
+SamplePool::SamplePool() : Observable(&observers_), count_(0) {}
+SamplePool::~SamplePool() = default;
+void SamplePool::updateStatus(uint32_t current, uint32_t total,
+                              const char *message) {
+  (void)current;
+  (void)total;
+  (void)message;
+}
+
+SoundSource *SamplePool::GetSource(uint32_t index) {
+  if (index >= availableSampleSourceCount) {
+    return nullptr;
+  }
+  return availableSampleSources[index];
+}
+int SamplePool::GetNameListSize() {
+  return static_cast<int>(availableSampleSourceCount);
+}
 void SamplePool::PurgeSample(int index, const char *projectName) {
   (void)index;
   (void)projectName;
@@ -75,11 +93,53 @@ void SamplePool::PurgeSample(int index, const char *projectName) {
 namespace {
 std::vector<MidiMessage> capturedMidiMessages;
 
+class FakeSamplePool final : public SamplePool {
+public:
+  void Reset() override {}
+  bool CheckSampleFits(int sampleSize) override {
+    (void)sampleSize;
+    return true;
+  }
+  uint32_t GetAvailableSampleStorageSpace() override { return 0; }
+
+protected:
+  bool loadSample(const char *name) override {
+    (void)name;
+    return false;
+  }
+  bool unloadSample(uint32_t index) override {
+    (void)index;
+    return false;
+  }
+};
+
+class FakeSamplePoolScope {
+public:
+  FakeSamplePoolScope(SoundSource &first, SoundSource &second) {
+    availableSampleSources.fill(nullptr);
+    availableSampleSources[0] = &first;
+    availableSampleSources[1] = &second;
+    availableSampleSourceCount = 2;
+    SamplePool::Install(&pool_);
+  }
+
+  ~FakeSamplePoolScope() {
+    SamplePool::Install(nullptr);
+    availableSampleSources.fill(nullptr);
+    availableSampleSourceCount = 0;
+  }
+
+private:
+  FakeSamplePool pool_;
+};
+
 class FixedMonoSource final : public SoundSource {
 public:
+  explicit FixedMonoSource(int sampleCount = 8) : sampleCount(sampleCount) {}
+
   int GetSize(int note) override {
     (void)note;
-    return static_cast<int>(samples.size());
+    return sampleCount;
   }
   int GetSampleRate(int note) override {
     (void)note;
@@ -102,6 +162,7 @@ public:
 
   std::array<short, 8> samples{1000, 1000, 1000, 1000,
                                1000, 1000, 1000, 1000};
+  int sampleCount;
 };
 
 class FakeMidiService final : public MidiService {};
@@ -463,6 +524,73 @@ TEST_CASE("Sample pan automation updates gains inside the current buffer") {
   REQUIRE(instrument.Render(0, buffer.data(), 1, false));
   CHECK(buffer[0] != 0);
   CHECK(buffer[1] == 0);
+}
+
+TEST_CASE("Sample playback lifecycle ignores failed starts") {
+  FixedMonoSource first(8);
+  FixedMonoSource second(4);
+  FakeSamplePoolScope pool(first, second);
+  SampleInstrument instrument;
+
+  REQUIRE_FALSE(instrument.Start(0, 60));
+  instrument.AssignSample(1);
+
+  CHECK(instrument.GetSampleIndex() == 1);
+  CHECK(instrument.IsInitialized());
+  CHECK(instrument.GetSampleSize() == 4);
+}
+
+TEST_CASE("Sample playback lifecycle refreshes assignment after stop") {
+  FixedMonoSource first(8);
+  FixedMonoSource second(4);
+  FakeSamplePoolScope pool(first, second);
+  SampleInstrument instrument;
+  instrument.AssignSample(0);
+  REQUIRE(instrument.Start(0, 60));
+
+  instrument.Stop(0);
+  instrument.AssignSample(1);
+
+  CHECK(instrument.GetSampleIndex() == 1);
+  CHECK(instrument.GetSampleSize() == 4);
+}
+
+TEST_CASE(
+    "Sample playback lifecycle refreshes assignment after one-shot completion") {
+  FixedMonoSource first(2);
+  FixedMonoSource second(4);
+  FakeSamplePoolScope pool(first, second);
+  SampleInstrument instrument;
+  instrument.AssignSample(0);
+  REQUIRE(instrument.Start(0, 60));
+  std::array<fixed, 16> buffer{};
+
+  REQUIRE(instrument.Render(0, buffer.data(), 8, false));
+  REQUIRE(SampleInstrumentTestPeer::Params(0).finished_);
+  instrument.AssignSample(1);
+
+  CHECK(instrument.GetSampleIndex() == 1);
+  CHECK(instrument.GetSampleSize() == 4);
+}
+
+TEST_CASE("Sample playback lifecycle retains other active channels") {
+  FixedMonoSource first(8);
+  FixedMonoSource second(4);
+  FakeSamplePoolScope pool(first, second);
+  SampleInstrument instrument;
+  instrument.AssignSample(0);
+  REQUIRE(instrument.Start(0, 60));
+  REQUIRE(instrument.Start(1, 60));
+
+  instrument.Stop(0);
+  instrument.AssignSample(1);
+
+  CHECK(instrument.GetSampleIndex() == 1);
+  CHECK(instrument.GetSampleSize() == 8);
+
+  instrument.Stop(1);
+  REQUIRE(instrument.Start(0, 60));
+  CHECK(instrument.GetSampleSize() == 4);
 }
 
 TEST_CASE("Sample size queries keep the default sentinel outside render state") {

@@ -133,6 +133,18 @@ signed char SampleInstrument::lastMidiNote_[SONG_CHANNEL_COUNT];
 
 #define KRATE_SAMPLE_COUNT 100
 
+namespace {
+static_assert(SONG_CHANNEL_COUNT <= sizeof(uint32_t) * CHAR_BIT,
+              "Sample playback channel mask exceeds its storage");
+
+constexpr uint32_t SampleChannelBit(int channel) {
+  if (channel < 0 || channel >= SONG_CHANNEL_COUNT) {
+    return 0;
+  }
+  return uint32_t{1} << static_cast<unsigned int>(channel);
+}
+} // namespace
+
 SampleInstrument::SampleInstrument()
     : I_Instrument(&variables_), sample_(FourCC::SampleInstrumentSample),
       volume_(FourCC::SampleInstrumentVolume, 0x80),
@@ -163,7 +175,7 @@ SampleInstrument::SampleInstrument()
   // Initialize instruments settings
   source_ = 0;
   dirty_ = false;
-  running_ = false;
+  activeChannels_ = 0;
 
   // Initialize exported variables
   // name_ is now an etl::string in the base class, not a Variable
@@ -451,13 +463,14 @@ void SampleInstrument::OnStart() { tableState_.Reset(); };
 
 bool SampleInstrument::Start(int channel, unsigned char midinote,
                              bool cleanstart) {
+  const uint32_t channelBit = SampleChannelBit(channel);
+  activeChannels_ &= ~channelBit;
+
   // Look if we're dirty & need to update this instrument's data
 
   if (dirty_) {
     updateInstrumentData(false);
   }
-
-  running_ = true;
 
   if (source_ == 0)
     return false;
@@ -671,12 +684,14 @@ bool SampleInstrument::Start(int channel, unsigned char midinote,
     }
     rp->activeUpdaters_.clear();
   }
+  activeChannels_ |= channelBit;
   return true;
 }
 
 void SampleInstrument::Stop(int channel) {
   renderParams *rp = renderParams_ + channel;
   rp->finished_ = true; // Mark this channel as finished
+  activeChannels_ &= ~SampleChannelBit(channel);
 }
 
 void SampleInstrument::doTickUpdate(int channel) {
@@ -714,8 +729,10 @@ bool SampleInstrument::Render(int channel, fixed *buffer, int size,
 
   if (source_) {
 
-    if (*rpFinished)
+    if (*rpFinished) {
+      activeChannels_ &= ~SampleChannelBit(channel);
       return false;
+    }
 
     // clear the fixed point buffer
 
@@ -1191,7 +1208,13 @@ bool SampleInstrument::Render(int channel, fixed *buffer, int size,
     rp->position_ =
         (((char *)input) - wavbuf) / (2 * channelCount) + fp2fl(fpPos);
 
+    if (*rpFinished) {
+      activeChannels_ &= ~SampleChannelBit(channel);
+    }
+
     somethingToMix = true;
+  } else {
+    activeChannels_ &= ~SampleChannelBit(channel);
   }
 
   return somethingToMix;
@@ -1280,7 +1303,7 @@ void SampleInstrument::Update(Observable &o, I_ObservableData *d) {
 
   switch (id) {
   case FourCC::SampleInstrumentSample: {
-    if (running_) {
+    if (activeChannels_ != 0) {
       dirty_ = true; // we'll update later, when instrument gets re-triggered
     } else {
       updateInstrumentData(true);

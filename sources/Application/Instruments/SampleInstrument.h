@@ -107,7 +107,7 @@ private:
   SoundSource *source_;
   PICOTRACKER_FAST_DATA static struct renderParams
       renderParams_[SONG_CHANNEL_COUNT];
-  bool running_;
+  uint32_t activeChannels_;
   bool dirty_;
   TableSaveState tableState_;
 
