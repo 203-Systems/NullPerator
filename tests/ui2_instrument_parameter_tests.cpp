@@ -156,10 +156,19 @@ TEST_CASE("UI2 Instrument descriptors preserve approved field layout") {
   CHECK(sampleStart.subfieldMode == Ui2InstrumentSubfieldMode::HexDigit);
   const auto resolved = Ui2ResolveSamplePositionMaximum(sampleStart, 1234);
   CHECK(resolved.maximum == 1233);
-  CHECK(Ui2InstrumentFieldParameter(IT_SAMPLE, 13U).primary ==
-        FourCC::SampleInstrumentLoopStart);
-  CHECK(Ui2InstrumentFieldParameter(IT_SAMPLE, 14U).primary ==
-        FourCC::SampleInstrumentEnd);
+  const auto sampleLoopStart =
+      Ui2InstrumentFieldParameter(IT_SAMPLE, 13U);
+  CHECK(sampleLoopStart.primary == FourCC::SampleInstrumentLoopStart);
+  CHECK(Ui2ResolveSamplePositionMaximum(sampleLoopStart, 1234).maximum ==
+        1233);
+  const auto sampleEnd = Ui2InstrumentFieldParameter(IT_SAMPLE, 14U);
+  CHECK(sampleEnd.primary == FourCC::SampleInstrumentEnd);
+  const auto resolvedEnd = Ui2ResolveSamplePositionMaximum(sampleEnd, 1234);
+  CHECK(resolvedEnd.maximum == 1234);
+  CHECK(Ui2AdjustInstrumentParameter(
+            resolvedEnd, 1233, Ui2InstrumentValueDirection::Right) == 1234);
+  CHECK(Ui2AdjustInstrumentParameter(
+            resolvedEnd, 1234, Ui2InstrumentValueDirection::Right) == 1234);
   CHECK(Ui2InstrumentFieldParameter(IT_SAMPLE, 15U).primary ==
         FourCC::SampleInstrumentTable);
   CHECK(Ui2InstrumentFieldParameter(IT_SAMPLE, 16U).primary ==

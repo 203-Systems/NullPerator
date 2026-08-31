@@ -446,8 +446,17 @@ Ui2InstrumentAdjustment(
 [[nodiscard]] constexpr Ui2InstrumentParameterDescriptor
 Ui2ResolveSamplePositionMaximum(Ui2InstrumentParameterDescriptor descriptor,
                                 std::int32_t sampleSize) {
-  if (Ui2IsSamplePositionParameter(descriptor))
-    descriptor.maximum = sampleSize > 0 ? sampleSize - 1 : 0;
+  if (Ui2IsSamplePositionParameter(descriptor)) {
+    // START and LOOP START address a frame, while END is the exclusive bound
+    // consumed by SampleInstrument. Assignment and project restore both keep
+    // a full-sample END at sampleSize.
+    const bool exclusiveEnd =
+        descriptor.primary == FourCC::SampleInstrumentEnd;
+    const std::int32_t resolved =
+        sampleSize > 0 ? sampleSize - (exclusiveEnd ? 0 : 1) : 0;
+    descriptor.maximum = std::clamp<std::int32_t>(
+        resolved, descriptor.minimum, descriptor.maximum);
+  }
   return descriptor;
 }
 
