@@ -16,8 +16,6 @@
 #define MIDI_DATA_MASK 0x7F
 
 // Set this to true to log MIDI events to stdout for debugging
-bool MidiInDevice::dumpEvents_ = false;
-
 // Initialize the static channel-to-instrument mapping array
 int8_t MidiInDevice::channelToInstrument_[16] = {
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
@@ -221,12 +219,6 @@ void MidiInDevice::treatChannelEvent(MidiMessage &event) {
   } break;
 
   case MidiMessage::MIDI_CONTROL_CHANGE: {
-    int cc = event.data1_ & MIDI_DATA_MASK;
-    int data = event.data2_ & MIDI_DATA_MASK;
-
-    if (dumpEvents_) {
-      Trace::Log("EVENT", "midi:cc:%d:%d", cc, data);
-    }
     // TODO: handle CC
   } break;
 
