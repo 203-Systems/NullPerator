@@ -14,17 +14,6 @@
 #include "Foundation/Observable.h"
 
 #define MAX_SAMPLE_COUNT 1875
-// TODO(node): Make this adapter-configurable and restore the shared default to
-// 2 once Node can render worst-case audio within its real-time budget.
-#define SOUND_BUFFER_COUNT 4
-#define SOUND_BUFFER_MAX (MAX_SAMPLE_COUNT * 2 * sizeof(short))
-
-struct AudioBufferData {
-  char buffer_[MAX_SAMPLE_COUNT * 2 * sizeof(short)];
-  int size_;
-  bool empty_;
-  void *driverData_;
-};
 
 class AudioDriver : public Observable {
 
@@ -57,25 +46,14 @@ public:
 
   virtual double GetStreamTime() = 0; // in secs
 
-  virtual void AddBuffer(short *buffer, int size); // size in samples
+  virtual void AddBuffer(short *buffer, int size) = 0; // size in samples
 
   AudioSettings GetAudioSettings();
 
   void OnNewBufferNeeded();
 
 protected:
-  void eatBuffer(void *buffer, int size); // size in bytes
   void onAudioBufferTick();
-  bool hasData();
   AudioSettings settings_;
-
-protected:
-  bool isPlaying_;
-  static AudioBufferData pool_[SOUND_BUFFER_COUNT];
-  int poolQueuePosition_;
-  int poolPlayPosition_;
-  int bufferPos_;
-  int bufferSize_;
-  bool hasData_;
 };
 #endif

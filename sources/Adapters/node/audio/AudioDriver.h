@@ -39,10 +39,8 @@ private:
   static NodeAudioDriver *instance_;
   static uint8_t miniBlank_[MINI_BLANK_SIZE * 2U * sizeof(int16_t)];
   int volume_;
-  // AudioDriver::isPlaying_ belongs to the application-facing base class.
   // Node's two worker tasks run on different cores, so their run gate needs a
-  // real cross-core synchronization primitive instead of reading that plain
-  // bool concurrently with Start()/Stop().
+  // real cross-core synchronization primitive.
   std::atomic<bool> driverPlaying_{false};
   int renderBufferIndex_ = -1;
   bool renderBufferQueued_ = false;

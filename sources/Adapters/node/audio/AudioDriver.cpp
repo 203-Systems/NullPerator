@@ -24,16 +24,27 @@ NodeAudioDriver *NodeAudioDriver::instance_ = NULL;
 TaskHandle_t audioThreadHandle_ = NULL;
 TaskHandle_t i2sThreadHandle_ = NULL;
 
+namespace {
+constexpr std::size_t kSoundBufferCount = 4U;
+constexpr std::size_t kSoundBufferMaxBytes =
+    MAX_SAMPLE_COUNT * 2U * sizeof(int16_t);
+
+struct NodeAudioBuffer {
+  uint8_t buffer[kSoundBufferMaxBytes];
+  std::size_t size = 0U;
+};
+
+NodeAudioBuffer audioBufferPool[kSoundBufferCount];
+
 static QueueHandle_t freeAudioBuffers = NULL;
 static QueueHandle_t filledAudioBuffers = NULL;
 static StaticQueue_t freeAudioBuffersControl;
 static StaticQueue_t filledAudioBuffersControl;
-static uint8_t freeAudioBuffersStorage[SOUND_BUFFER_COUNT * sizeof(uint8_t)]
+static uint8_t freeAudioBuffersStorage[kSoundBufferCount * sizeof(uint8_t)]
     PICOTRACKER_FAST_DATA;
-static uint8_t filledAudioBuffersStorage[SOUND_BUFFER_COUNT * sizeof(uint8_t)]
+static uint8_t filledAudioBuffersStorage[kSoundBufferCount * sizeof(uint8_t)]
     PICOTRACKER_FAST_DATA;
 
-namespace {
 constexpr uint32_t kI2SWriteTimeoutMs = 20;
 constexpr uint32_t kQueueUnderrunTimeoutMs = 2;
 constexpr UBaseType_t kAudioRenderPriority = 10;
@@ -46,7 +57,7 @@ void reset_audio_queues() {
 
   xQueueReset(freeAudioBuffers);
   xQueueReset(filledAudioBuffers);
-  for (uint8_t i = 0; i < SOUND_BUFFER_COUNT; ++i) {
+  for (uint8_t i = 0; i < kSoundBufferCount; ++i) {
     xQueueSend(freeAudioBuffers, &i, 0);
   }
 }
@@ -98,8 +109,7 @@ void NodeAudioDriver::AudioThread(void *arg) {
     NodeAudioDriver::BufferNeeded();
 
     if (!instance_->renderBufferQueued_) {
-      pool_[bufferIndex].size_ = 0;
-      pool_[bufferIndex].empty_ = true;
+      audioBufferPool[bufferIndex].size = 0U;
       return_free_buffer(bufferIndex);
     }
     instance_->renderBufferIndex_ = -1;
@@ -133,18 +143,16 @@ void NodeAudioDriver::I2SThread(void *arg) {
 
     if (instance_ == NULL ||
         !instance_->driverPlaying_.load(std::memory_order_acquire)) {
-      pool_[bufferIndex].size_ = 0;
-      pool_[bufferIndex].empty_ = true;
+      audioBufferPool[bufferIndex].size = 0U;
       return_free_buffer(bufferIndex);
       continue;
     }
 
-    instance_->poolPlayPosition_ = bufferIndex;
-
     size_t written = 0;
-    int expected = pool_[bufferIndex].size_;
-    esp_err_t err = audio_codec_write(pool_[bufferIndex].buffer_, expected,
-                                      &written, kI2SWriteTimeoutMs);
+    const std::size_t expected = audioBufferPool[bufferIndex].size;
+    esp_err_t err =
+        audio_codec_write(audioBufferPool[bufferIndex].buffer, expected,
+                          &written, kI2SWriteTimeoutMs);
     if (err != ESP_OK || written != static_cast<size_t>(expected)) {
       ESP_LOGW("NodeAudioDriver",
                "audio write err=0x%x written=%u expected=%u buffer=%u",
@@ -152,8 +160,7 @@ void NodeAudioDriver::I2SThread(void *arg) {
                bufferIndex);
     }
 
-    pool_[bufferIndex].size_ = 0;
-    pool_[bufferIndex].empty_ = true;
+    audioBufferPool[bufferIndex].size = 0U;
     return_free_buffer(bufferIndex);
   }
 }
@@ -170,40 +177,37 @@ void NodeAudioDriver::AddBuffer(short *buffer, int samplecount) {
     return;
   }
 
-  if (renderBufferIndex_ < 0 || renderBufferIndex_ >= SOUND_BUFFER_COUNT) {
+  if (renderBufferIndex_ < 0 ||
+      static_cast<std::size_t>(renderBufferIndex_) >= kSoundBufferCount) {
     ESP_LOGW("NodeAudioDriver", "AddBuffer without reserved buffer");
     return;
   }
 
-  if (len > SOUND_BUFFER_MAX) {
+  if (static_cast<std::size_t>(len) > kSoundBufferMaxBytes) {
     ESP_LOGW("NodeAudioDriver", "Audio buffer exceeded, clamping samples=%d",
              samplecount);
     samplecount = MAX_SAMPLE_COUNT;
-    len = SOUND_BUFFER_MAX;
+    len = static_cast<int>(kSoundBufferMaxBytes);
   }
 
   uint8_t bufferIndex = static_cast<uint8_t>(renderBufferIndex_);
-  memcpy(pool_[bufferIndex].buffer_, (char *)buffer, len);
-  pool_[bufferIndex].size_ = len;
-  pool_[bufferIndex].empty_ = false;
+  memcpy(audioBufferPool[bufferIndex].buffer, buffer,
+         static_cast<std::size_t>(len));
+  audioBufferPool[bufferIndex].size = static_cast<std::size_t>(len);
 
   if (xQueueSend(filledAudioBuffers, &bufferIndex, 0) != pdTRUE) {
     ESP_LOGW("NodeAudioDriver", "filled buffer queue full index=%u",
              bufferIndex);
-    pool_[bufferIndex].size_ = 0;
-    pool_[bufferIndex].empty_ = true;
+    audioBufferPool[bufferIndex].size = 0U;
     return_free_buffer(bufferIndex);
     return;
   }
 
   renderBufferQueued_ = true;
-  hasData_ = true;
 }
 
 NodeAudioDriver::NodeAudioDriver(AudioSettings &settings)
-    : AudioDriver(settings) {
-  isPlaying_ = false;
-}
+    : AudioDriver(settings) {}
 
 NodeAudioDriver::~NodeAudioDriver() = default;
 
@@ -226,10 +230,10 @@ bool NodeAudioDriver::InitDriver() {
   switch_audio_mode(headphone_out);
 
   freeAudioBuffers = xQueueCreateStatic(
-      SOUND_BUFFER_COUNT, sizeof(uint8_t), freeAudioBuffersStorage,
+      kSoundBufferCount, sizeof(uint8_t), freeAudioBuffersStorage,
       &freeAudioBuffersControl);
   filledAudioBuffers = xQueueCreateStatic(
-      SOUND_BUFFER_COUNT, sizeof(uint8_t), filledAudioBuffersStorage,
+      kSoundBufferCount, sizeof(uint8_t), filledAudioBuffersStorage,
       &filledAudioBuffersControl);
 
   if (freeAudioBuffers == NULL || filledAudioBuffers == NULL) {
@@ -264,7 +268,6 @@ int NodeAudioDriver::GetVolume() { return audio_codec_get_volume(); };
 
 void NodeAudioDriver::CloseDriver() {
   driverPlaying_.store(false, std::memory_order_release);
-  isPlaying_ = false;
   wake_audio_queues();
   switch_speaker_mode(false);
   if (audioThreadHandle_ != NULL) {
@@ -288,18 +291,12 @@ void NodeAudioDriver::CloseDriver() {
 bool NodeAudioDriver::StartDriver() {
   switch_audio_mode(headphone_out);
   driverPlaying_.store(false, std::memory_order_release);
-  isPlaying_ = false;
-  for (int i = 0; i < SOUND_BUFFER_COUNT; ++i) {
-    pool_[i].size_ = 0;
-    pool_[i].empty_ = true;
+  for (auto &audioBuffer : audioBufferPool) {
+    audioBuffer.size = 0U;
   }
-  poolQueuePosition_ = 0;
-  poolPlayPosition_ = SOUND_BUFFER_COUNT - 1;
   renderBufferIndex_ = -1;
   renderBufferQueued_ = false;
-  hasData_ = false;
   reset_audio_queues();
-  isPlaying_ = true;
   // Publish the initialized buffer and queue state before either worker may
   // begin producing or consuming audio on its pinned core.
   driverPlaying_.store(true, std::memory_order_release);
@@ -310,7 +307,6 @@ bool NodeAudioDriver::StartDriver() {
 void NodeAudioDriver::StopDriver() {
   // Close the cross-core gate before queue wakeups can release either worker.
   driverPlaying_.store(false, std::memory_order_release);
-  isPlaying_ = false;
   wake_audio_queues();
 }
 
