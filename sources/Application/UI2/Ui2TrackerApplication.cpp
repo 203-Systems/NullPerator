@@ -242,7 +242,8 @@ bool Ui2TrackerApplication::Init(Ui2StartupOptions options) {
     volume = static_cast<std::uint16_t>(
         configValue(FourCC::VarOutputVolume, 40, 100));
     font_.SetTextCase(
-        static_cast<std::uint8_t>(configValue(FourCC::VarUITextCase, 1, 2)));
+        static_cast<std::uint8_t>(configValue(
+            FourCC::VarUITextCase, 1, Ui2FontController::TextCaseCount - 1U)));
     if (Variable *brightness =
             config->FindVariable(FourCC::VarBacklightLevel)) {
       const int configuredBrightness = brightness->GetInt();

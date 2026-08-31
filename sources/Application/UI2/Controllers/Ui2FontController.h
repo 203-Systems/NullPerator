@@ -40,6 +40,8 @@ struct Ui2FontCommand {
 
 class Ui2FontController {
 public:
+  static constexpr std::uint8_t TextCaseCount = 3U;
+
   [[nodiscard]] constexpr Ui2FontField SelectedField() const { return field_; }
   [[nodiscard]] constexpr Ui2FontAction SelectedAction() const {
     return action_;
@@ -54,7 +56,7 @@ public:
   }
 
   constexpr void SetTextCase(std::uint8_t value) {
-    textCase_ = static_cast<std::uint8_t>(value % 3U);
+    textCase_ = static_cast<std::uint8_t>(value % TextCaseCount);
   }
 
   constexpr void SetFeedback(Ui2FontFeedback feedback) { feedback_ = feedback; }
@@ -79,7 +81,8 @@ public:
     if (field_ == Ui2FontField::TextCase &&
         (action == TrackerAction::Left || action == TrackerAction::Right)) {
       const int delta = action == TrackerAction::Left ? -1 : 1;
-      textCase_ = static_cast<std::uint8_t>((textCase_ + delta + 3) % 3);
+      textCase_ = static_cast<std::uint8_t>(
+          (textCase_ + delta + TextCaseCount) % TextCaseCount);
       return {.type = Ui2FontCommandType::SetTextCase, .value = textCase_};
     }
     if (field_ == Ui2FontField::Font && action == TrackerAction::Left)

@@ -565,6 +565,7 @@ TEST_CASE("UI2 Theme workflow bounds RGB edits for application persistence") {
 
 TEST_CASE("UI2 Font keeps text case and exposes BROWSE DEFAULT on the font row") {
   ui2::Ui2FontController controller;
+  CHECK(ui2::Ui2FontController::TextCaseCount == 3U);
   CHECK(controller.SelectedField() == ui2::Ui2FontField::TextCase);
   CHECK(controller.TextCase() == 1U);
   const auto previous = Tap(controller, TrackerAction::Left);
@@ -588,6 +589,18 @@ TEST_CASE("UI2 Font keeps text case and exposes BROWSE DEFAULT on the font row")
   Tap(controller, TrackerAction::Up);
   CHECK(controller.SelectedField() == ui2::Ui2FontField::TextCase);
   CHECK(controller.Feedback() == ui2::Ui2FontFeedback::None);
+}
+
+TEST_CASE("UI2 Font text case wraps at the shared domain boundary") {
+  ui2::Ui2FontController controller;
+  controller.SetTextCase(ui2::Ui2FontController::TextCaseCount - 1U);
+  const auto wrappedRight = Tap(controller, TrackerAction::Right);
+  CHECK(wrappedRight.type == ui2::Ui2FontCommandType::SetTextCase);
+  CHECK(wrappedRight.value == 0U);
+
+  const auto wrappedLeft = Tap(controller, TrackerAction::Left);
+  CHECK(wrappedLeft.type == ui2::Ui2FontCommandType::SetTextCase);
+  CHECK(wrappedLeft.value == ui2::Ui2FontController::TextCaseCount - 1U);
 }
 
 TEST_CASE("UI2 Font workflow fails BROWSE closed and restores DEFAULT") {

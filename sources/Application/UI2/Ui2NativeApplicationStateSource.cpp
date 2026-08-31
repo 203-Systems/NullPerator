@@ -32,16 +32,22 @@
 #include "UI2/Views/Song/UiSongView.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cstdio>
 #include <cstring>
 
 namespace ui2 {
 
+static_assert(Ui2FontController::TextCaseCount ==
+              static_cast<std::uint8_t>(UiTextCaseMode::Lower) + 1U);
+
 UiTextCaseMode Ui2NativeApplicationStateSource::TextCase() const {
   if (Variable *value =
           Config::GetInstance()->FindVariable(FourCC::VarUITextCase)) {
-    return static_cast<UiTextCaseMode>(std::clamp(value->GetInt(), 0, 2));
+    constexpr int maximum = Ui2FontController::TextCaseCount - 1U;
+    return static_cast<UiTextCaseMode>(
+        std::clamp(value->GetInt(), 0, maximum));
   }
   return UiTextCaseMode::Upper;
 }
@@ -864,8 +870,10 @@ Ui2NativeApplicationStateSource::CaptureFont(UiFontFrameState &state) {
       }
     }
   }
-  constexpr const char *cases[] = {"Case", "CASE", "case"};
-  const std::uint8_t textCase = std::min<std::uint8_t>(font_.TextCase(), 2U);
+  constexpr std::array<const char *, Ui2FontController::TextCaseCount> cases{
+      "Case", "CASE", "case"};
+  const std::size_t textCase =
+      std::min<std::size_t>(font_.TextCase(), cases.size() - 1U);
   std::snprintf(state.textCase.data(), state.textCase.size(), "%s",
                 cases[textCase]);
   state.cursor = font_.SelectedField() == Ui2FontField::TextCase
