@@ -1,12 +1,16 @@
 #include "doctest/doctest.h"
 
 #include "Application/Instruments/WavHeader.h"
+#include "Application/Instruments/WavFile.h"
 #include "Application/Model/Config.h"
+#include "Adapters/wasm/filesystem/WasmFileSystem.h"
 #include "System/FileSystem/I_File.h"
 
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
 #include <limits>
 
 namespace {
@@ -202,6 +206,19 @@ uint32_t ReadU32(const uint8_t *data) {
          (static_cast<uint32_t>(data[3]) << 24U);
 }
 
+class FileSystemInstallGuard {
+public:
+  explicit FileSystemInstallGuard(FileSystem &fileSystem)
+      : previous_(FileSystem::GetInstance()) {
+    FileSystem::Install(&fileSystem);
+  }
+
+  ~FileSystemInstallGuard() { FileSystem::Install(previous_); }
+
+private:
+  FileSystem *previous_;
+};
+
 ByteWriter BuildPcmWav(uint16_t channels, uint32_t sampleRate,
                        uint16_t bitsPerSample, uint32_t dataSize) {
   ByteWriter writer;
@@ -299,6 +316,55 @@ TEST_CASE("WriteHeader defaults to 16-bit stereo PCM") {
   CHECK(ReadU32(file.data() + 28U) == 176400U);
   CHECK(ReadU16(file.data() + 32U) == 4U);
   CHECK(ReadU16(file.data() + 34U) == 16U);
+}
+
+TEST_CASE("WavFile zero-pads GetBuffer past logical end of file") {
+  Config::SetImportResampler(0);
+  const std::filesystem::path root =
+      std::filesystem::temp_directory_path() /
+      "picotracker-wav-get-buffer-test";
+  std::error_code error;
+  std::filesystem::remove_all(root, error);
+  REQUIRE(std::filesystem::create_directories(root, error));
+
+  ByteWriter poison = BuildPcmWav(1, 44100, 16, 8);
+  const int16_t poisonSamples[4] = {1111, 2222, 3333, 4444};
+  std::memcpy(poison.data + 44, poisonSamples, sizeof(poisonSamples));
+  ByteWriter shortFile = BuildPcmWav(1, 44100, 16, 4);
+  const int16_t shortSamples[2] = {1234, 5678};
+  std::memcpy(shortFile.data + 44, shortSamples, sizeof(shortSamples));
+
+  {
+    std::ofstream output(root / "poison.wav", std::ios::binary);
+    output.write(reinterpret_cast<const char *>(poison.data), poison.size);
+    REQUIRE(output.good());
+  }
+  {
+    std::ofstream output(root / "short.wav", std::ios::binary);
+    output.write(reinterpret_cast<const char *>(shortFile.data),
+                 shortFile.size);
+    REQUIRE(output.good());
+  }
+
+  WasmFileSystem fileSystem(root.string());
+  FileSystemInstallGuard install(fileSystem);
+  WavFile wave;
+
+  REQUIRE(wave.Open("/poison.wav").has_value());
+  REQUIRE(wave.GetBuffer(0, 4));
+  wave.Close();
+
+  REQUIRE(wave.Open("/short.wav").has_value());
+  REQUIRE(wave.GetBuffer(0, 4));
+  const auto *samples = static_cast<const int16_t *>(wave.GetSampleBuffer(-1));
+  REQUIRE(samples != nullptr);
+  CHECK(samples[0] == shortSamples[0]);
+  CHECK(samples[1] == shortSamples[1]);
+  CHECK(samples[2] == 0);
+  CHECK(samples[3] == 0);
+
+  wave.Close();
+  std::filesystem::remove_all(root, error);
 }
 
 TEST_CASE("ReadHeader parses valid PCM WAV") {

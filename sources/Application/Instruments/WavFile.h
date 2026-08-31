@@ -51,9 +51,8 @@ protected:
   long readBlock(long position, long count);
 
 private:
-  FileHandle file_;    // File
-  int readBufferSize_; // Read buffer size
-  short *samples_;     // sample buffer size (16 bits)
+  FileHandle file_; // File
+  short *samples_;  // sample buffer size (16 bits)
   int sampleBufferSize_;
   int size_;             // number of samples
   int sampleRate_;       // sample rate
