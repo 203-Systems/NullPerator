@@ -140,7 +140,10 @@ UiBuildStatus UiChromeRenderer::BuildTop(const UiTopBarModel &model,
 
   if (model.power == UiPowerState::Playing) {
     builder.Text(">", 193, 14, UiColorToken::PlaybackActive);
-    builder.Text(model.elapsed, 206, 14, UiColorToken::TextNormal);
+    constexpr std::int16_t kPlayingTextRight = 230;
+    const std::int16_t elapsedX = static_cast<std::int16_t>(
+        kPlayingTextRight - UiFont5x7::TextWidth(model.elapsed.size()));
+    builder.Text(model.elapsed, elapsedX, 14, UiColorToken::TextNormal);
   } else if (model.power == UiPowerState::Saving) {
     DrawSaving(builder);
   } else if (model.power == UiPowerState::Navigation) {

@@ -1430,6 +1430,22 @@ TEST_CASE("UI2 saving spinner replaces the top-right battery presentation") {
   CHECK(scene.Size() == 5U);
 }
 
+TEST_CASE("UI2 playing elapsed text keeps its right edge fixed") {
+  for (const std::string_view elapsed : {"0:08", "00:08", "100:08"}) {
+    ui2::UiBarScene scene;
+    REQUIRE(ui2::UiChromeRenderer::BuildTop(
+                {.title = "SONG",
+                 .elapsed = elapsed,
+                 .power = ui2::UiPowerState::Playing},
+                scene) == ui2::UiBuildStatus::Built);
+
+    const ui2::UiCommand *command = FindTextCommand(scene.Stream(), elapsed);
+    REQUIRE(command != nullptr);
+    CAPTURE(elapsed);
+    CHECK(command->bounds.Right() == 230);
+  }
+}
+
 TEST_CASE("UI2 bottom renderer bounds externally supplied item counts") {
   ui2::UiBarScene scene;
   ui2::UiBottomBarModel actions{.kind = ui2::UiBottomBarKind::Actions};
