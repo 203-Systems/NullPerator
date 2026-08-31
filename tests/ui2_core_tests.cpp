@@ -1122,6 +1122,23 @@ TEST_CASE("UI2 vertical list reveals items and reconciles contextual bars") {
         palette.Index(ui2::UiColorToken::SurfaceBottomBar));
 }
 
+TEST_CASE("UI2 Theme reveal keeps the final color row above its bottom bar") {
+  ui2::UiThemeViewData data;
+  data.selectedColor =
+      static_cast<std::int8_t>(ui2::Ui2ThemeController::ColorCount - 1U);
+  data.scrollOffset = ui2::UiThemeView::RevealCursor(0, data);
+
+  const ui2::RectI16 cursor = ui2::UiThemeView::CursorTargetRect(data);
+  CHECK(cursor.Bottom() - data.scrollOffset <=
+        ui2::UiThemeView::kRevealBottom);
+
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiThemeView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK(scene.contentOffsetY == data.scrollOffset);
+}
+
 TEST_CASE("UI2 sparse coverage masks copy bounded data and decode columns") {
   ui2::UiPalette palette;
   ui2::UiContentScene scene;

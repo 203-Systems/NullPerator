@@ -81,7 +81,8 @@ public:
   [[nodiscard]] static std::int16_t
   RevealCursor(std::int16_t currentOffset, const UiThemeViewData &data);
 
-  static constexpr std::int16_t kContentBottom = 320;
+  static constexpr std::int16_t kContentBottom = static_cast<std::int16_t>(
+      57U + (UiPalette::kUserColorCount - 1U) * 14U + 11U);
   static constexpr std::int16_t kRevealBottom = 198;
 };
 
