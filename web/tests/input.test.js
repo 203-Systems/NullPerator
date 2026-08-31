@@ -87,6 +87,10 @@ describe('tracker input state', () => {
     expect(bridge.pressAction).toHaveBeenCalledWith(DEFAULT_KEY_MAP.up.action)
     expect(bridge.releaseAction).toHaveBeenCalledWith(DEFAULT_KEY_MAP.up.action)
     expect(input.getHeldActions()).toEqual([])
+
+    const inactiveRelease = { code: 'KeyA', preventDefault: vi.fn() }
+    listeners.get('keyup')(inactiveRelease)
+    expect(inactiveRelease.preventDefault).not.toHaveBeenCalled()
   })
 
   it('keeps an action held until every simultaneous source releases it', () => {
