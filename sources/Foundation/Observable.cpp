@@ -35,7 +35,7 @@ void Observable::RemoveObserver(I_Observer &o) {
       }
       it++;
     }
-  } else {
+  } else if (_variable == &o) {
     _variable = NULL;
   }
 }
@@ -69,3 +69,10 @@ void Observable::NotifyObservers(I_ObservableData *d) {
 void Observable::SetChanged() { _hasChanged = true; }
 
 bool Observable::HasChanged() { return _hasChanged; }
+
+int Observable::CountObservers() {
+  if (_list != NULL) {
+    return static_cast<int>(_list->size());
+  }
+  return _variable == NULL ? 0 : 1;
+}

@@ -3,6 +3,7 @@
 #include "Foundation/Types/Types.h"
 #include "Application/Instruments/SIDInstrument.h"
 #include "Application/Utils/FourCCSerialization.h"
+#include "Foundation/Observable.h"
 #include "Foundation/Variables/VariableContainer.h"
 #include "etl/vector.h"
 
@@ -27,6 +28,13 @@ TEST_CASE("SID note lookup accepts exactly its 96-entry hardware range") {
 
 namespace {
 
+class CountingFoundationObserver final : public I_Observer {
+public:
+  void Update(Observable &, I_ObservableData *) override { ++updates; }
+
+  int updates = 0;
+};
+
 int ClassifyHighFourCC(FourCC id) {
   switch (id) {
   case FourCC::VarOutputVolume:
@@ -39,6 +47,25 @@ int ClassifyHighFourCC(FourCC id) {
 }
 
 } // namespace
+
+TEST_CASE("Observable ignores removal of a different single observer") {
+  Observable observable;
+  CountingFoundationObserver attached;
+  CountingFoundationObserver unrelated;
+
+  observable.AddObserver(attached);
+  CHECK(observable.CountObservers() == 1);
+  observable.RemoveObserver(unrelated);
+  CHECK(observable.CountObservers() == 1);
+
+  observable.SetChanged();
+  observable.NotifyObservers();
+  CHECK(attached.updates == 1);
+  CHECK(unrelated.updates == 0);
+
+  observable.RemoveObserver(attached);
+  CHECK(observable.CountObservers() == 0);
+}
 
 TEST_CASE("FourCC wrapper preserves identifiers at and above bit seven") {
   const FourCC outputVolume = FourCC::VarOutputVolume;
