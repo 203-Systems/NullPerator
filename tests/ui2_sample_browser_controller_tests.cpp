@@ -284,13 +284,13 @@ TEST_CASE("UI2 Sample Browser keeps project pool flat and root-addressed") {
   // Trying to move to the hidden NESTED directory cannot change selection or
   // enter it. Therefore neither action can emit the same-named nested leaf.
   Tap(controller, TrackerAction::Down);
-  const Ui2SampleBrowserCommand edit = Tap(controller, TrackerAction::Edit);
+  const Ui2SampleBrowserCommand edit = Tap(controller, TrackerAction::Enter);
   CHECK(edit.type == Ui2SampleBrowserCommandType::Edit);
   CHECK(edit.projectSample);
   CHECK(std::strcmp(edit.filename.data(), "AKWF.WAV") == 0);
 
   Tap(controller, TrackerAction::Left); // DELETE wraps from EDIT.
-  const Ui2SampleBrowserCommand remove = Tap(controller, TrackerAction::Edit);
+  const Ui2SampleBrowserCommand remove = Tap(controller, TrackerAction::Enter);
   CHECK(remove.type == Ui2SampleBrowserCommandType::RequestDelete);
   CHECK(remove.projectSample);
   CHECK(std::strcmp(remove.filename.data(), "AKWF.WAV") == 0);
@@ -321,7 +321,7 @@ TEST_CASE("UI2 Sample Browser library retains directories and parent chord") {
   snapshot = controller.Snapshot(60);
   REQUIRE(snapshot.actionCount == 2U);
   CHECK(std::strcmp(snapshot.actions[1].data(), "BACK") == 0);
-  CHECK_FALSE(Tap(controller, TrackerAction::Edit).HasValue());
+  CHECK_FALSE(Tap(controller, TrackerAction::Enter).HasValue());
   snapshot = controller.Snapshot(60);
   REQUIRE(snapshot.visibleItemCount == 2U);
   CHECK(std::strcmp(snapshot.items[0].data(), "..") == 0);
@@ -351,7 +351,7 @@ TEST_CASE("UI2 Sample Browser directory BACK action is reachable") {
   Tap(controller, TrackerAction::Right);
   snapshot = controller.Snapshot(60);
   CHECK(snapshot.activeAction == 1U);
-  CHECK(Tap(controller, TrackerAction::Edit).type ==
+  CHECK(Tap(controller, TrackerAction::Enter).type ==
         Ui2SampleBrowserCommandType::Back);
 }
 
@@ -386,14 +386,14 @@ TEST_CASE("UI2 Sample Browser previews, imports, and restores pool mode") {
         Ui2SampleBrowserCommandType::PreviewStop);
 
   Tap(controller, TrackerAction::Right); // approved IMPORT action
-  CHECK(Tap(controller, TrackerAction::Edit).type ==
+  CHECK(Tap(controller, TrackerAction::Enter).type ==
         Ui2SampleBrowserCommandType::ModeChanged);
   CHECK(controller.Mode() == Ui2SampleBrowserMode::Library);
   CHECK(std::strcmp(controller.Snapshot(40).items[0].data(),
                     "~KICK.WAV") == 0);
 
   const Ui2SampleBrowserCommand import =
-      Tap(controller, TrackerAction::Edit);
+      Tap(controller, TrackerAction::Enter);
   CHECK(import.type == Ui2SampleBrowserCommandType::Import);
   CHECK(std::strcmp(import.filename.data(), "KICK.WAV") == 0);
 
@@ -491,16 +491,16 @@ TEST_CASE("UI2 Sample Browser option edit requests confirmed pool deletion") {
 
   controller.Handle(TrackerAction::Option, true);
   const Ui2SampleBrowserCommand request =
-      controller.Handle(TrackerAction::Edit, true);
+      controller.Handle(TrackerAction::Enter, true);
   REQUIRE(request.type == Ui2SampleBrowserCommandType::RequestDelete);
   CHECK(request.projectSample);
   CHECK(std::strcmp(request.filename.data(), "AKWF.WAV") == 0);
-  controller.Handle(TrackerAction::Edit, false);
+  controller.Handle(TrackerAction::Enter, false);
   controller.Handle(TrackerAction::Option, false);
 
   REQUIRE(controller.OpenLibrary("DEMO"));
   controller.Handle(TrackerAction::Option, true);
-  CHECK_FALSE(controller.Handle(TrackerAction::Edit, true).HasValue());
+  CHECK_FALSE(controller.Handle(TrackerAction::Enter, true).HasValue());
 }
 
 TEST_CASE("UI2 Sample Browser exposes actions for empty states") {
@@ -513,14 +513,14 @@ TEST_CASE("UI2 Sample Browser exposes actions for empty states") {
   CHECK_FALSE(snapshot.hasSelection);
   REQUIRE(snapshot.actionCount == 1U);
   CHECK(std::strcmp(snapshot.actions[0].data(), "IMPORT") == 0);
-  REQUIRE(Tap(controller, TrackerAction::Edit).type ==
+  REQUIRE(Tap(controller, TrackerAction::Enter).type ==
           Ui2SampleBrowserCommandType::ModeChanged);
 
   snapshot = controller.Snapshot(60);
   CHECK_FALSE(snapshot.hasSelection);
   REQUIRE(snapshot.actionCount == 1U);
   CHECK(std::strcmp(snapshot.actions[0].data(), "BACK") == 0);
-  CHECK(Tap(controller, TrackerAction::Edit).type ==
+  CHECK(Tap(controller, TrackerAction::Enter).type ==
         Ui2SampleBrowserCommandType::Back);
 }
 
@@ -536,7 +536,7 @@ TEST_CASE("UI2 Sample Browser exposes root failures as exit-capable states") {
   CHECK(std::strcmp(snapshot.footer.data(), "SAMPLE POOL UNAVAILABLE") == 0);
   REQUIRE(snapshot.actionCount == 1U);
   CHECK(std::strcmp(snapshot.actions[0].data(), "BACK") == 0);
-  CHECK(Tap(pool, TrackerAction::Edit).type ==
+  CHECK(Tap(pool, TrackerAction::Enter).type ==
         Ui2SampleBrowserCommandType::Back);
 
   Ui2SampleBrowserController library;
@@ -547,7 +547,7 @@ TEST_CASE("UI2 Sample Browser exposes root failures as exit-capable states") {
   CHECK(std::strcmp(snapshot.footer.data(), "SAMPLE LIB UNAVAILABLE") == 0);
   REQUIRE(snapshot.actionCount == 1U);
   CHECK(std::strcmp(snapshot.actions[0].data(), "BACK") == 0);
-  CHECK(Tap(library, TrackerAction::Edit).type ==
+  CHECK(Tap(library, TrackerAction::Enter).type ==
         Ui2SampleBrowserCommandType::Back);
 
   Ui2SampleBrowserController invalid;
@@ -561,7 +561,7 @@ TEST_CASE("UI2 Sample Browser delete confirmation defaults to NO") {
   Ui2SampleBrowserController controller;
   REQUIRE(controller.Open("DEMO"));
   Tap(controller, TrackerAction::Left); // DELETE wraps from EDIT
-  const Ui2SampleBrowserCommand request = Tap(controller, TrackerAction::Edit);
+  const Ui2SampleBrowserCommand request = Tap(controller, TrackerAction::Enter);
   REQUIRE(request.type == Ui2SampleBrowserCommandType::RequestDelete);
   controller.RequestDeleteConfirmation(request.filename.data());
   REQUIRE(controller.DialogActive());
@@ -569,36 +569,36 @@ TEST_CASE("UI2 Sample Browser delete confirmation defaults to NO") {
   CHECK(dialog.selectedAction == 1U);
   CHECK(std::string_view(dialog.label.data()) == "AKWF.WAV");
   CHECK(dialog.labelUserText);
-  CHECK(controller.HandleDialog(TrackerAction::Edit, true).type ==
+  CHECK(controller.HandleDialog(TrackerAction::Enter, true).type ==
         Ui2SampleBrowserCommandType::None);
-  controller.HandleDialog(TrackerAction::Edit, false);
+  controller.HandleDialog(TrackerAction::Enter, false);
   CHECK_FALSE(controller.DialogActive());
 
   controller.RequestDeleteConfirmation("AKWF.WAV");
   controller.HandleDialog(TrackerAction::Left, true);
   controller.HandleDialog(TrackerAction::Left, false);
   const Ui2SampleBrowserCommand confirmed =
-      controller.HandleDialog(TrackerAction::Edit, true);
+      controller.HandleDialog(TrackerAction::Enter, true);
   CHECK(confirmed.type == Ui2SampleBrowserCommandType::DeleteConfirmed);
   CHECK(std::strcmp(confirmed.filename.data(), "AKWF.WAV") == 0);
 }
 
-TEST_CASE("UI2 Sample Browser delete dialog waits for its EDIT release") {
+TEST_CASE("UI2 Sample Browser delete dialog waits for its ENTER release") {
   using namespace ui2;
   SampleBrowserFileSystem fileSystem;
   Ui2SampleBrowserController controller;
   REQUIRE(controller.Open("DEMO"));
   Tap(controller, TrackerAction::Left); // DELETE wraps from EDIT
 
-  // Keep the activating EDIT physically held while the dialog opens.
+  // Keep the activating ENTER physically held while the dialog opens.
   const Ui2SampleBrowserCommand request =
-      controller.Handle(TrackerAction::Edit, true);
+      controller.Handle(TrackerAction::Enter, true);
   REQUIRE(request.type == Ui2SampleBrowserCommandType::RequestDelete);
   controller.RequestDeleteConfirmation(request.filename.data(),
-                                       TrackerAction::Edit);
+                                       TrackerAction::Enter);
   REQUIRE(controller.DialogActive());
 
-  CHECK(controller.HandleDialog(TrackerAction::Edit, true).type ==
+  CHECK(controller.HandleDialog(TrackerAction::Enter, true).type ==
         Ui2SampleBrowserCommandType::None);
   CHECK(controller.HandleDialog(TrackerAction::Left, true).type ==
         Ui2SampleBrowserCommandType::None);
@@ -606,7 +606,7 @@ TEST_CASE("UI2 Sample Browser delete dialog waits for its EDIT release") {
         Ui2SampleBrowserCommandType::None);
   CHECK(controller.DialogActive());
   CHECK(controller.DialogSnapshot().selectedAction == 1U);
-  CHECK(controller.HandleDialog(TrackerAction::Edit, false).type ==
+  CHECK(controller.HandleDialog(TrackerAction::Enter, false).type ==
         Ui2SampleBrowserCommandType::None);
 
   CHECK(controller.HandleDialog(TrackerAction::Left, true).type ==
@@ -614,7 +614,7 @@ TEST_CASE("UI2 Sample Browser delete dialog waits for its EDIT release") {
   CHECK(controller.HandleDialog(TrackerAction::Left, false).type ==
         Ui2SampleBrowserCommandType::None);
   const Ui2SampleBrowserCommand confirmed =
-      controller.HandleDialog(TrackerAction::Edit, true);
+      controller.HandleDialog(TrackerAction::Enter, true);
   CHECK(confirmed.type == Ui2SampleBrowserCommandType::DeleteConfirmed);
   CHECK(std::strcmp(confirmed.filename.data(), "AKWF.WAV") == 0);
 }
@@ -627,26 +627,26 @@ TEST_CASE("UI2 Sample Browser clears modifier releases owned by its dialog") {
 
   controller.Handle(TrackerAction::Option, true);
   const Ui2SampleBrowserCommand request =
-      controller.Handle(TrackerAction::Edit, true);
+      controller.Handle(TrackerAction::Enter, true);
   REQUIRE(request.type == Ui2SampleBrowserCommandType::RequestDelete);
   controller.RequestDeleteConfirmation(request.filename.data(),
-                                       TrackerAction::Edit);
+                                       TrackerAction::Enter);
 
   // Mirror Ui2TrackerApplication's modal release routing: the dialog consumes
   // the release first, then the browser press owner receives the same key-up.
-  controller.HandleDialog(TrackerAction::Edit, false);
-  controller.Handle(TrackerAction::Edit, false);
+  controller.HandleDialog(TrackerAction::Enter, false);
+  controller.Handle(TrackerAction::Enter, false);
   controller.HandleDialog(TrackerAction::Option, false);
   controller.Handle(TrackerAction::Option, false);
 
   controller.HandleDialog(TrackerAction::Left, true); // YES
   controller.HandleDialog(TrackerAction::Left, false);
-  REQUIRE(controller.HandleDialog(TrackerAction::Edit, true).type ==
+  REQUIRE(controller.HandleDialog(TrackerAction::Enter, true).type ==
           Ui2SampleBrowserCommandType::DeleteConfirmed);
-  controller.Handle(TrackerAction::Edit, false);
+  controller.Handle(TrackerAction::Enter, false);
 
-  // OPTION is no longer latched: ordinary EDIT opens the sample editor rather
+  // OPTION is no longer latched: ordinary ENTER opens the sample editor rather
   // than immediately requesting another delete.
-  CHECK(Tap(controller, TrackerAction::Edit).type ==
+  CHECK(Tap(controller, TrackerAction::Enter).type ==
         Ui2SampleBrowserCommandType::Edit);
 }

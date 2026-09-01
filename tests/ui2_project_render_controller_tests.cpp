@@ -73,7 +73,7 @@ TEST_CASE("UI2 Project render preserves legacy empty-row and busy guards") {
   CHECK(Text(empty.label) == "Song row 00 has no phrases");
   REQUIRE(empty.actionCount == 1U);
   CHECK(empty.actions[0] == UiDialogAction::Ok);
-  Tap(controller, TrackerAction::Edit);
+  Tap(controller, TrackerAction::Enter);
   CHECK_FALSE(controller.Active());
 }
 
@@ -145,7 +145,7 @@ TEST_CASE("UI2 Project render naturally completes at 100 percent") {
   CHECK(complete.progressWidth == Ui2DialogSnapshot::ProgressPixelWidth);
   REQUIRE(complete.actionCount == 1U);
   CHECK(complete.actions[0] == UiDialogAction::Ok);
-  Tap(controller, TrackerAction::Edit);
+  Tap(controller, TrackerAction::Enter);
   CHECK_FALSE(controller.Active());
 }
 
@@ -157,7 +157,7 @@ TEST_CASE("UI2 Project render cancel stops Player then uses existing message") {
   Ui2ProjectRenderController controller(backend);
 
   REQUIRE(controller.Request(Ui2ProjectRenderMode::Mixdown));
-  Tap(controller, TrackerAction::Edit);
+  Tap(controller, TrackerAction::Enter);
   CHECK(backend.stopCalls == 1);
   CHECK_FALSE(backend.running);
   REQUIRE(controller.Active());
@@ -165,7 +165,7 @@ TEST_CASE("UI2 Project render cancel stops Player then uses existing message") {
   CHECK(stopped.kind == UiDialogKind::Message);
   CHECK(Text(stopped.title) == "Rendering Stopped");
   CHECK(Text(stopped.label).empty());
-  Tap(controller, TrackerAction::Edit);
+  Tap(controller, TrackerAction::Enter);
   CHECK_FALSE(controller.Active());
 }
 

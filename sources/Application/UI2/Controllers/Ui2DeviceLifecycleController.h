@@ -66,7 +66,7 @@ public:
       MoveSelection(1);
       return {};
     }
-    if (action != TrackerAction::Edit)
+    if (action != TrackerAction::Enter)
       return {};
 
     const Purpose purpose = purpose_;

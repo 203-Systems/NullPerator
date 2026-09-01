@@ -28,10 +28,10 @@ UiResolvedChrome UiBarResolver::Resolve(const UiBarInputs &inputs) {
   UiResolvedChrome resolved{inputs.pageTop, inputs.pageDefault};
   if (inputs.cursorContext != nullptr) resolved.bottom = *inputs.cursorContext;
 
-  if (inputs.editHeldNumber && inputs.editHeldTracks != nullptr) {
+  if (inputs.enterHeldNumber && inputs.enterHeldTracks != nullptr) {
     resolved.top.metaSelected = true;
     resolved.bottom.kind = UiBottomBarKind::TrackNotes;
-    resolved.bottom.trackNotes = *inputs.editHeldTracks;
+    resolved.bottom.trackNotes = *inputs.enterHeldTracks;
   }
 
   if (inputs.enterHeldAdjustment != nullptr) {

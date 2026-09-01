@@ -17,7 +17,7 @@ describe('tracker input state', () => {
     expect(DEFAULT_KEY_MAP.down.bindings).toContainEqual(['KeyS'])
     expect(DEFAULT_KEY_MAP.right.bindings).toContainEqual(['KeyD'])
     expect(DEFAULT_KEY_MAP.up.bindings).toContainEqual(['KeyW'])
-    expect(DEFAULT_KEY_MAP.edit.bindings).toEqual([['KeyK']])
+    expect(DEFAULT_KEY_MAP.enter.bindings).toEqual([['KeyK']])
     expect(DEFAULT_KEY_MAP.option.bindings).toEqual([['KeyJ']])
     expect(DEFAULT_KEY_MAP.shift.bindings).toEqual([['KeyX']])
     expect(DEFAULT_KEY_MAP.play.bindings).toEqual([['KeyC']])
@@ -28,12 +28,12 @@ describe('tracker input state', () => {
     const bridge = createBridge()
     const input = createInputStore(bridge)
 
-    input.press('edit', 'keyboard:KeyA')
+    input.press('enter', 'keyboard:KeyA')
     input.press('up', 'keyboard:ArrowUp')
     input.releaseAll()
 
     expect(bridge.pressAction.mock.calls).toEqual([
-      [DEFAULT_KEY_MAP.edit.action],
+      [DEFAULT_KEY_MAP.enter.action],
       [DEFAULT_KEY_MAP.up.action],
     ])
     expect(bridge.releaseAllActions).toHaveBeenCalledOnce()
@@ -54,7 +54,7 @@ describe('tracker input state', () => {
     const detach = input.attach({ target, document })
     const stalePageHide = listeners.get('pagehide')
 
-    input.press('edit', 'keyboard:KeyK')
+    input.press('enter', 'keyboard:KeyK')
     stalePageHide()
     expect(input.getHeldActions()).toEqual([])
     expect(bridge.releaseAllActions).toHaveBeenCalledTimes(1)
@@ -97,13 +97,13 @@ describe('tracker input state', () => {
     const bridge = createBridge()
     const input = createInputStore(bridge)
 
-    input.press('edit', 'keyboard:KeyA')
-    input.press('edit', 'pointer:11')
-    input.release('edit', 'keyboard:KeyA')
+    input.press('enter', 'keyboard:KeyA')
+    input.press('enter', 'pointer:11')
+    input.release('enter', 'keyboard:KeyA')
 
     expect(bridge.releaseAction).not.toHaveBeenCalled()
-    input.release('edit', 'pointer:11')
-    expect(bridge.releaseAction).toHaveBeenCalledWith(DEFAULT_KEY_MAP.edit.action)
+    input.release('enter', 'pointer:11')
+    expect(bridge.releaseAction).toHaveBeenCalledWith(DEFAULT_KEY_MAP.enter.action)
   })
 
   it('publishes held actions for virtual control feedback', () => {
@@ -117,7 +117,7 @@ describe('tracker input state', () => {
     input.releaseAll()
     unsubscribe()
 
-    expect(snapshots).toEqual([[], ['up'], ['up', 'edit'], ['edit'], []])
+    expect(snapshots).toEqual([[], ['up'], ['up', 'enter'], ['enter'], []])
   })
 
   it('sends immediate M8 PLAY and independent SHIFT actions', () => {
@@ -143,21 +143,21 @@ describe('tracker input state', () => {
     const bridge = createBridge()
     const input = createInputStore(bridge)
     const shiftDown = { code: 'KeyX', repeat: false, preventDefault: vi.fn() }
-    const editDown = { code: 'KeyK', repeat: false, preventDefault: vi.fn() }
-    const repeatedEdit = { code: 'KeyK', repeat: true, preventDefault: vi.fn() }
-    const editUp = { code: 'KeyK', preventDefault: vi.fn() }
+    const enterDown = { code: 'KeyK', repeat: false, preventDefault: vi.fn() }
+    const repeatedEnter = { code: 'KeyK', repeat: true, preventDefault: vi.fn() }
+    const enterUp = { code: 'KeyK', preventDefault: vi.fn() }
     const unrelated = { code: 'KeyZ', repeat: false, preventDefault: vi.fn() }
 
     input.handleKeyDown(shiftDown)
-    input.handleKeyDown(editDown)
-    input.handleKeyDown(repeatedEdit)
-    input.handleKeyUp(editUp)
+    input.handleKeyDown(enterDown)
+    input.handleKeyDown(repeatedEnter)
+    input.handleKeyUp(enterUp)
     input.handleKeyDown(unrelated)
 
-    expect(bridge.pressAction.mock.calls).toEqual([[DEFAULT_KEY_MAP.shift.action], [DEFAULT_KEY_MAP.edit.action]])
-    expect(bridge.releaseAction).toHaveBeenCalledWith(DEFAULT_KEY_MAP.edit.action)
-    expect(editDown.preventDefault).toHaveBeenCalledOnce()
-    expect(repeatedEdit.preventDefault).toHaveBeenCalledOnce()
+    expect(bridge.pressAction.mock.calls).toEqual([[DEFAULT_KEY_MAP.shift.action], [DEFAULT_KEY_MAP.enter.action]])
+    expect(bridge.releaseAction).toHaveBeenCalledWith(DEFAULT_KEY_MAP.enter.action)
+    expect(enterDown.preventDefault).toHaveBeenCalledOnce()
+    expect(repeatedEnter.preventDefault).toHaveBeenCalledOnce()
     expect(unrelated.preventDefault).not.toHaveBeenCalled()
   })
 

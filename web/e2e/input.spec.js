@@ -7,7 +7,7 @@ const virtualActions = [
   ['Up', 3],
   ['SHIFT', 4],
   ['OPTION', 5],
-  ['EDIT', 6],
+  ['ENTER', 6],
   ['PLAY', 7],
 ]
 
@@ -52,10 +52,10 @@ test('blur and pointer cancellation clear C++ state and stop further input dispa
   await page.waitForTimeout(350)
   await expect(actionGeneration(canvas)).resolves.toBe(blurGeneration)
 
-  const edit = page.getByRole('button', { name: 'EDIT', exact: true })
-  await edit.dispatchEvent('pointerdown', { pointerId: 200, pointerType: 'touch' })
+  const enter = page.getByRole('button', { name: 'ENTER', exact: true })
+  await enter.dispatchEvent('pointerdown', { pointerId: 200, pointerType: 'touch' })
   await expect.poll(() => actionMask(canvas)).toBe(String(1 << 6))
-  await edit.dispatchEvent('pointercancel', { pointerId: 200, pointerType: 'touch' })
+  await enter.dispatchEvent('pointercancel', { pointerId: 200, pointerType: 'touch' })
   await expect.poll(() => actionMask(canvas)).toBe('0')
   const cancelGeneration = await actionGeneration(canvas)
   await page.waitForTimeout(350)
@@ -63,7 +63,7 @@ test('blur and pointer cancellation clear C++ state and stop further input dispa
 
   // pointercancel must not leave the button's pointer-click suppression armed:
   // a subsequent real keyboard activation still travels through InputMap.
-  await edit.focus()
+  await enter.focus()
   await page.keyboard.press('Space')
   await expect.poll(() => actionGeneration(canvas)).toBe(String(Number(cancelGeneration) + 2))
   await expect(canvas).toHaveAttribute('data-last-action', '6')
@@ -74,9 +74,9 @@ test('focused virtual buttons activate with keyboard click semantics without glo
   await page.goto('/?audio=disabled&inputDiagnostics=1')
   await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible()
   const canvas = page.locator('#picotracker-canvas')
-  const edit = page.getByRole('button', { name: 'EDIT', exact: true })
+  const enter = page.getByRole('button', { name: 'ENTER', exact: true })
 
-  await edit.focus()
+  await enter.focus()
   for (const key of ['Enter', 'Space']) {
     const generation = Number(await actionGeneration(canvas))
     await page.keyboard.press(key)
@@ -100,7 +100,7 @@ test('Operator fixed WASD, J/K, and X/C controls reach C++ with direct M8 semant
 
   const keyActions = [
     ['w', 'up', 3], ['a', 'left', 0], ['s', 'down', 1], ['d', 'right', 2],
-    ['j', 'option', 5], ['k', 'edit', 6], ['x', 'shift', 4], ['c', 'play', 7],
+    ['j', 'option', 5], ['k', 'enter', 6], ['x', 'shift', 4], ['c', 'play', 7],
   ]
   for (const [key, name, action] of keyActions) {
     const control = page.locator(`[data-action="${name}"]`)

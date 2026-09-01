@@ -83,7 +83,7 @@ private:
   static constexpr std::uint16_t kModifierMask =
       TrackerActionBit(TrackerAction::Shift) |
       TrackerActionBit(TrackerAction::Option) |
-      TrackerActionBit(TrackerAction::Edit);
+      TrackerActionBit(TrackerAction::Enter);
   static constexpr std::uint16_t kSupportedMask =
       kDirectionMask | kModifierMask |
       TrackerActionBit(TrackerAction::Play) |

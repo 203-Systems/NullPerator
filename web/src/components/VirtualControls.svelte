@@ -40,11 +40,11 @@
   </div>
 
   <div class="face-buttons">
-    <button type="button" class="face enter" class:pressed={heldActions.includes('edit')} aria-label="EDIT" aria-pressed={heldActions.includes('edit')} data-action="edit" {disabled}
-      onpointerdown={(e)=>press(e,'edit')} onpointerup={(e)=>release(e,'edit',true)} onpointercancel={(e)=>cancel(e,'edit')} onlostpointercapture={(e)=>release(e,'edit')} onclick={(e)=>activate(e,'edit')}>
-      <span class="switch"><span>↵</span></span><kbd>K</kbd><em>EDIT</em>
+    <button type="button" class="face enter" class:pressed={heldActions.includes('enter')} aria-label="ENTER" aria-pressed={heldActions.includes('enter')} data-action="enter" {disabled}
+      onpointerdown={(e)=>press(e,'enter')} onpointerup={(e)=>release(e,'enter',true)} onpointercancel={(e)=>cancel(e,'enter')} onlostpointercapture={(e)=>release(e,'enter')} onclick={(e)=>activate(e,'enter')}>
+      <span class="switch"><span>↵</span></span><kbd>K</kbd><em>ENTER</em>
     </button>
-    <button type="button" class="face edit" class:pressed={heldActions.includes('option')} aria-label="OPTION" aria-pressed={heldActions.includes('option')} data-action="option" {disabled}
+    <button type="button" class="face option" class:pressed={heldActions.includes('option')} aria-label="OPTION" aria-pressed={heldActions.includes('option')} data-action="option" {disabled}
       onpointerdown={(e)=>press(e,'option')} onpointerup={(e)=>release(e,'option',true)} onpointercancel={(e)=>cancel(e,'option')} onlostpointercapture={(e)=>release(e,'option')} onclick={(e)=>activate(e,'option')}>
       <span class="switch"><span>✦</span></span><kbd>J</kbd><em>OPTION</em>
     </button>
@@ -80,7 +80,7 @@
   .d-pad { position:absolute; left:23px; top:32px; width:142px; height:126px; }
   .d-pad .up{left:47px;top:0}.d-pad .left{left:8px;top:39px}.d-pad .down{left:47px;top:78px}.d-pad .right{left:86px;top:39px}
   .face-buttons { position:absolute; right:12px; top:40px; width:126px; height:126px; }
-  .face.enter{left:67px;top:0}.face.edit{left:28px;top:39px}
+  .face.enter{left:67px;top:0}.face.option{left:28px;top:39px}
   .bottom-buttons { position:absolute; left:107px; bottom:0; width:106px; height:48px; }
   .bottom-buttons .switch { display:none; }
   .bottom-buttons button:active,.bottom-buttons button.pressed { transform:translateY(1px); border-color:#4cc9f0; background:#0d0f12; box-shadow:inset 0 0 0 1px rgba(76,201,240,.18); }
@@ -96,7 +96,7 @@
   .compact .d-pad .switch,.compact .d-pad kbd,.compact .face kbd,.compact .face em { rotate:0deg; }
   .compact .d-pad .switch > span { font-size:13px; }
   .compact .face-buttons { right:0; top:4px; width:120px; height:120px; }
-  .compact .face.enter{left:64px;top:0}.compact .face.edit{left:4px;top:0}
+  .compact .face.enter{left:64px;top:0}.compact .face.option{left:4px;top:0}
   .compact .face .switch { display:grid; top:11px; }
   .compact .face .switch > span { font-size:12px; }
   .compact .bottom-buttons { left:auto; right:0; top:64px; bottom:auto; width:120px; height:52px; }
@@ -112,7 +112,7 @@
     .compact .d-pad{left:0;top:4px;width:148px;height:144px}
     .compact .d-pad .up{left:50px;top:0}.compact .d-pad .left{left:0;top:48px}.compact .d-pad .down{left:50px;top:96px}.compact .d-pad .right{left:100px;top:48px}
     .compact .face-buttons{right:0;top:4px;width:116px;height:116px}
-    .compact .face.enter{left:60px;top:0}.compact .face.edit{left:0;top:0}
+    .compact .face.enter{left:60px;top:0}.compact .face.option{left:0;top:0}
     .compact .bottom-buttons{right:0;top:60px;width:116px;height:48px}
     .compact .bottom-buttons button:first-child{left:0}.compact .bottom-buttons button:last-child{right:0}
   }
@@ -122,7 +122,7 @@
     .compact .d-pad{left:0;top:2px;width:132px;height:132px}
     .compact .d-pad .up{left:44px;top:0}.compact .d-pad .left{left:0;top:44px}.compact .d-pad .down{left:44px;top:88px}.compact .d-pad .right{left:88px;top:44px}
     .compact .face-buttons{right:0;top:20px;width:100px;height:96px}
-    .compact .face.enter{left:56px;top:0}.compact .face.edit{left:0;top:0}
+    .compact .face.enter{left:56px;top:0}.compact .face.option{left:0;top:0}
     .compact .bottom-buttons{right:0;top:72px;width:100px;height:44px}
   }
 </style>

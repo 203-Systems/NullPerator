@@ -165,12 +165,12 @@ TEST_CASE("UI2 input repeats keep navigation chords edge-triggered") {
   constexpr std::uint16_t down = TrackerActionBit(TrackerAction::Down);
   constexpr std::uint16_t shift = TrackerActionBit(TrackerAction::Shift);
   constexpr std::uint16_t option = TrackerActionBit(TrackerAction::Option);
-  constexpr std::uint16_t edit = TrackerActionBit(TrackerAction::Edit);
+  constexpr std::uint16_t enter = TrackerActionBit(TrackerAction::Enter);
   constexpr std::uint16_t play = TrackerActionBit(TrackerAction::Play);
 
   CHECK(Ui2AcceptInputEvent(TrackerAction::Up, true, 0U));
   CHECK(Ui2AcceptInputEvent(TrackerAction::Up, true, up));
-  CHECK(Ui2AcceptInputEvent(TrackerAction::Up, true, up | edit));
+  CHECK(Ui2AcceptInputEvent(TrackerAction::Up, true, up | enter));
   CHECK(Ui2AcceptInputEvent(TrackerAction::Up, true, up | option));
   CHECK(Ui2AcceptInputEvent(TrackerAction::Down, true, shift));
   CHECK_FALSE(
@@ -179,10 +179,10 @@ TEST_CASE("UI2 input repeats keep navigation chords edge-triggered") {
   // Releasing only the direction makes another physical press an edge even
   // while SHIFT remains held, so deliberate multi-page navigation still works.
   CHECK(Ui2AcceptInputEvent(TrackerAction::Down, true, shift));
-  CHECK(Ui2AcceptInputEvent(TrackerAction::Edit, true, 0U));
-  CHECK_FALSE(Ui2AcceptInputEvent(TrackerAction::Edit, true, edit));
+  CHECK(Ui2AcceptInputEvent(TrackerAction::Enter, true, 0U));
+  CHECK_FALSE(Ui2AcceptInputEvent(TrackerAction::Enter, true, enter));
   CHECK_FALSE(Ui2AcceptInputEvent(TrackerAction::Play, true, play));
-  CHECK(Ui2AcceptInputEvent(TrackerAction::Edit, false, edit));
+  CHECK(Ui2AcceptInputEvent(TrackerAction::Enter, false, enter));
 }
 
 TEST_CASE("UI2 navigation direction release returns to its press owner") {
@@ -237,10 +237,10 @@ TEST_CASE("UI2 non-grid pages inherit navigation Shift without commands") {
   CHECK(instrument.HeldMask() == shift);
 
   // Enter actions on a page reached while SHIFT is still down stay blocked.
-  CHECK_FALSE(Tap(device, TrackerAction::Edit).HasValue());
-  CHECK_FALSE(Tap(theme, TrackerAction::Edit).HasValue());
-  CHECK_FALSE(Tap(font, TrackerAction::Edit).HasValue());
-  CHECK_FALSE(Tap(instrument, TrackerAction::Edit).HasValue());
+  CHECK_FALSE(Tap(device, TrackerAction::Enter).HasValue());
+  CHECK_FALSE(Tap(theme, TrackerAction::Enter).HasValue());
+  CHECK_FALSE(Tap(font, TrackerAction::Enter).HasValue());
+  CHECK_FALSE(Tap(instrument, TrackerAction::Enter).HasValue());
 
   // Device/Theme/Font must not reinterpret SHIFT+PLAY as their plain global
   // transport shortcut. Controllers that own SHIFT+PLAY keep that meaning.
@@ -278,13 +278,13 @@ TEST_CASE("UI2 non-grid pages inherit navigation Shift without commands") {
   CHECK(font.HeldMask() == 0U);
   CHECK(groove.HeldMask() == 0U);
   CHECK(instrument.HeldMask() == 0U);
-  CHECK(Tap(device, TrackerAction::Edit).type ==
+  CHECK(Tap(device, TrackerAction::Enter).type ==
         Ui2DeviceCommandType::BrowseTheme);
-  CHECK(Tap(theme, TrackerAction::Edit).type ==
+  CHECK(Tap(theme, TrackerAction::Enter).type ==
         Ui2ThemeCommandType::NewTheme);
-  CHECK(Tap(font, TrackerAction::Edit).type ==
+  CHECK(Tap(font, TrackerAction::Enter).type ==
         Ui2FontCommandType::BrowseFont);
-  CHECK(Tap(instrument, TrackerAction::Edit).type ==
+  CHECK(Tap(instrument, TrackerAction::Enter).type ==
         Ui2InstrumentCommandType::LoadInstrument);
   const Ui2GrooveCommand plainPlay = Tap(groove, TrackerAction::Play);
   CHECK(plainPlay.type == Ui2GrooveCommandType::StartPlayback);
@@ -314,7 +314,7 @@ TEST_CASE("UI2 instrument browser leaves return navigation to Shift Left") {
   CHECK(std::string(snapshot.meta.data()).empty());
   CHECK(snapshot.totalItemCount == 0U);
   CHECK_FALSE(snapshot.hasSelection);
-  CHECK(Tap(controller, TrackerAction::Edit).type ==
+  CHECK(Tap(controller, TrackerAction::Enter).type ==
         Ui2InstrumentBrowserCommandType::None);
   CHECK(Tap(controller, TrackerAction::Option).type ==
         Ui2InstrumentBrowserCommandType::None);
@@ -358,11 +358,11 @@ TEST_CASE("UI2 sample instrument fields emit editor and slices activation comman
   Tap(controller, TrackerAction::Down); // SAMPLE
   CHECK(controller.Cursor().kind == Ui2InstrumentCursorKind::Field);
   CHECK(controller.Cursor().index == 0U);
-  CHECK(Tap(controller, TrackerAction::Edit).type ==
+  CHECK(Tap(controller, TrackerAction::Enter).type ==
         Ui2InstrumentCommandType::ActivateField);
   Tap(controller, TrackerAction::Down); // SLICES
   CHECK(controller.Cursor().index == 1U);
-  CHECK(Tap(controller, TrackerAction::Edit).type ==
+  CHECK(Tap(controller, TrackerAction::Enter).type ==
         Ui2InstrumentCommandType::ActivateField);
 }
 
@@ -386,7 +386,7 @@ TEST_CASE("UI2 Device cursor skips hidden rows and owns scroll position") {
   Tap(controller, TrackerAction::Down);
   CHECK(controller.SelectedField() == Ui2DeviceField::Theme);
   CHECK(controller.FirstVisibleOrdinal() == 1U);
-  const auto browse = Tap(controller, TrackerAction::Edit);
+  const auto browse = Tap(controller, TrackerAction::Enter);
   CHECK(browse.type == Ui2DeviceCommandType::BrowseTheme);
   CHECK(browse.field == Ui2DeviceField::Theme);
 
@@ -403,7 +403,7 @@ TEST_CASE("UI2 Device selectors preserve each field's wrap contract") {
 
   CHECK(controller.Bottom().kind == Ui2DeviceBottomKind::Selector);
   CHECK(controller.Bottom().count == 4U);
-  controller.Handle(TrackerAction::Edit, true);
+  controller.Handle(TrackerAction::Enter, true);
   CHECK_FALSE(Tap(controller, TrackerAction::Left).HasValue());
   for (std::uint16_t expected = 1; expected <= 3; ++expected) {
     const auto command = Tap(controller, TrackerAction::Right);
@@ -413,18 +413,18 @@ TEST_CASE("UI2 Device selectors preserve each field's wrap contract") {
     CHECK(command.value == expected);
   }
   CHECK_FALSE(Tap(controller, TrackerAction::Right).HasValue());
-  controller.Handle(TrackerAction::Edit, false);
+  controller.Handle(TrackerAction::Enter, false);
   CHECK(controller.Selector(Ui2DeviceField::MidiDevice).current == 3U);
 
   Tap(controller, TrackerAction::Down); // MIDI sync
   Tap(controller, TrackerAction::Down); // Resampler
   CHECK(controller.SelectedField() == Ui2DeviceField::Resampler);
-  controller.Handle(TrackerAction::Edit, true);
+  controller.Handle(TrackerAction::Enter, true);
   const auto wrapped = Tap(controller, TrackerAction::Left);
   REQUIRE(wrapped.HasValue());
   CHECK(wrapped.value == 1U);
   CHECK(controller.Bottom().wrap);
-  controller.Handle(TrackerAction::Edit, false);
+  controller.Handle(TrackerAction::Enter, false);
 }
 
 TEST_CASE("UI2 Theme owns NAME actions and every palette row") {
@@ -440,7 +440,7 @@ TEST_CASE("UI2 Theme owns NAME actions and every palette row") {
     CHECK(bottom.kind == Ui2ThemeBottomKind::NameActions);
     CHECK(bottom.selectedIndex == index);
     CHECK(bottom.optionCount == 4U);
-    CHECK(Tap(controller, TrackerAction::Edit).type == actions[index]);
+    CHECK(Tap(controller, TrackerAction::Enter).type == actions[index]);
     Tap(controller, TrackerAction::Right);
   }
   CHECK(controller.NameAction() == Ui2ThemeNameAction::New);
@@ -456,12 +456,12 @@ TEST_CASE("UI2 Theme owns NAME actions and every palette row") {
   CHECK(controller.Bottom().kind == Ui2ThemeBottomKind::Rgb);
   CHECK(controller.Bottom().selectedIndex == 0U);
   CHECK(controller.Bottom().optionCount == 3U);
-  CHECK_FALSE(Tap(controller, TrackerAction::Edit).HasValue());
+  CHECK_FALSE(Tap(controller, TrackerAction::Enter).HasValue());
 
   Tap(controller, TrackerAction::Left);
   CHECK(controller.ColorComponent() == 2U);
   CHECK(controller.Bottom().selectedIndex == 2U);
-  controller.Handle(TrackerAction::Edit, true);
+  controller.Handle(TrackerAction::Enter, true);
   const auto color = controller.Handle(TrackerAction::Up, true);
   CHECK(color.type == Ui2ThemeCommandType::AdjustColor);
   CHECK(color.color == 19);
@@ -489,7 +489,7 @@ TEST_CASE("UI2 Theme owns NAME actions and every palette row") {
   CHECK(reset.color == 19);
   CHECK(reset.component == 2U);
   controller.Handle(TrackerAction::Option, false);
-  controller.Handle(TrackerAction::Edit, false);
+  controller.Handle(TrackerAction::Enter, false);
 
   Tap(controller, TrackerAction::Right);
   CHECK(controller.ColorComponent() == 0U);
@@ -506,10 +506,10 @@ TEST_CASE("UI2 Theme workflow bounds RGB edits for application persistence") {
   colors[0] = 0x102030U;
   defaults[0] = 0xA0B0C0U;
   Ui2ThemeController controller(0);
-  controller.Handle(TrackerAction::Edit, true);
+  controller.Handle(TrackerAction::Enter, true);
   const Ui2ThemeCommand command = controller.Handle(TrackerAction::Up, true);
   controller.Handle(TrackerAction::Up, false);
-  controller.Handle(TrackerAction::Edit, false);
+  controller.Handle(TrackerAction::Enter, false);
 
   const Ui2ThemeColorEditResult edit =
       Ui2ThemeWorkflow::Execute(command, colors, defaults);
@@ -581,11 +581,11 @@ TEST_CASE("UI2 Font keeps text case and exposes BROWSE DEFAULT on the font row")
   Tap(controller, TrackerAction::Down);
   CHECK(controller.SelectedField() == ui2::Ui2FontField::Font);
   CHECK(controller.SelectedAction() == ui2::Ui2FontAction::Browse);
-  CHECK(Tap(controller, TrackerAction::Edit).type ==
+  CHECK(Tap(controller, TrackerAction::Enter).type ==
         ui2::Ui2FontCommandType::BrowseFont);
   CHECK_FALSE(Tap(controller, TrackerAction::Right).HasValue());
   CHECK(controller.SelectedAction() == ui2::Ui2FontAction::Default);
-  CHECK(Tap(controller, TrackerAction::Edit).type ==
+  CHECK(Tap(controller, TrackerAction::Enter).type ==
         ui2::Ui2FontCommandType::RestoreDefault);
 
   controller.SetFeedback(ui2::Ui2FontFeedback::BrowserUnavailable);
@@ -669,9 +669,9 @@ TEST_CASE("UI2 Rename owns its bounded draft and full-page navigation") {
   CHECK(controller.Active());
   CHECK(controller.Snapshot().focus == UiDialogFocus::Input);
 
-  Tap(controller, TrackerAction::Edit);
+  Tap(controller, TrackerAction::Enter);
   CHECK(controller.Snapshot().focus == UiDialogFocus::Keyboard);
-  Tap(controller, TrackerAction::Edit);
+  Tap(controller, TrackerAction::Enter);
   CHECK(std::string_view(controller.Value()) == "ONECYCAC1");
   Tap(controller, TrackerAction::Option);
   CHECK(std::string_view(controller.Value()) == "ONECYCAC");
@@ -679,38 +679,38 @@ TEST_CASE("UI2 Rename owns its bounded draft and full-page navigation") {
   for (int row = 0; row < 5; ++row)
     Tap(controller, TrackerAction::Down);
   CHECK(controller.Snapshot().focus == UiDialogFocus::Actions);
-  CHECK(Tap(controller, TrackerAction::Edit) == Ui2RenameCommand::Save);
+  CHECK(Tap(controller, TrackerAction::Enter) == Ui2RenameCommand::Save);
   CHECK_FALSE(controller.Active());
 }
 
-TEST_CASE("UI2 Rename waits for the opening EDIT release") {
+TEST_CASE("UI2 Rename waits for the opening ENTER release") {
   using namespace ui2;
   Ui2RenameController controller;
 
   SUBCASE("held UP cannot jump directly to actions") {
-    controller.Begin("ONECYCAC", 16U, nullptr, TrackerAction::Edit);
+    controller.Begin("ONECYCAC", 16U, nullptr, TrackerAction::Enter);
     CHECK(controller.Snapshot().focus == UiDialogFocus::Input);
     CHECK(controller.Handle(TrackerAction::Up, true) ==
           Ui2RenameCommand::None);
     CHECK(controller.Handle(TrackerAction::Up, false) ==
           Ui2RenameCommand::None);
     CHECK(controller.Snapshot().focus == UiDialogFocus::Input);
-    CHECK(controller.Handle(TrackerAction::Edit, false) ==
+    CHECK(controller.Handle(TrackerAction::Enter, false) ==
           Ui2RenameCommand::None);
     Tap(controller, TrackerAction::Up);
     CHECK(controller.Snapshot().focus == UiDialogFocus::Actions);
   }
 
   SUBCASE("held DOWN cannot jump directly to the keyboard") {
-    controller.Begin("ONECYCAC", 16U, nullptr, TrackerAction::Edit);
+    controller.Begin("ONECYCAC", 16U, nullptr, TrackerAction::Enter);
     CHECK(controller.Handle(TrackerAction::Down, true) ==
           Ui2RenameCommand::None);
     CHECK(controller.Handle(TrackerAction::Down, false) ==
           Ui2RenameCommand::None);
-    CHECK(controller.Handle(TrackerAction::Edit, true) ==
+    CHECK(controller.Handle(TrackerAction::Enter, true) ==
           Ui2RenameCommand::None);
     CHECK(controller.Snapshot().focus == UiDialogFocus::Input);
-    CHECK(controller.Handle(TrackerAction::Edit, false) ==
+    CHECK(controller.Handle(TrackerAction::Enter, false) ==
           Ui2RenameCommand::None);
     Tap(controller, TrackerAction::Down);
     CHECK(controller.Snapshot().focus == UiDialogFocus::Keyboard);
@@ -730,7 +730,7 @@ TEST_CASE("UI2 Rename disables save for visually empty names") {
   CHECK(controller.Snapshot().selectedAction == 0U);
   Tap(controller, TrackerAction::Right);
   CHECK(controller.Snapshot().selectedAction == 1U);
-  CHECK(Tap(controller, TrackerAction::Edit) == Ui2RenameCommand::Randomize);
+  CHECK(Tap(controller, TrackerAction::Enter) == Ui2RenameCommand::Randomize);
 
   controller.Begin(" ", 16U);
   CHECK_FALSE(controller.Snapshot().saveEnabled);
@@ -752,12 +752,12 @@ TEST_CASE("UI2 Mixer selects nine strips and edits volume with Enter") {
     CHECK(command.channel == channel);
   }
   CHECK(controller.SelectedChannel() == 8U);
-  controller.Handle(TrackerAction::Edit, true);
+  controller.Handle(TrackerAction::Enter, true);
   const auto adjust = Tap(controller, TrackerAction::Up);
   CHECK(adjust.type == Ui2MixerCommandType::AdjustVolume);
   CHECK(adjust.channel == 8U);
   CHECK(adjust.delta == 1);
-  controller.Handle(TrackerAction::Edit, false);
+  controller.Handle(TrackerAction::Enter, false);
 }
 
 TEST_CASE("UI2 Mixer plain and Shift PLAY share global song transport") {
@@ -852,11 +852,11 @@ TEST_CASE("UI2 Record edits persisted fields without a legacy FieldView") {
   const auto fine = Tap(controller, TrackerAction::Right);
   CHECK(fine.type == Ui2RecordCommandType::SetLineGain);
   CHECK(fine.value == 1);
-  controller.Handle(TrackerAction::Edit, true);
+  controller.Handle(TrackerAction::Enter, true);
   const auto coarse = Tap(controller, TrackerAction::Up);
   CHECK(coarse.type == Ui2RecordCommandType::SetLineGain);
   CHECK(coarse.value == 3);
-  controller.Handle(TrackerAction::Edit, false);
+  controller.Handle(TrackerAction::Enter, false);
 }
 
 TEST_CASE("UI2 Record gain ranges clamp synchronization and stop at bounds") {
@@ -883,9 +883,9 @@ TEST_CASE("UI2 Record zero-range adapters cannot emit gain writes") {
   CHECK(controller.SelectedField() == Ui2RecordField::LineGain);
   CHECK_FALSE(Tap(controller, TrackerAction::Left).HasValue());
   CHECK_FALSE(Tap(controller, TrackerAction::Right).HasValue());
-  controller.Handle(TrackerAction::Edit, true);
+  controller.Handle(TrackerAction::Enter, true);
   CHECK_FALSE(Tap(controller, TrackerAction::Up).HasValue());
-  controller.Handle(TrackerAction::Edit, false);
+  controller.Handle(TrackerAction::Enter, false);
 
   Tap(controller, TrackerAction::Down);
   CHECK(controller.SelectedField() == Ui2RecordField::MicGain);
@@ -902,9 +902,9 @@ TEST_CASE("UI2 Record unavailable capability is read-only") {
   CHECK_FALSE(Tap(controller, TrackerAction::Right).HasValue());
   CHECK_FALSE(Tap(controller, TrackerAction::Down).HasValue());
   CHECK_FALSE(Tap(controller, TrackerAction::Play).HasValue());
-  controller.Handle(TrackerAction::Edit, true);
+  controller.Handle(TrackerAction::Enter, true);
   CHECK_FALSE(Tap(controller, TrackerAction::Up).HasValue());
-  controller.Handle(TrackerAction::Edit, false);
+  controller.Handle(TrackerAction::Enter, false);
   CHECK(controller.SelectedField() == Ui2RecordField::Source);
 }
 
@@ -920,7 +920,7 @@ TEST_CASE("UI2 Instrument name actions and type selector are independent") {
     CHECK(controller.Cursor().kind == Ui2InstrumentCursorKind::Name);
     CHECK(controller.Bottom().kind == Ui2InstrumentBottomKind::NameActions);
     CHECK(controller.Bottom().selectedIndex == index);
-    CHECK(Tap(controller, TrackerAction::Edit).type == actions[index]);
+    CHECK(Tap(controller, TrackerAction::Enter).type == actions[index]);
     Tap(controller, TrackerAction::Right);
   }
 
@@ -955,12 +955,12 @@ TEST_CASE("UI2 Instrument type row rejects field-only vertical edits") {
   Tap(controller, TrackerAction::Down);
   REQUIRE(controller.Cursor().kind == Ui2InstrumentCursorKind::Type);
 
-  CHECK_FALSE(controller.Handle(TrackerAction::Edit, true).HasValue());
+  CHECK_FALSE(controller.Handle(TrackerAction::Enter, true).HasValue());
   CHECK_FALSE(controller.Handle(TrackerAction::Up, true).HasValue());
   controller.Handle(TrackerAction::Up, false);
   CHECK_FALSE(controller.Handle(TrackerAction::Down, true).HasValue());
   controller.Handle(TrackerAction::Down, false);
-  CHECK_FALSE(controller.Handle(TrackerAction::Edit, false).HasValue());
+  CHECK_FALSE(controller.Handle(TrackerAction::Enter, false).HasValue());
 }
 
 TEST_CASE("UI2 Instrument scrolls a fixed list including both OPAL columns") {
@@ -979,7 +979,7 @@ TEST_CASE("UI2 Instrument scrolls a fixed list including both OPAL columns") {
   CHECK(controller.Cursor().kind == Ui2InstrumentCursorKind::Operator1);
 }
 
-TEST_CASE("UI2 Instrument Edit owns top number and bottom track dual focus") {
+TEST_CASE("UI2 Instrument Enter owns top number and bottom track dual focus") {
   using namespace ui2;
   Ui2InstrumentController controller(0, 2, 4, 0);
   CHECK_FALSE(controller.NumberFocus());
@@ -1039,7 +1039,7 @@ TEST_CASE("UI2 Instrument Enter emits typed field edits and one commit") {
   using namespace ui2;
   Ui2InstrumentController controller(
       0, 0, 8, 0, {Ui2InstrumentCursorKind::Field, 3});
-  const auto activate = controller.Handle(TrackerAction::Edit, true);
+  const auto activate = controller.Handle(TrackerAction::Enter, true);
   REQUIRE(activate.HasValue());
   CHECK(activate.type == Ui2InstrumentCommandType::ActivateField);
   CHECK(activate.cursor.kind == Ui2InstrumentCursorKind::Field);
@@ -1051,9 +1051,9 @@ TEST_CASE("UI2 Instrument Enter emits typed field edits and one commit") {
   CHECK(adjust.direction == Ui2InstrumentValueDirection::Up);
   CHECK(adjust.value == 1);
   controller.Handle(TrackerAction::Up, false);
-  const auto commit = controller.Handle(TrackerAction::Edit, false);
+  const auto commit = controller.Handle(TrackerAction::Enter, false);
   CHECK(commit.type == Ui2InstrumentCommandType::CommitValueEdits);
-  CHECK_FALSE(controller.Handle(TrackerAction::Edit, false).HasValue());
+  CHECK_FALSE(controller.Handle(TrackerAction::Enter, false).HasValue());
 }
 
 TEST_CASE("UI2 Instrument Enter moves a bounded component cursor") {
@@ -1063,7 +1063,7 @@ TEST_CASE("UI2 Instrument Enter moves a bounded component cursor") {
       {5U, 4U, true});
   controller.ConfigureValueSubfields(Ui2InstrumentSubfieldMode::HexDigit, 4U);
   CHECK(controller.Subfield() == 3U);
-  controller.Handle(TrackerAction::Edit, true);
+  controller.Handle(TrackerAction::Enter, true);
   CHECK(controller.EnterSubfieldFocus());
 
   CHECK_FALSE(controller.Handle(TrackerAction::Left, true).HasValue());
@@ -1075,7 +1075,7 @@ TEST_CASE("UI2 Instrument Enter moves a bounded component cursor") {
   CHECK(adjust.subfieldMode == Ui2InstrumentSubfieldMode::HexDigit);
   CHECK(adjust.subfield == 2U);
   controller.Handle(TrackerAction::Up, false);
-  CHECK(controller.Handle(TrackerAction::Edit, false).type ==
+  CHECK(controller.Handle(TrackerAction::Enter, false).type ==
         Ui2InstrumentCommandType::CommitValueEdits);
 }
 
@@ -1088,16 +1088,16 @@ TEST_CASE("UI2 Groove owns sixteen wrapping rows outside selection mode") {
   Tap(controller, TrackerAction::Down);
   CHECK(controller.Row() == 0U);
 
-  CHECK(Tap(controller, TrackerAction::Edit).type ==
+  CHECK(Tap(controller, TrackerAction::Enter).type ==
         Ui2GrooveCommandType::InitializeStep);
-  controller.Handle(TrackerAction::Edit, true);
+  controller.Handle(TrackerAction::Enter, true);
   const auto adjust = controller.Handle(TrackerAction::Up, true);
   REQUIRE(adjust.HasValue());
   CHECK(adjust.type == Ui2GrooveCommandType::AdjustStep);
   CHECK(adjust.value == 1);
   CHECK(adjust.synchronized);
   controller.Handle(TrackerAction::Up, false);
-  controller.Handle(TrackerAction::Edit, false);
+  controller.Handle(TrackerAction::Enter, false);
 }
 
 TEST_CASE("UI2 Groove selection follows the grid clipboard lifecycle") {
@@ -1128,7 +1128,7 @@ TEST_CASE("UI2 Groove selection follows the grid clipboard lifecycle") {
   CHECK_FALSE(controller.BottomVisible());
 
   controller.Handle(TrackerAction::Shift, true);
-  const Ui2GrooveCommand paste = Tap(controller, TrackerAction::Edit);
+  const Ui2GrooveCommand paste = Tap(controller, TrackerAction::Enter);
   controller.Handle(TrackerAction::Shift, false);
   REQUIRE(paste.type == Ui2GrooveCommandType::PasteSelection);
   CHECK(paste.row == 4U);
@@ -1150,32 +1150,32 @@ TEST_CASE("UI2 Groove selection cuts interpolates and stays in fixed bounds") {
   CHECK(controller.Selection().Bottom() == 2U);
 
   controller.Handle(TrackerAction::Shift, true);
-  const Ui2GrooveCommand interpolate = Tap(controller, TrackerAction::Edit);
+  const Ui2GrooveCommand interpolate = Tap(controller, TrackerAction::Enter);
   controller.Handle(TrackerAction::Shift, false);
   REQUIRE(interpolate.type == Ui2GrooveCommandType::InterpolateSelection);
   CHECK(interpolate.selection.Top() == 0U);
   CHECK(interpolate.selection.Bottom() == 2U);
   CHECK(controller.Selection().active);
 
-  controller.Handle(TrackerAction::Edit, true);
+  controller.Handle(TrackerAction::Enter, true);
   const Ui2GrooveCommand cut = controller.Handle(TrackerAction::Option, true);
   REQUIRE(cut.type == Ui2GrooveCommandType::CutSelection);
   CHECK(cut.selection.active);
   CHECK_FALSE(controller.Selection().active);
   controller.Handle(TrackerAction::Option, false);
-  controller.Handle(TrackerAction::Edit, false);
+  controller.Handle(TrackerAction::Enter, false);
 }
 
-TEST_CASE("UI2 Groove Edit clears cells and wraps the groove number") {
+TEST_CASE("UI2 Groove Enter clears cells and wraps the groove number") {
   using namespace ui2;
   Ui2GrooveController controller(0, 4);
-  controller.Handle(TrackerAction::Edit, true);
+  controller.Handle(TrackerAction::Enter, true);
   const auto clear = controller.Handle(TrackerAction::Option, true);
   REQUIRE(clear.HasValue());
   CHECK(clear.type == Ui2GrooveCommandType::ClearStep);
   CHECK(clear.row == 4U);
   controller.Handle(TrackerAction::Option, false);
-  controller.Handle(TrackerAction::Edit, false);
+  controller.Handle(TrackerAction::Enter, false);
 
   controller.Handle(TrackerAction::Option, true);
   const auto number = controller.Handle(TrackerAction::Left, true);

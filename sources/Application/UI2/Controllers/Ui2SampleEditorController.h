@@ -198,7 +198,7 @@ public:
         !dialogReleaseGate_.Update(action, pressed) || !pressed)
       return {};
     if (dialogProgress_) {
-      if (action != TrackerAction::Edit)
+      if (action != TrackerAction::Enter)
         return {};
       FinishApplyProgress();
       return MakeCommand(Ui2SampleEditorCommandType::CancelApply);
@@ -208,7 +208,7 @@ public:
           1U - std::min<std::uint8_t>(dialogSelectedAction_, 1U));
       return {};
     }
-    if (action != TrackerAction::Edit)
+    if (action != TrackerAction::Enter)
       return {};
     const bool confirmed = dialogSelectedAction_ == 0U;
     dialogActive_ = false;
@@ -323,11 +323,11 @@ public:
       return {};
     }
 
-    const bool edit = input_.Held(TrackerAction::Edit);
+    const bool enter = input_.Held(TrackerAction::Enter);
     const bool option = input_.Held(TrackerAction::Option);
 
-    // Legacy EDIT is M8 OPTION in the semantic input layer. Zoom is available
-    // from every editor focus, as it was in SampleEditorView.
+    // OPTION controls marker selection and zoom from every editor focus, as it
+    // did in SampleEditorView.
     if (option && (action == TrackerAction::Up ||
                    action == TrackerAction::Down)) {
       const std::int8_t delta = action == TrackerAction::Up ? 1 : -1;
@@ -347,14 +347,14 @@ public:
         CenterSelectedMarker();
         return {};
       }
-      if (edit && IsDirection(action))
+      if (enter && IsDirection(action))
         return MoveSelectedMarker(action);
     }
 
     if ((focus_ == SampleEditorViewUi2Focus::Start ||
          focus_ == SampleEditorViewUi2Focus::End) &&
         IsDirection(action)) {
-      if (edit)
+      if (enter)
         return AdjustFocusedEndpoint(action);
       if (action == TrackerAction::Left && focusDigit_ > 0U)
         --focusDigit_;
@@ -368,7 +368,7 @@ public:
 
     if (focus_ == SampleEditorViewUi2Focus::Operation &&
         (action == TrackerAction::Left || action == TrackerAction::Right ||
-         (edit && (action == TrackerAction::Up ||
+         (enter && (action == TrackerAction::Up ||
                    action == TrackerAction::Down)))) {
       operation_ = operation_ == Ui2SampleEditorOperation::Trim
                        ? Ui2SampleEditorOperation::Normalize
@@ -376,21 +376,21 @@ public:
       return {};
     }
 
-    if (!edit && !option && action == TrackerAction::Up) {
+    if (!enter && !option && action == TrackerAction::Up) {
       MoveFocus(-1);
       return {};
     }
-    if (!edit && !option && action == TrackerAction::Down) {
+    if (!enter && !option && action == TrackerAction::Down) {
       MoveFocus(1);
       return {};
     }
-    if (!edit && !option &&
+    if (!enter && !option &&
         (action == TrackerAction::Left || action == TrackerAction::Right) &&
         IsBottomFocus()) {
       MoveBottomFocus(action == TrackerAction::Right ? 1 : -1);
       return {};
     }
-    if (action != TrackerAction::Edit)
+    if (action != TrackerAction::Enter)
       return {};
 
     switch (focus_) {

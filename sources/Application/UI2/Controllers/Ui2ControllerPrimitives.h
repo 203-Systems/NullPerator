@@ -39,7 +39,7 @@ public:
     constexpr std::uint16_t modifiers =
         TrackerActionBit(TrackerAction::Shift) |
         TrackerActionBit(TrackerAction::Option) |
-        TrackerActionBit(TrackerAction::Edit);
+        TrackerActionBit(TrackerAction::Enter);
     return (mask_ & modifiers) != 0U;
   }
 
@@ -54,7 +54,7 @@ public:
     constexpr std::uint16_t modifiers =
         TrackerActionBit(TrackerAction::Shift) |
         TrackerActionBit(TrackerAction::Option) |
-        TrackerActionBit(TrackerAction::Edit);
+        TrackerActionBit(TrackerAction::Enter);
     mask_ = static_cast<std::uint16_t>((mask_ & ~modifiers) |
                                       (mask & modifiers));
   }
@@ -66,7 +66,7 @@ private:
 };
 
 // Platform key-repeat sources resend key-down while the physical key remains
-// held. Plain, EDIT, and OPTION direction repeats are intentional for list and
+// held. Plain, ENTER, and OPTION direction repeats are intentional for list and
 // value movement. SHIFT+direction is a page-navigation chord, so one physical
 // direction press must cross at most one page. Action/modifier repeats likewise
 // remain a single edge so SAVE, IMPORT, PLAY, and modal openers cannot fire
@@ -354,8 +354,8 @@ static_assert(Ui2AcceptInputEvent(TrackerAction::Up, true,
 static_assert(!Ui2AcceptInputEvent(
     TrackerAction::Up, true, TrackerActionBit(TrackerAction::Up) |
                                  TrackerActionBit(TrackerAction::Shift)));
-static_assert(!Ui2AcceptInputEvent(TrackerAction::Edit, true,
-                                  TrackerActionBit(TrackerAction::Edit)));
+static_assert(!Ui2AcceptInputEvent(TrackerAction::Enter, true,
+                                  TrackerActionBit(TrackerAction::Enter)));
 static_assert(Ui2MoveListIndex(3U, 12U, -8) == 0U);
 static_assert(Ui2MoveListIndex(3U, 12U, 8) == 11U);
 static_assert(Ui2MoveListIndex(0U, 0U, 8) == 0U);

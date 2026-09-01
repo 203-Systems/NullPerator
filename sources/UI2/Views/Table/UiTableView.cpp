@@ -273,13 +273,13 @@ UiBuildStatus UiTableView::Build(const UiTableViewData &data, UiPalette &,
       .pageTop = pageTop,
       .pageDefault = hidden,
       .cursorContext = data.numberFocus ? nullptr : &data.cursorBottom,
-      .editHeldTracks = &tracks,
+      .enterHeldTracks = &tracks,
       // Table values are command-specific. Their help remains more useful
       // than a generic +/- legend; digit focus still appears in the cell.
       .enterHeldAdjustment = nullptr,
       .selectionActive = data.selectionActive,
       .selectionNextExpansionAll = data.selectionNextExpansionAll,
-      .editHeldNumber = data.numberFocus,
+      .enterHeldNumber = data.numberFocus,
   };
   const UiResolvedChrome chrome = UiBarResolver::Resolve(inputs);
   const UiBuildStatus topStatus =

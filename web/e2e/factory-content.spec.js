@@ -236,7 +236,7 @@ test('PicoTracker 2.0 bt9 MIDI project loads from another project without a samp
     playerRunning: false,
   })
 
-  // OPTION+RIGHT selects LIVE and EDIT+PLAY starts the highlighted track
+  // OPTION+RIGHT selects LIVE and ENTER+PLAY starts the highlighted track
   // immediately. The sequencer must still run with browser audio disabled so
   // the device UI can show playback cursors and the bottom-bar played note.
   await chord(page, 'j', 'd')
@@ -309,7 +309,7 @@ test('real oneCycAc project imports, trims, plays, and survives reload plus runt
   await expectModel(page, { playerRunning: false })
 
   // Exercise the real fixed Node controls instead of a diagnostic view jump:
-  // SHIFT+UP opens Project, then EDIT+RIGHT changes tempo. Project's name
+  // SHIFT+UP opens Project, then ENTER+RIGHT changes tempo. Project's name
   // actions are NEW, LOAD, SAVE, RENAME, so two RIGHT presses select SAVE.
   await chord(page, 'x', 'w')
   await tap(page, 's')
@@ -376,7 +376,7 @@ test('real oneCycAc project imports, trims, plays, and survives reload plus runt
   await tap(page, 's')
   await tap(page, 'k')
 
-  // waveform -> start; select the least-significant hex digit, then EDIT+UP
+  // waveform -> start; select the least-significant hex digit, then ENTER+UP
   // changes the start frame from 0 to 1. Move through end and the default Trim
   // operation to Apply, then select Yes in the modal.
   await tap(page, 's')

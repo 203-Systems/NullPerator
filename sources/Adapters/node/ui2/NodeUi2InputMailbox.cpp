@@ -12,14 +12,14 @@ namespace node::ui2 {
 namespace {
 
 constexpr std::array<TrackerAction, 3U> kModifierOrder = {
-    TrackerAction::Shift, TrackerAction::Option, TrackerAction::Edit};
+    TrackerAction::Shift, TrackerAction::Option, TrackerAction::Enter};
 constexpr std::array<TrackerAction, 6U> kOrdinaryOrder = {
     TrackerAction::Left,  TrackerAction::Down, TrackerAction::Right,
     TrackerAction::Up,    TrackerAction::Play, TrackerAction::Power};
 constexpr std::array<TrackerAction, 9U> kAllActionOrder = {
     TrackerAction::Left,  TrackerAction::Down,   TrackerAction::Right,
     TrackerAction::Up,    TrackerAction::Shift,  TrackerAction::Option,
-    TrackerAction::Edit,  TrackerAction::Play,   TrackerAction::Power};
+    TrackerAction::Enter,  TrackerAction::Play,   TrackerAction::Power};
 constexpr std::array<TrackerAction, 4U> kDirectionOrder = {
     TrackerAction::Left, TrackerAction::Down, TrackerAction::Right,
     TrackerAction::Up};
@@ -213,7 +213,7 @@ InputMailbox::Batch InputMailbox::Drain() {
        static_cast<std::uint16_t>(~acceptedHeldMask_)));
   // A key that was already delivered can complete another physical cycle
   // before this drain. Its first release is a real application boundary:
-  // EDIT release commits/stops audition and PLAY release transfers ownership.
+  // ENTER release commits/stops audition and PLAY release transfers ownership.
   // Do not keep a recycled modifier logically held merely because its new
   // press supplied the context for the queued chord.
   const std::uint16_t recycledDeliveredMask = static_cast<std::uint16_t>(

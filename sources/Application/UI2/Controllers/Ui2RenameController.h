@@ -56,7 +56,7 @@ public:
     if (focus_ == Focus::Input) {
       if (action == TrackerAction::Option)
         Backspace();
-      else if (action == TrackerAction::Down || action == TrackerAction::Edit)
+      else if (action == TrackerAction::Down || action == TrackerAction::Enter)
         focus_ = Focus::Keyboard;
       else if (action == TrackerAction::Up)
         focus_ = Focus::Actions;
@@ -65,7 +65,7 @@ public:
     if (focus_ == Focus::Keyboard) {
       if (action == TrackerAction::Option)
         Backspace();
-      else if (action == TrackerAction::Edit)
+      else if (action == TrackerAction::Enter)
         ActivateKey();
       else if (action == TrackerAction::Left)
         keyboardColumn_ = keyboardColumn_ == 0U
@@ -91,7 +91,7 @@ public:
     else if (action == TrackerAction::Option) {
       Backspace();
       focus_ = Focus::Input;
-    } else if (action == TrackerAction::Edit) {
+    } else if (action == TrackerAction::Enter) {
       if (selectedAction_ == 0U) {
         active_ = false;
         releaseGate_.Reset();

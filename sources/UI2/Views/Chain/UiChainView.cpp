@@ -203,11 +203,11 @@ UiBuildStatus UiChainView::Build(const UiChainViewData &data,
   const UiBarInputs barInputs{
       .pageTop = top,
       .pageDefault = pageBottom,
-      .editHeldTracks = &editTracks,
+      .enterHeldTracks = &editTracks,
       .enterHeldAdjustment = data.adjustmentFocus ? &adjustment : nullptr,
       .selectionActive = data.selectionActive,
       .selectionNextExpansionAll = data.selectionNextExpansionAll,
-      .editHeldNumber = data.numberFocus,
+      .enterHeldNumber = data.numberFocus,
   };
   const UiResolvedChrome chrome = UiBarResolver::Resolve(barInputs);
   const UiBuildStatus topStatus =

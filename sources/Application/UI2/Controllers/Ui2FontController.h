@@ -65,8 +65,8 @@ public:
     if (!input_.Update(action, pressed) || !pressed)
       return {};
     feedback_ = Ui2FontFeedback::None;
-    if (field_ == Ui2FontField::Font && action == TrackerAction::Edit &&
-        input_.Mask() == TrackerActionBit(TrackerAction::Edit)) {
+    if (field_ == Ui2FontField::Font && action == TrackerAction::Enter &&
+        input_.Mask() == TrackerActionBit(TrackerAction::Enter)) {
       return {.type = action_ == Ui2FontAction::Browse
                           ? Ui2FontCommandType::BrowseFont
                           : Ui2FontCommandType::RestoreDefault};

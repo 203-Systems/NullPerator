@@ -257,7 +257,7 @@ void NodeUi2Platform::MarkTaskStopped(EventBits_t bit) {
 void NodeUi2Platform::RunApplicationTask() {
   NodeTaskStackTelemetry stackTelemetry("UI2 Application");
   // Wait for the input owner to publish a real boot sample. This both avoids a
-  // fabricated all-up startup state and lets held M8 EDIT request the untitled
+  // fabricated all-up startup state and lets held M8 ENTER request the untitled
   // recovery project without involving legacy Application.cpp globals.
   while (runRequested_.load(std::memory_order_acquire)) {
     (void)xEventGroupWaitBits(taskEvents_, kInputPublishedBit, pdTRUE, pdFALSE,
@@ -281,7 +281,7 @@ void NodeUi2Platform::RunApplicationTask() {
   ui2::Ui2StartupOptions startup = startup_;
   startup.forceUntitledProject =
       startup.forceUntitledProject ||
-      (LatestInputMask() & TrackerActionBit(TrackerAction::Edit)) != 0U;
+      (LatestInputMask() & TrackerActionBit(TrackerAction::Enter)) != 0U;
   if (!application_->Init(startup)) {
     ESP_LOGE(kLogTag, "UI2 application initialization failed");
     std::destroy_at(application_);

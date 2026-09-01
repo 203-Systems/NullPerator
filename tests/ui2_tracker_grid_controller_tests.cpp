@@ -40,33 +40,33 @@ void CheckSelectionClipboardLifecycle(Controller controller) {
   CHECK(copy[0].selection.active);
   CHECK_FALSE(controller.Selection().active);
   controller.Handle(TrackerAction::Shift, true);
-  const auto paste = controller.Handle(TrackerAction::Edit, true);
+  const auto paste = controller.Handle(TrackerAction::Enter, true);
   REQUIRE(paste.count == 1U);
   CHECK(paste[0].type == Ui2TrackerCommandType::PasteSelection);
-  controller.Handle(TrackerAction::Edit, false);
+  controller.Handle(TrackerAction::Enter, false);
   controller.Handle(TrackerAction::Shift, false);
 
   BeginSelection(controller);
-  controller.Handle(TrackerAction::Edit, true);
+  controller.Handle(TrackerAction::Enter, true);
   const auto cut = controller.Handle(TrackerAction::Option, true);
   REQUIRE(cut.count == 1U);
   CHECK(cut[0].type == Ui2TrackerCommandType::CutSelection);
   CHECK(cut[0].selection.active);
   CHECK_FALSE(controller.Selection().active);
   controller.Handle(TrackerAction::Option, false);
-  CHECK(controller.Handle(TrackerAction::Edit, false).Empty());
+  CHECK(controller.Handle(TrackerAction::Enter, false).Empty());
 }
 template <typename Controller>
 void CheckSelectionCutAcceptsEitherModifierOrder(Controller controller) {
   BeginSelection(controller);
   REQUIRE(controller.Selection().active);
   CHECK(controller.Handle(TrackerAction::Option, true).Empty());
-  const auto cut = controller.Handle(TrackerAction::Edit, true);
+  const auto cut = controller.Handle(TrackerAction::Enter, true);
   REQUIRE(cut.count == 1U);
   CHECK(cut[0].type == Ui2TrackerCommandType::CutSelection);
   CHECK(cut[0].selection.active);
   CHECK_FALSE(controller.Selection().active);
-  controller.Handle(TrackerAction::Edit, false);
+  controller.Handle(TrackerAction::Enter, false);
   CHECK(controller.Handle(TrackerAction::Option, false).Empty());
 }
 
@@ -74,65 +74,65 @@ template <typename Controller>
 void CheckCellCutAcceptsEitherModifierOrder(Controller controller) {
   Controller optionFirst = controller;
   CHECK(optionFirst.Handle(TrackerAction::Option, true).Empty());
-  const auto optionFirstCut = optionFirst.Handle(TrackerAction::Edit, true);
+  const auto optionFirstCut = optionFirst.Handle(TrackerAction::Enter, true);
   REQUIRE(optionFirstCut.count == 1U);
   CHECK(optionFirstCut[0].type == Ui2TrackerCommandType::CutCell);
-  CHECK(optionFirst.Handle(TrackerAction::Edit, true).Empty());
-  CHECK(optionFirst.Handle(TrackerAction::Edit, false).Empty());
+  CHECK(optionFirst.Handle(TrackerAction::Enter, true).Empty());
+  CHECK(optionFirst.Handle(TrackerAction::Enter, false).Empty());
   CHECK(optionFirst.Handle(TrackerAction::Option, false).Empty());
 
-  Controller editFirst = controller;
-  const auto prefix = editFirst.Handle(TrackerAction::Edit, true);
+  Controller enterFirst = controller;
+  const auto prefix = enterFirst.Handle(TrackerAction::Enter, true);
   REQUIRE(prefix.count <= 1U);
   const bool auditioned = prefix.count == 1U;
   if (auditioned)
     CHECK(prefix[0].type == Ui2TrackerCommandType::StartAudition);
-  CHECK(editFirst.Handle(TrackerAction::Edit, true).Empty());
-  const auto editFirstCut = editFirst.Handle(TrackerAction::Option, true);
-  REQUIRE(editFirstCut.count == (auditioned ? 2U : 1U));
+  CHECK(enterFirst.Handle(TrackerAction::Enter, true).Empty());
+  const auto enterFirstCut = enterFirst.Handle(TrackerAction::Option, true);
+  REQUIRE(enterFirstCut.count == (auditioned ? 2U : 1U));
   if (auditioned)
-    CHECK(editFirstCut[0].type == Ui2TrackerCommandType::StopAudition);
-  CHECK(editFirstCut[editFirstCut.count - 1U].type ==
+    CHECK(enterFirstCut[0].type == Ui2TrackerCommandType::StopAudition);
+  CHECK(enterFirstCut[enterFirstCut.count - 1U].type ==
         Ui2TrackerCommandType::CutCell);
-  CHECK(editFirst.Handle(TrackerAction::Option, true).Empty());
-  CHECK(editFirst.Handle(TrackerAction::Option, false).Empty());
-  CHECK(editFirst.Handle(TrackerAction::Edit, false).Empty());
+  CHECK(enterFirst.Handle(TrackerAction::Option, true).Empty());
+  CHECK(enterFirst.Handle(TrackerAction::Option, false).Empty());
+  CHECK(enterFirst.Handle(TrackerAction::Enter, false).Empty());
 }
 
 template <typename Controller>
-void CheckPlainEditReleaseGate(Controller controller) {
-  CHECK(controller.Handle(TrackerAction::Edit, false).Empty());
-  CHECK(controller.Handle(TrackerAction::Edit, true).Empty());
-  CHECK(controller.Handle(TrackerAction::Edit, true).Empty());
-  const auto release = controller.Handle(TrackerAction::Edit, false);
+void CheckPlainEnterReleaseGate(Controller controller) {
+  CHECK(controller.Handle(TrackerAction::Enter, false).Empty());
+  CHECK(controller.Handle(TrackerAction::Enter, true).Empty());
+  CHECK(controller.Handle(TrackerAction::Enter, true).Empty());
+  const auto release = controller.Handle(TrackerAction::Enter, false);
   REQUIRE(release.count == 1U);
   CHECK(release[0].type == Ui2TrackerCommandType::PasteLast);
-  CHECK(controller.Handle(TrackerAction::Edit, false).Empty());
+  CHECK(controller.Handle(TrackerAction::Enter, false).Empty());
 
   Controller synchronized;
-  synchronized.SynchronizeHeldModifiers(TrackerActionBit(TrackerAction::Edit));
-  CHECK(synchronized.Handle(TrackerAction::Edit, false).Empty());
+  synchronized.SynchronizeHeldModifiers(TrackerActionBit(TrackerAction::Enter));
+  CHECK(synchronized.Handle(TrackerAction::Enter, false).Empty());
 }
 
 template <typename Controller>
-void CheckConsumedEditChordDoesNotPaste(Controller controller,
+void CheckConsumedEnterChordDoesNotPaste(Controller controller,
                                         TrackerAction consumedAction) {
-  const auto edit = controller.Handle(TrackerAction::Edit, true);
-  REQUIRE(edit.count <= 1U);
-  const bool auditioned = edit.count == 1U;
+  const auto enter = controller.Handle(TrackerAction::Enter, true);
+  REQUIRE(enter.count <= 1U);
+  const bool auditioned = enter.count == 1U;
   if (auditioned)
-    CHECK(edit[0].type == Ui2TrackerCommandType::StartAudition);
+    CHECK(enter[0].type == Ui2TrackerCommandType::StartAudition);
   CHECK(controller.Handle(consumedAction, true).Empty());
   CHECK(controller.Handle(consumedAction, false).Empty());
-  const auto release = controller.Handle(TrackerAction::Edit, false);
+  const auto release = controller.Handle(TrackerAction::Enter, false);
   REQUIRE(release.count == (auditioned ? 1U : 0U));
   if (auditioned)
     CHECK(release[0].type == Ui2TrackerCommandType::StopAudition);
 }
 
 template <typename Controller>
-void CheckDeferredEditDirectionLifecycle(Controller controller) {
-  CHECK(controller.Handle(TrackerAction::Edit, true).Empty());
+void CheckDeferredEnterDirectionLifecycle(Controller controller) {
+  CHECK(controller.Handle(TrackerAction::Enter, true).Empty());
   const auto first = controller.Handle(TrackerAction::Up, true);
   REQUIRE(first.count == 2U);
   CHECK(first[0].type == Ui2TrackerCommandType::PasteLast);
@@ -141,10 +141,10 @@ void CheckDeferredEditDirectionLifecycle(Controller controller) {
   REQUIRE(repeat.count == 1U);
   CHECK(repeat[0].type == Ui2TrackerCommandType::AdjustCell);
   controller.Handle(TrackerAction::Up, false);
-  const auto release = controller.Handle(TrackerAction::Edit, false);
+  const auto release = controller.Handle(TrackerAction::Enter, false);
   REQUIRE(release.count == 1U);
   CHECK(release[0].type == Ui2TrackerCommandType::CommitValueEdits);
-  CHECK(controller.Handle(TrackerAction::Edit, false).Empty());
+  CHECK(controller.Handle(TrackerAction::Enter, false).Empty());
 }
 
 template <typename Controller>
@@ -153,8 +153,8 @@ void CheckCellCutDoesNotConsumeMuteChord(Controller controller) {
   const auto mute = controller.Handle(TrackerAction::Shift, true);
   REQUIRE(mute.count == 1U);
   CHECK(mute[0].type == Ui2TrackerCommandType::ToggleMute);
-  CHECK(controller.Handle(TrackerAction::Edit, true).Empty());
-  CHECK(controller.Handle(TrackerAction::Edit, false).Empty());
+  CHECK(controller.Handle(TrackerAction::Enter, true).Empty());
+  CHECK(controller.Handle(TrackerAction::Enter, false).Empty());
   CHECK(controller.Handle(TrackerAction::Shift, false).Empty());
   CHECK(controller.Handle(TrackerAction::Option, false).Empty());
 }
@@ -186,19 +186,19 @@ template <typename Controller> void CheckCommonPlaybackChords() {
   REQUIRE(optionShiftPlay.count == 1U);
   CHECK(optionShiftPlay[0].type == Ui2TrackerCommandType::UnmuteAll);
 
-  Controller editPlay;
-  editPlay.Handle(TrackerAction::Edit, true);
-  CHECK(editPlay.Handle(TrackerAction::Play, true).Empty());
+  Controller enterPlay;
+  enterPlay.Handle(TrackerAction::Enter, true);
+  CHECK(enterPlay.Handle(TrackerAction::Play, true).Empty());
 
-  Controller optionEditPlay;
-  optionEditPlay.Handle(TrackerAction::Option, true);
-  optionEditPlay.Handle(TrackerAction::Edit, true);
-  CHECK(optionEditPlay.Handle(TrackerAction::Play, true).Empty());
+  Controller optionEnterPlay;
+  optionEnterPlay.Handle(TrackerAction::Option, true);
+  optionEnterPlay.Handle(TrackerAction::Enter, true);
+  CHECK(optionEnterPlay.Handle(TrackerAction::Play, true).Empty());
 
-  Controller selectedEditPlay;
-  BeginSelection(selectedEditPlay);
-  selectedEditPlay.Handle(TrackerAction::Edit, true);
-  CHECK(selectedEditPlay.Handle(TrackerAction::Play, true).Empty());
+  Controller selectedEnterPlay;
+  BeginSelection(selectedEnterPlay);
+  selectedEnterPlay.Handle(TrackerAction::Enter, true);
+  CHECK(selectedEnterPlay.Handle(TrackerAction::Play, true).Empty());
 }
 
 template <typename Controller>
@@ -264,15 +264,15 @@ TEST_CASE("UI2 Song LIVE mode and selection are explicit controller states") {
   CHECK(controller.Selection().Right() == 3U);
   CHECK(controller.Selection().Bottom() == 13U);
 
-  controller.Handle(TrackerAction::Edit, true);
-  const auto edit = controller.Handle(TrackerAction::Up, true);
-  REQUIRE(edit.count == 1U);
-  CHECK(edit[0].type == Ui2TrackerCommandType::AdjustSelection);
-  CHECK(edit[0].direction == Ui2TrackerEditDirection::Up);
-  CHECK(edit[0].selection.Left() == 2U);
-  CHECK(edit[0].selection.Right() == 3U);
+  controller.Handle(TrackerAction::Enter, true);
+  const auto adjustment = controller.Handle(TrackerAction::Up, true);
+  REQUIRE(adjustment.count == 1U);
+  CHECK(adjustment[0].type == Ui2TrackerCommandType::AdjustSelection);
+  CHECK(adjustment[0].direction == Ui2TrackerEditDirection::Up);
+  CHECK(adjustment[0].selection.Left() == 2U);
+  CHECK(adjustment[0].selection.Right() == 3U);
   controller.Handle(TrackerAction::Up, false);
-  const auto commit = controller.Handle(TrackerAction::Edit, false);
+  const auto commit = controller.Handle(TrackerAction::Enter, false);
   REQUIRE(commit.count == 1U);
   CHECK(commit[0].type == Ui2TrackerCommandType::CommitValueEdits);
 
@@ -318,44 +318,44 @@ TEST_CASE("UI2 grid cell cut is independent of modifier press order") {
       Ui2TableController(Ui2TrackerPage::PhraseTable, 2, 1, 3, 0));
 }
 
-TEST_CASE("UI2 bare Edit resolves once on release after its Cut window") {
-  CheckPlainEditReleaseGate(Ui2SongController(1, 2, 3));
-  CheckPlainEditReleaseGate(Ui2ChainController(2, 1, 3, 0));
-  CheckPlainEditReleaseGate(Ui2PhraseController(2, 1, 3, 2));
-  CheckPlainEditReleaseGate(
+TEST_CASE("UI2 bare Enter resolves once on release after its Cut window") {
+  CheckPlainEnterReleaseGate(Ui2SongController(1, 2, 3));
+  CheckPlainEnterReleaseGate(Ui2ChainController(2, 1, 3, 0));
+  CheckPlainEnterReleaseGate(Ui2PhraseController(2, 1, 3, 2));
+  CheckPlainEnterReleaseGate(
       Ui2TableController(Ui2TrackerPage::PhraseTable, 2, 1, 3, 0));
 
   Ui2PhraseController phraseNote(2, 1, 3, 0);
-  CHECK(phraseNote.Handle(TrackerAction::Edit, false).Empty());
-  const auto audition = phraseNote.Handle(TrackerAction::Edit, true);
+  CHECK(phraseNote.Handle(TrackerAction::Enter, false).Empty());
+  const auto audition = phraseNote.Handle(TrackerAction::Enter, true);
   REQUIRE(audition.count == 1U);
   CHECK(audition[0].type == Ui2TrackerCommandType::StartAudition);
-  CHECK(phraseNote.Handle(TrackerAction::Edit, true).Empty());
-  const auto release = phraseNote.Handle(TrackerAction::Edit, false);
+  CHECK(phraseNote.Handle(TrackerAction::Enter, true).Empty());
+  const auto release = phraseNote.Handle(TrackerAction::Enter, false);
   REQUIRE(release.count == 2U);
   CHECK(release[0].type == Ui2TrackerCommandType::PasteLast);
   CHECK(release[1].type == Ui2TrackerCommandType::StopAudition);
-  CHECK(phraseNote.Handle(TrackerAction::Edit, false).Empty());
+  CHECK(phraseNote.Handle(TrackerAction::Enter, false).Empty());
 }
 
-TEST_CASE("UI2 consumed Edit chords never perform a deferred cell edit") {
+TEST_CASE("UI2 consumed Enter chords never perform a deferred cell edit") {
   for (const TrackerAction action :
        {TrackerAction::Play, TrackerAction::Shift}) {
-    CheckConsumedEditChordDoesNotPaste(Ui2SongController(), action);
-    CheckConsumedEditChordDoesNotPaste(Ui2ChainController(), action);
-    CheckConsumedEditChordDoesNotPaste(Ui2PhraseController(), action);
-    CheckConsumedEditChordDoesNotPaste(Ui2TableController(), action);
+    CheckConsumedEnterChordDoesNotPaste(Ui2SongController(), action);
+    CheckConsumedEnterChordDoesNotPaste(Ui2ChainController(), action);
+    CheckConsumedEnterChordDoesNotPaste(Ui2PhraseController(), action);
+    CheckConsumedEnterChordDoesNotPaste(Ui2TableController(), action);
   }
 }
 
-TEST_CASE("UI2 Edit direction resolves once and repeats only adjustment") {
-  CheckDeferredEditDirectionLifecycle(Ui2SongController(1, 2, 3));
-  CheckDeferredEditDirectionLifecycle(Ui2ChainController(2, 1, 3, 0));
-  CheckDeferredEditDirectionLifecycle(
+TEST_CASE("UI2 Enter direction resolves once and repeats only adjustment") {
+  CheckDeferredEnterDirectionLifecycle(Ui2SongController(1, 2, 3));
+  CheckDeferredEnterDirectionLifecycle(Ui2ChainController(2, 1, 3, 0));
+  CheckDeferredEnterDirectionLifecycle(
       Ui2TableController(Ui2TrackerPage::PhraseTable, 2, 1, 3, 0));
 
   Ui2SongController live(1, 2, 3, true);
-  CHECK(live.Handle(TrackerAction::Edit, true).Empty());
+  CHECK(live.Handle(TrackerAction::Enter, true).Empty());
   const auto first = live.Handle(TrackerAction::Up, true);
   REQUIRE(first.count == 1U);
   CHECK(first[0].type == Ui2TrackerCommandType::AdjustCell);
@@ -363,7 +363,7 @@ TEST_CASE("UI2 Edit direction resolves once and repeats only adjustment") {
   REQUIRE(repeat.count == 1U);
   CHECK(repeat[0].type == Ui2TrackerCommandType::AdjustCell);
   live.Handle(TrackerAction::Up, false);
-  const auto release = live.Handle(TrackerAction::Edit, false);
+  const auto release = live.Handle(TrackerAction::Enter, false);
   REQUIRE(release.count == 1U);
   CHECK(release[0].type == Ui2TrackerCommandType::CommitValueEdits);
 }
@@ -376,19 +376,19 @@ TEST_CASE("UI2 grid cell cut does not consume the mute modifier chord") {
       Ui2TableController(Ui2TrackerPage::PhraseTable, 2, 1, 3, 0));
 }
 
-TEST_CASE("UI2 Song and Chain clone only after SHIFT OPTION release EDIT") {
+TEST_CASE("UI2 Song and Chain clone only after SHIFT OPTION release ENTER") {
   Ui2SongController song(2, 3, 4);
   song.Handle(TrackerAction::Shift, true);
   song.Handle(TrackerAction::Option, true);
   REQUIRE(song.Selection().active);
   CHECK(song.ClonePending());
   song.Handle(TrackerAction::Option, false);
-  const auto songClone = song.Handle(TrackerAction::Edit, true);
+  const auto songClone = song.Handle(TrackerAction::Enter, true);
   REQUIRE(songClone.count == 1U);
   CHECK(songClone[0].type == Ui2TrackerCommandType::CloneCell);
   CHECK_FALSE(song.ClonePending());
   CHECK_FALSE(song.Selection().active);
-  song.Handle(TrackerAction::Edit, false);
+  song.Handle(TrackerAction::Enter, false);
   song.Handle(TrackerAction::Shift, false);
 
   Ui2ChainController chain(2, 1, 3, 0);
@@ -397,7 +397,7 @@ TEST_CASE("UI2 Song and Chain clone only after SHIFT OPTION release EDIT") {
   REQUIRE(chain.Selection().active);
   CHECK(chain.ClonePending());
   chain.Handle(TrackerAction::Option, false);
-  const auto chainClone = chain.Handle(TrackerAction::Edit, true);
+  const auto chainClone = chain.Handle(TrackerAction::Enter, true);
   REQUIRE(chainClone.count == 1U);
   CHECK(chainClone[0].type == Ui2TrackerCommandType::CloneCell);
   CHECK_FALSE(chain.ClonePending());
@@ -407,17 +407,17 @@ TEST_CASE("UI2 Song and Chain clone only after SHIFT OPTION release EDIT") {
   transpose.Handle(TrackerAction::Shift, true);
   Tap(transpose, TrackerAction::Option);
   CHECK_FALSE(transpose.ClonePending());
-  CHECK(transpose.Handle(TrackerAction::Edit, true).Empty());
+  CHECK(transpose.Handle(TrackerAction::Enter, true).Empty());
 }
 
-TEST_CASE("UI2 Phrase clones an instrument after SHIFT OPTION release EDIT") {
+TEST_CASE("UI2 Phrase clones an instrument after SHIFT OPTION release ENTER") {
   Ui2PhraseController instrument(2, 1, 3, 1);
   instrument.Handle(TrackerAction::Shift, true);
   instrument.Handle(TrackerAction::Option, true);
   REQUIRE(instrument.Selection().active);
   CHECK(instrument.ClonePending());
   instrument.Handle(TrackerAction::Option, false);
-  const auto clone = instrument.Handle(TrackerAction::Edit, true);
+  const auto clone = instrument.Handle(TrackerAction::Enter, true);
   REQUIRE(clone.count == 1U);
   CHECK(clone[0].type == Ui2TrackerCommandType::CloneCell);
   CHECK_FALSE(instrument.ClonePending());
@@ -429,7 +429,7 @@ TEST_CASE("UI2 Phrase clones an instrument after SHIFT OPTION release EDIT") {
   CHECK(note.Selection().active);
   CHECK_FALSE(note.ClonePending());
   note.Handle(TrackerAction::Option, false);
-  CHECK(note.Handle(TrackerAction::Edit, true).Empty());
+  CHECK(note.Handle(TrackerAction::Enter, true).Empty());
   CHECK(note.Selection().active);
 }
 
@@ -438,7 +438,7 @@ TEST_CASE("UI2 Phrase and Table clone referenced data from parameter cells") {
   phrase.Handle(TrackerAction::Shift, true);
   phrase.Handle(TrackerAction::Option, true);
   phrase.Handle(TrackerAction::Option, false);
-  const auto phraseClone = phrase.Handle(TrackerAction::Edit, true);
+  const auto phraseClone = phrase.Handle(TrackerAction::Enter, true);
   REQUIRE(phraseClone.count == 1U);
   CHECK(phraseClone[0].type == Ui2TrackerCommandType::CloneCell);
   CHECK_FALSE(phrase.Selection().active);
@@ -447,7 +447,7 @@ TEST_CASE("UI2 Phrase and Table clone referenced data from parameter cells") {
   table.Handle(TrackerAction::Shift, true);
   table.Handle(TrackerAction::Option, true);
   table.Handle(TrackerAction::Option, false);
-  const auto tableClone = table.Handle(TrackerAction::Edit, true);
+  const auto tableClone = table.Handle(TrackerAction::Enter, true);
   REQUIRE(tableClone.count == 1U);
   CHECK(tableClone[0].type == Ui2TrackerCommandType::CloneCell);
   CHECK_FALSE(table.Selection().active);
@@ -461,7 +461,7 @@ TEST_CASE("UI2 clone gesture cancels when SHIFT is released") {
   controller.Handle(TrackerAction::Shift, false);
   CHECK_FALSE(controller.ClonePending());
   CHECK(controller.Selection().active);
-  CHECK(controller.Handle(TrackerAction::Edit, true).Empty());
+  CHECK(controller.Handle(TrackerAction::Enter, true).Empty());
 
   Ui2SongController interrupted(2, 3, 4);
   interrupted.Handle(TrackerAction::Shift, true);
@@ -478,14 +478,14 @@ TEST_CASE("UI2 clone gesture cancels when SHIFT is released") {
   REQUIRE(movedPhrase.ClonePending());
   Tap(movedPhrase, TrackerAction::Right);
   CHECK_FALSE(movedPhrase.ClonePending());
-  CHECK(movedPhrase.Handle(TrackerAction::Edit, true).Empty());
+  CHECK(movedPhrase.Handle(TrackerAction::Enter, true).Empty());
   CHECK(movedPhrase.Selection().active);
 
   Ui2TableController releasedTable(Ui2TrackerPage::PhraseTable, 2, 1, 3, 1);
   releasedTable.Handle(TrackerAction::Shift, true);
   Tap(releasedTable, TrackerAction::Option);
   releasedTable.Handle(TrackerAction::Shift, false);
-  CHECK(releasedTable.Handle(TrackerAction::Edit, true).Empty());
+  CHECK(releasedTable.Handle(TrackerAction::Enter, true).Empty());
   CHECK(releasedTable.Selection().active);
 }
 
@@ -560,61 +560,61 @@ TEST_CASE("UI2 grid selection solo does not also copy on Option release") {
       Ui2TableController(Ui2TrackerPage::PhraseTable, 2, 1, 3, 0));
 }
 
-TEST_CASE("UI2 Song EDIT PLAY launches immediately only in LIVE mode") {
+TEST_CASE("UI2 Song ENTER PLAY launches immediately only in LIVE mode") {
   Ui2SongController liveController(3, 4, 8, true);
 
-  const auto editDown = liveController.Handle(TrackerAction::Edit, true);
-  CHECK(editDown.count == 0U);
+  const auto enterDown = liveController.Handle(TrackerAction::Enter, true);
+  CHECK(enterDown.count == 0U);
   const auto immediate = liveController.Handle(TrackerAction::Play, true);
   REQUIRE(immediate.count == 1U);
   CHECK(immediate[0].type == Ui2TrackerCommandType::StartImmediate);
   CHECK(immediate[0].track == 3U);
   liveController.Handle(TrackerAction::Play, false);
-  const auto editUp = liveController.Handle(TrackerAction::Edit, false);
-  CHECK(editUp.count == 0U);
+  const auto enterUp = liveController.Handle(TrackerAction::Enter, false);
+  CHECK(enterUp.count == 0U);
 
-  Ui2SongController liveEditController(3, 4, 8, true);
-  CHECK(liveEditController.Handle(TrackerAction::Edit, true).count == 0U);
-  const auto liveEdit = liveEditController.Handle(TrackerAction::Edit, false);
-  REQUIRE(liveEdit.count == 1U);
-  CHECK(liveEdit[0].type == Ui2TrackerCommandType::PasteLast);
+  Ui2SongController liveEnterController(3, 4, 8, true);
+  CHECK(liveEnterController.Handle(TrackerAction::Enter, true).count == 0U);
+  const auto liveEnter = liveEnterController.Handle(TrackerAction::Enter, false);
+  REQUIRE(liveEnter.count == 1U);
+  CHECK(liveEnter[0].type == Ui2TrackerCommandType::PasteLast);
 
   Ui2SongController liveCutController(3, 4, 8, true);
-  CHECK(liveCutController.Handle(TrackerAction::Edit, true).count == 0U);
+  CHECK(liveCutController.Handle(TrackerAction::Enter, true).count == 0U);
   const auto cut = liveCutController.Handle(TrackerAction::Option, true);
   REQUIRE(cut.count == 1U);
   CHECK(cut[0].type == Ui2TrackerCommandType::CutCell);
   liveCutController.Handle(TrackerAction::Option, false);
-  CHECK(liveCutController.Handle(TrackerAction::Edit, false).count == 0U);
+  CHECK(liveCutController.Handle(TrackerAction::Enter, false).count == 0U);
 
   Ui2SongController songController(3, 4, 8, false);
-  const auto songEdit = songController.Handle(TrackerAction::Edit, true);
+  const auto songEdit = songController.Handle(TrackerAction::Enter, true);
   CHECK(songEdit.Empty());
   const auto songPlay = songController.Handle(TrackerAction::Play, true);
   CHECK(songPlay.Empty());
   CHECK(songController.Handle(TrackerAction::Play, false).Empty());
-  CHECK(songController.Handle(TrackerAction::Edit, false).Empty());
+  CHECK(songController.Handle(TrackerAction::Enter, false).Empty());
 
   Ui2SongController selectedLiveController(3, 4, 8, true);
   BeginSelection(selectedLiveController);
-  CHECK(selectedLiveController.Handle(TrackerAction::Edit, true).Empty());
+  CHECK(selectedLiveController.Handle(TrackerAction::Enter, true).Empty());
   CHECK(selectedLiveController.Handle(TrackerAction::Play, true).Empty());
   CHECK(selectedLiveController.Handle(TrackerAction::Play, false).Empty());
-  CHECK(selectedLiveController.Handle(TrackerAction::Edit, false).Empty());
+  CHECK(selectedLiveController.Handle(TrackerAction::Enter, false).Empty());
   CHECK(selectedLiveController.Selection().active);
 }
 
-TEST_CASE("UI2 Song LIVE ignores Edit releases without an active press") {
+TEST_CASE("UI2 Song LIVE ignores Enter releases without an active press") {
   Ui2SongController controller(3, 4, 8, true);
 
-  CHECK(controller.Handle(TrackerAction::Edit, false).Empty());
+  CHECK(controller.Handle(TrackerAction::Enter, false).Empty());
 
-  CHECK(controller.Handle(TrackerAction::Edit, true).Empty());
-  const auto edit = controller.Handle(TrackerAction::Edit, false);
-  REQUIRE(edit.count == 1U);
-  CHECK(edit[0].type == Ui2TrackerCommandType::PasteLast);
+  CHECK(controller.Handle(TrackerAction::Enter, true).Empty());
+  const auto enter = controller.Handle(TrackerAction::Enter, false);
+  REQUIRE(enter.count == 1U);
+  CHECK(enter[0].type == Ui2TrackerCommandType::PasteLast);
 
-  CHECK(controller.Handle(TrackerAction::Edit, false).Empty());
+  CHECK(controller.Handle(TrackerAction::Enter, false).Empty());
 }
 
 TEST_CASE("UI2 Song LIVE Left Play cues the current row across all tracks") {
@@ -660,7 +660,7 @@ TEST_CASE("UI2 grid playback chords match the M8 command matrix") {
   CheckCommonPlaybackChords<Ui2TableController>();
 
   Ui2SongController live(0, 0, 0, true);
-  live.Handle(TrackerAction::Edit, true);
+  live.Handle(TrackerAction::Enter, true);
   const auto immediate = live.Handle(TrackerAction::Play, true);
   REQUIRE(immediate.count == 1U);
   CHECK(immediate[0].type == Ui2TrackerCommandType::StartImmediate);
@@ -683,7 +683,7 @@ TEST_CASE("UI2 Song mode selector wraps across exactly two options") {
   CHECK_FALSE(controller.LiveMode());
 }
 
-TEST_CASE("UI2 Chain separates its grid cursor from Edit-held dual focus") {
+TEST_CASE("UI2 Chain separates its grid cursor from Enter-held dual focus") {
   Ui2ChainController controller(0x2A, 3, 7, 0);
   controller.Handle(TrackerAction::Option, true);
   CHECK(controller.NumberFocus());
@@ -718,7 +718,7 @@ TEST_CASE("UI2 Phrase accepts the full persisted phrase ID range") {
 TEST_CASE(
     "UI2 Chain Enter-held edits emit typed deltas and commit on release") {
   Ui2ChainController phraseColumn(3, 0, 5, 0);
-  phraseColumn.Handle(TrackerAction::Edit, true);
+  phraseColumn.Handle(TrackerAction::Enter, true);
   const auto coarse = phraseColumn.Handle(TrackerAction::Up, true);
   REQUIRE(coarse.count == 2U);
   CHECK(coarse[0].type == Ui2TrackerCommandType::PasteLast);
@@ -726,22 +726,22 @@ TEST_CASE(
   CHECK(coarse[1].value == 16);
   CHECK(phraseColumn.Row() == 5U);
   phraseColumn.Handle(TrackerAction::Up, false);
-  const auto commit = phraseColumn.Handle(TrackerAction::Edit, false);
+  const auto commit = phraseColumn.Handle(TrackerAction::Enter, false);
   REQUIRE(commit.count == 1U);
   CHECK(commit[0].type == Ui2TrackerCommandType::CommitValueEdits);
 
   Ui2ChainController transposeColumn(3, 0, 5, 1);
-  transposeColumn.Handle(TrackerAction::Edit, true);
+  transposeColumn.Handle(TrackerAction::Enter, true);
   const auto octave = transposeColumn.Handle(TrackerAction::Down, true);
   REQUIRE(octave.count == 2U);
   CHECK(octave[0].type == Ui2TrackerCommandType::PasteLast);
   CHECK(octave[1].type == Ui2TrackerCommandType::AdjustCell);
   CHECK(octave[1].value == -12);
   transposeColumn.Handle(TrackerAction::Down, false);
-  transposeColumn.Handle(TrackerAction::Edit, false);
+  transposeColumn.Handle(TrackerAction::Enter, false);
 }
 
-TEST_CASE("UI2 Phrase Edit dual focus does not move the cell cursor") {
+TEST_CASE("UI2 Phrase Enter dual focus does not move the cell cursor") {
   Ui2PhraseController controller(0x10, 2, 6, 3);
   controller.Handle(TrackerAction::Option, true);
   CHECK(controller.NumberFocus());
@@ -760,7 +760,7 @@ TEST_CASE("UI2 Phrase Edit dual focus does not move the cell cursor") {
 
 TEST_CASE("UI2 Phrase Enter focuses and moves the selected FX digit") {
   Ui2PhraseController controller(0, 0, 4, 3, 3);
-  controller.Handle(TrackerAction::Edit, true);
+  controller.Handle(TrackerAction::Enter, true);
   CHECK(controller.EnterDigitFocus());
   const auto moveDigit = controller.Handle(TrackerAction::Left, true);
   REQUIRE(moveDigit.count == 1U);
@@ -776,7 +776,7 @@ TEST_CASE("UI2 Phrase Enter focuses and moves the selected FX digit") {
   CHECK(controller.Row() == 4U);
   CHECK(controller.Column() == 3U);
   controller.Handle(TrackerAction::Up, false);
-  const auto commit = controller.Handle(TrackerAction::Edit, false);
+  const auto commit = controller.Handle(TrackerAction::Enter, false);
   REQUIRE(commit.count == 1U);
   CHECK(commit[0].type == Ui2TrackerCommandType::CommitValueEdits);
   CHECK_FALSE(controller.EnterDigitFocus());
@@ -791,14 +791,14 @@ TEST_CASE("UI2 Phrase horizontal focus clamps at cell and FX digit edges") {
   Ui2PhraseController valueEdge(0, 0, 0, 5, 3);
   Tap(valueEdge, TrackerAction::Right);
   CHECK(valueEdge.Column() == 5U);
-  valueEdge.Handle(TrackerAction::Edit, true);
+  valueEdge.Handle(TrackerAction::Enter, true);
   const auto digitEdge = valueEdge.Handle(TrackerAction::Right, true);
   REQUIRE(digitEdge.count == 1U);
   CHECK(digitEdge[0].type == Ui2TrackerCommandType::PasteLast);
   CHECK(valueEdge.ParameterDigit() == 3U);
   CHECK(valueEdge.Column() == 5U);
   valueEdge.Handle(TrackerAction::Right, false);
-  CHECK(valueEdge.Handle(TrackerAction::Edit, false).Empty());
+  CHECK(valueEdge.Handle(TrackerAction::Enter, false).Empty());
 }
 
 TEST_CASE("UI2 Phrase selection cannot move beyond fixed grid edges") {
@@ -890,7 +890,7 @@ TEST_CASE("UI2 Table switches track horizontally and table number vertically") {
 
 TEST_CASE("UI2 Table Enter-held parameter focus owns a four-digit cursor") {
   Ui2TableController controller(Ui2TrackerPage::InstrumentTable, 1, 0, 2, 5, 3);
-  controller.Handle(TrackerAction::Edit, true);
+  controller.Handle(TrackerAction::Enter, true);
   CHECK(controller.EnterDigitFocus());
   const auto firstDigit = controller.Handle(TrackerAction::Left, true);
   REQUIRE(firstDigit.count == 1U);
@@ -905,7 +905,7 @@ TEST_CASE("UI2 Table Enter-held parameter focus owns a four-digit cursor") {
   CHECK(adjust[0].digit == 1U);
   CHECK(adjust[0].value == -256);
   controller.Handle(TrackerAction::Down, false);
-  const auto commit = controller.Handle(TrackerAction::Edit, false);
+  const auto commit = controller.Handle(TrackerAction::Enter, false);
   REQUIRE(commit.count == 1U);
   CHECK(commit[0].type == Ui2TrackerCommandType::CommitValueEdits);
   CHECK_FALSE(controller.EnterDigitFocus());
@@ -919,56 +919,56 @@ TEST_CASE("UI2 Table command and value cells share fixed horizontal edges") {
   Ui2TableController right(Ui2TrackerPage::PhraseTable, 0, 0, 0, 5, 0);
   Tap(right, TrackerAction::Right);
   CHECK(right.Column() == 5U);
-  right.Handle(TrackerAction::Edit, true);
+  right.Handle(TrackerAction::Enter, true);
   const auto digitEdge = right.Handle(TrackerAction::Left, true);
   REQUIRE(digitEdge.count == 1U);
   CHECK(digitEdge[0].type == Ui2TrackerCommandType::PasteLast);
   CHECK(right.ParameterDigit() == 0U);
   CHECK(right.Column() == 5U);
   right.Handle(TrackerAction::Left, false);
-  CHECK(right.Handle(TrackerAction::Edit, false).Empty());
+  CHECK(right.Handle(TrackerAction::Enter, false).Empty());
 }
 
-TEST_CASE("UI2 Chain Phrase and Table selections commit once on Edit release") {
+TEST_CASE("UI2 Chain Phrase and Table selections commit once on Enter release") {
   Ui2ChainController chain(0, 0, 2, 0);
   BeginSelection(chain);
-  chain.Handle(TrackerAction::Edit, true);
+  chain.Handle(TrackerAction::Enter, true);
   const auto chainAdjust = chain.Handle(TrackerAction::Up, true);
   REQUIRE(chainAdjust.count == 1U);
   CHECK(chainAdjust[0].type == Ui2TrackerCommandType::AdjustSelection);
   chain.Handle(TrackerAction::Up, false);
-  const auto chainCommit = chain.Handle(TrackerAction::Edit, false);
+  const auto chainCommit = chain.Handle(TrackerAction::Enter, false);
   REQUIRE(chainCommit.count == 1U);
   CHECK(chainCommit[0].type == Ui2TrackerCommandType::CommitValueEdits);
 
   Ui2PhraseController phrase(0, 0, 2, 2);
   BeginSelection(phrase);
-  phrase.Handle(TrackerAction::Edit, true);
+  phrase.Handle(TrackerAction::Enter, true);
   const auto phraseAdjust = phrase.Handle(TrackerAction::Up, true);
   REQUIRE(phraseAdjust.count == 1U);
   CHECK(phraseAdjust[0].type == Ui2TrackerCommandType::AdjustSelection);
   phrase.Handle(TrackerAction::Up, false);
-  const auto phraseCommit = phrase.Handle(TrackerAction::Edit, false);
+  const auto phraseCommit = phrase.Handle(TrackerAction::Enter, false);
   REQUIRE(phraseCommit.count == 1U);
   CHECK(phraseCommit[0].type == Ui2TrackerCommandType::CommitValueEdits);
-  CHECK(phrase.Handle(TrackerAction::Edit, false).Empty());
+  CHECK(phrase.Handle(TrackerAction::Enter, false).Empty());
 
   Ui2TableController table(Ui2TrackerPage::InstrumentTable, 0, 0, 2, 2);
   BeginSelection(table);
-  table.Handle(TrackerAction::Edit, true);
+  table.Handle(TrackerAction::Enter, true);
   const auto tableAdjust = table.Handle(TrackerAction::Down, true);
   REQUIRE(tableAdjust.count == 1U);
   CHECK(tableAdjust[0].type == Ui2TrackerCommandType::AdjustSelection);
   table.Handle(TrackerAction::Down, false);
-  const auto tableCommit = table.Handle(TrackerAction::Edit, false);
+  const auto tableCommit = table.Handle(TrackerAction::Enter, false);
   REQUIRE(tableCommit.count == 1U);
   CHECK(tableCommit[0].type == Ui2TrackerCommandType::CommitValueEdits);
-  CHECK(table.Handle(TrackerAction::Edit, false).Empty());
+  CHECK(table.Handle(TrackerAction::Enter, false).Empty());
 }
 
 TEST_CASE("UI2 Phrase release commits value edit and stops audition together") {
   Ui2PhraseController phrase(0, 0, 2, 0);
-  const auto begin = phrase.Handle(TrackerAction::Edit, true);
+  const auto begin = phrase.Handle(TrackerAction::Enter, true);
   REQUIRE(begin.count == 1U);
   CHECK(begin[0].type == Ui2TrackerCommandType::StartAudition);
 
@@ -983,7 +983,7 @@ TEST_CASE("UI2 Phrase release commits value edit and stops audition together") {
   CHECK(repeat[0].flag);
   phrase.Handle(TrackerAction::Up, false);
 
-  const auto release = phrase.Handle(TrackerAction::Edit, false);
+  const auto release = phrase.Handle(TrackerAction::Enter, false);
   REQUIRE(release.count == 2U);
   CHECK(release[0].type == Ui2TrackerCommandType::CommitValueEdits);
   CHECK(release[1].type == Ui2TrackerCommandType::StopAudition);

@@ -29,7 +29,7 @@ TEST_CASE("Node UI2 physical actions use the M8-style semantic mapping") {
   CHECK(ActionForPhysicalButton(PhysicalButton::Select) ==
         TrackerAction::Play);
   CHECK(ActionForPhysicalButton(PhysicalButton::B) == TrackerAction::Option);
-  CHECK(ActionForPhysicalButton(PhysicalButton::A) == TrackerAction::Edit);
+  CHECK(ActionForPhysicalButton(PhysicalButton::A) == TrackerAction::Enter);
   CHECK(ActionForPhysicalButton(PhysicalButton::Func) == TrackerAction::Power);
 }
 

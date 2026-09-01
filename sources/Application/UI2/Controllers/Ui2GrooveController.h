@@ -125,7 +125,7 @@ public:
     const Ui2GrooveDirection direction = DirectionFor(action);
     if (action == TrackerAction::Play &&
         input_.Held(TrackerAction::Option) &&
-        !input_.Held(TrackerAction::Edit)) {
+        !input_.Held(TrackerAction::Enter)) {
       copyPending_ = false;
       return MakeCommand(input_.Held(TrackerAction::Shift)
                              ? Ui2GrooveCommandType::UnmuteAll
@@ -134,7 +134,7 @@ public:
     if (action == TrackerAction::Play &&
         input_.Held(TrackerAction::Shift) &&
         !input_.Held(TrackerAction::Option) &&
-        !input_.Held(TrackerAction::Edit)) {
+        !input_.Held(TrackerAction::Enter)) {
       Ui2GrooveCommand command =
           MakeCommand(Ui2GrooveCommandType::StartPlayback);
       command.songTransport = true;
@@ -153,7 +153,7 @@ public:
       return {};
     }
     if (action == TrackerAction::Option &&
-        input_.Held(TrackerAction::Edit))
+        input_.Held(TrackerAction::Enter))
       return MakeCommand(Ui2GrooveCommandType::ClearStep);
     if (input_.Held(TrackerAction::Option)) {
       if (direction != Ui2GrooveDirection::None)
@@ -161,11 +161,11 @@ public:
       return {};
     }
 
-    if (action == TrackerAction::Edit &&
+    if (action == TrackerAction::Enter &&
         input_.Held(TrackerAction::Shift))
       return MakeCommand(Ui2GrooveCommandType::PasteSelection);
 
-    if (input_.Held(TrackerAction::Edit)) {
+    if (input_.Held(TrackerAction::Enter)) {
       if (direction != Ui2GrooveDirection::None) {
         Ui2GrooveCommand command =
             MakeCommand(Ui2GrooveCommandType::AdjustStep);
@@ -178,8 +178,8 @@ public:
                                direction == Ui2GrooveDirection::Up;
         return command;
       }
-      if (action == TrackerAction::Edit &&
-          input_.Mask() == TrackerActionBit(TrackerAction::Edit))
+      if (action == TrackerAction::Enter &&
+          input_.Mask() == TrackerActionBit(TrackerAction::Enter))
         return MakeCommand(Ui2GrooveCommandType::InitializeStep);
       return {};
     }
@@ -211,7 +211,7 @@ private:
     case TrackerAction::Up:
       return Ui2GrooveDirection::Up;
     case TrackerAction::Option:
-    case TrackerAction::Edit:
+    case TrackerAction::Enter:
     case TrackerAction::Shift:
     case TrackerAction::Play:
     case TrackerAction::Reserved8:
@@ -232,7 +232,7 @@ private:
   HandleSelection(TrackerAction action, Ui2GrooveDirection direction) {
     copyPending_ = false;
     if (action == TrackerAction::Play) {
-      if (input_.Held(TrackerAction::Edit))
+      if (input_.Held(TrackerAction::Enter))
         return {};
       Ui2GrooveCommand command =
           MakeCommand(Ui2GrooveCommandType::StartPlayback);
@@ -245,7 +245,7 @@ private:
       return {};
     }
     if (action == TrackerAction::Option &&
-        input_.Held(TrackerAction::Edit)) {
+        input_.Held(TrackerAction::Enter)) {
       Ui2GrooveCommand command =
           MakeCommand(Ui2GrooveCommandType::CutSelection);
       command.selection = selection_;
@@ -257,7 +257,7 @@ private:
       copyPending_ = true;
       return {};
     }
-    if (action == TrackerAction::Edit &&
+    if (action == TrackerAction::Enter &&
         input_.Held(TrackerAction::Shift)) {
       Ui2GrooveCommand command =
           MakeCommand(Ui2GrooveCommandType::InterpolateSelection);

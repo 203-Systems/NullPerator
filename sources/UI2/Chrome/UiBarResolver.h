@@ -15,11 +15,11 @@ struct UiBarInputs {
   UiBottomBarModel pageDefault;
   const UiBottomBarModel *cursorContext = nullptr;
   const UiBottomBarModel *criticalModal = nullptr;
-  const UiTrackNotesModel *editHeldTracks = nullptr;
+  const UiTrackNotesModel *enterHeldTracks = nullptr;
   const UiAdjustmentLegendModel *enterHeldAdjustment = nullptr;
   bool selectionActive = false;
   bool selectionNextExpansionAll = false;
-  bool editHeldNumber = false;
+  bool enterHeldNumber = false;
 };
 
 class UiBarResolver {

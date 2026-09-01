@@ -112,10 +112,10 @@ TEST_CASE("UI2 input workflow confirms a selection and pastes its contents") {
   CHECK(executor.Handle(TrackerAction::Down, true).Empty());
   CHECK(executor.Handle(TrackerAction::Down, false).Empty());
   CHECK(executor.Handle(TrackerAction::Shift, true).Empty());
-  const auto paste = executor.Handle(TrackerAction::Edit, true);
+  const auto paste = executor.Handle(TrackerAction::Enter, true);
   REQUIRE(paste.count == 1U);
   CHECK(paste[0].type == Ui2TrackerCommandType::PasteSelection);
-  CHECK(executor.Handle(TrackerAction::Edit, false).Empty());
+  CHECK(executor.Handle(TrackerAction::Enter, false).Empty());
   CHECK(executor.Handle(TrackerAction::Shift, false).Empty());
 
   CHECK(song.data_[SONG_CHANNEL_COUNT] == 0x2AU);
@@ -504,23 +504,23 @@ TEST_CASE("UI2 atomic cell cut preserves empty and invalid storage") {
 
 TEST_CASE("UI2 cell Cut orders preserve value round trips on every grid") {
   const auto cut = [](auto &controller, Ui2TrackerSessionModelPort &port,
-                      bool editFirst) {
-    if (editFirst) {
-      (void)ApplyControllerEvent(controller, port, TrackerAction::Edit, true);
+                      bool enterFirst) {
+    if (enterFirst) {
+      (void)ApplyControllerEvent(controller, port, TrackerAction::Enter, true);
       return ApplyControllerEvent(controller, port, TrackerAction::Option,
                                   true);
     }
     (void)ApplyControllerEvent(controller, port, TrackerAction::Option, true);
-    return ApplyControllerEvent(controller, port, TrackerAction::Edit, true);
+    return ApplyControllerEvent(controller, port, TrackerAction::Enter, true);
   };
   const auto releaseCut = [](auto &controller, Ui2TrackerSessionModelPort &port,
-                             bool editFirst) {
-    if (editFirst) {
+                             bool enterFirst) {
+    if (enterFirst) {
       (void)ApplyControllerEvent(controller, port, TrackerAction::Option,
                                  false);
-      (void)ApplyControllerEvent(controller, port, TrackerAction::Edit, false);
+      (void)ApplyControllerEvent(controller, port, TrackerAction::Enter, false);
     } else {
-      (void)ApplyControllerEvent(controller, port, TrackerAction::Edit, false);
+      (void)ApplyControllerEvent(controller, port, TrackerAction::Enter, false);
       (void)ApplyControllerEvent(controller, port, TrackerAction::Option,
                                  false);
     }
@@ -529,12 +529,12 @@ TEST_CASE("UI2 cell Cut orders preserve value round trips on every grid") {
                                Ui2TrackerSessionModelPort &port) {
     (void)ApplyControllerEvent(controller, port, TrackerAction::Down, true);
     (void)ApplyControllerEvent(controller, port, TrackerAction::Down, false);
-    (void)ApplyControllerEvent(controller, port, TrackerAction::Edit, true);
-    (void)ApplyControllerEvent(controller, port, TrackerAction::Edit, false);
+    (void)ApplyControllerEvent(controller, port, TrackerAction::Enter, true);
+    (void)ApplyControllerEvent(controller, port, TrackerAction::Enter, false);
   };
 
-  for (const bool editFirst : {false, true}) {
-    CAPTURE(editFirst);
+  for (const bool enterFirst : {false, true}) {
+    CAPTURE(enterFirst);
     {
       TrackerApplicationSession session;
       Ui2TrackerSessionModelPort port(session);
@@ -542,11 +542,11 @@ TEST_CASE("UI2 cell Cut orders preserve value round trips on every grid") {
       song.data_[3 * SONG_CHANNEL_COUNT + 2] = 0x23U;
       ui2::Ui2SongController controller(2, 3, 0);
 
-      const auto batch = cut(controller, port, editFirst);
+      const auto batch = cut(controller, port, enterFirst);
       REQUIRE(batch.count == 1U);
       CHECK(batch[0].type == Ui2TrackerCommandType::CutCell);
       CHECK(song.data_[3 * SONG_CHANNEL_COUNT + 2] == 0xFFU);
-      releaseCut(controller, port, editFirst);
+      releaseCut(controller, port, enterFirst);
       pasteNextRow(controller, port);
       CHECK(song.data_[4 * SONG_CHANNEL_COUNT + 2] == 0x23U);
       CHECK(port.ProjectMutationGeneration() == 2U);
@@ -565,12 +565,12 @@ TEST_CASE("UI2 cell Cut orders preserve value round trips on every grid") {
       song.chain_.data_[base + 6] = 0x22U;
       ui2::Ui2ChainController controller(3, 0, 5, 1);
 
-      const auto batch = cut(controller, port, editFirst);
+      const auto batch = cut(controller, port, enterFirst);
       REQUIRE(batch.count == 1U);
       CHECK(batch[0].type == Ui2TrackerCommandType::CutCell);
       CHECK(song.chain_.data_[base + 5] == 0x21U);
       CHECK(song.chain_.transpose_[base + 5] == 0U);
-      releaseCut(controller, port, editFirst);
+      releaseCut(controller, port, enterFirst);
       pasteNextRow(controller, port);
       CHECK(song.chain_.data_[base + 6] == 0x22U);
       CHECK(song.chain_.transpose_[base + 6] == transpose);
@@ -587,12 +587,12 @@ TEST_CASE("UI2 cell Cut orders preserve value round trips on every grid") {
       phrase.param1_[base + 5] = 0x55U;
       ui2::Ui2PhraseController controller(2, 0, 5, 2);
 
-      const auto batch = cut(controller, port, editFirst);
+      const auto batch = cut(controller, port, enterFirst);
       REQUIRE(batch.count == 1U);
       CHECK(batch[0].type == Ui2TrackerCommandType::CutCell);
       CHECK(phrase.cmd1_[base + 5] == FourCC::InstrumentCommandNone);
       CHECK(phrase.param1_[base + 5] == 0U);
-      releaseCut(controller, port, editFirst);
+      releaseCut(controller, port, enterFirst);
       pasteNextRow(controller, port);
       CHECK(phrase.cmd1_[base + 6] == FourCC::InstrumentCommandVolume);
       CHECK(phrase.param1_[base + 6] == 0x55U);
@@ -611,12 +611,12 @@ TEST_CASE("UI2 cell Cut orders preserve value round trips on every grid") {
         table.param1_[5] = 0x55U;
         ui2::Ui2TableController controller(page, 0, 0, 5, 0);
 
-        const auto batch = cut(controller, port, editFirst);
+        const auto batch = cut(controller, port, enterFirst);
         REQUIRE(batch.count == 1U);
         CHECK(batch[0].type == Ui2TrackerCommandType::CutCell);
         CHECK(table.cmd1_[5] == FourCC::InstrumentCommandNone);
         CHECK(table.param1_[5] == 0U);
-        releaseCut(controller, port, editFirst);
+        releaseCut(controller, port, enterFirst);
         pasteNextRow(controller, port);
         CHECK(table.cmd1_[6] == FourCC::InstrumentCommandVolume);
         CHECK(table.param1_[6] == 0x55U);
@@ -628,9 +628,9 @@ TEST_CASE("UI2 cell Cut orders preserve value round trips on every grid") {
 
 TEST_CASE("UI2 Phrase Cut orders end audition and preserve Note semantics") {
   for (const bool filled : {false, true}) {
-    for (const bool editFirst : {false, true}) {
+    for (const bool enterFirst : {false, true}) {
       CAPTURE(filled);
-      CAPTURE(editFirst);
+      CAPTURE(enterFirst);
       TrackerApplicationSession session;
       Ui2TrackerSessionModelPort port(session);
       Player *player = Player::GetInstance();
@@ -641,9 +641,9 @@ TEST_CASE("UI2 Phrase Cut orders end audition and preserve Note semantics") {
       phrase.instr_[1] = 7U;
       ui2::Ui2PhraseController controller(0, 0, 1, 0);
 
-      if (editFirst) {
+      if (enterFirst) {
         const auto prefix =
-            ApplyControllerEvent(controller, port, TrackerAction::Edit, true);
+            ApplyControllerEvent(controller, port, TrackerAction::Enter, true);
         REQUIRE(prefix.count == 1U);
         CHECK(prefix[0].type == Ui2TrackerCommandType::StartAudition);
         CHECK(port.ProjectMutationGeneration() == 0U);
@@ -656,8 +656,8 @@ TEST_CASE("UI2 Phrase Cut orders end audition and preserve Note semantics") {
 
       const auto cutBatch = ApplyControllerEvent(
           controller, port,
-          editFirst ? TrackerAction::Option : TrackerAction::Edit, true);
-      REQUIRE(cutBatch.count == (editFirst ? 2U : 1U));
+          enterFirst ? TrackerAction::Option : TrackerAction::Enter, true);
+      REQUIRE(cutBatch.count == (enterFirst ? 2U : 1U));
       CHECK(cutBatch[cutBatch.count - 1U].type ==
             Ui2TrackerCommandType::CutCell);
       CHECK_FALSE(player->IsRunning());
@@ -665,7 +665,7 @@ TEST_CASE("UI2 Phrase Cut orders end audition and preserve Note semantics") {
       CHECK(phrase.instr_[1] == (filled ? 0xFFU : 7U));
       CHECK(port.ProjectMutationGeneration() == 1U);
 
-      if (editFirst) {
+      if (enterFirst) {
         CHECK(player->startCalls == 1);
         CHECK(player->stopCalls == 1);
       } else {
@@ -1410,7 +1410,7 @@ TEST_CASE("UI2 Phrase controller retriggers audition after every INS change") {
   ui2::Ui2PhraseController controller(0, 3, 6, 1);
 
   const auto begin =
-      ApplyControllerEvent(controller, port, TrackerAction::Edit, true);
+      ApplyControllerEvent(controller, port, TrackerAction::Enter, true);
   REQUIRE(begin.count == 1U);
   CHECK(begin[0].type == Ui2TrackerCommandType::StartAudition);
   REQUIRE(player->startCalls == 1);
@@ -1428,7 +1428,7 @@ TEST_CASE("UI2 Phrase controller retriggers audition after every INS change") {
   CHECK(player->stopCalls == 2);
 
   const auto release =
-      ApplyControllerEvent(controller, port, TrackerAction::Edit, false);
+      ApplyControllerEvent(controller, port, TrackerAction::Enter, false);
   REQUIRE(release.count == 2U);
   CHECK(release[0].type == Ui2TrackerCommandType::CommitValueEdits);
   CHECK(release[1].type == Ui2TrackerCommandType::StopAudition);

@@ -20,7 +20,7 @@ namespace ui2 {
 
 struct UiSampleControllerModifiers {
   bool enterHeld = false;
-  bool editHeld = false;
+  bool optionHeld = false;
 };
 
 namespace detail {
@@ -189,26 +189,26 @@ inline UiSampleEditorControllerState MakeUiSampleEditorControllerState(
   switch (snapshot.focus) {
   case SampleEditorViewUi2Focus::Start:
     state.cursor = UiSampleEditorCursor::Start;
-    help = !snapshot.fileMutationAvailable ? "EDIT+ARROWS PREVIEW START"
-                                           : "EDIT+ARROWS ADJUST START";
+    help = !snapshot.fileMutationAvailable ? "ENTER+ARROWS PREVIEW START"
+                                           : "ENTER+ARROWS ADJUST START";
     break;
   case SampleEditorViewUi2Focus::End:
     state.cursor = UiSampleEditorCursor::End;
-    help = !snapshot.fileMutationAvailable ? "EDIT+ARROWS PREVIEW END"
-                                           : "EDIT+ARROWS ADJUST END";
+    help = !snapshot.fileMutationAvailable ? "ENTER+ARROWS PREVIEW END"
+                                           : "ENTER+ARROWS ADJUST END";
     break;
   case SampleEditorViewUi2Focus::Operation:
     state.cursor = UiSampleEditorCursor::Field3;
     help = !snapshot.fileMutationAvailable
                ? "LEFT/RIGHT BROWSE (NO APPLY)"
-               : "EDIT+UP/DOWN SELECT OP";
+               : "ENTER+UP/DOWN SELECT OP";
     break;
   case SampleEditorViewUi2Focus::Apply:
     if (!snapshot.fileMutationAvailable) {
       help = "APPLY UNAVAILABLE";
     } else {
       state.cursor = UiSampleEditorCursor::Field4;
-      help = "EDIT APPLY OPERATION";
+      help = "ENTER APPLY OPERATION";
     }
     break;
   case SampleEditorViewUi2Focus::Save:
@@ -217,7 +217,7 @@ inline UiSampleEditorControllerState MakeUiSampleEditorControllerState(
     } else {
       state.cursor = UiSampleEditorCursor::Save;
       state.bottomActive = 0;
-      help = "EDIT SAVE";
+      help = "ENTER SAVE";
     }
     break;
   case SampleEditorViewUi2Focus::SaveAndLoad:
@@ -226,7 +226,7 @@ inline UiSampleEditorControllerState MakeUiSampleEditorControllerState(
     } else {
       state.cursor = UiSampleEditorCursor::SaveAndLoad;
       state.bottomActive = snapshot.projectPool ? 0xFFU : 1U;
-      help = "EDIT SAVE AND LOAD";
+      help = "ENTER SAVE AND LOAD";
     }
     break;
   case SampleEditorViewUi2Focus::Discard:
@@ -234,14 +234,14 @@ inline UiSampleEditorControllerState MakeUiSampleEditorControllerState(
     state.bottomActive =
         !snapshot.fileMutationAvailable ? 0U
                                         : (snapshot.projectPool ? 1U : 2U);
-    help = "EDIT DISCARD";
+    help = "ENTER DISCARD";
     break;
   case SampleEditorViewUi2Focus::Waveform:
     state.cursor = UiSampleEditorCursor::Waveform;
     if (modifiers.enterHeld)
       help = !snapshot.fileMutationAvailable ? "ARROWS PREVIEW MARKER"
                                              : "ARROWS MOVE MARKER";
-    else if (modifiers.editHeld)
+    else if (modifiers.optionHeld)
       help = "LEFT/RIGHT MARKER  UP/DOWN ZOOM";
     else
       help = snapshot.singleCycle ? "PLAY LOOP PREVIEW  OPTION ZOOM"
@@ -328,19 +328,19 @@ inline UiSampleSlicesControllerState MakeUiSampleSlicesControllerState(
     state.cursor = UiSampleSlicesCursor::Waveform;
     if (modifiers.enterHeld)
       help = "ARROWS MOVE  LEFT/RIGHT FINE";
-    else if (modifiers.editHeld)
+    else if (modifiers.optionHeld)
       help = "UP/DOWN ZOOM";
     else
       help = "LEFT/RIGHT SELECT  PLAY PREVIEW";
     break;
   case SampleSlicesViewUi2Focus::AutoSliceCount:
     state.cursor = UiSampleSlicesCursor::AutoSliceCount;
-    help = "EDIT+UP/DOWN SET COUNT";
+    help = "ENTER+UP/DOWN SET COUNT";
     break;
   case SampleSlicesViewUi2Focus::AutoSlice:
     state.cursor = UiSampleSlicesCursor::AutoSlice;
     help = snapshot.autoSliceApplyAvailable
-               ? "EDIT APPLY EVEN SLICES"
+               ? "ENTER APPLY EVEN SLICES"
                : "EXISTING SLICES  AUTO LOCKED";
     break;
   case SampleSlicesViewUi2Focus::Unknown:

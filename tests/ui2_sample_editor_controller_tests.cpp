@@ -323,7 +323,7 @@ TEST_CASE("UI2 Sample Editor exposes real endpoints markers zoom and preview") {
   controller.SetFocus(SampleEditorViewUi2Focus::Waveform);
   Chord(controller, TrackerAction::Option, TrackerAction::Right);
   const Ui2SampleEditorCommand moved =
-      Chord(controller, TrackerAction::Edit, TrackerAction::Left);
+      Chord(controller, TrackerAction::Enter, TrackerAction::Left);
   CHECK(moved.type == Ui2SampleEditorCommandType::SetEnd);
   CHECK(moved.value < 511U);
   CHECK(controller.End() == moved.value);
@@ -412,11 +412,11 @@ TEST_CASE("UI2 Sample Editor keeps operation browsing read-only") {
   CHECK_FALSE(controller.SetFocus(SampleEditorViewUi2Focus::Save));
   CHECK_FALSE(controller.SetFocus(SampleEditorViewUi2Focus::SaveAndLoad));
   CHECK(controller.Focus() == SampleEditorViewUi2Focus::Operation);
-  CHECK_FALSE(Tap(controller, TrackerAction::Edit).HasValue());
+  CHECK_FALSE(Tap(controller, TrackerAction::Enter).HasValue());
 
   Tap(controller, TrackerAction::Down);
   CHECK(controller.Focus() == SampleEditorViewUi2Focus::Discard);
-  CHECK(Tap(controller, TrackerAction::Edit).type ==
+  CHECK(Tap(controller, TrackerAction::Enter).type ==
         Ui2SampleEditorCommandType::RequestDiscard);
 }
 
@@ -456,7 +456,7 @@ TEST_CASE("UI2 Sample Editor exposes a read-only runtime model") {
       MakeUiSampleEditorControllerState(snapshot);
   const UiSampleEditorViewData discardData = discardState.ToViewData();
   CHECK(discardData.bottomActive == 0U);
-  CHECK(discardData.help == "EDIT DISCARD");
+  CHECK(discardData.help == "ENTER DISCARD");
 
   controller.Close();
   REQUIRE(controller.OpenProjectPool(fileSystem, "DEMO", "VOICE.WAV") ==
@@ -481,7 +481,7 @@ TEST_CASE("UI2 Sample Editor exposes rewrite transactions") {
 
   CHECK(controller.Snapshot().fileMutationAvailable);
   REQUIRE(controller.SetFocus(SampleEditorViewUi2Focus::Apply));
-  CHECK(Tap(controller, TrackerAction::Edit).type ==
+  CHECK(Tap(controller, TrackerAction::Enter).type ==
         Ui2SampleEditorCommandType::RequestApplyOperation);
   CHECK(controller.SetFocus(SampleEditorViewUi2Focus::Save));
   CHECK(controller.SetFocus(SampleEditorViewUi2Focus::SaveAndLoad));
@@ -521,11 +521,11 @@ TEST_CASE("UI2 Sample Editor apply confirmation defaults to no") {
   REQUIRE(controller.SetFocus(SampleEditorViewUi2Focus::Apply));
 
   const Ui2SampleEditorCommand request =
-      controller.Handle(TrackerAction::Edit, true);
+      controller.Handle(TrackerAction::Enter, true);
   REQUIRE(request.type == Ui2SampleEditorCommandType::RequestApplyOperation);
   const std::uint32_t previousDialog = controller.DialogInstanceId();
   controller.RequestApplyConfirmation(request.operation, request.start,
-                                      request.end, TrackerAction::Edit);
+                                      request.end, TrackerAction::Enter);
   CHECK(controller.DialogActive());
   CHECK(controller.DialogInstanceId() == previousDialog + 1U);
   const Ui2DialogSnapshot dialog = controller.DialogSnapshot();
@@ -533,11 +533,11 @@ TEST_CASE("UI2 Sample Editor apply confirmation defaults to no") {
   CHECK(std::strcmp(dialog.label.data(), "Saved only after Save") == 0);
   CHECK(dialog.selectedAction == 1U);
 
-  controller.HandleDialog(TrackerAction::Edit, false);
-  controller.Handle(TrackerAction::Edit, false);
-  CHECK_FALSE(controller.HandleDialog(TrackerAction::Edit, true).HasValue());
+  controller.HandleDialog(TrackerAction::Enter, false);
+  controller.Handle(TrackerAction::Enter, false);
+  CHECK_FALSE(controller.HandleDialog(TrackerAction::Enter, true).HasValue());
   CHECK_FALSE(controller.DialogActive());
-  controller.HandleDialog(TrackerAction::Edit, false);
+  controller.HandleDialog(TrackerAction::Enter, false);
 
   controller.RequestApplyConfirmation(
       Ui2SampleEditorOperation::Normalize, 4U, 900U);
@@ -545,13 +545,13 @@ TEST_CASE("UI2 Sample Editor apply confirmation defaults to no") {
   controller.HandleDialog(TrackerAction::Left, true);
   controller.HandleDialog(TrackerAction::Left, false);
   const Ui2SampleEditorCommand confirmed =
-      controller.HandleDialog(TrackerAction::Edit, true);
+      controller.HandleDialog(TrackerAction::Enter, true);
   CHECK(confirmed.type == Ui2SampleEditorCommandType::ApplyConfirmed);
   CHECK(confirmed.operation == Ui2SampleEditorOperation::Normalize);
   CHECK(confirmed.start == 4U);
   CHECK(confirmed.end == 900U);
   CHECK_FALSE(controller.DialogActive());
-  controller.HandleDialog(TrackerAction::Edit, false);
+  controller.HandleDialog(TrackerAction::Enter, false);
 
   controller.Close();
   CHECK_FALSE(controller.DialogActive());
@@ -567,14 +567,14 @@ TEST_CASE("UI2 Sample Editor apply progress accepts only explicit cancel") {
   REQUIRE(controller.OpenLibrary(fileSystem, "VOICE.WAV") ==
           Ui2SampleWaveformLoadResult::Loaded);
   REQUIRE(controller.SetFocus(SampleEditorViewUi2Focus::Waveform));
-  REQUIRE(Chord(controller, TrackerAction::Edit, TrackerAction::Right)
+  REQUIRE(Chord(controller, TrackerAction::Enter, TrackerAction::Right)
               .HasValue());
   REQUIRE(controller.SetFocus(SampleEditorViewUi2Focus::End));
   const SampleEditorViewUi2Snapshot before = controller.Snapshot();
 
   const std::uint32_t previousDialog = controller.DialogInstanceId();
   controller.BeginApplyProgress(Ui2SampleEditorOperation::Normalize,
-                                TrackerAction::Edit);
+                                TrackerAction::Enter);
   controller.UpdateApplyProgress(42U);
   REQUIRE(controller.ApplyProgressActive());
   CHECK(controller.DialogInstanceId() == previousDialog + 1U);
@@ -585,17 +585,17 @@ TEST_CASE("UI2 Sample Editor apply progress accepts only explicit cancel") {
   CHECK(dialog.actionCount == 1U);
   CHECK(dialog.actions[0] == UiDialogAction::Cancel);
 
-  // The EDIT that confirmed the operation cannot immediately cancel it, and
+  // The ENTER that confirmed the operation cannot immediately cancel it, and
   // directions do not create an accidental progress-dialog selection.
   CHECK_FALSE(controller.HandleDialog(TrackerAction::Left, true).HasValue());
   CHECK_FALSE(controller.HandleDialog(TrackerAction::Left, false).HasValue());
-  CHECK_FALSE(controller.HandleDialog(TrackerAction::Edit, false).HasValue());
+  CHECK_FALSE(controller.HandleDialog(TrackerAction::Enter, false).HasValue());
   CHECK(controller.ApplyProgressActive());
   CHECK_FALSE(controller.HandleDialog(TrackerAction::Right, true).HasValue());
   CHECK_FALSE(controller.HandleDialog(TrackerAction::Right, false).HasValue());
 
   const Ui2SampleEditorCommand cancelled =
-      controller.HandleDialog(TrackerAction::Edit, true);
+      controller.HandleDialog(TrackerAction::Enter, true);
   CHECK(cancelled.type == Ui2SampleEditorCommandType::CancelApply);
   CHECK_FALSE(controller.DialogActive());
   const SampleEditorViewUi2Snapshot after = controller.Snapshot();
@@ -605,7 +605,7 @@ TEST_CASE("UI2 Sample Editor apply progress accepts only explicit cancel") {
   CHECK(after.focusDigit == before.focusDigit);
   CHECK(after.waveform.revision == before.waveform.revision);
   CHECK(after.waveform.encoded == before.waveform.encoded);
-  controller.HandleDialog(TrackerAction::Edit, false);
+  controller.HandleDialog(TrackerAction::Enter, false);
 
   // The application closes the same progress state on transaction failure;
   // that path must likewise leave all editor-local navigation untouched.
@@ -632,12 +632,12 @@ TEST_CASE("UI2 Sample Editor endpoints cannot cross or leave the WAV") {
           Ui2SampleWaveformLoadResult::Loaded);
   controller.SetFocus(SampleEditorViewUi2Focus::Waveform);
   for (int move = 0; move < 100; ++move)
-    Chord(controller, TrackerAction::Edit, TrackerAction::Right);
+    Chord(controller, TrackerAction::Enter, TrackerAction::Right);
   CHECK(controller.Start() <= controller.End());
   CHECK(controller.End() == 63U);
   Chord(controller, TrackerAction::Option, TrackerAction::Right);
   for (int move = 0; move < 100; ++move)
-    Chord(controller, TrackerAction::Edit, TrackerAction::Left);
+    Chord(controller, TrackerAction::Enter, TrackerAction::Left);
   CHECK(controller.End() == controller.Start());
 }
 
@@ -676,7 +676,7 @@ TEST_CASE("UI2 Sample Slices selects moves previews adds and deletes") {
         Ui2SampleSlicesCommandType::PreviewStop);
 
   const Ui2SampleSlicesCommand moved =
-      Chord(controller, TrackerAction::Edit, TrackerAction::Right);
+      Chord(controller, TrackerAction::Enter, TrackerAction::Right);
   CHECK(moved.type == Ui2SampleSlicesCommandType::SetSlicePoint);
   CHECK(moved.slice == 1U);
   CHECK(moved.value > 256U);
@@ -706,7 +706,7 @@ TEST_CASE("UI2 Sample Slices emits auto-slice request before replacement") {
   CHECK(count.type == Ui2SampleSlicesCommandType::SetAutoSliceCount);
   CHECK(count.count == 5U);
   controller.SetFocus(SampleSlicesViewUi2Focus::AutoSlice);
-  const Ui2SampleSlicesCommand request = Tap(controller, TrackerAction::Edit);
+  const Ui2SampleSlicesCommand request = Tap(controller, TrackerAction::Enter);
   CHECK(request.type == Ui2SampleSlicesCommandType::RequestAutoSlice);
   CHECK(request.count == 5U);
   CHECK(controller.DefinedMask() == 0U);
@@ -734,7 +734,7 @@ TEST_CASE("UI2 Sample Slices exposes existing-slice replacement as locked") {
 
   const SampleSlicesViewUi2Snapshot snapshot = controller.Snapshot();
   CHECK_FALSE(snapshot.autoSliceApplyAvailable);
-  CHECK_FALSE(Tap(controller, TrackerAction::Edit).HasValue());
+  CHECK_FALSE(Tap(controller, TrackerAction::Enter).HasValue());
 
   const UiSampleSlicesControllerState state =
       MakeUiSampleSlicesControllerState(snapshot);
@@ -756,10 +756,10 @@ TEST_CASE("UI2 Sample Slices clamps synchronized and moved markers") {
   controller.SynchronizeSlices(points, 1U);
   CHECK(controller.SlicePoints()[0] == 31U);
   for (int move = 0; move < 100; ++move)
-    Chord(controller, TrackerAction::Edit, TrackerAction::Right);
+    Chord(controller, TrackerAction::Enter, TrackerAction::Right);
   CHECK(controller.SlicePoints()[0] == 31U);
   for (int move = 0; move < 100; ++move)
-    Chord(controller, TrackerAction::Edit, TrackerAction::Left);
+    Chord(controller, TrackerAction::Enter, TrackerAction::Left);
   CHECK(controller.SlicePoints()[0] == 0U);
 }
 

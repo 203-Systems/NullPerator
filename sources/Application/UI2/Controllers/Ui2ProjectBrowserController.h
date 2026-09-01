@@ -118,7 +118,7 @@ public:
       MoveAction(-1);
     } else if (action == TrackerAction::Right) {
       MoveAction(1);
-    } else if (action == TrackerAction::Edit) {
+    } else if (action == TrackerAction::Enter) {
       const std::uint16_t navigationRows = NavigationRowCount();
       if (navigationRows != 0U && selected_ == 0U) {
         NavigateParent();

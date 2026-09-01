@@ -188,7 +188,7 @@ public:
       return {};
     }
 
-    const bool edit = input_.Held(TrackerAction::Edit);
+    const bool enter = input_.Held(TrackerAction::Enter);
     const bool option = input_.Held(TrackerAction::Option);
     if (option && (action == TrackerAction::Up ||
                    action == TrackerAction::Down)) {
@@ -199,23 +199,23 @@ public:
     }
 
     if (focus_ == SampleSlicesViewUi2Focus::Waveform) {
-      if (edit && IsDirection(action))
+      if (enter && IsDirection(action))
         return MoveSelectedSlice(action);
-      if (!edit && !option && action == TrackerAction::Left) {
+      if (!enter && !option && action == TrackerAction::Left) {
         SelectPrevious();
         return {};
       }
-      if (!edit && !option && action == TrackerAction::Right) {
+      if (!enter && !option && action == TrackerAction::Right) {
         SelectNext();
         return {};
       }
     }
 
     if (focus_ == SampleSlicesViewUi2Focus::AutoSliceCount) {
-      const bool horizontal = !edit && !option &&
+      const bool horizontal = !enter && !option &&
                               (action == TrackerAction::Left ||
                                action == TrackerAction::Right);
-      const bool verticalEdit = edit &&
+      const bool verticalEdit = enter &&
                                 (action == TrackerAction::Up ||
                                  action == TrackerAction::Down);
       if (horizontal || verticalEdit) {
@@ -236,15 +236,15 @@ public:
       }
     }
 
-    if (!edit && !option && action == TrackerAction::Up) {
+    if (!enter && !option && action == TrackerAction::Up) {
       MoveFocus(-1);
       return {};
     }
-    if (!edit && !option && action == TrackerAction::Down) {
+    if (!enter && !option && action == TrackerAction::Down) {
       MoveFocus(1);
       return {};
     }
-    if (action == TrackerAction::Edit &&
+    if (action == TrackerAction::Enter &&
         focus_ == SampleSlicesViewUi2Focus::AutoSlice) {
       // Replacing existing slice points is destructive. Until the approved
       // confirmation flow is connected, expose this as unavailable instead

@@ -1493,8 +1493,8 @@ TEST_CASE("UI2 bar resolver applies the documented central priority") {
       .pageDefault = page,
       .cursorContext = &cursor,
       .criticalModal = &modal,
-      .editHeldTracks = &tracks,
-      .editHeldNumber = true,
+      .enterHeldTracks = &tracks,
+      .enterHeldNumber = true,
   };
   const ui2::UiResolvedChrome resolved = ui2::UiBarResolver::Resolve(inputs);
   CHECK(resolved.top.metaSelected);
@@ -1604,7 +1604,7 @@ TEST_CASE("UI2 bottom renderer bounds externally supplied item counts") {
                             context.context.secondLine.size());
 }
 
-TEST_CASE("UI2 selection mode overrides page and edit bottom bars") {
+TEST_CASE("UI2 selection mode overrides page and Enter bottom bars") {
   ui2::UiBottomBarModel context{.kind = ui2::UiBottomBarKind::Context};
   ui2::UiAdjustmentLegendModel adjustment{};
   const ui2::UiResolvedChrome resolved = ui2::UiBarResolver::Resolve({
@@ -4309,7 +4309,7 @@ TEST_CASE("UI2 Sample pages keep the top bar free of legacy metadata") {
   ui2::UiSampleEditorViewData editor;
   REQUIRE(ui2::UiSampleEditorView::Build(editor, palette, scene) ==
           ui2::UiBuildStatus::Built);
-  CHECK(FindTextCommand(scene.top.Stream(), "EDIT") == nullptr);
+  CHECK(FindTextCommand(scene.top.Stream(), "ENTER") == nullptr);
 
   ui2::UiSampleSlicesViewData slices;
   REQUIRE(ui2::UiSampleSlicesView::Build(slices, palette, scene) ==
@@ -4365,7 +4365,7 @@ TEST_CASE("UI2 Sample Editor adapter owns controller text waveform and modes") {
   const ui2::UiSampleEditorControllerState state =
       ui2::MakeUiSampleEditorControllerState(
           snapshot, ui2::UiPowerState::BatteryHigh,
-          {.enterHeld = true, .editHeld = false});
+          {.enterHeld = true, .optionHeld = false});
   snapshot.name[0] = 'X';
   snapshot.waveform.encoded[0] ^= 0xFFU;
   const ui2::UiSampleEditorViewData data = state.ToViewData();
@@ -4390,7 +4390,7 @@ TEST_CASE("UI2 Sample Editor adapter owns controller text waveform and modes") {
   CHECK(ui2::UiSampleEditorView::CursorTargetRect(data) ==
         ui2::RectI16{120, 155, 9, 9});
   CHECK(data.power == ui2::UiPowerState::Playing);
-  CHECK(data.help == "EDIT+ARROWS ADJUST END");
+  CHECK(data.help == "ENTER+ARROWS ADJUST END");
   ui2::UiPalette palette;
   ui2::UiFrameScene scene;
   REQUIRE(ui2::UiSampleEditorView::Build(data, palette, scene) ==
@@ -4462,7 +4462,7 @@ TEST_CASE("UI2 Sample Slices adapter maps real markers focus and help") {
   const ui2::UiSampleSlicesControllerState state =
       ui2::MakeUiSampleSlicesControllerState(
           snapshot, ui2::UiPowerState::BatteryNormal,
-          {.enterHeld = false, .editHeld = true});
+          {.enterHeld = false, .optionHeld = true});
   snapshot.slice[0] = 'X';
   snapshot.markers.markers[1].x = 0U;
   const ui2::UiSampleSlicesViewData data = state.ToViewData();

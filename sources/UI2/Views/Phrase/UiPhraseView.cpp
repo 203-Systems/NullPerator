@@ -288,7 +288,7 @@ UiBuildStatus UiPhraseView::Build(const UiPhraseViewData &data, UiPalette &,
       .pageTop = pageTop,
       .pageDefault = pageBottom,
       .cursorContext = data.numberFocus ? nullptr : &data.cursorBottom,
-      .editHeldTracks = &editTracks,
+      .enterHeldTracks = &editTracks,
       // FX and parameter cells retain their contextual help while held. Only
       // Note is a semantic coarse/fine domain (note / octave).
       .enterHeldAdjustment =
@@ -297,7 +297,7 @@ UiBuildStatus UiPhraseView::Build(const UiPhraseViewData &data, UiPalette &,
               : nullptr,
       .selectionActive = data.selectionActive,
       .selectionNextExpansionAll = data.selectionNextExpansionAll,
-      .editHeldNumber = data.numberFocus,
+      .enterHeldNumber = data.numberFocus,
   };
   const UiResolvedChrome chrome = UiBarResolver::Resolve(barInputs);
   const UiBuildStatus topStatus =

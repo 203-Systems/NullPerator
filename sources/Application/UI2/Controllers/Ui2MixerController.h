@@ -64,7 +64,7 @@ public:
     if (input_.Held(TrackerAction::Option)) {
       return {};
     }
-    if (input_.Held(TrackerAction::Edit)) {
+    if (input_.Held(TrackerAction::Enter)) {
       if (action == TrackerAction::Up || action == TrackerAction::Right)
         return {Ui2MixerCommandType::AdjustVolume, selected_, 1};
       if (action == TrackerAction::Down || action == TrackerAction::Left)

@@ -1482,7 +1482,7 @@ void Ui2TrackerSessionModelPort::ApplyTransport(
     session_.ProjectModel().NudgeTempo(command.value);
     break;
   case Ui2TrackerCommandType::StartAudition:
-    // EDIT is also a data-entry gesture. Never let its transient audition
+    // ENTER is also a data-entry gesture. Never let its transient audition
     // commandeer or stop an already-running Song/Chain/Phrase transport.
     if (player->IsRunning() && !auditionOwned_ &&
         session_.EditorState().playMode_ != PM_AUDITION) {

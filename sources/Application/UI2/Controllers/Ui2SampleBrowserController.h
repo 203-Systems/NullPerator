@@ -104,7 +104,7 @@ public:
 
     // Application-level press ownership forwards releases back to the browser
     // while its confirmation dialog is active. Keep those releases in sync so
-    // OPTION+EDIT cannot leave OPTION latched and turn the next plain EDIT into
+    // OPTION+ENTER cannot leave OPTION latched and turn the next plain ENTER into
     // another delete request. Dialog presses remain exclusively modal-owned.
     if (dialogActive_) {
       if (!pressed)
@@ -178,7 +178,7 @@ public:
     // Browser. The project pool owns a designed, confirmed delete flow;
     // Library files deliberately remain read-only here.
     if (mode_ == Ui2SampleBrowserMode::ProjectPool &&
-        action == TrackerAction::Edit &&
+        action == TrackerAction::Enter &&
         input_.Held(TrackerAction::Option) &&
         !input_.Held(TrackerAction::Shift) && HasFileSelection())
       return MakeSelected(Ui2SampleBrowserCommandType::RequestDelete);
@@ -197,7 +197,7 @@ public:
       MoveAction(-1);
     } else if (action == TrackerAction::Right) {
       MoveAction(1);
-    } else if (action == TrackerAction::Edit) {
+    } else if (action == TrackerAction::Enter) {
       return ActivateSelection();
     }
     return {};
@@ -231,7 +231,7 @@ public:
           1U - std::min<std::uint8_t>(dialogSelectedAction_, 1U));
       return {};
     }
-    if (action != TrackerAction::Edit)
+    if (action != TrackerAction::Enter)
       return {};
     const bool confirmed = dialogSelectedAction_ == 0U;
     dialogActive_ = false;

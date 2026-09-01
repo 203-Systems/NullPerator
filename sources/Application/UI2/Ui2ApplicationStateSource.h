@@ -351,7 +351,7 @@ struct UiDeviceFrameState {
   bool cursorVisualOverride = false;
   bool cursorInkVisible = true;
   bool selectorWrap = false;
-  bool editHeld = false;
+  bool enterHeld = false;
   bool showLineOut = false;
   bool showVolume = true;
   bool showTheme = true;

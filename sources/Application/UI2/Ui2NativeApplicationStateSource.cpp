@@ -214,7 +214,7 @@ Ui2NativeApplicationStateSource::CaptureSong(UiSongFrameState &state) {
   state.editRow = controller.VisibleRow();
   state.rowOffset = controller.RowOffset();
   state.adjustmentFocus =
-      (controller.HeldMask() & TrackerActionBit(TrackerAction::Edit)) != 0U;
+      (controller.HeldMask() & TrackerActionBit(TrackerAction::Enter)) != 0U;
   state.modeFocus =
       (controller.HeldMask() & TrackerActionBit(TrackerAction::Option)) != 0U;
   state.selectionActive = controller.Selection().active;
@@ -276,7 +276,7 @@ Ui2NativeApplicationStateSource::CaptureChain(UiChainFrameState &state) {
   state.numberFocus = controller.NumberFocus();
   state.adjustmentFocus =
       !state.numberFocus &&
-      (controller.HeldMask() & TrackerActionBit(TrackerAction::Edit)) != 0U;
+      (controller.HeldMask() & TrackerActionBit(TrackerAction::Enter)) != 0U;
   state.selectionActive = controller.Selection().active;
   state.selectionNextExpansionAll =
       state.selectionActive && controller.Selection().Left() == 0U &&
@@ -328,7 +328,7 @@ Ui2NativeApplicationStateSource::CapturePhrase(UiPhraseFrameState &state) {
   state.adjustmentFocus =
       !state.numberFocus && !state.enterDigitFocus &&
       controller.Column() == 0U &&
-      (controller.HeldMask() & TrackerActionBit(TrackerAction::Edit)) != 0U;
+      (controller.HeldMask() & TrackerActionBit(TrackerAction::Enter)) != 0U;
   state.selectionActive = controller.Selection().active;
   state.selectionNextExpansionAll =
       state.selectionActive && controller.Selection().Left() == 0U &&
@@ -604,7 +604,7 @@ UiApplicationActivityState Ui2NativeApplicationStateSource::CaptureInstrument(
   state.enterSubfieldFocus = instrument_.EnterSubfieldFocus();
   state.adjustmentFocus =
       !state.numberFocus && activeAdjustment.visible &&
-      (instrument_.HeldMask() & TrackerActionBit(TrackerAction::Edit)) != 0U;
+      (instrument_.HeldMask() & TrackerActionBit(TrackerAction::Enter)) != 0U;
   state.adjustmentNote = activeAdjustment.note;
   state.adjustmentFineStep = activeAdjustment.fineStep;
   state.adjustmentCoarseStep = activeAdjustment.coarseStep;
@@ -792,8 +792,8 @@ Ui2NativeApplicationStateSource::CaptureDevice(UiDeviceFrameState &state) {
   }
   CopyUiText(state.version, nullperator_product::Version);
   state.cursor = DeviceCursorFor(device_.SelectedField());
-  state.editHeld =
-      (device_.HeldMask() & TrackerActionBit(TrackerAction::Edit)) != 0U;
+  state.enterHeld =
+      (device_.HeldMask() & TrackerActionBit(TrackerAction::Enter)) != 0U;
   state.showLineOut =
       (device_.VisibleFields() &
        (std::uint32_t{1}
@@ -1021,8 +1021,8 @@ UiApplicationActivityState Ui2NativeApplicationStateSource::CaptureSampleEditor(
   state = MakeUiSampleEditorControllerState(
       snapshot, UiPowerState::BatteryNormal,
       {.enterHeld =
-           (held & TrackerActionBit(TrackerAction::Edit)) != 0U,
-       .editHeld =
+           (held & TrackerActionBit(TrackerAction::Enter)) != 0U,
+       .optionHeld =
            (held & TrackerActionBit(TrackerAction::Option)) != 0U});
   return {.active = snapshot.playing};
 }
@@ -1034,8 +1034,8 @@ UiApplicationActivityState Ui2NativeApplicationStateSource::CaptureSampleSlices(
   state = MakeUiSampleSlicesControllerState(
       snapshot, UiPowerState::BatteryNormal,
       {.enterHeld =
-           (held & TrackerActionBit(TrackerAction::Edit)) != 0U,
-       .editHeld =
+           (held & TrackerActionBit(TrackerAction::Enter)) != 0U,
+       .optionHeld =
            (held & TrackerActionBit(TrackerAction::Option)) != 0U});
   return {.active = snapshot.previewActive};
 }

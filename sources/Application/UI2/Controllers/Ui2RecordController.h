@@ -74,15 +74,15 @@ public:
     if (action == TrackerAction::Play)
       return {.type = Ui2RecordCommandType::ToggleRecording};
 
-    const bool edit = input_.Held(TrackerAction::Edit);
-    if (!edit && action == TrackerAction::Up) {
+    const bool enter = input_.Held(TrackerAction::Enter);
+    if (!enter && action == TrackerAction::Up) {
       field_ = field_ == Ui2RecordField::Source
                    ? Ui2RecordField::MicGain
                    : static_cast<Ui2RecordField>(
                          static_cast<std::uint8_t>(field_) - 1U);
       return {};
     }
-    if (!edit && action == TrackerAction::Down) {
+    if (!enter && action == TrackerAction::Down) {
       field_ = static_cast<Ui2RecordField>(
           (static_cast<std::uint8_t>(field_) + 1U) %
           static_cast<std::uint8_t>(Ui2RecordField::Count));
@@ -90,7 +90,7 @@ public:
     }
     const bool horizontal =
         action == TrackerAction::Left || action == TrackerAction::Right;
-    const bool verticalEdit = edit &&
+    const bool verticalEdit = enter &&
                               (action == TrackerAction::Up ||
                                action == TrackerAction::Down);
     if (!horizontal && !verticalEdit)

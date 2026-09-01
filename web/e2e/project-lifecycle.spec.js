@@ -61,7 +61,7 @@ test('real session Save As, Browser Load/Delete, dirty confirmation, and New res
   await expectModel(page, { projectName: '.untitled', tempo: 138, playerRunning: false })
 
   // Create project A with tempo 139. An empty rename cannot select SAVE, so
-  // UP reaches RANDOM; the first EDIT generates a valid name and the second
+  // UP reaches RANDOM; the first ENTER generates a valid name and the second
   // accepts SAVE.
   await chord(page, 'x', 'w')
   await tap(page, 's')
@@ -102,7 +102,7 @@ test('real session Save As, Browser Load/Delete, dirty confirmation, and New res
   await expectModel(page, { projectName: projectB, tempo: 140 })
 
   // Load is forbidden while playback is active. The established OK message
-  // consumes EDIT and leaves the selected project and live model untouched.
+  // consumes ENTER and leaves the selected project and live model untouched.
   await tap(page, 'c')
   await expectModel(page, { playerRunning: true })
   await tap(page, 'a')

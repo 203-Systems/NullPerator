@@ -17,7 +17,7 @@ enum class TrackerAction : std::uint8_t {
   Up,
   Shift,  // Node START; M8 page/navigation modifier.
   Option, // Node B; M8 context/fast-action modifier.
-  Edit,   // Node A; M8 edit/confirm action.
+  Enter,  // Node A; confirm/data-entry action.
   Play,   // Node SELECT; immediate context playback action.
   Reserved8,
   Reserved9,
@@ -38,7 +38,7 @@ enum TrackerButtonMask : std::uint16_t {
   EPBM_UP = TrackerActionBit(TrackerAction::Up),
   EPBM_SHIFT = TrackerActionBit(TrackerAction::Shift),
   EPBM_OPTION = TrackerActionBit(TrackerAction::Option),
-  EPBM_M8_EDIT = TrackerActionBit(TrackerAction::Edit),
+  EPBM_ENTER = TrackerActionBit(TrackerAction::Enter),
   EPBM_M8_PLAY = TrackerActionBit(TrackerAction::Play),
   EPBM_POWER = TrackerActionBit(TrackerAction::Power),
 };

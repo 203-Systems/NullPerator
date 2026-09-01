@@ -126,10 +126,10 @@ public:
   void Handle(TrackerAction action, bool pressed) {
     if (!Active() || !input_.Update(action, pressed) || !pressed)
       return;
-    if (action != TrackerAction::Edit)
+    if (action != TrackerAction::Enter)
       return;
 
-    // Resolve a natural stop before interpreting EDIT. This prevents a final
+    // Resolve a natural stop before interpreting ENTER. This prevents a final
     // key press racing the audio callback from being reported as a cancel.
     Tick();
     if (phase_ == Phase::Rendering) {

@@ -169,7 +169,7 @@ public:
   }
   [[nodiscard]] constexpr bool EnterSubfieldFocus() const {
     return !NumberFocus() && subfieldMode_ != Ui2InstrumentSubfieldMode::None &&
-           subfieldCount_ > 0U && input_.Held(TrackerAction::Edit);
+           subfieldCount_ > 0U && input_.Held(TrackerAction::Enter);
   }
   [[nodiscard]] constexpr std::uint8_t Subfield() const {
     return subfield_;
@@ -259,7 +259,7 @@ public:
       return {};
 
     if (!pressed) {
-      if (action == TrackerAction::Edit && valueEditDirty_) {
+      if (action == TrackerAction::Enter && valueEditDirty_) {
         valueEditDirty_ = false;
         return MakeCommand(Ui2InstrumentCommandType::CommitValueEdits);
       }
@@ -279,11 +279,11 @@ public:
       return {};
     }
 
-    if (input_.Held(TrackerAction::Edit)) {
+    if (input_.Held(TrackerAction::Enter)) {
       if (direction != Ui2InstrumentValueDirection::None)
         return HandleEnterDirection(direction);
-      if (action == TrackerAction::Edit &&
-          input_.Mask() == TrackerActionBit(TrackerAction::Edit)) {
+      if (action == TrackerAction::Enter &&
+          input_.Mask() == TrackerActionBit(TrackerAction::Enter)) {
         const Ui2InstrumentCursorPosition cursor = Cursor();
         if (cursor.kind == Ui2InstrumentCursorKind::Name)
           return MakeCommand(NameCommand(nameAction_));
@@ -385,7 +385,7 @@ private:
     case TrackerAction::Up:
       return Ui2InstrumentValueDirection::Up;
     case TrackerAction::Option:
-    case TrackerAction::Edit:
+    case TrackerAction::Enter:
     case TrackerAction::Shift:
     case TrackerAction::Play:
     case TrackerAction::Reserved8:

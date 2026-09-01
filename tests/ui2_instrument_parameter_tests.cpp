@@ -1164,7 +1164,7 @@ TEST_CASE("UI2 Instrument type change is blocked while playing and defaults NO")
   REQUIRE(controller.Active());
   CHECK(std::string_view(controller.Snapshot().title.data()) ==
         "Not while playing");
-  CHECK_FALSE(Tap(controller, TrackerAction::Edit).HasValue());
+  CHECK_FALSE(Tap(controller, TrackerAction::Enter).HasValue());
 
   CHECK_FALSE(controller.RequestTypeChange(IT_MIDI, IT_SAMPLE, true, false)
                   .HasValue());
@@ -1174,7 +1174,7 @@ TEST_CASE("UI2 Instrument type change is blocked while playing and defaults NO")
   CHECK(dialog.actions[0] == UiDialogAction::Yes);
   CHECK(dialog.actions[1] == UiDialogAction::No);
   CHECK(dialog.selectedAction == 1U);
-  CHECK_FALSE(Tap(controller, TrackerAction::Edit).HasValue());
+  CHECK_FALSE(Tap(controller, TrackerAction::Enter).HasValue());
 }
 
 TEST_CASE("UI2 Instrument type change emits only immediate-safe or explicit YES") {
@@ -1188,7 +1188,7 @@ TEST_CASE("UI2 Instrument type change emits only immediate-safe or explicit YES"
   CHECK_FALSE(controller.RequestTypeChange(IT_OPAL, IT_MIDI, true, false)
                   .HasValue());
   Tap(controller, TrackerAction::Left);
-  const auto confirmed = Tap(controller, TrackerAction::Edit);
+  const auto confirmed = Tap(controller, TrackerAction::Enter);
   REQUIRE(confirmed.type == Ui2InstrumentLifecycleCommandType::ApplyType);
   CHECK(confirmed.instrumentType == IT_OPAL);
 }
@@ -1228,18 +1228,18 @@ TEST_CASE("UI2 Instrument export overwrite requires explicit YES") {
   CHECK(dialog.actions[0] == UiDialogAction::Yes);
   CHECK(dialog.actions[1] == UiDialogAction::No);
   CHECK(dialog.selectedAction == 1U);
-  CHECK_FALSE(Tap(controller, TrackerAction::Edit).HasValue());
+  CHECK_FALSE(Tap(controller, TrackerAction::Enter).HasValue());
 
-  controller.RequestExportOverwrite(TrackerAction::Edit);
-  CHECK_FALSE(controller.Handle(TrackerAction::Edit, true).HasValue());
+  controller.RequestExportOverwrite(TrackerAction::Enter);
+  CHECK_FALSE(controller.Handle(TrackerAction::Enter, true).HasValue());
   REQUIRE(controller.Active());
   CHECK(controller.Snapshot().selectedAction == 1U);
   CHECK_FALSE(controller.Handle(TrackerAction::Left, true).HasValue());
   CHECK_FALSE(controller.Handle(TrackerAction::Left, false).HasValue());
   CHECK(controller.Snapshot().selectedAction == 1U);
-  CHECK_FALSE(controller.Handle(TrackerAction::Edit, false).HasValue());
+  CHECK_FALSE(controller.Handle(TrackerAction::Enter, false).HasValue());
   Tap(controller, TrackerAction::Left);
-  const auto overwrite = Tap(controller, TrackerAction::Edit);
+  const auto overwrite = Tap(controller, TrackerAction::Enter);
   CHECK(overwrite.type == Ui2InstrumentLifecycleCommandType::OverwriteExport);
 }
 
@@ -1289,6 +1289,6 @@ TEST_CASE("UI2 global settings transport accepts only plain PLAY") {
   CHECK_FALSE(Ui2IsPlainPlay(TrackerAction::Play, false, 0U));
   CHECK_FALSE(Ui2IsPlainPlay(
       TrackerAction::Play, true,
-      play | TrackerActionBit(TrackerAction::Edit)));
+      play | TrackerActionBit(TrackerAction::Enter)));
   CHECK_FALSE(Ui2IsPlainPlay(TrackerAction::Right, true, play));
 }

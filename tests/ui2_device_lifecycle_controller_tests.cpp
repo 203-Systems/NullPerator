@@ -48,7 +48,7 @@ TEST_CASE("UI2 Device firmware update is blocked during playback") {
   REQUIRE(dialog.actionCount == 1U);
   CHECK(dialog.actions[0] == UiDialogAction::Ok);
   CHECK(dialog.selectedAction == 0U);
-  CHECK_FALSE(Tap(controller, TrackerAction::Edit).HasValue());
+  CHECK_FALSE(Tap(controller, TrackerAction::Enter).HasValue());
   CHECK_FALSE(controller.Active());
 }
 
@@ -66,40 +66,40 @@ TEST_CASE("UI2 Device firmware confirmation defaults to NO") {
   CHECK(dialog.actions[1] == UiDialogAction::No);
   CHECK(dialog.selectedAction == 1U);
 
-  CHECK_FALSE(Tap(controller, TrackerAction::Edit).HasValue());
+  CHECK_FALSE(Tap(controller, TrackerAction::Enter).HasValue());
   CHECK_FALSE(controller.Active());
 }
 
-TEST_CASE("UI2 Device dialogs wait for the opening EDIT release") {
+TEST_CASE("UI2 Device dialogs wait for the opening ENTER release") {
   using namespace ui2;
   Ui2DeviceLifecycleController controller;
 
   SUBCASE("firmware confirmation") {
-    controller.RequestUpdateFirmware(false, TrackerAction::Edit);
+    controller.RequestUpdateFirmware(false, TrackerAction::Enter);
     REQUIRE(controller.Active());
     CHECK(controller.Snapshot().selectedAction == 1U);
 
-    CHECK_FALSE(controller.Handle(TrackerAction::Edit, true).HasValue());
+    CHECK_FALSE(controller.Handle(TrackerAction::Enter, true).HasValue());
     CHECK_FALSE(controller.Handle(TrackerAction::Left, true).HasValue());
     CHECK_FALSE(controller.Handle(TrackerAction::Left, false).HasValue());
     CHECK(controller.Active());
     CHECK(controller.Snapshot().selectedAction == 1U);
-    CHECK_FALSE(controller.Handle(TrackerAction::Edit, false).HasValue());
+    CHECK_FALSE(controller.Handle(TrackerAction::Enter, false).HasValue());
 
     CHECK_FALSE(Tap(controller, TrackerAction::Left).HasValue());
-    CHECK(Tap(controller, TrackerAction::Edit).type ==
+    CHECK(Tap(controller, TrackerAction::Enter).type ==
           Ui2DeviceLifecycleCommandType::EnterBootloader);
   }
 
   SUBCASE("playback warning") {
-    controller.RequestUpdateFirmware(true, TrackerAction::Edit);
+    controller.RequestUpdateFirmware(true, TrackerAction::Enter);
     REQUIRE(controller.Active());
 
-    CHECK_FALSE(controller.Handle(TrackerAction::Edit, true).HasValue());
+    CHECK_FALSE(controller.Handle(TrackerAction::Enter, true).HasValue());
     CHECK(controller.Active());
-    CHECK_FALSE(controller.Handle(TrackerAction::Edit, false).HasValue());
+    CHECK_FALSE(controller.Handle(TrackerAction::Enter, false).HasValue());
 
-    CHECK_FALSE(Tap(controller, TrackerAction::Edit).HasValue());
+    CHECK_FALSE(Tap(controller, TrackerAction::Enter).HasValue());
     CHECK_FALSE(controller.Active());
   }
 }
@@ -117,7 +117,7 @@ TEST_CASE("UI2 Device firmware service runs only an explicit YES command") {
   controller.RequestUpdateFirmware(false);
   Tap(controller, TrackerAction::Left);
   const Ui2DeviceLifecycleCommand command =
-      Tap(controller, TrackerAction::Edit);
+      Tap(controller, TrackerAction::Enter);
   REQUIRE(command.type == Ui2DeviceLifecycleCommandType::EnterBootloader);
   CHECK(system.bootloaderRequests == 0);
   CHECK(service.Execute(command) ==

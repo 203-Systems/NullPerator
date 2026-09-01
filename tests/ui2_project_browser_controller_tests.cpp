@@ -137,7 +137,7 @@ TEST_CASE("UI2 Project Browser reserves Option for M8-style chords") {
         Ui2ProjectBrowserCommandType::None);
   CHECK(controller.Snapshot().selectedRow == 1U);
 
-  const Ui2ProjectBrowserCommand remove = Tap(controller, TrackerAction::Edit);
+  const Ui2ProjectBrowserCommand remove = Tap(controller, TrackerAction::Enter);
   CHECK(remove.type == Ui2ProjectBrowserCommandType::Delete);
   CHECK(std::strcmp(remove.project.data(), "OLD") == 0);
   controller.Handle(TrackerAction::Option, false);
@@ -163,7 +163,7 @@ TEST_CASE("UI2 Project Browser owns names without changing filesystem cwd") {
   CHECK(std::strcmp(snapshot.items[0].data(), "..") == 0);
   CHECK(std::strcmp(snapshot.actions[0].data(), "LOAD") == 0);
   const Ui2ProjectBrowserCommand command =
-      Tap(controller, TrackerAction::Edit);
+      Tap(controller, TrackerAction::Enter);
   CHECK(command.type == Ui2ProjectBrowserCommandType::Load);
   CHECK(std::strcmp(command.project.data(), "OLD") == 0);
 }
@@ -206,7 +206,7 @@ TEST_CASE("UI2 Project Browser dot-dot navigates to the SD-card root") {
   Tap(controller, TrackerAction::Up);
   CHECK(std::strcmp(controller.Snapshot().actions[0].data(), "UP") == 0);
   const Ui2ProjectBrowserCommand command =
-      Tap(controller, TrackerAction::Edit);
+      Tap(controller, TrackerAction::Enter);
   CHECK(fileSystem.ChdirCalls() == 0);
   CHECK(command.type == Ui2ProjectBrowserCommandType::None);
   CHECK(fileSystem.LastPath() == "/");
@@ -216,7 +216,7 @@ TEST_CASE("UI2 Project Browser dot-dot navigates to the SD-card root") {
   CHECK(std::strcmp(snapshot.items[0].data(), "projects") == 0);
   CHECK(std::strcmp(snapshot.actions[0].data(), "OPEN") == 0);
 
-  CHECK(Tap(controller, TrackerAction::Edit).type ==
+  CHECK(Tap(controller, TrackerAction::Enter).type ==
         Ui2ProjectBrowserCommandType::None);
   CHECK(fileSystem.LastPath() == PROJECTS_DIR);
   snapshot = controller.Snapshot();
@@ -230,13 +230,13 @@ TEST_CASE("UI2 Project Browser keeps Load explicit and protects active Delete") 
   Ui2ProjectBrowserController controller;
   REQUIRE(controller.Refresh("ACTIVE"));
 
-  const Ui2ProjectBrowserCommand load = Tap(controller, TrackerAction::Edit);
+  const Ui2ProjectBrowserCommand load = Tap(controller, TrackerAction::Enter);
   CHECK(load.type == Ui2ProjectBrowserCommandType::Load);
   CHECK(std::strcmp(load.project.data(), "OLD") == 0);
 
   Tap(controller, TrackerAction::Down); // ACTIVE
   controller.Handle(TrackerAction::Option, true);
-  CHECK(Tap(controller, TrackerAction::Edit).type ==
+  CHECK(Tap(controller, TrackerAction::Enter).type ==
         Ui2ProjectBrowserCommandType::None);
   controller.Handle(TrackerAction::Option, false);
 }
@@ -286,14 +286,14 @@ TEST_CASE("UI2 Project Browser owner releases clear a modal-opening chord") {
 
   controller.Handle(TrackerAction::Option, true);
   const Ui2ProjectBrowserCommand remove =
-      controller.Handle(TrackerAction::Edit, true);
+      controller.Handle(TrackerAction::Enter, true);
   REQUIRE(remove.type == Ui2ProjectBrowserCommandType::Delete);
 
   // The confirmation consumes these releases too. Ui2TrackerApplication must
   // additionally return each key-up to the page that owned its key-down.
   controller.Handle(TrackerAction::Option, false);
-  controller.Handle(TrackerAction::Edit, false);
-  const Ui2ProjectBrowserCommand load = Tap(controller, TrackerAction::Edit);
+  controller.Handle(TrackerAction::Enter, false);
+  const Ui2ProjectBrowserCommand load = Tap(controller, TrackerAction::Enter);
   CHECK(load.type == Ui2ProjectBrowserCommandType::Load);
   CHECK(std::strcmp(load.project.data(), "OLD") == 0);
 }

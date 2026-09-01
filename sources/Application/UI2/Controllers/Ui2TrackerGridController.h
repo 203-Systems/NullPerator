@@ -178,11 +178,11 @@ template <std::size_t Capacity = 2> struct Ui2TrackerCommandBatch {
   }
 };
 
-// A bare EDIT press is also the prefix of EDIT->OPTION Cut. Defer its ordinary
-// edit until another input proves the chord is not Cut, or until EDIT release.
+// A bare ENTER press is also the prefix of ENTER->OPTION Cut. Defer its ordinary
+// edit until another input proves the chord is not Cut, or until ENTER release.
 // This keeps destructive chords atomic without timers or platform-specific
 // ordering assumptions.
-class Ui2DeferredEdit {
+class Ui2DeferredEnter {
 public:
   constexpr void Begin() { pending_ = true; }
   constexpr void Cancel() { pending_ = false; }
@@ -200,11 +200,11 @@ private:
 
 [[nodiscard]] constexpr bool
 Ui2CompletesCellCut(TrackerAction action, const Ui2ControllerInputState &input,
-                    const Ui2DeferredEdit &deferredEdit, bool actionWasHeld) {
+                    const Ui2DeferredEnter &deferredEnter, bool actionWasHeld) {
   return !input.Held(TrackerAction::Shift) && !actionWasHeld &&
-         input.Held(TrackerAction::Option) && input.Held(TrackerAction::Edit) &&
-         (action == TrackerAction::Edit ||
-          (action == TrackerAction::Option && deferredEdit.Pending()));
+         input.Held(TrackerAction::Option) && input.Held(TrackerAction::Enter) &&
+         (action == TrackerAction::Enter ||
+          (action == TrackerAction::Option && deferredEnter.Pending()));
 }
 
 template <std::uint8_t ColumnCount> class Ui2FixedGridCursor {
@@ -262,7 +262,7 @@ Ui2TrackerDirectionFor(TrackerAction action) {
     return Ui2TrackerEditDirection::Up;
   case TrackerAction::Shift:
   case TrackerAction::Option:
-  case TrackerAction::Edit:
+  case TrackerAction::Enter:
   case TrackerAction::Play:
   case TrackerAction::Reserved8:
   case TrackerAction::Reserved9:
@@ -300,7 +300,7 @@ Ui2MakeTrackerCommand(Ui2TrackerCommandType type, Ui2TrackerPage page,
   return command;
 }
 
-static_assert(std::is_trivially_copyable_v<Ui2DeferredEdit>);
+static_assert(std::is_trivially_copyable_v<Ui2DeferredEnter>);
 static_assert(std::is_trivially_copyable_v<Ui2GridSelectionState>);
 static_assert(std::is_trivially_copyable_v<Ui2TrackerCommand>);
 static_assert(std::is_trivially_copyable_v<Ui2TrackerCommandBatch<>>);

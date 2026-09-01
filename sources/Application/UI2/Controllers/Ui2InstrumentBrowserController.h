@@ -64,7 +64,7 @@ public:
       selected_ = Ui2MoveListIndex(
           selected_, count_, input_.Held(TrackerAction::Option) ? 8 : 1);
       error_.fill('\0');
-    } else if (action == TrackerAction::Edit && count_ != 0U) {
+    } else if (action == TrackerAction::Enter && count_ != 0U) {
       Ui2InstrumentBrowserCommand command{
           .type = Ui2InstrumentBrowserCommandType::Import};
       ReadName(selected_, command.filename.data(), command.filename.size());

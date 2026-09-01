@@ -188,7 +188,7 @@ public:
       MoveSelection(1);
       return {};
     }
-    if (action != TrackerAction::Edit)
+    if (action != TrackerAction::Enter)
       return {};
 
     const UiDialogAction chosen = actions_[selectedAction_];

@@ -5,7 +5,7 @@ export const ACTIONS = Object.freeze({
   up: 3,
   shift: 4,
   option: 5,
-  edit: 6,
+  enter: 6,
   play: 7,
   power: 10,
 })
@@ -22,7 +22,7 @@ export const DEFAULT_KEY_MAP = Object.freeze({
   up: entry(ACTIONS.up, ['KeyW'], ['ArrowUp']),
   shift: entry(ACTIONS.shift, ['KeyX']),
   option: entry(ACTIONS.option, ['KeyJ']),
-  edit: entry(ACTIONS.edit, ['KeyK']),
+  enter: entry(ACTIONS.enter, ['KeyK']),
   play: entry(ACTIONS.play, ['KeyC']),
   power: entry(ACTIONS.power),
 })

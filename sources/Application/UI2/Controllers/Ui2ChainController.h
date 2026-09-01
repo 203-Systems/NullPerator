@@ -63,23 +63,23 @@ public:
       }
       if (action == TrackerAction::Shift)
         clonePending_ = false;
-      if (action == TrackerAction::Edit && wasHeld) {
+      if (action == TrackerAction::Enter && wasHeld) {
         if (valueEditDirty_) {
           output.Push(Command(Ui2TrackerCommandType::CommitValueEdits));
           valueEditDirty_ = false;
-          deferredEdit_.Cancel();
-        } else if (deferredEdit_.Take()) {
+          deferredEnter_.Cancel();
+        } else if (deferredEnter_.Take()) {
           HandlePrimaryEdit(output);
         }
       }
       return output;
     }
 
-    if (action != TrackerAction::Edit && !deferredEdit_.Owed())
+    if (action != TrackerAction::Enter && !deferredEnter_.Owed())
       newEntryPending_ = false;
 
     if (action == TrackerAction::Play && input_.Held(TrackerAction::Option) &&
-        !input_.Held(TrackerAction::Edit)) {
+        !input_.Held(TrackerAction::Enter)) {
       clonePending_ = false;
       output.Push(Command(input_.Held(TrackerAction::Shift)
                               ? Ui2TrackerCommandType::UnmuteAll
@@ -87,11 +87,11 @@ public:
       return output;
     }
 
-    if (clonePending_ && action == TrackerAction::Edit &&
+    if (clonePending_ && action == TrackerAction::Enter &&
         input_.Held(TrackerAction::Shift) &&
         !input_.Held(TrackerAction::Option)) {
       clonePending_ = false;
-      deferredEdit_.Cancel();
+      deferredEnter_.Cancel();
       selection_.Clear();
       output.Push(Command(Ui2TrackerCommandType::CloneCell));
       return output;
@@ -103,7 +103,7 @@ public:
 
     const Ui2TrackerEditDirection direction = Ui2TrackerDirectionFor(action);
     if (action == TrackerAction::Option && input_.Held(TrackerAction::Shift)) {
-      deferredEdit_.Cancel();
+      deferredEnter_.Cancel();
       selection_.Begin(grid_.Column(), grid_.Row());
       clonePending_ = grid_.Column() == 0U;
       return output;
@@ -112,30 +112,30 @@ public:
       output.Push(Command(Ui2TrackerCommandType::ToggleMute));
       return output;
     }
-    if (Ui2CompletesCellCut(action, input_, deferredEdit_, wasHeld)) {
-      deferredEdit_.Cancel();
+    if (Ui2CompletesCellCut(action, input_, deferredEnter_, wasHeld)) {
+      deferredEnter_.Cancel();
       newEntryPending_ = false;
       output.Push(Command(Ui2TrackerCommandType::CutCell));
       return output;
     }
     if (input_.Held(TrackerAction::Option)) {
       if (!input_.Held(TrackerAction::Shift) &&
-          !input_.Held(TrackerAction::Edit) &&
+          !input_.Held(TrackerAction::Enter) &&
           direction != Ui2TrackerEditDirection::None) {
         HandleEditDirection(direction, output);
       }
       return output;
     }
 
-    if (action == TrackerAction::Edit && input_.Held(TrackerAction::Shift)) {
-      deferredEdit_.Cancel();
+    if (action == TrackerAction::Enter && input_.Held(TrackerAction::Shift)) {
+      deferredEnter_.Cancel();
       output.Push(Command(Ui2TrackerCommandType::PasteSelection));
       return output;
     }
 
-    if (input_.Held(TrackerAction::Edit)) {
+    if (input_.Held(TrackerAction::Enter)) {
       if (direction != Ui2TrackerEditDirection::None) {
-        if (deferredEdit_.Take())
+        if (deferredEnter_.Take())
           HandlePrimaryEdit(output);
         newEntryPending_ = false;
         Ui2TrackerCommand command = Command(Ui2TrackerCommandType::AdjustCell);
@@ -143,11 +143,11 @@ public:
         command.value = CellDelta(direction);
         output.Push(command);
         valueEditDirty_ = true;
-      } else if (action == TrackerAction::Edit &&
-                 input_.Mask() == TrackerActionBit(TrackerAction::Edit)) {
-        deferredEdit_.Begin();
+      } else if (action == TrackerAction::Enter &&
+                 input_.Mask() == TrackerActionBit(TrackerAction::Enter)) {
+        deferredEnter_.Begin();
       } else {
-        deferredEdit_.Cancel();
+        deferredEnter_.Cancel();
         newEntryPending_ = false;
       }
       return output;
@@ -209,7 +209,7 @@ private:
       return;
     }
     if (action == TrackerAction::Play) {
-      if (input_.Held(TrackerAction::Edit))
+      if (input_.Held(TrackerAction::Enter))
         return;
       Ui2TrackerCommand command = Command(Ui2TrackerCommandType::StartPlayback);
       command.selection = selection_;
@@ -221,14 +221,14 @@ private:
       selection_.ExpandColumnsThenRows(1U, 0U, kUi2TrackerVisibleRows - 1U);
       return;
     }
-    if (action == TrackerAction::Option && input_.Held(TrackerAction::Edit)) {
+    if (action == TrackerAction::Option && input_.Held(TrackerAction::Enter)) {
       Ui2TrackerCommand command = Command(Ui2TrackerCommandType::CutSelection);
       command.selection = selection_;
       output.Push(command);
       selection_.Clear();
       return;
     }
-    if (action == TrackerAction::Edit && input_.Held(TrackerAction::Option) &&
+    if (action == TrackerAction::Enter && input_.Held(TrackerAction::Option) &&
         !input_.Held(TrackerAction::Shift)) {
       Ui2TrackerCommand command = Command(Ui2TrackerCommandType::CutSelection);
       command.selection = selection_;
@@ -242,7 +242,7 @@ private:
       clonePending_ = true;
       return;
     }
-    if (input_.Held(TrackerAction::Edit) &&
+    if (input_.Held(TrackerAction::Enter) &&
         direction != Ui2TrackerEditDirection::None) {
       Ui2TrackerCommand command =
           Command(Ui2TrackerCommandType::AdjustSelection);
@@ -310,7 +310,7 @@ private:
   bool newEntryPending_ = false;
   bool valueEditDirty_ = false;
   bool clonePending_ = false;
-  Ui2DeferredEdit deferredEdit_{};
+  Ui2DeferredEnter deferredEnter_{};
 };
 
 static_assert(std::is_trivially_copyable_v<Ui2ChainController>);

@@ -46,7 +46,7 @@ ActionForPhysicalButton(PhysicalButton button) {
   case PhysicalButton::B:
     return TrackerAction::Option;
   case PhysicalButton::A:
-    return TrackerAction::Edit;
+    return TrackerAction::Enter;
   case PhysicalButton::Func:
     return TrackerAction::Power;
   }

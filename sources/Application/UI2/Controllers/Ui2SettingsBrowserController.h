@@ -108,7 +108,7 @@ public:
       activeAction_ = 0U;
     } else if (action == TrackerAction::Right && ItemCount() != 0U) {
       activeAction_ = 1U;
-    } else if (action == TrackerAction::Edit) {
+    } else if (action == TrackerAction::Enter) {
       if (activeAction_ == 0U || ItemCount() == 0U)
         return {.type = Ui2SettingsBrowserCommandType::Back};
       if (mode_ == Ui2SettingsBrowserMode::Theme) {

@@ -373,8 +373,8 @@ void Ui2TrackerApplication::DispatchLogicalAction(TrackerAction action,
     pressOwners_[actionIndex] = UiApplicationPage::None;
     // A modal consumes its own key-up, but the controller that accepted the
     // corresponding key-down must also see that release. Otherwise a chord
-    // such as Project Browser OPTION+EDIT can leave OPTION latched after its
-    // confirmation closes and turn the next plain EDIT into another delete.
+    // such as Project Browser OPTION+ENTER can leave OPTION latched after its
+    // confirmation closes and turn the next plain ENTER into another delete.
     if (releaseOwner != UiApplicationPage::None)
       DispatchPageAction(releaseOwner, action, false);
   };
@@ -488,7 +488,7 @@ bool Ui2TrackerApplication::TryNavigate(TrackerAction action) {
       action != TrackerAction::Up && action != TrackerAction::Down)
     return false;
   const std::uint16_t modifiers = TrackerActionBit(TrackerAction::Option) |
-                                  TrackerActionBit(TrackerAction::Edit);
+                                  TrackerActionBit(TrackerAction::Enter);
   if ((physicalHeldMask_ & modifiers) != 0U)
     return false;
 
@@ -818,7 +818,7 @@ bool Ui2TrackerApplication::ActivateDiagnosticBrowser(
 void Ui2TrackerApplication::HandleProject(TrackerAction action, bool pressed) {
   if (!projectInput_.Update(action, pressed))
     return;
-  project_.SetEnterHeld(projectInput_.Held(TrackerAction::Edit));
+  project_.SetEnterHeld(projectInput_.Held(TrackerAction::Enter));
   if (!pressed)
     return;
 
@@ -826,8 +826,8 @@ void Ui2TrackerApplication::HandleProject(TrackerAction action, bool pressed) {
       projectInput_.Held(TrackerAction::Option)) {
     return;
   }
-  if (projectInput_.Held(TrackerAction::Edit)) {
-    if (action == TrackerAction::Edit)
+  if (projectInput_.Held(TrackerAction::Enter)) {
+    if (action == TrackerAction::Enter)
       ExecuteProject(project_.Enter());
     else if ((project_.ContentCursor() == Ui2ProjectContentCursor::Tempo ||
               project_.ContentCursor() == Ui2ProjectContentCursor::Transpose ||
@@ -841,7 +841,7 @@ void Ui2TrackerApplication::HandleProject(TrackerAction action, bool pressed) {
   if (projectInput_.AnyModifier())
     return;
 
-  // Value rows always expose fine horizontal editing. Holding EDIT adds the
+  // Value rows always expose fine horizontal editing. Holding ENTER adds the
   // vertical coarse path, but is not a prerequisite for ordinary +/-1.
   if (action == TrackerAction::Left || action == TrackerAction::Right) {
     const Ui2ProjectCommand adjustment = project_.Adjust(action);
@@ -869,7 +869,7 @@ void Ui2TrackerApplication::HandleProject(TrackerAction action, bool pressed) {
     break;
   case TrackerAction::Shift:
   case TrackerAction::Option:
-  case TrackerAction::Edit:
+  case TrackerAction::Enter:
   case TrackerAction::Reserved8:
   case TrackerAction::Reserved9:
   case TrackerAction::Power:
@@ -969,11 +969,11 @@ void Ui2TrackerApplication::HandleBrowser(TrackerAction action, bool pressed) {
     lifecycleCommand =
         projectLifecycle_.RequestLoad(command.project.data(), autoSave_.Dirty(),
                                       Player::GetInstance()->IsRunning(),
-                                      TrackerAction::Edit);
+                                      TrackerAction::Enter);
   } else if (command.type == Ui2ProjectBrowserCommandType::Delete) {
     lifecycleCommand = projectLifecycle_.RequestDelete(
         command.project.data(), session_.ProjectName(),
-        Player::GetInstance()->IsRunning(), TrackerAction::Edit);
+        Player::GetInstance()->IsRunning(), TrackerAction::Enter);
   }
   ExecuteProjectLifecycle(lifecycleCommand);
 }
@@ -1083,7 +1083,7 @@ void Ui2TrackerApplication::ExecuteSampleBrowser(
       return;
     }
     sampleBrowser_.RequestDeleteConfirmation(command.filename.data(),
-                                             TrackerAction::Edit);
+                                             TrackerAction::Enter);
     return;
   }
 
@@ -1434,7 +1434,7 @@ void Ui2TrackerApplication::ExecuteSampleEditor(
   case Ui2SampleEditorCommandType::RequestApplyOperation:
     StopSamplePreview();
     sampleEditor_.RequestApplyConfirmation(
-        command.operation, command.start, command.end, TrackerAction::Edit);
+        command.operation, command.start, command.end, TrackerAction::Enter);
     break;
   case Ui2SampleEditorCommandType::ApplyConfirmed: {
     StopSamplePreview();
@@ -1443,7 +1443,7 @@ void Ui2TrackerApplication::ExecuteSampleEditor(
             ? sampleEditorTransaction_.BeginTrim(command.start, command.end)
             : sampleEditorTransaction_.BeginNormalize();
     if (result == Ui2SampleEditorTransactionResult::InProgress) {
-      sampleEditor_.BeginApplyProgress(command.operation, TrackerAction::Edit);
+      sampleEditor_.BeginApplyProgress(command.operation, TrackerAction::Enter);
       runtime_.Invalidate();
       break;
     }
@@ -1772,7 +1772,7 @@ void Ui2TrackerApplication::ExecuteDevice(Ui2DeviceCommand command) {
   }
   case Ui2DeviceCommandType::UpdateFirmware:
     deviceLifecycle_.RequestUpdateFirmware(
-        Player::GetInstance()->IsRunning(), TrackerAction::Edit);
+        Player::GetInstance()->IsRunning(), TrackerAction::Enter);
     break;
   case Ui2DeviceCommandType::None:
     break;
@@ -1988,7 +1988,7 @@ void Ui2TrackerApplication::ExecuteInstrument(Ui2InstrumentCommand command) {
     renameTarget_ = RenameTarget::Instrument;
     renameInstrumentNumber_ = number;
     rename_.Begin(name.c_str(), MAX_INSTRUMENT_NAME_LENGTH, nullptr,
-                  TrackerAction::Edit);
+                  TrackerAction::Enter);
     return;
   }
   if (command.type == Ui2InstrumentCommandType::ActivateField) {
@@ -2177,7 +2177,7 @@ void Ui2TrackerApplication::SaveCurrentInstrument(bool overwrite) {
   }
   if (result == Ui2InstrumentExportOutcome::Exists) {
     Status::Set("INSTRUMENT FILE EXISTS");
-    instrumentLifecycle_.RequestExportOverwrite(TrackerAction::Edit);
+    instrumentLifecycle_.RequestExportOverwrite(TrackerAction::Enter);
   }
   runtime_.Invalidate();
 }
@@ -2241,7 +2241,7 @@ void Ui2TrackerApplication::ExecuteTheme(Ui2ThemeCommand command) {
   case Ui2ThemeCommandType::NewTheme:
     renameTarget_ = RenameTarget::NewTheme;
     rename_.Begin("New Theme", MAX_THEME_NAME_LENGTH,
-                  &Config::IsValidThemeName, TrackerAction::Edit);
+                  &Config::IsValidThemeName, TrackerAction::Enter);
     break;
   case Ui2ThemeCommandType::LoadTheme: {
     std::array<char, MAX_THEME_NAME_LENGTH + 1U> currentName{};
@@ -2271,7 +2271,7 @@ void Ui2TrackerApplication::ExecuteTheme(Ui2ThemeCommand command) {
         // Match the legacy flow: an existing theme is never silently replaced.
         // The shared conservative message dialog defaults to NO.
         projectLifecycle_.RequestThemeOverwrite(name->GetString().c_str(),
-                                                TrackerAction::Edit);
+                                                TrackerAction::Enter);
       } else if (!config->ExportTheme(name->GetString().c_str(), false)) {
         projectLifecycle_.ReportFailure(Ui2ProjectLifecycleFailure::SaveTheme);
       } else {
@@ -2286,7 +2286,7 @@ void Ui2TrackerApplication::ExecuteTheme(Ui2ThemeCommand command) {
       renameTarget_ = RenameTarget::Theme;
       rename_.Begin(name == nullptr ? "" : name->GetString().c_str(),
                     MAX_THEME_NAME_LENGTH, &Config::IsValidThemeName,
-                    TrackerAction::Edit);
+                    TrackerAction::Enter);
     }
     break;
   case Ui2ThemeCommandType::AdjustColor:
@@ -2359,11 +2359,11 @@ void Ui2TrackerApplication::ExecutePendingSave(std::uint32_t nowMs) {
   persistenceStatus_.FinishSaving();
   if (result == TrackerApplicationSession::SaveResult::Exists) {
     // Saving is deferred until the saving indicator has been presented. A
-    // fast tap may therefore release EDIT before this dialog opens; only arm
+    // fast tap may therefore release ENTER before this dialog opens; only arm
     // the release gate while the opener is still physically held.
     const TrackerAction trigger =
-        (physicalHeldMask_ & TrackerActionBit(TrackerAction::Edit)) != 0U
-            ? TrackerAction::Edit
+        (physicalHeldMask_ & TrackerActionBit(TrackerAction::Enter)) != 0U
+            ? TrackerAction::Enter
             : TrackerAction::Count;
     projectLifecycle_.RequestOverwrite(session_.ProjectName(), trigger);
     return;
@@ -2407,10 +2407,10 @@ void Ui2TrackerApplication::ExecuteProjectLifecycle(
     if (Player::GetInstance()->IsAudioActive()) {
       if (command.type ==
           Ui2ProjectLifecycleCommandType::PurgeUnusedSamples)
-        projectLifecycle_.RequestPurgeUnusedSamples(true, TrackerAction::Edit);
+        projectLifecycle_.RequestPurgeUnusedSamples(true, TrackerAction::Enter);
       else
         projectLifecycle_.RequestPurgeUnusedInstruments(true,
-                                                        TrackerAction::Edit);
+                                                        TrackerAction::Enter);
       return;
     }
     if (command.type == Ui2ProjectLifecycleCommandType::PurgeUnusedSamples)
@@ -2596,18 +2596,18 @@ void Ui2TrackerApplication::ExecuteProject(Ui2ProjectCommand command) {
       const Ui2ProjectNamePresentation presentation(session_.ProjectName());
       rename_.Begin(presentation.RenameDraft(), MAX_PROJECT_NAME_LENGTH,
                     &PersistencyService::IsValidProjectName,
-                    TrackerAction::Edit);
+                    TrackerAction::Enter);
       break;
     }
     SaveCurrentProject();
     break;
   case Ui2ProjectCommandType::RemoveUnusedSamples:
     projectLifecycle_.RequestPurgeUnusedSamples(
-        Player::GetInstance()->IsAudioActive(), TrackerAction::Edit);
+        Player::GetInstance()->IsAudioActive(), TrackerAction::Enter);
     break;
   case Ui2ProjectCommandType::RemoveUnusedInstruments:
     projectLifecycle_.RequestPurgeUnusedInstruments(
-        Player::GetInstance()->IsAudioActive(), TrackerAction::Edit);
+        Player::GetInstance()->IsAudioActive(), TrackerAction::Enter);
     break;
   case Ui2ProjectCommandType::AdjustTempo:
   case Ui2ProjectCommandType::AdjustTranspose:
@@ -2628,7 +2628,7 @@ void Ui2TrackerApplication::ExecuteProject(Ui2ProjectCommand command) {
   case Ui2ProjectCommandType::NewProject:
     ExecuteProjectLifecycle(projectLifecycle_.RequestNew(
         autoSave_.Dirty(), Player::GetInstance()->IsRunning(),
-        TrackerAction::Edit));
+        TrackerAction::Enter));
     break;
   case Ui2ProjectCommandType::RenameProject:
     deferredProjectSave_.Cancel();
@@ -2636,7 +2636,7 @@ void Ui2TrackerApplication::ExecuteProject(Ui2ProjectCommand command) {
     rename_.Begin(
         Ui2ProjectNamePresentation(session_.ProjectName()).RenameDraft(),
         MAX_PROJECT_NAME_LENGTH, &PersistencyService::IsValidProjectName,
-        TrackerAction::Edit);
+        TrackerAction::Enter);
     break;
   case Ui2ProjectCommandType::LoadProject:
     if (projectSaveAsPending_) {

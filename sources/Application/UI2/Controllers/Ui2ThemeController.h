@@ -116,9 +116,9 @@ public:
     if (!input_.Update(action, pressed) || !pressed)
       return {};
 
-    if (input_.Held(TrackerAction::Edit)) {
-      if (NameSelected() && action == TrackerAction::Edit &&
-          input_.Mask() == TrackerActionBit(TrackerAction::Edit))
+    if (input_.Held(TrackerAction::Enter)) {
+      if (NameSelected() && action == TrackerAction::Enter &&
+          input_.Mask() == TrackerActionBit(TrackerAction::Enter))
         return Enter();
       if (!NameSelected() && action == TrackerAction::Option) {
         return {.type = Ui2ThemeCommandType::ResetColorComponent,

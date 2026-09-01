@@ -46,7 +46,7 @@ void EventDispatcher::Execute(FourCC id, float value) {
     TrackerAction mapping = TrackerAction::Count;
     switch (id) {
     case FourCC::TrigEventEnter:
-      mapping = TrackerAction::Edit;
+      mapping = TrackerAction::Enter;
       break;
     case FourCC::TrigEventEdit:
       mapping = TrackerAction::Option;

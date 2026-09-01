@@ -35,7 +35,7 @@ TEST_CASE("Node UI2 mailbox presses modifiers before directions") {
   InputMailbox mailbox;
   mailbox.PublishSample(
       Mask({TrackerAction::Right, TrackerAction::Option,
-            TrackerAction::Shift, TrackerAction::Edit,
+            TrackerAction::Shift, TrackerAction::Enter,
             TrackerAction::Play}),
       false, 100U);
 
@@ -43,7 +43,7 @@ TEST_CASE("Node UI2 mailbox presses modifiers before directions") {
   REQUIRE(batch.size == 5U);
   CheckEvent(batch, 0U, TrackerAction::Shift, true);
   CheckEvent(batch, 1U, TrackerAction::Option, true);
-  CheckEvent(batch, 2U, TrackerAction::Edit, true);
+  CheckEvent(batch, 2U, TrackerAction::Enter, true);
   CheckEvent(batch, 3U, TrackerAction::Right, true);
   CheckEvent(batch, 4U, TrackerAction::Play, true);
 }
@@ -224,25 +224,25 @@ TEST_CASE("Node UI2 mailbox releases a held modifier after its queued tap") {
 
 TEST_CASE("Node UI2 mailbox preserves modifier release before a new chord") {
   InputMailbox mailbox;
-  const std::uint16_t edit = Mask({TrackerAction::Edit});
-  mailbox.PublishSample(edit, false, 100U);
+  const std::uint16_t enter = Mask({TrackerAction::Enter});
+  mailbox.PublishSample(enter, false, 100U);
   (void)mailbox.Drain();
 
-  // EDIT was already delivered to the application. A slow UI drain must not
+  // ENTER was already delivered to the application. A slow UI drain must not
   // collapse this physical release/repress pair into one continuous logical
   // hold, because the release commits value edits and stops Phrase audition.
   mailbox.PublishSample(0U, false, 110U);
   mailbox.PublishSample(
-      Mask({TrackerAction::Edit, TrackerAction::Left}), false, 120U);
-  mailbox.PublishSample(edit, false, 130U);
+      Mask({TrackerAction::Enter, TrackerAction::Left}), false, 120U);
+  mailbox.PublishSample(enter, false, 130U);
   const InputMailbox::Batch batch = mailbox.Drain();
 
   REQUIRE(batch.size == 4U);
-  CheckEvent(batch, 0U, TrackerAction::Edit, false);
-  CheckEvent(batch, 1U, TrackerAction::Edit, true);
+  CheckEvent(batch, 0U, TrackerAction::Enter, false);
+  CheckEvent(batch, 1U, TrackerAction::Enter, true);
   CheckEvent(batch, 2U, TrackerAction::Left, true);
   CheckEvent(batch, 3U, TrackerAction::Left, false);
-  CHECK(batch.heldMask == edit);
+  CHECK(batch.heldMask == enter);
 }
 
 TEST_CASE("Node UI2 mailbox preserves a second tap after a delivered press") {
@@ -271,21 +271,21 @@ TEST_CASE("Node UI2 mailbox defers killed press but never release") {
   mailbox.PublishSample(0U, false, 100U);
   (void)mailbox.Drain();
 
-  const std::uint16_t edit = Mask({TrackerAction::Edit});
-  mailbox.PublishSample(edit, false, 102U);
+  const std::uint16_t enter = Mask({TrackerAction::Enter});
+  mailbox.PublishSample(enter, false, 102U);
   CHECK(mailbox.Drain().size == 0U);
 
-  mailbox.PublishSample(edit, false, 106U);
+  mailbox.PublishSample(enter, false, 106U);
   InputMailbox::Batch batch = mailbox.Drain();
   REQUIRE(batch.size == 1U);
-  CheckEvent(batch, 0U, TrackerAction::Edit, true);
+  CheckEvent(batch, 0U, TrackerAction::Enter, true);
 
   // The release is dispatched immediately even though it is only 1 ms after
   // the accepted press.
   mailbox.PublishSample(0U, false, 107U);
   batch = mailbox.Drain();
   REQUIRE(batch.size == 1U);
-  CheckEvent(batch, 0U, TrackerAction::Edit, false);
+  CheckEvent(batch, 0U, TrackerAction::Enter, false);
 }
 
 TEST_CASE("Node UI2 direction repeat uses 500 ms delay and 75 ms period") {
@@ -350,7 +350,7 @@ TEST_CASE("Node UI2 mailbox worst coalesced chord fits fixed batch") {
   const std::uint16_t all =
       Mask({TrackerAction::Left, TrackerAction::Down, TrackerAction::Right,
             TrackerAction::Up, TrackerAction::Shift, TrackerAction::Option,
-            TrackerAction::Edit, TrackerAction::Play,
+            TrackerAction::Enter, TrackerAction::Play,
             TrackerAction::Power});
   mailbox.PublishSample(0U, false, 0U);
   (void)mailbox.Drain();

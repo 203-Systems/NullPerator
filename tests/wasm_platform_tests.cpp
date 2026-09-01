@@ -442,7 +442,7 @@ TEST_CASE("WASM held directions accept repeat down edges without changing hold s
   REQUIRE(InputQueueFixture::events.size() == 2U);
   CHECK(InputQueueFixture::events[1] == std::pair{down, true});
   CHECK_FALSE(InputMap::RepeatAction(
-      static_cast<std::uint16_t>(TrackerAction::Edit)));
+      static_cast<std::uint16_t>(TrackerAction::Enter)));
 
   REQUIRE(InputMap::SetAction(down, false));
   CHECK_FALSE(InputMap::RepeatAction(down));

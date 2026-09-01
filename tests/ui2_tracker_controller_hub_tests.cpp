@@ -72,12 +72,12 @@ TEST_CASE("UI2 tracker hub restores independent grid page state") {
 
 TEST_CASE("UI2 tracker hub keeps key release with the press owner") {
   ui2::Ui2TrackerControllerHub hub;
-  (void)hub.Handle(TrackerAction::Edit, true);
+  (void)hub.Handle(TrackerAction::Enter, true);
   hub.Activate(ui2::Ui2TrackerPage::Chain);
-  (void)hub.Handle(TrackerAction::Edit, false);
+  (void)hub.Handle(TrackerAction::Enter, false);
 
-  CHECK((hub.Song().HeldMask() & TrackerActionBit(TrackerAction::Edit)) == 0);
-  CHECK((hub.Chain().HeldMask() & TrackerActionBit(TrackerAction::Edit)) == 0);
+  CHECK((hub.Song().HeldMask() & TrackerActionBit(TrackerAction::Enter)) == 0);
+  CHECK((hub.Chain().HeldMask() & TrackerActionBit(TrackerAction::Enter)) == 0);
 }
 
 TEST_CASE("UI2 tracker executor applies typed command then stores navigation") {
@@ -85,7 +85,7 @@ TEST_CASE("UI2 tracker executor applies typed command then stores navigation") {
   port.loaded.activePage = ui2::Ui2TrackerPage::Song;
   ui2::Ui2TrackerCommandExecutor executor(port);
 
-  executor.Handle(TrackerAction::Edit, true);
+  executor.Handle(TrackerAction::Enter, true);
   const auto batch = executor.Handle(TrackerAction::Up, true);
 
   REQUIRE(batch.count == 2);

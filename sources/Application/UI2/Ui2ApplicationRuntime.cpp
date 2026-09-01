@@ -1107,7 +1107,7 @@ UiApplicationRuntime::ViewDataFor(const DeviceFrameState &state) {
   data.selectorCount = state.selectorCount;
   data.selectorCurrent = state.selectorCurrent;
   data.selectorWrap = state.selectorWrap;
-  data.editHeld = state.editHeld;
+  data.enterHeld = state.enterHeld;
   data.showLineOut = state.showLineOut;
   data.showVolume = state.showVolume;
   data.showTheme = state.showTheme;

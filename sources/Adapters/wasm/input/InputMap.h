@@ -11,9 +11,8 @@
 class InputMap final {
 public:
   // Browser action ids are the product's semantic TrackerAction ids. Keeping
-  // a second legacy GUIEvent-shaped enum here previously made ids 4..7 look
-  // like ALT/EDIT/ENTER/NAV even though the native application consumes
-  // SHIFT/OPTION/EDIT/PLAY.
+  // a second legacy GUIEvent-shaped enum here previously obscured the native
+  // SHIFT/OPTION/ENTER/PLAY semantics for ids 4..7.
   static constexpr std::uint16_t ActionCount =
       static_cast<std::uint16_t>(TrackerAction::Count);
   static constexpr int ActionEventCode = 2;
