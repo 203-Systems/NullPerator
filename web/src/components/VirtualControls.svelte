@@ -195,9 +195,9 @@
     .operator-controls.native-host { align-self:center; }
   }
   @media(max-width:499px) and (orientation:portrait){
-    .operator-controls.native-host {
-      grid-template-columns:minmax(0,1fr) minmax(0,1fr);
-      padding-inline:46px;
+    .operator-controls.native-host .face-buttons {
+      margin-top:calc(var(--upper-controls-top) + 48px);
+      margin-left:12px;
     }
   }
   @media(min-width:500px) and (orientation:portrait){
