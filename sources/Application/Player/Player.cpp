@@ -140,12 +140,25 @@ bool Player::IsChannelMuted(int channel) {
   return mixer_.IsChannelMuted(channel);
 };
 
+bool Player::CanStartTransport() const {
+  // Keep the acquire in its own full-expression. Passing these binding checks
+  // alongside IsReady() as function arguments would leave their evaluation
+  // order unspecified.
+  const bool audioReady = audioReadiness_.IsReady();
+  if (!audioReady)
+    return false;
+
+  const bool projectBound = project_ != nullptr;
+  const bool viewDataBound = viewData_ != nullptr;
+  return player_audio_readiness::CanStartTransport(
+      audioReady, projectBound, viewDataBound);
+}
+
 void Player::Start(PlayMode mode, bool forceSongMode, MixerServiceMode msmMode,
                    bool stopAtEnd, int contextChannel,
                    int contextChainPosition) {
 
-  if (!audioReadiness_.CanStartTransport(project_ != nullptr,
-                                         viewData_ != nullptr)) {
+  if (!CanStartTransport()) {
     Trace::Error("PLAYER", "Ignoring playback start: audio is not ready");
     return;
   }
@@ -392,8 +405,7 @@ bool Player::IsChannelPlaying(int channel) {
 void Player::OnStartButton(PlayMode origin, unsigned int from,
                            bool startFromPrevious, unsigned char chainPos,
                            MixerServiceMode msmMode, bool stopAtEnd) {
-  if (!audioReadiness_.CanStartTransport(project_ != nullptr,
-                                         viewData_ != nullptr)) {
+  if (!CanStartTransport()) {
     Trace::Error("PLAYER", "Ignoring playback start: audio is not ready");
     return;
   }
@@ -422,8 +434,7 @@ void Player::OnStartButton(PlayMode origin, unsigned int from,
 void Player::OnSongStartButton(unsigned int from, unsigned int to,
                                bool requestStop, bool forceImmediate,
                                MixerServiceMode msmMode, bool stopAtEnd) {
-  if (!audioReadiness_.CanStartTransport(project_ != nullptr,
-                                         viewData_ != nullptr)) {
+  if (!CanStartTransport()) {
     Trace::Error("PLAYER", "Ignoring playback start: audio is not ready");
     return;
   }

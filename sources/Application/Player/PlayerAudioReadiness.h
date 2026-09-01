@@ -9,6 +9,18 @@
 #include <atomic>
 #include <cstdint>
 
+namespace player_audio_readiness {
+
+// Keep the transport policy independent from the atomic publication mechanism
+// so every input combination remains directly testable.
+[[nodiscard]] constexpr bool CanStartTransport(bool audioReady,
+                                               bool projectBound,
+                                               bool viewDataBound) noexcept {
+  return audioReady && projectBound && viewDataBound;
+}
+
+} // namespace player_audio_readiness
+
 // Player entry points may be called by UI and MIDI producers after project
 // recovery has succeeded but platform audio initialization has failed. Keep
 // that lifecycle edge independent from project/model readiness and publish it
@@ -33,15 +45,6 @@ public:
 
   [[nodiscard]] bool IsReady() const noexcept {
     return ready_.load(std::memory_order_acquire) != 0U;
-  }
-
-  // Starting transport also reads the project-backed editor state. Keep the
-  // complete fail-closed predicate shared by every public start entry point so
-  // a failed initialization cannot reach that state after its bindings have
-  // been rolled back.
-  [[nodiscard]] bool CanStartTransport(bool projectBound,
-                                       bool viewDataBound) const noexcept {
-    return IsReady() && projectBound && viewDataBound;
   }
 
 private:

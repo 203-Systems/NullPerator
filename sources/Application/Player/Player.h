@@ -164,6 +164,9 @@ private:
   // failed transaction. TrackerApplicationSession may then retry Init()
   // without accumulating callbacks or stale project pointers.
   void RollbackInitialization();
+  // Complete the readiness acquire before reading either non-atomic binding.
+  // CompleteInitialization() publishes both pointers through that edge.
+  [[nodiscard]] bool CanStartTransport() const;
   // Caller owns MixerService's lock. Both UI Stop() and stop-at-end use this
   // single teardown path so render completion cannot leave transport-owned
   // tables, sync state or audio activity alive.

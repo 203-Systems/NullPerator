@@ -22,33 +22,12 @@ TEST_CASE("player audio readiness closes every incomplete lifecycle") {
 }
 
 TEST_CASE("player transport requires audio and both model bindings") {
-  PlayerAudioReadiness readiness;
-  readiness.BeginInitialization();
-
-  CHECK_FALSE(readiness.CanStartTransport(false, false));
-  CHECK_FALSE(readiness.CanStartTransport(true, true));
-
-  REQUIRE(readiness.CompleteInitialization(true));
-  CHECK(readiness.CanStartTransport(true, true));
-  CHECK_FALSE(readiness.CanStartTransport(false, true));
-  CHECK_FALSE(readiness.CanStartTransport(true, false));
-  CHECK_FALSE(readiness.CanStartTransport(false, false));
-}
-
-TEST_CASE("missing LIVE bindings reject transport before lock or session access") {
-  PlayerAudioReadiness readiness;
-  REQUIRE(readiness.CompleteInitialization(true));
-
-  bool mixerLockAttempted = false;
-  bool liveSessionAccessed = false;
-  if (readiness.CanStartTransport(false, false)) {
-    mixerLockAttempted = true;
-    liveSessionAccessed = true;
-  }
-
-  CHECK_FALSE(mixerLockAttempted);
-  CHECK_FALSE(liveSessionAccessed);
-
-  readiness.Close();
-  CHECK_FALSE(readiness.CanStartTransport(true, true));
+  CHECK_FALSE(player_audio_readiness::CanStartTransport(false, false, false));
+  CHECK_FALSE(player_audio_readiness::CanStartTransport(false, false, true));
+  CHECK_FALSE(player_audio_readiness::CanStartTransport(false, true, false));
+  CHECK_FALSE(player_audio_readiness::CanStartTransport(false, true, true));
+  CHECK_FALSE(player_audio_readiness::CanStartTransport(true, false, false));
+  CHECK_FALSE(player_audio_readiness::CanStartTransport(true, false, true));
+  CHECK_FALSE(player_audio_readiness::CanStartTransport(true, true, false));
+  CHECK(player_audio_readiness::CanStartTransport(true, true, true));
 }
