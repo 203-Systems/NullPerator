@@ -45,6 +45,7 @@ struct UiTableViewData {
   bool numberFocus = false;
   bool adjustmentFocus = false;
   bool selectionActive = false;
+  bool selectionNextExpansionAll = false;
   std::array<std::int8_t, 3> playbackRows{-1, -1, -1};
   std::array<std::int8_t, 3> automationPlaybackRows{-1, -1, -1};
   bool selectedTrackMuted = false;

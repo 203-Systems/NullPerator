@@ -79,6 +79,7 @@ struct UiSongFrameState {
   bool adjustmentFocus = false;
   bool modeFocus = false;
   bool selectionActive = false;
+  bool selectionNextExpansionAll = false;
   bool navHeld = false;
   bool playing = false;
   bool liveMode = false;
@@ -121,6 +122,7 @@ struct UiChainFrameState {
   bool numberFocus = false;
   bool adjustmentFocus = false;
   bool selectionActive = false;
+  bool selectionNextExpansionAll = false;
   bool navHeld = false;
   std::array<std::int8_t, 8> playbackRows{-1, -1, -1, -1, -1, -1, -1, -1};
   std::array<bool, 8> mutedTracks{};
@@ -160,6 +162,7 @@ struct UiPhraseFrameState {
   bool numberFocus = false;
   bool adjustmentFocus = false;
   bool selectionActive = false;
+  bool selectionNextExpansionAll = false;
   bool navHeld = false;
   std::array<std::int8_t, 8> playbackRows{-1, -1, -1, -1, -1, -1, -1, -1};
   std::array<bool, 8> mutedTracks{};
@@ -207,6 +210,7 @@ struct UiTableFrameState {
   bool numberFocus = false;
   bool adjustmentFocus = false;
   bool selectionActive = false;
+  bool selectionNextExpansionAll = false;
   bool navHeld = false;
   std::array<std::int8_t, 3> playbackRows{-1, -1, -1};
   std::array<std::int8_t, 3> automationPlaybackRows{-1, -1, -1};
@@ -228,6 +232,7 @@ struct UiGrooveFrameState {
   bool cursorVisualOverride = false;
   bool cursorInkVisible = true;
   bool selectionActive = false;
+  bool selectionNextExpansionAll = false;
   UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
 

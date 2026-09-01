@@ -18,11 +18,14 @@ struct UiBarInputs {
   const UiTrackNotesModel *editHeldTracks = nullptr;
   const UiAdjustmentLegendModel *enterHeldAdjustment = nullptr;
   bool selectionActive = false;
+  bool selectionNextExpansionAll = false;
   bool editHeldNumber = false;
 };
 
 class UiBarResolver {
 public:
+  [[nodiscard]] static UiBottomBarModel
+  SelectionMode(bool nextExpansionAll);
   [[nodiscard]] static UiResolvedChrome Resolve(const UiBarInputs &inputs);
 };
 

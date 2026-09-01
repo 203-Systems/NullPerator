@@ -105,7 +105,9 @@ void UiGrooveView::RenderDelta(const UiGrooveViewData &previous,
     if (previous.steps[row] != current.steps[row])
       render(RowDamageRect(row));
   }
-  if (previous.selectionActive != current.selectionActive)
+  if (previous.selectionActive != current.selectionActive ||
+      previous.selectionNextExpansionAll !=
+          current.selectionNextExpansionAll)
     render({0, 208, 240, 32});
 }
 
@@ -128,6 +130,7 @@ UiBuildStatus UiGrooveView::Build(const UiGrooveViewData &data, UiPalette &,
       .pageTop = pageTop,
       .pageDefault = hidden,
       .selectionActive = data.selectionActive,
+      .selectionNextExpansionAll = data.selectionNextExpansionAll,
   });
   const UiBuildStatus topStatus =
       UiChromeRenderer::BuildTop(chrome.top, scene.top);

@@ -218,6 +218,9 @@ Ui2NativeApplicationStateSource::CaptureSong(UiSongFrameState &state) {
   state.modeFocus =
       (controller.HeldMask() & TrackerActionBit(TrackerAction::Option)) != 0U;
   state.selectionActive = controller.Selection().active;
+  state.selectionNextExpansionAll =
+      state.selectionActive && controller.Selection().Left() == 0U &&
+      controller.Selection().Right() == kUi2TrackerTrackCount - 1U;
   state.navHeld = navigationHeld_;
   for (std::uint8_t row = 0; row < 16U; ++row) {
     for (std::uint8_t track = 0; track < SONG_CHANNEL_COUNT; ++track) {
@@ -275,6 +278,9 @@ Ui2NativeApplicationStateSource::CaptureChain(UiChainFrameState &state) {
       !state.numberFocus &&
       (controller.HeldMask() & TrackerActionBit(TrackerAction::Edit)) != 0U;
   state.selectionActive = controller.Selection().active;
+  state.selectionNextExpansionAll =
+      state.selectionActive && controller.Selection().Left() == 0U &&
+      controller.Selection().Right() == 1U;
   state.navHeld = navigationHeld_;
   if (controller.Selection().active) {
     const auto &selection = controller.Selection();
@@ -324,6 +330,9 @@ Ui2NativeApplicationStateSource::CapturePhrase(UiPhraseFrameState &state) {
       controller.Column() == 0U &&
       (controller.HeldMask() & TrackerActionBit(TrackerAction::Edit)) != 0U;
   state.selectionActive = controller.Selection().active;
+  state.selectionNextExpansionAll =
+      state.selectionActive && controller.Selection().Left() == 0U &&
+      controller.Selection().Right() == 5U;
   state.navHeld = navigationHeld_;
   state.activeHeader = controller.Column() == 0U   ? UiPhraseHeader::Note
                        : controller.Column() == 1U ? UiPhraseHeader::Instrument
@@ -420,6 +429,9 @@ Ui2NativeApplicationStateSource::CaptureTable(UiTableFrameState &state) {
   // ENTER-held value editing is represented by the in-cell digit cursor.
   state.adjustmentFocus = false;
   state.selectionActive = controller.Selection().active;
+  state.selectionNextExpansionAll =
+      state.selectionActive && controller.Selection().Left() == 0U &&
+      controller.Selection().Right() == 5U;
   state.navHeld = navigationHeld_;
   state.activeHeader = controller.Column() < 2U   ? UiTableHeader::Fx1
                        : controller.Column() < 4U ? UiTableHeader::Fx2
@@ -935,6 +947,8 @@ Ui2NativeApplicationStateSource::CaptureGroove(UiGrooveFrameState &state) {
   hex2char(groove_.Number(), state.number.data());
   state.editRow = groove_.Row();
   state.selectionActive = groove_.Selection().active;
+  // Groove has one column, so its first expansion target is already all rows.
+  state.selectionNextExpansionAll = state.selectionActive;
   if (groove_.Selection().active) {
     state.selectionVisualRect = UiGrooveView::SelectionTargetRect(
         groove_.Selection().Top(), groove_.Selection().Bottom());

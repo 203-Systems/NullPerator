@@ -1245,6 +1245,7 @@ TEST_CASE("UI2 tracker selections use their independent theme color") {
 TEST_CASE("UI2 Groove selection uses the selection palette and mode bar") {
   ui2::UiGrooveViewData data = ui2::test::ApprovedGrooveFixture();
   data.selectionActive = true;
+  data.selectionNextExpansionAll = true;
   data.selectionVisualRect = ui2::UiGrooveView::SelectionTargetRect(1, 3);
 
   ui2::UiPalette palette;
@@ -1252,8 +1253,9 @@ TEST_CASE("UI2 Groove selection uses the selection palette and mode bar") {
   REQUIRE(ui2::UiGrooveView::Build(data, palette, scene) ==
           ui2::UiBuildStatus::Built);
   CHECK(scene.bottomVisible);
-  CHECK(FindTextCommand(scene.bottom.Stream(), "SELECTION") != nullptr);
-  CHECK(FindTextCommand(scene.bottom.Stream(), "MODE") != nullptr);
+  CHECK(FindTextCommand(scene.bottom.Stream(), "SELECTION MODE") != nullptr);
+  CHECK(FindTextCommand(scene.bottom.Stream(),
+                        "OPTION: COPY  SHIFT+OPTION: ALL") != nullptr);
 
   ui2::UiSurfaceStorage storage;
   ui2::UiIndexedSurface surface(storage);
@@ -1613,11 +1615,24 @@ TEST_CASE("UI2 selection mode overrides page and edit bottom bars") {
       .selectionActive = true,
   });
   REQUIRE(resolved.bottom.kind == ui2::UiBottomBarKind::Context);
-  REQUIRE(resolved.bottom.context.firstLineCount == 2U);
-  CHECK(resolved.bottom.context.firstLine[0].text == "SELECTION");
+  REQUIRE(resolved.bottom.context.firstLineCount == 1U);
+  REQUIRE(resolved.bottom.context.secondLineCount == 1U);
+  CHECK(resolved.bottom.context.firstLine[0].text == "SELECTION MODE");
   CHECK(resolved.bottom.context.firstLine[0].color ==
         ui2::UiColorToken::TextColored);
-  CHECK(resolved.bottom.context.firstLine[1].text == "MODE");
+  CHECK(resolved.bottom.context.secondLine[0].text ==
+        "OPTION: COPY  SHIFT+OPTION: ROW");
+  CHECK(resolved.bottom.context.secondLine[0].color ==
+        ui2::UiColorToken::TextNormal);
+
+  const ui2::UiResolvedChrome expanded = ui2::UiBarResolver::Resolve({
+      .pageTop = {.title = "PHRASE", .meta = "3A"},
+      .pageDefault = {.kind = ui2::UiBottomBarKind::Hidden},
+      .selectionActive = true,
+      .selectionNextExpansionAll = true,
+  });
+  CHECK(expanded.bottom.context.secondLine[0].text ==
+        "OPTION: COPY  SHIFT+OPTION: ALL");
 }
 
 TEST_CASE("UI2 tracker playback ticks share the song edge-tick geometry") {
@@ -2348,11 +2363,16 @@ TEST_CASE("UI2 Song selection replaces the track-note bottom bar") {
           ui2::UiBuildStatus::Built);
 
   const ui2::UiCommand *selection =
-      FindTextCommand(scene.bottom.Stream(), "SELECTION");
-  const ui2::UiCommand *mode = FindTextCommand(scene.bottom.Stream(), "MODE");
+      FindTextCommand(scene.bottom.Stream(), "SELECTION MODE");
+  const ui2::UiCommand *help = FindTextCommand(
+      scene.bottom.Stream(), "OPTION: COPY  SHIFT+OPTION: ROW");
   REQUIRE(selection != nullptr);
-  REQUIRE(mode != nullptr);
+  REQUIRE(help != nullptr);
   CHECK(selection->bounds.x == 79);
+  CHECK(selection->color ==
+        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextColored));
+  CHECK(help->color ==
+        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextNormal));
   CHECK(FindTextCommand(scene.bottom.Stream(), "T1") == nullptr);
 }
 

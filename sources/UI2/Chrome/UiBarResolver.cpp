@@ -8,6 +8,22 @@
 
 namespace ui2 {
 
+UiBottomBarModel UiBarResolver::SelectionMode(bool nextExpansionAll) {
+  UiBottomBarModel bottom{};
+  bottom.kind = UiBottomBarKind::Context;
+  bottom.context.firstLineCount = 1U;
+  bottom.context.firstLine[0] = {
+      .text = "SELECTION MODE", .color = UiColorToken::TextColored, .x = 79};
+  bottom.context.secondLineCount = 1U;
+  bottom.context.secondLine[0] = {
+      .text = nextExpansionAll
+                  ? "OPTION: COPY  SHIFT+OPTION: ALL"
+                  : "OPTION: COPY  SHIFT+OPTION: ROW",
+      .color = UiColorToken::TextNormal,
+      .x = 28};
+  return bottom;
+}
+
 UiResolvedChrome UiBarResolver::Resolve(const UiBarInputs &inputs) {
   UiResolvedChrome resolved{inputs.pageTop, inputs.pageDefault};
   if (inputs.cursorContext != nullptr) resolved.bottom = *inputs.cursorContext;
@@ -24,13 +40,7 @@ UiResolvedChrome UiBarResolver::Resolve(const UiBarInputs &inputs) {
   }
 
   if (inputs.selectionActive) {
-    resolved.bottom = {};
-    resolved.bottom.kind = UiBottomBarKind::Context;
-    resolved.bottom.context.firstLineCount = 2U;
-    resolved.bottom.context.firstLine[0] = {
-        .text = "SELECTION", .color = UiColorToken::TextColored, .x = 79};
-    resolved.bottom.context.firstLine[1] = {
-        .text = "MODE", .color = UiColorToken::TextNormal};
+    resolved.bottom = SelectionMode(inputs.selectionNextExpansionAll);
   }
 
   if (inputs.criticalModal != nullptr) resolved.bottom = *inputs.criticalModal;

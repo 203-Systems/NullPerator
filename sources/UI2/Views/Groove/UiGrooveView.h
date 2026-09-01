@@ -28,6 +28,7 @@ struct UiGrooveViewData {
   bool cursorVisualOverride = false;
   bool cursorInkVisible = true;
   bool selectionActive = false;
+  bool selectionNextExpansionAll = false;
   UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
 };

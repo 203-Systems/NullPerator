@@ -6,6 +6,7 @@
 
 #include "UI2/Views/Song/UiSongView.h"
 
+#include "UI2/Chrome/UiBarResolver.h"
 #include "UI2/Render/UiFrameRenderer.h"
 #include "UI2/Render/UiVuGradient.h"
 #include "UI2/Views/Tracker/UiTrackerGridMetrics.h"
@@ -241,6 +242,8 @@ void UiSongView::RenderDelta(const UiSongViewData &previous,
   if (previous.adjustmentFocus != current.adjustmentFocus ||
       previous.modeFocus != current.modeFocus ||
       previous.selectionActive != current.selectionActive ||
+      previous.selectionNextExpansionAll !=
+          current.selectionNextExpansionAll ||
       (previous.liveMode != current.liveMode &&
        (previous.modeFocus || current.modeFocus))) {
     render({0, 208, 240, 32});
@@ -278,12 +281,7 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data, UiPalette &palette,
 
   UiBottomBarModel bottom{.kind = UiBottomBarKind::Hidden};
   if (data.showBottom && data.selectionActive) {
-    bottom.kind = UiBottomBarKind::Context;
-    bottom.context.firstLineCount = 2U;
-    bottom.context.firstLine[0] = {
-        .text = "SELECTION", .color = UiColorToken::TextColored, .x = 79};
-    bottom.context.firstLine[1] = {
-        .text = "MODE", .color = UiColorToken::TextNormal};
+    bottom = UiBarResolver::SelectionMode(data.selectionNextExpansionAll);
   } else if (data.showBottom && data.adjustmentFocus) {
     bottom.kind = UiBottomBarKind::AdjustmentLegend;
   } else if (data.showBottom && data.modeFocus) {

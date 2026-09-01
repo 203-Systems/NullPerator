@@ -85,6 +85,43 @@ TEST_CASE("UI2 model port preserves raw Phrase clipboard data") {
   CHECK(port.ProjectMutationGeneration() == 2U);
 }
 
+TEST_CASE("UI2 input workflow confirms a selection and pastes its contents") {
+  TrackerApplicationSession session;
+  Ui2TrackerSessionModelPort port(session);
+  Song &song = session.ProjectModel().song_;
+  TrackerSessionState &editor = session.EditorState();
+  editor.songX_ = 0;
+  editor.songY_ = 0;
+  editor.songOffset_ = 0;
+  song.data_[0] = 0x2AU;
+  song.data_[SONG_CHANNEL_COUNT] = 0xFFU;
+
+  ui2::Ui2TrackerCommandExecutor executor(port);
+  CHECK(executor.Handle(TrackerAction::Shift, true).Empty());
+  CHECK(executor.Handle(TrackerAction::Option, true).Empty());
+  CHECK(executor.Handle(TrackerAction::Option, false).Empty());
+  CHECK(executor.Handle(TrackerAction::Shift, false).Empty());
+  REQUIRE(executor.Hub().Song().Selection().active);
+
+  CHECK(executor.Handle(TrackerAction::Option, true).Empty());
+  const auto copy = executor.Handle(TrackerAction::Option, false);
+  REQUIRE(copy.count == 1U);
+  CHECK(copy[0].type == Ui2TrackerCommandType::CopySelection);
+  CHECK_FALSE(executor.Hub().Song().Selection().active);
+
+  CHECK(executor.Handle(TrackerAction::Down, true).Empty());
+  CHECK(executor.Handle(TrackerAction::Down, false).Empty());
+  CHECK(executor.Handle(TrackerAction::Shift, true).Empty());
+  const auto paste = executor.Handle(TrackerAction::Edit, true);
+  REQUIRE(paste.count == 1U);
+  CHECK(paste[0].type == Ui2TrackerCommandType::PasteSelection);
+  CHECK(executor.Handle(TrackerAction::Edit, false).Empty());
+  CHECK(executor.Handle(TrackerAction::Shift, false).Empty());
+
+  CHECK(song.data_[SONG_CHANNEL_COUNT] == 0x2AU);
+  CHECK(port.ProjectMutationGeneration() == 1U);
+}
+
 TEST_CASE("UI2 model port rejects semantically incompatible Phrase paste") {
   TrackerApplicationSession session;
   Ui2TrackerSessionModelPort port(session);

@@ -155,7 +155,9 @@ void UiChainView::RenderDelta(const UiChainViewData &previous,
       previous.bottomTrackVisualOverride != current.bottomTrackVisualOverride ||
       previous.bottomTrackInkVisible != current.bottomTrackInkVisible ||
       previous.adjustmentFocus != current.adjustmentFocus ||
-      previous.selectionActive != current.selectionActive) {
+      previous.selectionActive != current.selectionActive ||
+      previous.selectionNextExpansionAll !=
+          current.selectionNextExpansionAll) {
     render({0, 208, 240, 32});
   }
   for (std::uint8_t side = 0; side < 2U; ++side) {
@@ -204,6 +206,7 @@ UiBuildStatus UiChainView::Build(const UiChainViewData &data,
       .editHeldTracks = &editTracks,
       .enterHeldAdjustment = data.adjustmentFocus ? &adjustment : nullptr,
       .selectionActive = data.selectionActive,
+      .selectionNextExpansionAll = data.selectionNextExpansionAll,
       .editHeldNumber = data.numberFocus,
   };
   const UiResolvedChrome chrome = UiBarResolver::Resolve(barInputs);

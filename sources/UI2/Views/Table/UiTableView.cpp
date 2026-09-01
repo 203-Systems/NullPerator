@@ -234,6 +234,8 @@ void UiTableView::RenderDelta(const UiTableViewData &previous,
       previous.bottomTrackInkVisible != current.bottomTrackInkVisible ||
       previous.adjustmentFocus != current.adjustmentFocus ||
       previous.selectionActive != current.selectionActive ||
+      previous.selectionNextExpansionAll !=
+          current.selectionNextExpansionAll ||
       !ContextEqual(previous.cursorBottom, current.cursorBottom)) {
     render({0, 208, 240, 32});
   }
@@ -276,6 +278,7 @@ UiBuildStatus UiTableView::Build(const UiTableViewData &data, UiPalette &,
       // than a generic +/- legend; digit focus still appears in the cell.
       .enterHeldAdjustment = nullptr,
       .selectionActive = data.selectionActive,
+      .selectionNextExpansionAll = data.selectionNextExpansionAll,
       .editHeldNumber = data.numberFocus,
   };
   const UiResolvedChrome chrome = UiBarResolver::Resolve(inputs);

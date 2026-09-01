@@ -245,6 +245,8 @@ void UiPhraseView::RenderDelta(const UiPhraseViewData &previous,
       previous.bottomTrackInkVisible != current.bottomTrackInkVisible ||
       previous.adjustmentFocus != current.adjustmentFocus ||
       previous.selectionActive != current.selectionActive ||
+      previous.selectionNextExpansionAll !=
+          current.selectionNextExpansionAll ||
       !BottomEqual(previous.cursorBottom, current.cursorBottom)) {
     render({0, 208, 240, 32});
   }
@@ -294,6 +296,7 @@ UiBuildStatus UiPhraseView::Build(const UiPhraseViewData &data, UiPalette &,
               ? &noteAdjustment
               : nullptr,
       .selectionActive = data.selectionActive,
+      .selectionNextExpansionAll = data.selectionNextExpansionAll,
       .editHeldNumber = data.numberFocus,
   };
   const UiResolvedChrome chrome = UiBarResolver::Resolve(barInputs);
