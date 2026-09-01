@@ -121,7 +121,7 @@
   function attachRawGamepadFaceButtons() {
     if (!nativeHostActive || typeof navigator.getGamepads !== 'function') return () => {}
     const bindings = [
-      { index: 0, action: 'edit' },
+      { index: 0, action: 'enter' },
       { index: 1, action: 'option' },
     ]
     const held = new Map(bindings.map(({ index }) => [index, false]))
