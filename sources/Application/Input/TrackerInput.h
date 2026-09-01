@@ -29,18 +29,3 @@ TrackerActionBit(TrackerAction action) {
   return static_cast<std::uint16_t>(
       1U << static_cast<std::uint8_t>(action));
 }
-
-enum TrackerButtonMask : std::uint16_t {
-  EPBM_LEFT = TrackerActionBit(TrackerAction::Left),
-  EPBM_DOWN = TrackerActionBit(TrackerAction::Down),
-  EPBM_RIGHT = TrackerActionBit(TrackerAction::Right),
-  EPBM_UP = TrackerActionBit(TrackerAction::Up),
-  EPBM_SHIFT = TrackerActionBit(TrackerAction::Shift),
-  EPBM_OPTION = TrackerActionBit(TrackerAction::Option),
-  EPBM_ENTER = TrackerActionBit(TrackerAction::Enter),
-  EPBM_PLAY = TrackerActionBit(TrackerAction::Play),
-  EPBM_POWER = TrackerActionBit(TrackerAction::Power),
-};
-
-static_assert(EPBM_LEFT == 1U);
-static_assert(EPBM_POWER == 1024U);
