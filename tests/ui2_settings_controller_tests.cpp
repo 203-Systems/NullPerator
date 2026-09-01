@@ -1403,11 +1403,19 @@ TEST_CASE("UI2 Groove interpolation is linear and rejects empty endpoints") {
        .selection = selection},
       steps, clipboard);
   CHECK(result.projectMutated);
+  CHECK(result.interpolationApplied);
   CHECK(steps[2] == 3U);
   CHECK(steps[3] == 5U);
   CHECK(steps[4] == 7U);
   CHECK(steps[5] == 9U);
   CHECK(steps[6] == 11U);
+
+  result = Ui2GrooveWorkflow::Execute(
+      {.type = Ui2GrooveCommandType::InterpolateSelection,
+       .selection = selection},
+      steps, clipboard);
+  CHECK_FALSE(result.projectMutated);
+  CHECK(result.interpolationApplied);
 
   steps[6] = Ui2GrooveStepPolicy::Empty;
   const auto before = std::array<std::uint8_t, 5U>{
@@ -1417,6 +1425,7 @@ TEST_CASE("UI2 Groove interpolation is linear and rejects empty endpoints") {
        .selection = selection},
       steps, clipboard);
   CHECK_FALSE(result.projectMutated);
+  CHECK_FALSE(result.interpolationApplied);
   CHECK(std::equal(before.begin(), before.end(), steps + 2U));
 }
 

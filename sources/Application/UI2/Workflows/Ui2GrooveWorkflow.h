@@ -14,6 +14,7 @@ namespace ui2 {
 
 struct Ui2GrooveWorkflowResult final {
   bool projectMutated = false;
+  bool interpolationApplied = false;
   bool selectNumber = false;
   bool dispatchPerformance = false;
 };
@@ -137,7 +138,7 @@ public:
         mutated = mutated || steps[row] != value;
         steps[row] = value;
       }
-      return {.projectMutated = mutated};
+      return {.projectMutated = mutated, .interpolationApplied = true};
     }
     case Ui2GrooveCommandType::SelectNumber:
       return {.selectNumber = true};

@@ -31,6 +31,7 @@ struct UiGrooveViewData {
   bool selectionNextExpansionAll = false;
   bool clipboardReady = false;
   bool clipboardPasted = false;
+  bool interpolationCompleted = false;
   std::uint8_t clipboardWidth = 0;
   std::uint8_t clipboardHeight = 0;
   UiNavCursorModel navCursor{};

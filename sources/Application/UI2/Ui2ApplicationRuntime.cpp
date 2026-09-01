@@ -1434,6 +1434,7 @@ UiApplicationRuntime::ViewDataFor(const GrooveFrameState &state) {
   data.selectionNextExpansionAll = state.selectionNextExpansionAll;
   data.clipboardReady = state.clipboardReady;
   data.clipboardPasted = state.clipboardPasted;
+  data.interpolationCompleted = state.interpolationCompleted;
   data.clipboardWidth = state.clipboardWidth;
   data.clipboardHeight = state.clipboardHeight;
   data.power = state.power;

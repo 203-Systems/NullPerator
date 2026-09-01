@@ -522,7 +522,13 @@ UiBuildStatus UiChromeRenderer::BuildBottom(const UiBottomBarModel &model,
     std::array<char, 32> message{};
     const unsigned width = model.clipboard.width;
     const unsigned height = model.clipboard.height;
-    if (model.clipboard.notice == UiClipboardBarModel::Notice::Pasted) {
+    if (model.clipboard.notice ==
+        UiClipboardBarModel::Notice::Interpolated) {
+      builder.CenteredText("SELECTION INTERPOLATED", 120, 216,
+                           UiColorToken::TextColored);
+      std::snprintf(message.data(), message.size(), "%u STEPS UPDATED",
+                    height);
+    } else if (model.clipboard.notice == UiClipboardBarModel::Notice::Pasted) {
       builder.CenteredText("CLIPBOARD PASTED", 120, 216,
                            UiColorToken::TextColored);
       std::snprintf(message.data(), message.size(), "%uX%u PASTED", width,

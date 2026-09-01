@@ -46,6 +46,10 @@ void Ui2NativeApplicationStateSource::CaptureClipboardNotice(
   if (!active)
     return;
   const UiClipboardBarModel &notice = clipboardNotice_.Model();
+  if (notice.notice == UiClipboardBarModel::Notice::Interpolated) {
+    active = false;
+    return;
+  }
   pasted = notice.notice == UiClipboardBarModel::Notice::Pasted;
   width = notice.width;
   height = notice.height;
@@ -969,8 +973,15 @@ Ui2NativeApplicationStateSource::CaptureGroove(UiGrooveFrameState &state) {
   state.selectionActive = groove_.Selection().active;
   // Groove has one column, so its first expansion target is already all rows.
   state.selectionNextExpansionAll = state.selectionActive;
-  CaptureClipboardNotice(state.clipboardReady, state.clipboardPasted,
-                         state.clipboardWidth, state.clipboardHeight);
+  if (clipboardNotice_.Active() &&
+      clipboardNotice_.Model().notice ==
+          UiClipboardBarModel::Notice::Interpolated) {
+    state.interpolationCompleted = true;
+    state.clipboardHeight = clipboardNotice_.Model().height;
+  } else {
+    CaptureClipboardNotice(state.clipboardReady, state.clipboardPasted,
+                           state.clipboardWidth, state.clipboardHeight);
+  }
   if (groove_.Selection().active) {
     state.selectionVisualRect = UiGrooveView::SelectionTargetRect(
         groove_.Selection().Top(), groove_.Selection().Bottom());

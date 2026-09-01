@@ -12,8 +12,9 @@
 
 namespace ui2 {
 
-// A clipboard is durable editing state, not a modal UI mode. This controller
-// owns only the short-lived Bottom Bar acknowledgement shown after copy/paste.
+// Grid data and its clipboard are durable editing state, not modal UI modes.
+// This controller owns only short-lived Bottom Bar acknowledgements for grid
+// operations such as copy, paste, and interpolation.
 class Ui2ClipboardNoticeController final {
 public:
   static constexpr std::uint32_t DurationMs = 2000U;
@@ -29,6 +30,10 @@ public:
   void ShowPasted(std::uint8_t width, std::uint8_t height,
                   std::uint32_t nowMs) {
     Show(UiClipboardBarModel::Notice::Pasted, width, height, nowMs);
+  }
+
+  void ShowInterpolated(std::uint8_t height, std::uint32_t nowMs) {
+    Show(UiClipboardBarModel::Notice::Interpolated, 1U, height, nowMs);
   }
 
   // Returns true only when expiry changes visible presentation state.

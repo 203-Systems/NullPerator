@@ -24,6 +24,15 @@ TEST_CASE("UI2 clipboard notices expire after two seconds") {
   CHECK_FALSE(notice.Tick(4999U));
   CHECK(notice.Tick(5000U));
   CHECK_FALSE(notice.Active());
+
+  notice.ShowInterpolated(5U, 6000U);
+  REQUIRE(notice.Active());
+  CHECK(notice.Model().notice ==
+        ui2::UiClipboardBarModel::Notice::Interpolated);
+  CHECK(notice.Model().height == 5U);
+  CHECK_FALSE(notice.Tick(7999U));
+  CHECK(notice.Tick(8000U));
+  CHECK_FALSE(notice.Active());
   static_assert(
       std::is_trivially_copyable_v<ui2::Ui2ClipboardNoticeController>);
 }

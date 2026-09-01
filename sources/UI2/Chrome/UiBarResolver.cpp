@@ -8,7 +8,8 @@
 
 namespace ui2 {
 
-UiBottomBarModel UiBarResolver::SelectionMode(bool nextExpansionAll) {
+UiBottomBarModel UiBarResolver::SelectionMode(bool nextExpansionAll,
+                                              bool supportsInterpolation) {
   UiBottomBarModel bottom{};
   bottom.kind = UiBottomBarKind::Context;
   bottom.context.firstLineCount = 1U;
@@ -16,24 +17,25 @@ UiBottomBarModel UiBarResolver::SelectionMode(bool nextExpansionAll) {
       .text = "SELECTION MODE", .color = UiColorToken::TextColored, .x = 79};
   bottom.context.secondLineCount = 1U;
   bottom.context.secondLine[0] = {
-      .text = nextExpansionAll
-                  ? "OPTION: COPY  SHIFT+OPTION: ALL"
-                  : "OPTION: COPY  SHIFT+OPTION: ROW",
+      .text = supportsInterpolation
+                  ? "OPTION: COPY  SHIFT+ENTER: INTERPOLATE"
+                  : nextExpansionAll
+                        ? "OPTION: COPY  SHIFT+OPTION: ALL"
+                        : "OPTION: COPY  SHIFT+OPTION: ROW",
       .color = UiColorToken::TextNormal,
-      .x = 28};
+      .x = static_cast<std::int16_t>(supportsInterpolation ? 6 : 28)};
   return bottom;
 }
 
 UiBottomBarModel UiBarResolver::ClipboardNotice(std::uint8_t width,
                                                 std::uint8_t height,
-                                                bool pasted) {
+                                                UiClipboardBarModel::Notice notice) {
   UiBottomBarModel bottom{};
   bottom.kind = UiBottomBarKind::Clipboard;
   bottom.clipboard = {
       .width = width,
       .height = height,
-      .notice = pasted ? UiClipboardBarModel::Notice::Pasted
-                       : UiClipboardBarModel::Notice::Copied,
+      .notice = notice,
   };
   return bottom;
 }
@@ -41,12 +43,6 @@ UiBottomBarModel UiBarResolver::ClipboardNotice(std::uint8_t width,
 UiResolvedChrome UiBarResolver::Resolve(const UiBarInputs &inputs) {
   UiResolvedChrome resolved{inputs.pageTop, inputs.pageDefault};
   if (inputs.cursorContext != nullptr) resolved.bottom = *inputs.cursorContext;
-
-  if (inputs.clipboardReady) {
-    resolved.bottom = ClipboardNotice(inputs.clipboardWidth,
-                                      inputs.clipboardHeight,
-                                      inputs.clipboardPasted);
-  }
 
   if (inputs.enterHeldNumber && inputs.enterHeldTracks != nullptr) {
     resolved.top.metaSelected = true;
@@ -60,7 +56,17 @@ UiResolvedChrome UiBarResolver::Resolve(const UiBarInputs &inputs) {
   }
 
   if (inputs.selectionActive) {
-    resolved.bottom = SelectionMode(inputs.selectionNextExpansionAll);
+    resolved.bottom = SelectionMode(inputs.selectionNextExpansionAll,
+                                    inputs.selectionSupportsInterpolation);
+  }
+
+  // Operation acknowledgements temporarily replace selection help. This is
+  // required for interpolation, which deliberately keeps the selection active.
+  if (inputs.clipboardReady) {
+    resolved.bottom = ClipboardNotice(
+        inputs.clipboardWidth, inputs.clipboardHeight,
+        inputs.clipboardPasted ? UiClipboardBarModel::Notice::Pasted
+                               : UiClipboardBarModel::Notice::Copied);
   }
 
   if (inputs.criticalModal != nullptr) resolved.bottom = *inputs.criticalModal;

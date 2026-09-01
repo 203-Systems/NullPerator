@@ -19,6 +19,7 @@ struct UiBarInputs {
   const UiAdjustmentLegendModel *enterHeldAdjustment = nullptr;
   bool selectionActive = false;
   bool selectionNextExpansionAll = false;
+  bool selectionSupportsInterpolation = false;
   bool clipboardReady = false;
   std::uint8_t clipboardWidth = 0;
   std::uint8_t clipboardHeight = 0;
@@ -29,9 +30,10 @@ struct UiBarInputs {
 class UiBarResolver {
 public:
   [[nodiscard]] static UiBottomBarModel
-  SelectionMode(bool nextExpansionAll);
+  SelectionMode(bool nextExpansionAll, bool supportsInterpolation = false);
   [[nodiscard]] static UiBottomBarModel
-  ClipboardNotice(std::uint8_t width, std::uint8_t height, bool pasted);
+  ClipboardNotice(std::uint8_t width, std::uint8_t height,
+                  UiClipboardBarModel::Notice notice);
   [[nodiscard]] static UiResolvedChrome Resolve(const UiBarInputs &inputs);
 };
 

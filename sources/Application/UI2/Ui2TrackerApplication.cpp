@@ -2728,6 +2728,11 @@ void Ui2TrackerApplication::ExecuteGroove(Ui2GrooveCommand command) {
   } else if (command.type == Ui2GrooveCommandType::PasteSelection &&
              clipboardCountBefore != 0U) {
     clipboardNotice_.ShowPasted(1U, clipboardCountBefore, nowMs);
+  } else if (command.type == Ui2GrooveCommandType::InterpolateSelection &&
+             result.interpolationApplied && command.selection.active) {
+    const std::uint8_t stepCount = static_cast<std::uint8_t>(
+        command.selection.Bottom() - command.selection.Top() + 1U);
+    clipboardNotice_.ShowInterpolated(stepCount, nowMs);
   }
 }
 

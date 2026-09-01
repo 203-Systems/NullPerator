@@ -155,6 +155,7 @@ struct UiClipboardBarModel {
   enum class Notice : std::uint8_t {
     Copied,
     Pasted,
+    Interpolated,
   };
 
   std::uint8_t width = 0;

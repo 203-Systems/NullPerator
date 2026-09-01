@@ -295,7 +295,9 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data, UiPalette &palette,
     bottom.selector.wrap = true;
   } else if (data.showBottom && data.clipboardReady) {
     bottom = UiBarResolver::ClipboardNotice(
-        data.clipboardWidth, data.clipboardHeight, data.clipboardPasted);
+        data.clipboardWidth, data.clipboardHeight,
+        data.clipboardPasted ? UiClipboardBarModel::Notice::Pasted
+                             : UiClipboardBarModel::Notice::Copied);
   } else if (data.showBottom) {
     bottom.kind = UiBottomBarKind::TrackNotes;
   }

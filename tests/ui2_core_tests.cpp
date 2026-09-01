@@ -1254,8 +1254,10 @@ TEST_CASE("UI2 Groove selection uses the selection palette and mode bar") {
           ui2::UiBuildStatus::Built);
   CHECK(scene.bottomVisible);
   CHECK(FindTextCommand(scene.bottom.Stream(), "SELECTION MODE") != nullptr);
-  CHECK(FindTextCommand(scene.bottom.Stream(),
-                        "OPTION: COPY  SHIFT+OPTION: ALL") != nullptr);
+  const auto *help = FindTextCommand(
+      scene.bottom.Stream(), "OPTION: COPY  SHIFT+ENTER: INTERPOLATE");
+  REQUIRE(help != nullptr);
+  CHECK(help->bounds.x == 6);
 
   ui2::UiSurfaceStorage storage;
   ui2::UiIndexedSurface surface(storage);
@@ -1265,6 +1267,28 @@ TEST_CASE("UI2 Groove selection uses the selection palette and mode bar") {
         palette.Index(ui2::UiColorToken::DerivedSelectionCorner));
   CHECK(surface.Pixel(selection.x + 1, selection.y + 1) ==
         palette.Index(ui2::UiColorToken::SelectionActive));
+}
+
+TEST_CASE("UI2 Groove interpolation acknowledgement overrides selection help") {
+  ui2::UiGrooveViewData data = ui2::test::ApprovedGrooveFixture();
+  data.selectionActive = true;
+  data.selectionVisualRect = ui2::UiGrooveView::SelectionTargetRect(1, 3);
+  data.interpolationCompleted = true;
+  data.clipboardHeight = 3U;
+
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiGrooveView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  REQUIRE(scene.bottomVisible);
+  const auto *title =
+      FindTextCommand(scene.bottom.Stream(), "SELECTION INTERPOLATED");
+  const auto *count = FindTextCommand(scene.bottom.Stream(), "3 STEPS UPDATED");
+  REQUIRE(title != nullptr);
+  REQUIRE(count != nullptr);
+  CHECK(FindTextCommand(scene.bottom.Stream(), "SELECTION MODE") == nullptr);
+  CHECK(title->color == palette.Index(ui2::UiColorToken::TextColored));
+  CHECK(count->color == palette.Index(ui2::UiColorToken::TextNormal));
 }
 
 TEST_CASE("UI2 tracker selection deltas match complete redraws") {
