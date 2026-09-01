@@ -13,8 +13,11 @@
                         <rect key="frame" x="0.0" y="0.0" width="375" height="667"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
-                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" image="LaunchBrand" translatesAutoresizingMaskIntoConstraints="NO" id="aBc-12-XyZ">
-                                <rect key="frame" x="27.5" y="173.5" width="320" height="320"/>
+                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" image="NullPeratorWordmark" translatesAutoresizingMaskIntoConstraints="NO" id="aBc-12-XyZ">
+                                <rect key="frame" x="24.5" y="309" width="326" height="49"/>
+                            </imageView>
+                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" image="SystemsWordmark" translatesAutoresizingMaskIntoConstraints="NO" id="sYs-20-3Lg">
+                                <rect key="frame" x="82.5" y="608.5" width="210" height="24.5"/>
                             </imageView>
                         </subviews>
                         <viewLayoutGuide key="safeArea" id="6Tk-OE-BBY"/>
@@ -22,8 +25,12 @@
                         <constraints>
                             <constraint firstItem="aBc-12-XyZ" firstAttribute="centerX" secondItem="Ze5-6b-2t3" secondAttribute="centerX" id="AA1-bb-CC2"/>
                             <constraint firstItem="aBc-12-XyZ" firstAttribute="centerY" secondItem="Ze5-6b-2t3" secondAttribute="centerY" id="DD3-ee-FF4"/>
-                            <constraint firstItem="aBc-12-XyZ" firstAttribute="width" constant="320" id="GG5-hh-II6"/>
-                            <constraint firstItem="aBc-12-XyZ" firstAttribute="height" constant="320" id="JJ7-kk-LL8"/>
+                            <constraint firstItem="aBc-12-XyZ" firstAttribute="width" constant="326" id="GG5-hh-II6"/>
+                            <constraint firstItem="aBc-12-XyZ" firstAttribute="height" constant="49" id="JJ7-kk-LL8"/>
+                            <constraint firstItem="sYs-20-3Lg" firstAttribute="centerX" secondItem="Ze5-6b-2t3" secondAttribute="centerX" id="KK9-mm-NN0"/>
+                            <constraint firstItem="6Tk-OE-BBY" firstAttribute="bottom" secondItem="sYs-20-3Lg" secondAttribute="bottom" constant="34" id="PP1-qq-RR2"/>
+                            <constraint firstItem="sYs-20-3Lg" firstAttribute="width" constant="210" id="SS3-tt-UU4"/>
+                            <constraint firstItem="sYs-20-3Lg" firstAttribute="height" constant="24.5" id="VV5-ww-XX6"/>
                         </constraints>
                     </view>
                 </viewController>
@@ -33,6 +40,7 @@
         </scene>
     </scenes>
     <resources>
-        <image name="LaunchBrand" width="1024" height="1024"/>
+        <image name="NullPeratorWordmark" width="325.97" height="48.62"/>
+        <image name="SystemsWordmark" width="290.87" height="34"/>
     </resources>
 </document>

@@ -177,24 +177,28 @@ struct NativeContentView: View {
 private struct NativeSplashScreen: View {
     var body: some View {
         GeometryReader { proxy in
-            let edge = min(320, max(0, min(proxy.size.width, proxy.size.height) - 56))
-            if let url = Bundle.main.url(
-                forResource: "LaunchBrand",
-                withExtension: "png"
-            ), let image = UIImage(contentsOfFile: url.path) {
-                Image(uiImage: image)
+            let wordmarkWidth = min(326, max(0, proxy.size.width - 48))
+            let systemsWidth = min(210, max(0, proxy.size.width - 80))
+
+            ZStack {
+                Image("NullPeratorWordmark")
                     .resizable()
                     .interpolation(.high)
                     .scaledToFit()
-                    .frame(width: edge, height: edge)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                Text("NULLPERATOR")
-                    .font(.system(size: 28, weight: .medium, design: .monospaced))
-                    .tracking(5)
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(width: wordmarkWidth)
+
+                VStack {
+                    Spacer()
+                    Image("SystemsWordmark")
+                        .resizable()
+                        .interpolation(.high)
+                        .scaledToFit()
+                        .frame(width: systemsWidth)
+                        .padding(.bottom, max(34, proxy.safeAreaInsets.bottom + 22))
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .accessibilityHidden(true)
         }
         .background(Color.black)
         .ignoresSafeArea()
