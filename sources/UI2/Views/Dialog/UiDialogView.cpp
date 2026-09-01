@@ -51,11 +51,11 @@ constexpr std::array<KeyboardRow, 4> kRenameKeyboard{{
 
 constexpr std::array<std::int16_t, 3> kRenameActionCenters{40, 120, 197};
 constexpr std::array<RectI16, 5> kRenameSpecialKeys{{
-    {9, 168, 35, 13},
+    {17, 168, 19, 13},
     {51, 168, 25, 13},
     {83, 168, 74, 13},
     {164, 168, 25, 13},
-    {196, 168, 35, 13},
+    {201, 168, 25, 11},
 }};
 
 template <std::size_t Width, std::size_t Height>

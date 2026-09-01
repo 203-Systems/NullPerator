@@ -83,9 +83,12 @@ TEST_CASE("Rename full page and all cursor targets stay in 240x240") {
   data.selectedKey = 0U;
   CHECK(ui2::UiDialogView::CursorTargetRect(data) ==
         ui2::RectI16{8, 81, 13, 11});
+  data.selectedKey = 36U;
+  CHECK(ui2::UiDialogView::CursorTargetRect(data) ==
+        ui2::RectI16{17, 168, 19, 13});
   data.selectedKey = 40U;
   CHECK(ui2::UiDialogView::CursorTargetRect(data) ==
-        ui2::RectI16{196, 168, 35, 13});
+        ui2::RectI16{201, 168, 25, 11});
 
   data.focus = ui2::UiDialogFocus::Actions;
   data.selectedAction = 0U;
