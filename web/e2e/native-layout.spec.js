@@ -1,4 +1,15 @@
 import { expect, test } from '@playwright/test'
+import { mkdirSync, readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+
+const screenshotRoot = process.env.NATIVE_LAYOUT_SCREENSHOT_DIR
+  ? resolve(process.env.NATIVE_LAYOUT_SCREENSHOT_DIR)
+  : null
+const captureScreenshots = screenshotRoot !== null || process.env.NATIVE_LAYOUT_SCREENSHOTS === '1'
+const goldenScreens = {
+  main: `data:image/png;base64,${readFileSync(new URL('./ui2-golden.spec.js-snapshots/song.png', import.meta.url)).toString('base64')}`,
+  playing: `data:image/png;base64,${readFileSync(new URL('./ui2-golden.spec.js-snapshots/topbar-playing.png', import.meta.url)).toString('base64')}`,
+}
 
 const devices = [
   { name: 'iPhone Pro portrait', width: 402, height: 874 },
@@ -24,6 +35,10 @@ function intersects(a, b) {
 
 async function installNativeBridge(page) {
   await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'requestMIDIAccess', {
+      configurable: true,
+      value: async () => ({ inputs: new Map(), outputs: new Map(), onstatechange: null }),
+    })
     globalThis.__nullPeratorNativeCore = true
     globalThis.__nullPeratorControllerState = { connected: false, count: 0, names: [] }
     globalThis.__nullPeratorNativeBattery = { percentage: 76, charging: false, available: true }
@@ -35,7 +50,16 @@ async function installNativeBridge(page) {
           postMessage(message) {
             switch (message?.command) {
               case 'nativeReady':
-                return Promise.resolve({ runtime: 'native-cpp', platform: 'ios', version: 1 })
+                return Promise.resolve({
+                  runtime: 'native-cpp',
+                  platform: 'ios',
+                  version: 1,
+                  iosVersion: '1.0',
+                  iosBuild: '1',
+                  nullPeratorVersion: '2.3.0',
+                  buildHash: '7092ad4a22c86c2b',
+                  buildTime: '2026-09-01 11:10 CST',
+                })
               case 'nativeFrame':
                 return Promise.resolve({ version: 1, changed: false })
               case 'nativeMidiDrain':
@@ -50,6 +74,34 @@ async function installNativeBridge(page) {
   })
 }
 
+async function paintGoldenScreen(page, state) {
+  await page.evaluate((source) => new Promise((resolveImage, rejectImage) => {
+    const canvas = document.querySelector('#nullperator-canvas')
+    const image = new Image()
+    image.onload = () => {
+      canvas.getContext('2d', { alpha: false }).drawImage(image, 0, 0, canvas.width, canvas.height)
+      resolveImage()
+    }
+    image.onerror = rejectImage
+    image.src = source
+  }), goldenScreens[state])
+}
+
+async function saveScreenshot(page, testInfo, device, state) {
+  if (!captureScreenshots) return
+  if (!screenshotRoot) {
+    await page.screenshot({ path: testInfo.outputPath(`${state}.png`) })
+    return
+  }
+  mkdirSync(screenshotRoot, { recursive: true })
+  const orientation = device.name.endsWith('landscape') ? 'landscape' : 'portrait'
+  const deviceName = device.name
+    .replace(/ (portrait|landscape)$/, '')
+    .replaceAll(' ', '-')
+    .toLowerCase()
+  await page.screenshot({ path: resolve(screenshotRoot, `${deviceName}__${orientation}__${state}.png`) })
+}
+
 for (const device of devices) {
   test(`native UI fits ${device.name}`, async ({ page }, testInfo) => {
     await page.setViewportSize(device)
@@ -60,6 +112,7 @@ for (const device of devices) {
     const canvas = page.locator('#nullperator-canvas')
     await expect(app).toBeVisible()
     await expect(canvas).toBeVisible()
+    if (captureScreenshots) await paintGoldenScreen(page, 'main')
 
     const viewport = { x: 0, y: 0, width: device.width, height: device.height }
     const canvasBox = await canvas.boundingBox()
@@ -100,8 +153,11 @@ for (const device of devices) {
     expect(settingsBox.y + settingsBox.height).toBeLessThanOrEqual(device.height)
     for (const box of boxes) expect(intersects(settingsBox, box)).toBe(false)
 
-    if (process.env.NATIVE_LAYOUT_SCREENSHOTS === '1') {
-      await page.screenshot({ path: testInfo.outputPath('controls.png') })
+    await saveScreenshot(page, testInfo, device, 'main')
+    if (captureScreenshots) {
+      await paintGoldenScreen(page, 'playing')
+      await saveScreenshot(page, testInfo, device, 'playing')
+      await paintGoldenScreen(page, 'main')
     }
 
     await settings.click()
@@ -120,8 +176,21 @@ for (const device of devices) {
     expect(closeBox.width).toBeGreaterThanOrEqual(30)
     expect(closeBox.height).toBeGreaterThanOrEqual(30)
 
-    if (process.env.NATIVE_LAYOUT_SCREENSHOTS === '1') {
-      await page.screenshot({ path: testInfo.outputPath('settings.png') })
+    await saveScreenshot(page, testInfo, device, 'settings')
+
+    if (captureScreenshots) {
+      await dialog.getByRole('button', { name: /^MIDI/ }).click()
+      const midiDialog = page.getByRole('dialog', { name: 'ROUTE MAP' })
+      await expect(midiDialog).toBeVisible()
+      await saveScreenshot(page, testInfo, device, 'midi-route')
+
+      await midiDialog.getByRole('button', { name: 'Back to settings' }).click()
+      await expect(dialog).toBeVisible()
+      await dialog.getByRole('button', { name: /^SOFTWARE VERSION/ }).click()
+      await expect(dialog.getByText('BUILD HASH', { exact: true })).toBeVisible()
+      await expect(dialog.getByText('BUILD TIME', { exact: true })).toBeVisible()
+      await page.waitForTimeout(220)
+      await saveScreenshot(page, testInfo, device, 'software-version')
     }
 
     const documentGeometry = await page.evaluate(() => ({
