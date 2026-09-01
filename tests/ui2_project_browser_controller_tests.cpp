@@ -129,12 +129,13 @@ TEST_CASE("UI2 Project Browser reserves Option for M8-style chords") {
   REQUIRE(controller.Refresh("ACTIVE"));
   CHECK(fileSystem.IncludedHidden());
   const Ui2BrowserSnapshot snapshot = controller.Snapshot();
-  CHECK(snapshot.totalItemCount == 4U);
-  CHECK(std::strcmp(snapshot.items[3].data(), ".FOO") == 0);
+  CHECK(snapshot.totalItemCount == 5U);
+  CHECK(std::strcmp(snapshot.items[0].data(), "..") == 0);
+  CHECK(std::strcmp(snapshot.items[4].data(), ".FOO") == 0);
 
   CHECK(controller.Handle(TrackerAction::Option, true).type ==
         Ui2ProjectBrowserCommandType::None);
-  CHECK(controller.Snapshot().selectedRow == 0U);
+  CHECK(controller.Snapshot().selectedRow == 1U);
 
   const Ui2ProjectBrowserCommand remove = Tap(controller, TrackerAction::Edit);
   CHECK(remove.type == Ui2ProjectBrowserCommandType::Delete);
@@ -159,7 +160,8 @@ TEST_CASE("UI2 Project Browser owns names without changing filesystem cwd") {
   // A different legacy caller may replace its adapter's cached index table.
   // Project Browser must continue to render and emit its owned path snapshot.
   const Ui2BrowserSnapshot snapshot = controller.Snapshot();
-  CHECK(std::strcmp(snapshot.items[0].data(), "OLD") == 0);
+  CHECK(std::strcmp(snapshot.items[0].data(), "..") == 0);
+  CHECK(std::strcmp(snapshot.actions[0].data(), "LOAD") == 0);
   const Ui2ProjectBrowserCommand command =
       Tap(controller, TrackerAction::Edit);
   CHECK(command.type == Ui2ProjectBrowserCommandType::Load);
@@ -177,8 +179,8 @@ TEST_CASE("UI2 Project Browser accepts held-direction repeat pulses") {
   controller.Handle(TrackerAction::Down, false);
 
   const Ui2BrowserSnapshot snapshot = controller.Snapshot();
-  CHECK(snapshot.selectedRow == 2U);
-  CHECK(std::strcmp(snapshot.items[2].data(), ".saveas-stage.X") == 0);
+  CHECK(snapshot.selectedRow == 3U);
+  CHECK(std::strcmp(snapshot.items[3].data(), ".saveas-stage.X") == 0);
 }
 
 TEST_CASE("UI2 Project Browser option directions jump eight entries") {
@@ -189,28 +191,37 @@ TEST_CASE("UI2 Project Browser option directions jump eight entries") {
 
   controller.Handle(TrackerAction::Option, true);
   Tap(controller, TrackerAction::Down);
-  CHECK(controller.Snapshot().selectedRow == 3U);
+  CHECK(controller.Snapshot().selectedRow == 4U);
   Tap(controller, TrackerAction::Up);
   CHECK(controller.Snapshot().selectedRow == 0U);
   controller.Handle(TrackerAction::Option, false);
 }
 
-TEST_CASE("UI2 Project Browser keeps projects as its product root") {
+TEST_CASE("UI2 Project Browser dot-dot navigates to the SD-card root") {
   using namespace ui2;
   ProjectBrowserFileSystem fileSystem;
   Ui2ProjectBrowserController controller;
   REQUIRE(controller.Refresh("ACTIVE"));
 
+  Tap(controller, TrackerAction::Up);
+  CHECK(std::strcmp(controller.Snapshot().actions[0].data(), "UP") == 0);
   const Ui2ProjectBrowserCommand command =
       Tap(controller, TrackerAction::Edit);
   CHECK(fileSystem.ChdirCalls() == 0);
+  CHECK(command.type == Ui2ProjectBrowserCommandType::None);
+  CHECK(fileSystem.LastPath() == "/");
+  Ui2BrowserSnapshot snapshot = controller.Snapshot();
+  CHECK(std::strcmp(snapshot.meta.data(), "/") == 0);
+  CHECK(snapshot.totalItemCount == 1U);
+  CHECK(std::strcmp(snapshot.items[0].data(), "projects") == 0);
+  CHECK(std::strcmp(snapshot.actions[0].data(), "OPEN") == 0);
+
+  CHECK(Tap(controller, TrackerAction::Edit).type ==
+        Ui2ProjectBrowserCommandType::None);
   CHECK(fileSystem.LastPath() == PROJECTS_DIR);
-  CHECK(command.type == Ui2ProjectBrowserCommandType::Load);
-  CHECK(std::strcmp(command.project.data(), "OLD") == 0);
-  const Ui2BrowserSnapshot snapshot = controller.Snapshot();
-  CHECK(std::strcmp(snapshot.meta.data(), "project") == 0);
-  CHECK(snapshot.totalItemCount == 4U);
-  CHECK(std::strcmp(snapshot.items[0].data(), "OLD") == 0);
+  snapshot = controller.Snapshot();
+  CHECK(std::strcmp(snapshot.items[0].data(), "..") == 0);
+  CHECK(std::strcmp(snapshot.items[1].data(), "OLD") == 0);
 }
 
 TEST_CASE("UI2 Project Browser keeps Load explicit and protects active Delete") {
@@ -237,9 +248,10 @@ TEST_CASE("UI2 Project Browser restores a failed load selection after refresh") 
 
   REQUIRE(controller.RefreshAndSelect("ACTIVE", "OLD"));
   const Ui2BrowserSnapshot snapshot = controller.Snapshot();
-  CHECK(snapshot.selectedRow == 0U);
-  CHECK(std::strcmp(snapshot.items[0].data(), "OLD") == 0);
-  CHECK(std::strcmp(snapshot.items[1].data(), "*ACTIVE") == 0);
+  CHECK(snapshot.selectedRow == 1U);
+  CHECK(std::strcmp(snapshot.items[0].data(), "..") == 0);
+  CHECK(std::strcmp(snapshot.items[1].data(), "OLD") == 0);
+  CHECK(std::strcmp(snapshot.items[2].data(), "*ACTIVE") == 0);
 }
 
 TEST_CASE("UI2 Project Browser rejects a potentially truncated project scan") {
