@@ -160,7 +160,7 @@ struct NativeContentView: View {
         .ignoresSafeArea()
         .persistentSystemOverlays(.hidden)
         .task {
-            try? await Task.sleep(for: .milliseconds(300))
+            try? await Task.sleep(for: .milliseconds(1_200))
             minimumSplashElapsed = true
         }
         .onChange(of: scenePhase) { _, phase in
@@ -177,15 +177,25 @@ struct NativeContentView: View {
 private struct NativeSplashScreen: View {
     var body: some View {
         GeometryReader { proxy in
-            let wordmarkWidth = min(326, max(0, proxy.size.width - 48))
+            let brandEdge = min(176, max(0, min(proxy.size.width, proxy.size.height) - 120))
+            let wordmarkWidth = min(240, max(0, proxy.size.width - 80))
             let systemsWidth = min(210, max(0, proxy.size.width - 80))
 
             ZStack {
-                Image("NullPeratorWordmark")
-                    .resizable()
-                    .interpolation(.high)
-                    .scaledToFit()
-                    .frame(width: wordmarkWidth)
+                VStack(spacing: 28) {
+                    Image("BrandLogo")
+                        .resizable()
+                        .interpolation(.high)
+                        .scaledToFit()
+                        .frame(width: brandEdge, height: brandEdge)
+
+                    Image("NullPeratorWordmark")
+                        .resizable()
+                        .interpolation(.high)
+                        .scaledToFit()
+                        .frame(width: wordmarkWidth)
+                }
+                .offset(y: -12)
 
                 VStack {
                     Spacer()

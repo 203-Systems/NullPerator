@@ -13,8 +13,11 @@
                         <rect key="frame" x="0.0" y="0.0" width="375" height="667"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
+                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" image="BrandLogo" translatesAutoresizingMaskIntoConstraints="NO" id="nP0-CoL-0r1">
+                                <rect key="frame" x="99.5" y="202" width="176" height="176"/>
+                            </imageView>
                             <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" image="NullPeratorWordmark" translatesAutoresizingMaskIntoConstraints="NO" id="aBc-12-XyZ">
-                                <rect key="frame" x="24.5" y="309" width="326" height="49"/>
+                                <rect key="frame" x="67.5" y="406" width="240" height="36"/>
                             </imageView>
                             <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" image="SystemsWordmark" translatesAutoresizingMaskIntoConstraints="NO" id="sYs-20-3Lg">
                                 <rect key="frame" x="82.5" y="608.5" width="210" height="24.5"/>
@@ -23,10 +26,14 @@
                         <viewLayoutGuide key="safeArea" id="6Tk-OE-BBY"/>
                         <color key="backgroundColor" red="0.0" green="0.0" blue="0.0" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
                         <constraints>
+                            <constraint firstItem="nP0-CoL-0r1" firstAttribute="centerX" secondItem="Ze5-6b-2t3" secondAttribute="centerX" id="A01-bR4-Nd1"/>
+                            <constraint firstItem="nP0-CoL-0r1" firstAttribute="centerY" secondItem="Ze5-6b-2t3" secondAttribute="centerY" constant="-43.5" id="B02-bR4-Nd2"/>
+                            <constraint firstItem="nP0-CoL-0r1" firstAttribute="width" constant="176" id="C03-bR4-Nd3"/>
+                            <constraint firstItem="nP0-CoL-0r1" firstAttribute="height" constant="176" id="D04-bR4-Nd4"/>
                             <constraint firstItem="aBc-12-XyZ" firstAttribute="centerX" secondItem="Ze5-6b-2t3" secondAttribute="centerX" id="AA1-bb-CC2"/>
-                            <constraint firstItem="aBc-12-XyZ" firstAttribute="centerY" secondItem="Ze5-6b-2t3" secondAttribute="centerY" id="DD3-ee-FF4"/>
-                            <constraint firstItem="aBc-12-XyZ" firstAttribute="width" constant="326" id="GG5-hh-II6"/>
-                            <constraint firstItem="aBc-12-XyZ" firstAttribute="height" constant="49" id="JJ7-kk-LL8"/>
+                            <constraint firstItem="aBc-12-XyZ" firstAttribute="top" secondItem="nP0-CoL-0r1" secondAttribute="bottom" constant="28" id="DD3-ee-FF4"/>
+                            <constraint firstItem="aBc-12-XyZ" firstAttribute="width" constant="240" id="GG5-hh-II6"/>
+                            <constraint firstItem="aBc-12-XyZ" firstAttribute="height" constant="36" id="JJ7-kk-LL8"/>
                             <constraint firstItem="sYs-20-3Lg" firstAttribute="centerX" secondItem="Ze5-6b-2t3" secondAttribute="centerX" id="KK9-mm-NN0"/>
                             <constraint firstItem="6Tk-OE-BBY" firstAttribute="bottom" secondItem="sYs-20-3Lg" secondAttribute="bottom" constant="34" id="PP1-qq-RR2"/>
                             <constraint firstItem="sYs-20-3Lg" firstAttribute="width" constant="210" id="SS3-tt-UU4"/>
@@ -40,6 +47,7 @@
         </scene>
     </scenes>
     <resources>
+        <image name="BrandLogo" width="256" height="256"/>
         <image name="NullPeratorWordmark" width="325.97" height="48.62"/>
         <image name="SystemsWordmark" width="290.87" height="34"/>
     </resources>
