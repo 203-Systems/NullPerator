@@ -1359,6 +1359,7 @@ TEST_CASE("UI2 Groove workflow copies cuts and clips selection pastes") {
       clipboard);
   CHECK(result.projectMutated);
   CHECK(steps[15] == 3U);
+  CHECK(clipboard.count == 0U);
 
   result = Ui2GrooveWorkflow::Execute(
       {.type = Ui2GrooveCommandType::CutSelection,

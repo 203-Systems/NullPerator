@@ -1650,9 +1650,16 @@ TEST_CASE("UI2 clipboard state exposes a paste-ready bottom bar") {
   ui2::UiBarScene scene;
   REQUIRE(ui2::UiChromeRenderer::BuildBottom(resolved.bottom, scene) ==
           ui2::UiBuildStatus::Built);
-  CHECK(FindTextCommand(scene.Stream(), "COPIED") != nullptr);
-  CHECK(FindTextCommand(scene.Stream(), "3X2 CELLS") != nullptr);
-  CHECK(FindTextCommand(scene.Stream(), "SHIFT+ENTER: PASTE") != nullptr);
+  const auto *copied = FindTextCommand(scene.Stream(), "COPIED");
+  const auto *dimensions = FindTextCommand(scene.Stream(), "3X2 CELLS");
+  const auto *paste = FindTextCommand(scene.Stream(), "SHIFT+ENTER: PASTE");
+  REQUIRE(copied != nullptr);
+  REQUIRE(dimensions != nullptr);
+  REQUIRE(paste != nullptr);
+  const ui2::UiPalette palette;
+  CHECK(copied->color == palette.Index(ui2::UiColorToken::TextColored));
+  CHECK(dimensions->color == palette.Index(ui2::UiColorToken::TextColored));
+  CHECK(paste->color == palette.Index(ui2::UiColorToken::TextNormal));
 }
 
 TEST_CASE("UI2 tracker playback ticks share the song edge-tick geometry") {

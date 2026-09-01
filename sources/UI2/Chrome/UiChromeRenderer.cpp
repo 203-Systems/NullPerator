@@ -534,9 +534,9 @@ UiBuildStatus UiChromeRenderer::BuildBottom(const UiBottomBarModel &model,
     builder.Text(copied, start, 216, UiColorToken::TextColored);
     builder.Text(dimensions.data(),
                  static_cast<std::int16_t>(start + copiedWidth + gap), 216,
-                 UiColorToken::TextNormal);
+                 UiColorToken::TextColored);
     builder.CenteredText("SHIFT+ENTER: PASTE", 120, 228,
-                         UiColorToken::TextDim);
+                         UiColorToken::TextNormal);
     break;
   }
   }

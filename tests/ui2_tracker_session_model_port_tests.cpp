@@ -124,6 +124,7 @@ TEST_CASE("UI2 input workflow confirms a selection and pastes its contents") {
 
   CHECK(song.data_[SONG_CHANNEL_COUNT] == 0x2AU);
   CHECK(port.ProjectMutationGeneration() == 1U);
+  CHECK_FALSE(executor.ClipboardState().ready);
 }
 
 TEST_CASE("UI2 clipboard presentation follows paste compatibility") {
@@ -158,6 +159,7 @@ TEST_CASE("UI2 model port rejects semantically incompatible Phrase paste") {
   CHECK(phrase.instr_[1] == 0xFFU);
   CHECK(phrase.cmd1_[1] == FourCC::InstrumentCommandArpeggiator);
   CHECK(port.ProjectMutationGeneration() == 0U);
+  CHECK(port.ClipboardState(Ui2TrackerPage::Phrase).ready);
 
   port.ApplyGridCommand(SelectionCommand(Ui2TrackerCommandType::CopySelection,
                                          Ui2TrackerPage::Phrase, 2, 1, 3, 1));
