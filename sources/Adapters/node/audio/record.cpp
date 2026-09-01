@@ -32,10 +32,6 @@ void StopMonitoring() {}
 
 void SetInputSource(RecordSource /*source*/) {}
 
-void SetLineInGain(uint8_t /*gainDb*/) {}
-
-void SetMicGain(uint8_t /*gainDb*/) {}
-
 bool IsRecordingAvailable() { return false; }
 
 bool IsRecordingActive() { return false; }

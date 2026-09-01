@@ -1084,24 +1084,13 @@ Ui2NativeApplicationStateSource::CaptureRecord(UiRecordFrameState &state) {
     return variable == nullptr ? 0 : variable->GetInt();
   };
   const std::uint8_t source = static_cast<std::uint8_t>(
-      std::clamp(value(FourCC::VarRecordSource), 0, 3));
-  const std::int8_t lineGain = static_cast<std::int8_t>(std::clamp(
-      value(FourCC::VarRecordLineGain), RecordingPlatform::kLineInGainMinDb,
-      RecordingPlatform::kLineInGainMaxDb));
-  const std::int8_t micGain = static_cast<std::int8_t>(std::clamp(
-      value(FourCC::VarRecordMicGain), RecordingPlatform::kMicGainMinDb,
-      RecordingPlatform::kMicGainMaxDb));
-  record_.Synchronize(source, lineGain, micGain);
-  constexpr const char *sources[] = {"ALL OFF", "LINE IN", "MIC", "USB IN"};
+      std::clamp(value(FourCC::VarRecordSource), 0, 2));
+  record_.Synchronize(source);
+  constexpr const char *sources[] = {"LINE IN", "ONBOARD MIC",
+                                     "HEADPHONE MIC"};
   CopyUiText(state.snapshot.source, sources[source]);
-  std::snprintf(state.snapshot.lineGain.data(),
-                state.snapshot.lineGain.size(), "%d DB", lineGain);
-  std::snprintf(state.snapshot.micGain.data(), state.snapshot.micGain.size(),
-                "%d DB", micGain);
   CopyUiText(state.snapshot.elapsed, "00:00");
   state.snapshot.sourceIndex = source;
-  state.snapshot.lineGainDb = lineGain;
-  state.snapshot.micGainDb = micGain;
   const bool available = record_.Available();
   state.snapshot.recordingAvailable = available;
   state.snapshot.meterAvailable = false;
@@ -1111,15 +1100,6 @@ Ui2NativeApplicationStateSource::CaptureRecord(UiRecordFrameState &state) {
     switch (record_.SelectedField()) {
     case Ui2RecordField::Source:
       state.snapshot.focus = RecordViewUi2Focus::Source;
-      break;
-    case Ui2RecordField::LineGain:
-      state.snapshot.focus = RecordViewUi2Focus::LineGain;
-      break;
-    case Ui2RecordField::MicGain:
-      state.snapshot.focus = RecordViewUi2Focus::MicGain;
-      break;
-    case Ui2RecordField::Count:
-      state.snapshot.focus = RecordViewUi2Focus::Unknown;
       break;
     }
     if (IsSavingRecording()) {

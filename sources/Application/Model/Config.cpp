@@ -45,8 +45,8 @@ static constexpr int kUiTextCaseOptionCount = 3;
 
 // NOTE: these MUST match the persisted RecordSource enum in
 // Application/Audio/RecordingPlatform.h.
-static const char *recordSourceOptions[4] = {"All Off", "Line In", "Mic",
-                                             "USB In"};
+static const char *recordSourceOptions[3] = {"Line In", "Onboard Mic",
+                                             "Headphone Mic"};
 
 // Param keys MUST fit in this length limit!
 typedef etl::string<13> ParamString;
@@ -358,8 +358,6 @@ constexpr int DEFAULT_MIDIDEVICE = 0x0;
 constexpr int DEFAULT_MIDISYNC = 0x0;
 constexpr int DEFAULT_BACKLIGHT_LEVEL = 0xFF; // Default to max brightness (255)
 constexpr int DEFAULT_REC_SOURCE = 0x0;
-constexpr int DEFAULT_RECORD_LINE_GAIN_DB = 0;
-constexpr int DEFAULT_RECORD_MIC_GAIN_DB = 0;
 constexpr int DEFAULT_OUTPUT_VOLUME = 40;
 constexpr int DEFAULT_IMPORT_RESAMPLER = 0; // default for picoTracker is none (as original)
 
@@ -523,22 +521,10 @@ static const ConfigParam configParams[] = {
      false},
 
     {"RECORDSOURCE",
-     {.intValue = 1},
+     {.intValue = 0},
      FourCC::VarRecordSource,
      recordSourceOptions,
-     4,
-     false},
-    {"RECORDLINEGAIN",
-     {.intValue = DEFAULT_RECORD_LINE_GAIN_DB},
-     FourCC::VarRecordLineGain,
-     nullptr,
-     0,
-     false},
-    {"RECORDMICGAIN",
-     {.intValue = DEFAULT_RECORD_MIC_GAIN_DB},
-     FourCC::VarRecordMicGain,
-     nullptr,
-     0,
+     3,
      false},
 };
 
@@ -580,9 +566,7 @@ Config::Config()
       themeName_(FourCC::VarThemeName, ThemeConstants::DEFAULT_THEME_NAME),
       backlightLevel_(FourCC::VarBacklightLevel, DEFAULT_BACKLIGHT_LEVEL),
       outputVolume_(FourCC::VarOutputVolume, DEFAULT_OUTPUT_VOLUME),
-      recordSource_(FourCC::VarRecordSource, recordSourceOptions, 4, 1),
-      recordLineGain_(FourCC::VarRecordLineGain, DEFAULT_RECORD_LINE_GAIN_DB),
-      recordMicGain_(FourCC::VarRecordMicGain, DEFAULT_RECORD_MIC_GAIN_DB) {
+      recordSource_(FourCC::VarRecordSource, recordSourceOptions, 3, 0) {
 
   variables_.push_back(&background_);
   variables_.push_back(&foreground_);
@@ -606,8 +590,6 @@ Config::Config()
   variables_.push_back(&backlightLevel_);
   variables_.push_back(&outputVolume_);
   variables_.push_back(&recordSource_);
-  variables_.push_back(&recordLineGain_);
-  variables_.push_back(&recordMicGain_);
 
   PersistencyDocument doc;
 

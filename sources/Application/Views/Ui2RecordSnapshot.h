@@ -12,12 +12,7 @@
 #include <cstdint>
 #include <type_traits>
 
-enum class RecordViewUi2Focus : std::uint8_t {
-  Source,
-  LineGain,
-  MicGain,
-  Unknown,
-};
+enum class RecordViewUi2Focus : std::uint8_t { Source, Unknown };
 
 enum class RecordViewUi2State : std::uint8_t {
   Idle,
@@ -30,14 +25,10 @@ enum class RecordViewUi2State : std::uint8_t {
 // snapshot, so the snapshot must outlive scene construction.
 struct RecordViewUi2Snapshot {
   std::array<char, 17> source{};
-  std::array<char, 9> lineGain{};
-  std::array<char, 9> micGain{};
   std::array<char, 6> elapsed{};
   RecordViewUi2Focus focus = RecordViewUi2Focus::Unknown;
   RecordViewUi2State state = RecordViewUi2State::Idle;
   std::uint8_t sourceIndex = 0;
-  std::int8_t lineGainDb = 0;
-  std::int8_t micGainDb = 0;
   std::uint8_t savingPercent = 0;
   std::uint16_t meterSafeWidth = 0;
   std::uint16_t meterWarningWidth = 0;
@@ -51,8 +42,6 @@ struct RecordViewUi2Snapshot {
                ui2::UiPowerState::BatteryNormal) const {
     ui2::UiRecordViewData data;
     data.source = source.data();
-    data.lineGain = lineGain.data();
-    data.micGain = micGain.data();
     data.elapsed = elapsed.data();
     data.savingPercent = savingPercent;
     data.meterAvailable = meterAvailable;
@@ -63,12 +52,6 @@ struct RecordViewUi2Snapshot {
     switch (focus) {
     case RecordViewUi2Focus::Source:
       data.focus = ui2::UiRecordFocus::Source;
-      break;
-    case RecordViewUi2Focus::LineGain:
-      data.focus = ui2::UiRecordFocus::LineGain;
-      break;
-    case RecordViewUi2Focus::MicGain:
-      data.focus = ui2::UiRecordFocus::MicGain;
       break;
     case RecordViewUi2Focus::Unknown:
       data.focus = ui2::UiRecordFocus::None;

@@ -741,9 +741,7 @@ bool Ui2TrackerApplication::ActivatePage(UiApplicationPage page) {
       return variable == nullptr ? 0 : variable->GetInt();
     };
     record_.Synchronize(
-        static_cast<std::uint8_t>(value(FourCC::VarRecordSource)),
-        static_cast<std::int8_t>(value(FourCC::VarRecordLineGain)),
-        static_cast<std::int8_t>(value(FourCC::VarRecordMicGain)));
+        static_cast<std::uint8_t>(value(FourCC::VarRecordSource)));
   }
   const Ui2TrackerPage trackerPage = TrackerPageFor(page);
   if (trackerPage != Ui2TrackerPage::None) {
@@ -2214,10 +2212,6 @@ void Ui2TrackerApplication::HandleRecord(TrackerAction action, bool pressed) {
 }
 
 void Ui2TrackerApplication::ConfigureRecordController() {
-  record_.SetGainRanges(RecordingPlatform::kLineInGainMinDb,
-                        RecordingPlatform::kLineInGainMaxDb,
-                        RecordingPlatform::kMicGainMinDb,
-                        RecordingPlatform::kMicGainMaxDb);
   record_.SetAvailable(IsRecordingAvailable());
 }
 
@@ -2228,10 +2222,6 @@ void Ui2TrackerApplication::ExecuteRecord(Ui2RecordCommand command) {
   FourCC::enum_type key = FourCC::Default;
   if (command.type == Ui2RecordCommandType::SetSource)
     key = FourCC::VarRecordSource;
-  else if (command.type == Ui2RecordCommandType::SetLineGain)
-    key = FourCC::VarRecordLineGain;
-  else if (command.type == Ui2RecordCommandType::SetMicGain)
-    key = FourCC::VarRecordMicGain;
   else if (command.type == Ui2RecordCommandType::ToggleRecording)
     return; // All current platform record backends report unavailable.
   if (key == FourCC::Default)
@@ -2243,10 +2233,6 @@ void Ui2TrackerApplication::ExecuteRecord(Ui2RecordCommand command) {
   value->SetInt(command.value);
   if (command.type == Ui2RecordCommandType::SetSource)
     SetInputSource(static_cast<RecordSource>(command.value));
-  else if (command.type == Ui2RecordCommandType::SetLineGain)
-    SetLineInGain(static_cast<std::uint8_t>(std::max<int>(command.value, 0)));
-  else
-    SetMicGain(static_cast<std::uint8_t>(std::max<int>(command.value, 0)));
   configSave_.MarkDirty();
 }
 

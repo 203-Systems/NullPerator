@@ -69,7 +69,7 @@ public:
   }
 
 private:
-  etl::vector<Variable *, 24> variables_;
+  etl::vector<Variable *, 22> variables_;
   // Config variables (kept as members to avoid heap allocation)
   WatchedVariable background_;
   WatchedVariable foreground_;
@@ -93,8 +93,6 @@ private:
   WatchedVariable backlightLevel_;
   WatchedVariable outputVolume_;
   WatchedVariable recordSource_;
-  WatchedVariable recordLineGain_;
-  WatchedVariable recordMicGain_;
   SemanticThemeColors semanticThemeColors_ = DefaultSemanticThemeColors();
 
   void SaveContent(tinyxml2::XMLPrinter *printer);

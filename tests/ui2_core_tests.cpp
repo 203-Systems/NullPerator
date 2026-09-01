@@ -4262,15 +4262,13 @@ TEST_CASE("UI2 Record delta rendering is pixel-identical to a full redraw") {
   surface.ClearDirty();
 
   ui2::UiRecordViewData current = previous;
-  current.source = "MIC";
-  current.lineGain = "-3 DB";
-  current.micGain = "+6 DB";
+  current.source = "ONBOARD MIC";
   current.elapsed = "01:23";
   current.safeWidth = 128;
   current.warningWidth = 60;
   current.power = ui2::UiPowerState::BatteryLow;
   current.cursorVisualOverride = true;
-  current.cursorVisualRect = {7, 64, 226, 9};
+  current.cursorVisualRect = {7, 42, 226, 9};
   current.cursorInkVisible = false;
   ui2::UiFrameScene currentScene;
   REQUIRE(ui2::UiRecordView::Build(current, palette, currentScene) ==
@@ -4300,7 +4298,7 @@ TEST_CASE("UI2 Record idle is clean and animated cursor damage stays local") {
 
   ui2::UiRecordViewData current = previous;
   current.cursorVisualOverride = true;
-  current.cursorVisualRect = {7, 53, 226, 9};
+  current.cursorVisualRect = {8, 42, 225, 9};
   current.cursorInkVisible = false;
   ui2::UiFrameScene currentScene;
   REQUIRE(ui2::UiRecordView::Build(current, palette, currentScene) ==
@@ -4370,14 +4368,9 @@ TEST_CASE("UI2 Record centers semantic state text and saving progress") {
 TEST_CASE("UI2 Record focus and state deltas match complete redraws") {
   CHECK(ui2::UiRecordView::CursorTargetRect(ui2::UiRecordFocus::Source) ==
         ui2::RectI16{7, 42, 226, 9});
-  CHECK(ui2::UiRecordView::CursorTargetRect(ui2::UiRecordFocus::LineGain) ==
-        ui2::RectI16{7, 53, 226, 9});
-  CHECK(ui2::UiRecordView::CursorTargetRect(ui2::UiRecordFocus::MicGain) ==
-        ui2::RectI16{7, 64, 226, 9});
-
   const ui2::UiRecordViewData previous;
   ui2::UiRecordViewData current = previous;
-  current.focus = ui2::UiRecordFocus::MicGain;
+  current.focus = ui2::UiRecordFocus::Source;
   current.state = ui2::UiRecordState::Recording;
   current.elapsed = "00:09";
   CheckDeltaMatchesFullFrame(previous, current, ui2::UiRecordView::Build,

@@ -18,8 +18,6 @@ namespace ui2 {
 
 enum class UiRecordFocus : std::uint8_t {
   Source,
-  LineGain,
-  MicGain,
   None,
 };
 
@@ -32,8 +30,6 @@ enum class UiRecordState : std::uint8_t {
 
 struct UiRecordViewData {
   std::string_view source = "LINE IN";
-  std::string_view lineGain = "0 DB";
-  std::string_view micGain = "0 DB";
   std::string_view elapsed = "00:00";
   std::uint16_t safeWidth = 154;
   std::uint16_t warningWidth = 42;
@@ -62,10 +58,6 @@ public:
     switch (focus) {
     case UiRecordFocus::Source:
       return {7, 42, 226, 9};
-    case UiRecordFocus::LineGain:
-      return {7, 53, 226, 9};
-    case UiRecordFocus::MicGain:
-      return {7, 64, 226, 9};
     case UiRecordFocus::None:
       return {};
     }

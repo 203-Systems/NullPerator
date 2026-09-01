@@ -841,62 +841,22 @@ TEST_CASE("UI2 Mixer synchronizes the shared track and never aliases Master mute
 
 TEST_CASE("UI2 Record edits persisted fields without a legacy FieldView") {
   using namespace ui2;
-  Ui2RecordController controller(-12, 12, -6, 6);
-  controller.SetAvailable(true);
-  controller.Synchronize(1U, 0, 0);
-  const auto source = Tap(controller, TrackerAction::Right);
-  CHECK(source.type == Ui2RecordCommandType::SetSource);
-  CHECK(source.value == 2);
-  Tap(controller, TrackerAction::Down);
-  CHECK(controller.SelectedField() == Ui2RecordField::LineGain);
-  const auto fine = Tap(controller, TrackerAction::Right);
-  CHECK(fine.type == Ui2RecordCommandType::SetLineGain);
-  CHECK(fine.value == 1);
-  controller.Handle(TrackerAction::Enter, true);
-  const auto coarse = Tap(controller, TrackerAction::Up);
-  CHECK(coarse.type == Ui2RecordCommandType::SetLineGain);
-  CHECK(coarse.value == 3);
-  controller.Handle(TrackerAction::Enter, false);
-}
-
-TEST_CASE("UI2 Record gain ranges clamp synchronization and stop at bounds") {
-  using namespace ui2;
-  Ui2RecordController controller(-4, 4, -2, 2);
-  controller.SetAvailable(true);
-  controller.Synchronize(1U, 99, -99);
-  Tap(controller, TrackerAction::Down);
-  CHECK(controller.SelectedField() == Ui2RecordField::LineGain);
-  CHECK_FALSE(Tap(controller, TrackerAction::Right).HasValue());
-  REQUIRE(Tap(controller, TrackerAction::Left).value == 3);
-  Tap(controller, TrackerAction::Down);
-  CHECK(controller.SelectedField() == Ui2RecordField::MicGain);
-  CHECK_FALSE(Tap(controller, TrackerAction::Left).HasValue());
-  REQUIRE(Tap(controller, TrackerAction::Right).value == -1);
-}
-
-TEST_CASE("UI2 Record zero-range adapters cannot emit gain writes") {
-  using namespace ui2;
   Ui2RecordController controller;
   controller.SetAvailable(true);
-  controller.Synchronize(1U, 99, -99);
-  Tap(controller, TrackerAction::Down);
-  CHECK(controller.SelectedField() == Ui2RecordField::LineGain);
-  CHECK_FALSE(Tap(controller, TrackerAction::Left).HasValue());
-  CHECK_FALSE(Tap(controller, TrackerAction::Right).HasValue());
-  controller.Handle(TrackerAction::Enter, true);
-  CHECK_FALSE(Tap(controller, TrackerAction::Up).HasValue());
-  controller.Handle(TrackerAction::Enter, false);
-
-  Tap(controller, TrackerAction::Down);
-  CHECK(controller.SelectedField() == Ui2RecordField::MicGain);
-  CHECK_FALSE(Tap(controller, TrackerAction::Left).HasValue());
-  CHECK_FALSE(Tap(controller, TrackerAction::Right).HasValue());
+  controller.Synchronize(0U);
+  const auto source = Tap(controller, TrackerAction::Right);
+  CHECK(source.type == Ui2RecordCommandType::SetSource);
+  CHECK(source.value == 1);
+  CHECK(Tap(controller, TrackerAction::Right).value == 2);
+  CHECK(Tap(controller, TrackerAction::Right).value == 0);
+  CHECK(Tap(controller, TrackerAction::Left).value == 2);
+  CHECK(controller.SelectedField() == Ui2RecordField::Source);
 }
 
 TEST_CASE("UI2 Record unavailable capability is read-only") {
   using namespace ui2;
-  Ui2RecordController controller(-12, 12, -6, 6);
-  controller.Synchronize(1U, 0, 0);
+  Ui2RecordController controller;
+  controller.Synchronize(1U);
   CHECK_FALSE(controller.Available());
 
   CHECK_FALSE(Tap(controller, TrackerAction::Right).HasValue());

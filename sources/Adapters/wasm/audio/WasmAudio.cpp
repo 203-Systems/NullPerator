@@ -620,8 +620,6 @@ void FinishStopRecording() {}
 void StartMonitoring() {}
 void StopMonitoring() {}
 void SetInputSource(RecordSource) {}
-void SetLineInGain(std::uint8_t) {}
-void SetMicGain(std::uint8_t) {}
 bool IsRecordingAvailable() { return false; }
 bool IsRecordingActive() { return false; }
 bool IsSavingRecording() { return false; }

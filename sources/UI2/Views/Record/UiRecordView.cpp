@@ -78,14 +78,6 @@ void DrawSelectedInk(UiSceneBuilder<256, 1024> &builder,
     builder.Text("SOURCE", 9, 43, UiColorToken::TextHighlighted);
     builder.Text(data.source, 92, 43, UiColorToken::TextHighlighted);
     break;
-  case UiRecordFocus::LineGain:
-    builder.Text("LINE GAIN", 9, 54, UiColorToken::TextHighlighted);
-    builder.Text(data.lineGain, 92, 54, UiColorToken::TextHighlighted);
-    break;
-  case UiRecordFocus::MicGain:
-    builder.Text("MIC GAIN", 9, 65, UiColorToken::TextHighlighted);
-    builder.Text(data.micGain, 92, 65, UiColorToken::TextHighlighted);
-    break;
   case UiRecordFocus::None:
     break;
   }
@@ -120,12 +112,10 @@ void UiRecordView::RenderDelta(const UiRecordViewData &previous,
   if (previous.power != current.power || previous.source != current.source)
     render({0, 0, 240, 34});
   if (previous.source != current.source) render({5, 40, 230, 12});
-  if (previous.lineGain != current.lineGain) render({5, 52, 230, 11});
-  if (previous.micGain != current.micGain) render({5, 63, 230, 11});
   if (previous.meterAvailable != current.meterAvailable ||
       previous.safeWidth != current.safeWidth ||
       previous.warningWidth != current.warningWidth) {
-    render({9, 100, 222, 14});
+    render({9, 81, 222, 14});
   }
   if (previous.elapsed != current.elapsed ||
       previous.savingPercent != current.savingPercent ||
@@ -165,19 +155,15 @@ UiBuildStatus UiRecordView::Build(const UiRecordViewData &data,
   UiSceneBuilder<256, 1024> builder(scene.content);
   builder.Text("SOURCE", 9, 43, UiColorToken::TextDim);
   builder.Text(data.source, 92, 43, UiColorToken::TextNormal);
-  builder.Text("LINE GAIN", 9, 54, UiColorToken::TextDim);
-  builder.Text(data.lineGain, 92, 54, UiColorToken::TextNormal);
-  builder.Text("MIC GAIN", 9, 65, UiColorToken::TextDim);
-  builder.Text(data.micGain, 92, 65, UiColorToken::TextNormal);
-  DrawSection(builder, "LEVEL", 84);
-  builder.Fill({9, 100, 222, 14}, UiColorToken::DerivedVuTrack);
+  DrawSection(builder, "LEVEL", 65);
+  builder.Fill({9, 81, 222, 14}, UiColorToken::DerivedVuTrack);
   if (data.meterAvailable) {
     const std::int16_t safe = static_cast<std::int16_t>(
         std::min<std::uint16_t>(data.safeWidth, 222));
-    builder.Fill({9, 100, safe, 14}, UiColorToken::VuSafe);
+    builder.Fill({9, 81, safe, 14}, UiColorToken::VuSafe);
     const std::int16_t warning = static_cast<std::int16_t>(
         std::min<std::uint16_t>(data.warningWidth, 222 - safe));
-    builder.Fill({static_cast<std::int16_t>(9 + safe), 100, warning, 14},
+    builder.Fill({static_cast<std::int16_t>(9 + safe), 81, warning, 14},
                  UiColorToken::VuWarning);
   }
 

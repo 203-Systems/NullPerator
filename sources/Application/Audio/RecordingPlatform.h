@@ -13,24 +13,12 @@
 // This is the application-facing ABI for the recording backend. Platform
 // adapters provide these existing free-function symbols; application code must
 // not include an adapter-specific record.h just to access them.
-namespace RecordingPlatform {
-
-constexpr int kLineInGainMinDb = 0;
-constexpr int kLineInGainMaxDb = 0;
-constexpr int kMicGainMinDb = 0;
-constexpr int kMicGainMaxDb = 0;
-
-} // namespace RecordingPlatform
-
-// Keep the numeric values aligned with Config::recordSourceOptions_. Projects
-// persist this value, so changing the order would break existing config files.
-enum RecordSource { AllOff, LineIn, Mic, USBIn };
-static_assert(AllOff == 0 && LineIn == 1 && Mic == 2 && USBIn == 3,
+// Keep the numeric values aligned with Config::recordSourceOptions_.
+enum RecordSource { LineIn, OnboardMic, HeadphoneMic };
+static_assert(LineIn == 0 && OnboardMic == 1 && HeadphoneMic == 2,
               "RecordSource values are persisted");
 
 void SetInputSource(RecordSource source);
-void SetLineInGain(std::uint8_t gainDb);
-void SetMicGain(std::uint8_t gainDb);
 // Capability is owned by the platform adapter so UI/application code does not
 // infer support from target names or from gain ranges. Backends must keep this
 // false until the complete record transaction is implemented.

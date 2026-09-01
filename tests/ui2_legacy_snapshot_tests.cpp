@@ -81,11 +81,9 @@ TEST_CASE("UI2 legacy snapshot helpers clamp geometry and text") {
 
 TEST_CASE("UI2 Record snapshot projects fixed-capacity live state") {
   RecordViewUi2Snapshot snapshot;
-  std::copy_n("MIC", 4U, snapshot.source.begin());
-  std::copy_n("-3 DB", 6U, snapshot.lineGain.begin());
-  std::copy_n("12 DB", 6U, snapshot.micGain.begin());
+  std::copy_n("ONBOARD MIC", 12U, snapshot.source.begin());
   std::copy_n("00:17", 6U, snapshot.elapsed.begin());
-  snapshot.focus = RecordViewUi2Focus::MicGain;
+  snapshot.focus = RecordViewUi2Focus::Source;
   snapshot.state = RecordViewUi2State::Recording;
   snapshot.recordingAvailable = true;
   snapshot.meterAvailable = true;
@@ -94,11 +92,9 @@ TEST_CASE("UI2 Record snapshot projects fixed-capacity live state") {
 
   const ui2::UiRecordViewData data =
       snapshot.ViewData(ui2::UiPowerState::BatteryLow);
-  CHECK(data.source == "MIC");
-  CHECK(data.lineGain == "-3 DB");
-  CHECK(data.micGain == "12 DB");
+  CHECK(data.source == "ONBOARD MIC");
   CHECK(data.elapsed == "00:17");
-  CHECK(data.focus == ui2::UiRecordFocus::MicGain);
+  CHECK(data.focus == ui2::UiRecordFocus::Source);
   CHECK(data.state == ui2::UiRecordState::Recording);
   CHECK(data.safeWidth == 120U);
   CHECK(data.warningWidth == 40U);
