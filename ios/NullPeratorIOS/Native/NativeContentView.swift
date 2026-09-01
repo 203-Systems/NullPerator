@@ -151,11 +151,12 @@ struct NativeContentView: View {
 
             if !contentVisible && model.errorMessage == nil {
                 NativeSplashScreen()
-                    .transition(.opacity)
                     .allowsHitTesting(false)
             }
         }
-        .animation(.easeOut(duration: 0.25), value: contentVisible)
+        .transaction { transaction in
+            transaction.animation = nil
+        }
         .background(Color.black)
         .ignoresSafeArea()
         .persistentSystemOverlays(.hidden)
