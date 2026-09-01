@@ -1089,11 +1089,25 @@ Ui2NativeApplicationStateSource::CaptureRecord(UiRecordFrameState &state) {
   constexpr const char *sources[] = {"LINE IN", "ONBOARD MIC",
                                      "HEADPHONE MIC"};
   CopyUiText(state.snapshot.source, sources[source]);
-  CopyUiText(state.snapshot.elapsed, "00:00");
+  const std::uint32_t elapsedSeconds =
+      GetRecordingElapsedMilliseconds() / 1000U;
+  std::snprintf(state.snapshot.elapsed.data(), state.snapshot.elapsed.size(),
+                "%02u:%02u",
+                static_cast<unsigned>(
+                    std::min<std::uint32_t>(elapsedSeconds / 60U, 99U)),
+                static_cast<unsigned>(elapsedSeconds % 60U));
   state.snapshot.sourceIndex = source;
   const bool available = record_.Available();
   state.snapshot.recordingAvailable = available;
-  state.snapshot.meterAvailable = false;
+  state.snapshot.meterAvailable = IsMonitoringActive() || IsRecordingActive();
+  if (state.snapshot.meterAvailable) {
+    const std::uint32_t width =
+        (static_cast<std::uint32_t>(GetRecordingInputPeak()) * 222U) / 32767U;
+    state.snapshot.meterSafeWidth =
+        static_cast<std::uint16_t>(std::min<std::uint32_t>(width, 170U));
+    state.snapshot.meterWarningWidth = static_cast<std::uint16_t>(
+        width > 170U ? std::min<std::uint32_t>(width - 170U, 52U) : 0U);
+  }
   if (!available) {
     state.snapshot.focus = RecordViewUi2Focus::Unknown;
   } else {
@@ -1110,8 +1124,9 @@ Ui2NativeApplicationStateSource::CaptureRecord(UiRecordFrameState &state) {
     }
   }
   state.cursorInkVisible = available;
-  const bool recordingBusy =
-      available && state.snapshot.state != RecordViewUi2State::Idle;
+  const bool recordingBusy = available &&
+                             (state.snapshot.state != RecordViewUi2State::Idle ||
+                              IsMonitoringActive());
   return {.active = PlayerRunning() || recordingBusy};
 }
 

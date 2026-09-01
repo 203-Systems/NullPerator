@@ -303,6 +303,9 @@ void Ui2TrackerApplication::Shutdown() {
   if (configSave_.Dirty())
     (void)FlushConfig();
   StopSamplePreview();
+  if (IsRecordingActive())
+    StopRecording();
+  StopMonitoring();
   if (sampleEditorTransaction_.Active())
     (void)sampleEditorTransaction_.Discard();
   sampleEditorTransaction_.Reset();
@@ -645,6 +648,7 @@ void Ui2TrackerApplication::Tick(std::uint32_t nowMs) {
     (void)FlushConfig();
   (void)firmwareLifecycle_.Execute(firmwareCommand);
   projectRender_.Tick();
+  TickRecordLifecycle();
   TickSampleEditorApply();
   UpdateSamplePreview(nowMs);
   SynchronizeProjectMutationState();
@@ -711,6 +715,11 @@ bool Ui2TrackerApplication::ActivatePage(UiApplicationPage page) {
     return false;
   }
   const bool changed = activePage_ != page;
+  if (changed && activePage_ == UiApplicationPage::Record &&
+      (IsRecordingActive() || IsSavingRecording())) {
+    ShowFeedbackMessage("STOP RECORDING FIRST");
+    return false;
+  }
   if (changed)
     deferredProjectSave_.Cancel();
   if (changed && activePage_ == UiApplicationPage::SampleEditor &&
@@ -723,6 +732,8 @@ bool Ui2TrackerApplication::ActivatePage(UiApplicationPage page) {
     StopSamplePreview();
     sampleSlices_.Close();
   }
+  if (changed && activePage_ == UiApplicationPage::Record)
+    StopMonitoring();
   // Config writes are coalesced until a page boundary. A failed Sync leaves
   // the one-byte retry state dirty, so returning to or leaving any settings
   // page later retries the complete config instead of silently losing edits.
@@ -742,6 +753,9 @@ bool Ui2TrackerApplication::ActivatePage(UiApplicationPage page) {
     };
     record_.Synchronize(
         static_cast<std::uint8_t>(value(FourCC::VarRecordSource)));
+    SetInputSource(static_cast<RecordSource>(
+        std::clamp(value(FourCC::VarRecordSource), 0, 2)));
+    StartMonitoring();
   }
   const Ui2TrackerPage trackerPage = TrackerPageFor(page);
   if (trackerPage != Ui2TrackerPage::None) {
@@ -2222,8 +2236,26 @@ void Ui2TrackerApplication::ExecuteRecord(Ui2RecordCommand command) {
   FourCC::enum_type key = FourCC::Default;
   if (command.type == Ui2RecordCommandType::SetSource)
     key = FourCC::VarRecordSource;
-  else if (command.type == Ui2RecordCommandType::ToggleRecording)
-    return; // All current platform record backends report unavailable.
+  else if (command.type == Ui2RecordCommandType::ToggleRecording) {
+    if (IsSavingRecording()) {
+      ShowFeedbackMessage("RECORDING IS SAVING");
+      return;
+    }
+    if (IsRecordingActive()) {
+      RequestStopRecording();
+      return;
+    }
+    constexpr const char *recordingPath =
+        RECORDINGS_DIR "/" RECORDING_FILENAME;
+    if (!StartRecording(recordingPath, 0U, 0U)) {
+      ShowFeedbackError("RECORDING START FAILED");
+      StartMonitoring();
+      return;
+    }
+    recordSessionPending_ = true;
+    runtime_.Invalidate();
+    return;
+  }
   if (key == FourCC::Default)
     return;
   Variable *value =
@@ -2234,6 +2266,25 @@ void Ui2TrackerApplication::ExecuteRecord(Ui2RecordCommand command) {
   if (command.type == Ui2RecordCommandType::SetSource)
     SetInputSource(static_cast<RecordSource>(command.value));
   configSave_.MarkDirty();
+}
+
+void Ui2TrackerApplication::TickRecordLifecycle() {
+  if (!recordSessionPending_ || IsRecordingActive() || IsSavingRecording())
+    return;
+  recordSessionPending_ = false;
+  if (!DidLastRecordingCaptureAudio()) {
+    ShowFeedbackError("RECORDING SAVE FAILED");
+    if (activePage_ == UiApplicationPage::Record)
+      StartMonitoring();
+    return;
+  }
+  constexpr const char *recordingPath =
+      RECORDINGS_DIR "/" RECORDING_FILENAME;
+  if (!OpenSampleEditor(recordingPath, false, UiApplicationPage::Record)) {
+    ShowFeedbackError("RECORDING OPEN FAILED");
+    if (activePage_ == UiApplicationPage::Record)
+      StartMonitoring();
+  }
 }
 
 void Ui2TrackerApplication::HandleTheme(TrackerAction action, bool pressed) {
@@ -2558,6 +2609,7 @@ void Ui2TrackerApplication::ResetControllersAfterProjectBoundary() {
   instrumentBrowserActive_ = false;
   source_.SetInstrumentBrowserActive(false);
   record_ = {};
+  recordSessionPending_ = false;
   ConfigureRecordController();
   projectInput_ = {};
   physicalHeldMask_ = 0U;

@@ -24,6 +24,7 @@ void SetInputSource(RecordSource source);
 // false until the complete record transaction is implemented.
 bool IsRecordingAvailable();
 bool IsRecordingActive();
+bool IsMonitoringActive();
 bool IsSavingRecording();
 void Record(void *argument);
 bool StartRecording(const char *filename, std::uint8_t threshold,
@@ -36,5 +37,7 @@ void StartMonitoring();
 void StopMonitoring();
 std::uint8_t GetSavingProgressPercent();
 bool DidLastRecordingCaptureAudio();
+std::uint32_t GetRecordingElapsedMilliseconds();
+std::uint16_t GetRecordingInputPeak();
 
 #endif

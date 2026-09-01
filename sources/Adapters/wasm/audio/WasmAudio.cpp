@@ -622,9 +622,12 @@ void StopMonitoring() {}
 void SetInputSource(RecordSource) {}
 bool IsRecordingAvailable() { return false; }
 bool IsRecordingActive() { return false; }
+bool IsMonitoringActive() { return false; }
 bool IsSavingRecording() { return false; }
 std::uint8_t GetSavingProgressPercent() { return 0; }
 bool DidLastRecordingCaptureAudio() { return false; }
+std::uint32_t GetRecordingElapsedMilliseconds() { return 0U; }
+std::uint16_t GetRecordingInputPeak() { return 0U; }
 
 void WasmAudio_BootstrapBrowserMain() noexcept {
   WasmAudio::BootstrapBrowserMain();

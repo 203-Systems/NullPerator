@@ -149,6 +149,7 @@ private:
   void HandleRecord(TrackerAction action, bool pressed);
   void ExecuteRecord(Ui2RecordCommand command);
   void ConfigureRecordController();
+  void TickRecordLifecycle();
   void ExecuteInstrument(Ui2InstrumentCommand command);
   void ExecuteInstrumentLifecycle(Ui2InstrumentLifecycleCommand command);
   void SaveCurrentInstrument(bool overwrite = false);
@@ -196,6 +197,7 @@ private:
   Ui2SampleEditorTransaction sampleEditorTransaction_{};
   Ui2SampleSlicesController sampleSlices_{sampleWaveform_};
   Ui2RecordController record_{};
+  bool recordSessionPending_ = false;
   Ui2ControllerInputState projectInput_{};
   FirmwareLifecyclePlatformAdapter firmwarePlatform_{};
   FirmwareLifecycleService firmwareLifecycle_{&firmwarePlatform_};

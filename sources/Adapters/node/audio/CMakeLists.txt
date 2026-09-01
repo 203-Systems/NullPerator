@@ -22,7 +22,12 @@ add_library(platform_recording
 )
 
 target_link_libraries(platform_recording PUBLIC
+  platform
+  application_instruments
+  system_filesystem
   system_console
+  idf::driver
+  idf::freertos
 )
 
 target_include_directories(platform_recording PUBLIC
