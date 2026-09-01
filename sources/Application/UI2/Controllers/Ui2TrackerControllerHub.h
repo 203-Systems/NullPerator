@@ -18,7 +18,7 @@
 
 namespace ui2 {
 
-struct Ui2TrackerGridSessionState {
+struct Ui2TrackerGridState {
   Ui2TrackerPage activePage = Ui2TrackerPage::Song;
   std::uint8_t track = 0;
   std::uint8_t songVisibleRow = 0;
@@ -41,26 +41,6 @@ struct Ui2TrackerGridSessionState {
   bool liveMode = false;
 };
 
-struct Ui2TrackerGridNavigationState {
-  Ui2TrackerPage activePage = Ui2TrackerPage::Song;
-  std::uint8_t track = 0;
-  std::uint8_t songVisibleRow = 0;
-  std::uint8_t songRowOffset = 0;
-  std::uint8_t chainNumber = 0;
-  std::uint8_t chainRow = 0;
-  std::uint8_t chainColumn = 0;
-  std::uint8_t phraseNumber = 0;
-  std::uint8_t phraseRow = 0;
-  std::uint8_t phraseColumn = 0;
-  std::uint8_t phraseDigit = 3;
-  Ui2TrackerPage tablePage = Ui2TrackerPage::PhraseTable;
-  std::uint8_t tableNumber = 0;
-  std::uint8_t tableRow = 0;
-  std::uint8_t tableColumn = 0;
-  std::uint8_t tableDigit = 3;
-  bool liveMode = false;
-};
-
 struct Ui2TrackerActiveControllerState {
   Ui2TrackerPage page = Ui2TrackerPage::None;
   std::uint8_t row = 0;
@@ -80,16 +60,15 @@ struct Ui2TrackerActiveControllerState {
 class IUi2TrackerModelPort {
 public:
   virtual ~IUi2TrackerModelPort() = default;
-  [[nodiscard]] virtual Ui2TrackerGridSessionState LoadGridSession() const = 0;
-  virtual void
-  StoreGridNavigation(const Ui2TrackerGridNavigationState &state) = 0;
+  [[nodiscard]] virtual Ui2TrackerGridState LoadGridState() const = 0;
+  virtual void StoreGridState(const Ui2TrackerGridState &state) = 0;
   virtual void ApplyGridCommand(const Ui2TrackerCommand &command) = 0;
 };
 
 class Ui2TrackerControllerHub {
 public:
   Ui2TrackerControllerHub() = default;
-  explicit Ui2TrackerControllerHub(const Ui2TrackerGridSessionState &state) {
+  explicit Ui2TrackerControllerHub(const Ui2TrackerGridState &state) {
     Synchronize(state);
   }
 
@@ -146,7 +125,8 @@ public:
   }
 
   [[nodiscard]] Ui2TrackerActiveControllerState ActiveState() const {
-    Ui2TrackerActiveControllerState state{.page = activePage_};
+    Ui2TrackerActiveControllerState state{.page = activePage_,
+                                          .track = song_.Track()};
     switch (activePage_) {
     case Ui2TrackerPage::Song:
       state.row = song_.VisibleRow();
@@ -158,40 +138,17 @@ public:
       state.liveMode = song_.LiveMode();
       break;
     case Ui2TrackerPage::Chain:
-      state.row = chain_.Row();
-      state.column = chain_.Column();
-      state.number = chain_.Number();
-      state.track = chain_.SelectedTrack();
-      state.heldMask = chain_.HeldMask();
-      state.selection = chain_.Selection();
-      state.numberFocus = chain_.NumberFocus();
-      state.trackFocus = chain_.TrackFocus();
+      CaptureNumberedGridState(state, chain_);
       break;
     case Ui2TrackerPage::Phrase:
-      state.row = phrase_.Row();
-      state.column = phrase_.Column();
-      state.number = phrase_.Number();
-      state.track = phrase_.SelectedTrack();
-      state.digit = phrase_.ParameterDigit();
-      state.heldMask = phrase_.HeldMask();
-      state.selection = phrase_.Selection();
-      state.numberFocus = phrase_.NumberFocus();
-      state.trackFocus = phrase_.TrackFocus();
-      state.enterDigitFocus = phrase_.EnterDigitFocus();
+      CaptureNumberedGridState(state, phrase_);
+      CaptureParameterState(state, phrase_);
       break;
     case Ui2TrackerPage::PhraseTable:
     case Ui2TrackerPage::InstrumentTable: {
       const Ui2TableController &table = Table();
-      state.row = table.Row();
-      state.column = table.Column();
-      state.number = table.Number();
-      state.track = table.SelectedTrack();
-      state.digit = table.ParameterDigit();
-      state.heldMask = table.HeldMask();
-      state.selection = table.Selection();
-      state.numberFocus = table.NumberFocus();
-      state.trackFocus = table.TrackFocus();
-      state.enterDigitFocus = table.EnterDigitFocus();
+      CaptureNumberedGridState(state, table);
+      CaptureParameterState(state, table);
       break;
     }
     case Ui2TrackerPage::Project:
@@ -248,7 +205,7 @@ public:
   bool Activate(Ui2TrackerPage page) {
     if (page == Ui2TrackerPage::None || page == activePage_)
       return false;
-    const std::uint8_t sharedTrack = ActiveTrack();
+    const std::uint8_t sharedTrack = ActiveState().track;
     AlignTrack(page, sharedTrack);
     activePage_ = page;
     // AlignTrack rebuilds the destination controller so its page-local cursor
@@ -259,7 +216,7 @@ public:
     return true;
   }
 
-  bool Synchronize(const Ui2TrackerGridSessionState &state) {
+  bool Synchronize(const Ui2TrackerGridState &state) {
     std::uint16_t heldModifiers = ActiveState().heldMask;
     if (navigationHeld_)
       heldModifiers = static_cast<std::uint16_t>(
@@ -287,11 +244,10 @@ public:
     return true;
   }
 
-  [[nodiscard]] Ui2TrackerGridNavigationState Navigation() const {
-    const Ui2TableController &table = Table();
+  [[nodiscard]] Ui2TrackerGridState State() const {
     return {
         .activePage = activePage_,
-        .track = ActiveTrack(),
+        .track = ActiveState().track,
         .songVisibleRow = song_.VisibleRow(),
         .songRowOffset = song_.RowOffset(),
         .chainNumber = chain_.Number(),
@@ -301,16 +257,39 @@ public:
         .phraseRow = phrase_.Row(),
         .phraseColumn = phrase_.Column(),
         .phraseDigit = phrase_.ParameterDigit(),
-        .tablePage = table.Page(),
-        .tableNumber = table.Number(),
-        .tableRow = table.Row(),
-        .tableColumn = table.Column(),
-        .tableDigit = table.ParameterDigit(),
+        .phraseTableNumber = phraseTable_.Number(),
+        .phraseTableRow = phraseTable_.Row(),
+        .phraseTableColumn = phraseTable_.Column(),
+        .phraseTableDigit = phraseTable_.ParameterDigit(),
+        .instrumentTableNumber = instrumentTable_.Number(),
+        .instrumentTableRow = instrumentTable_.Row(),
+        .instrumentTableColumn = instrumentTable_.Column(),
+        .instrumentTableDigit = instrumentTable_.ParameterDigit(),
         .liveMode = song_.LiveMode(),
     };
   }
 
 private:
+  template <typename Controller>
+  static void CaptureNumberedGridState(Ui2TrackerActiveControllerState &state,
+                                       const Controller &controller) {
+    state.row = controller.Row();
+    state.column = controller.Column();
+    state.number = controller.Number();
+    state.track = controller.SelectedTrack();
+    state.heldMask = controller.HeldMask();
+    state.selection = controller.Selection();
+    state.numberFocus = controller.NumberFocus();
+    state.trackFocus = controller.TrackFocus();
+  }
+
+  template <typename Controller>
+  static void CaptureParameterState(Ui2TrackerActiveControllerState &state,
+                                    const Controller &controller) {
+    state.digit = controller.ParameterDigit();
+    state.enterDigitFocus = controller.EnterDigitFocus();
+  }
+
   void SynchronizeActiveHeldModifiers(std::uint16_t mask) {
     switch (activePage_) {
     case Ui2TrackerPage::Song:
@@ -375,28 +354,6 @@ private:
     }
   }
 
-  [[nodiscard]] std::uint8_t ActiveTrack() const {
-    switch (activePage_) {
-    case Ui2TrackerPage::Song:
-      return song_.Track();
-    case Ui2TrackerPage::Chain:
-      return chain_.SelectedTrack();
-    case Ui2TrackerPage::Phrase:
-      return phrase_.SelectedTrack();
-    case Ui2TrackerPage::PhraseTable:
-    case Ui2TrackerPage::InstrumentTable:
-      return Table().SelectedTrack();
-    case Ui2TrackerPage::Project:
-    case Ui2TrackerPage::Mixer:
-    case Ui2TrackerPage::Groove:
-    case Ui2TrackerPage::Instrument:
-    case Ui2TrackerPage::Record:
-    case Ui2TrackerPage::None:
-      return song_.Track();
-    }
-    return song_.Track();
-  }
-
   Ui2SongController song_{};
   Ui2ChainController chain_{};
   Ui2PhraseController phrase_{};
@@ -412,7 +369,7 @@ private:
 class Ui2TrackerCommandExecutor {
 public:
   explicit Ui2TrackerCommandExecutor(IUi2TrackerModelPort &port)
-      : port_(port), hub_(port.LoadGridSession()) {}
+      : port_(port), hub_(port.LoadGridState()) {}
 
   [[nodiscard]] Ui2TrackerControllerHub &Hub() { return hub_; }
   [[nodiscard]] const Ui2TrackerControllerHub &Hub() const { return hub_; }
@@ -443,13 +400,13 @@ public:
       }
     }
     if (synchronize)
-      hub_.Synchronize(port_.LoadGridSession());
-    port_.StoreGridNavigation(hub_.Navigation());
+      hub_.Synchronize(port_.LoadGridState());
+    port_.StoreGridState(hub_.State());
     return batch;
   }
 
   bool SynchronizeFromPort() {
-    return hub_.Synchronize(port_.LoadGridSession());
+    return hub_.Synchronize(port_.LoadGridState());
   }
 
 private:
@@ -457,8 +414,9 @@ private:
   Ui2TrackerControllerHub hub_{};
 };
 
-static_assert(std::is_trivially_copyable_v<Ui2TrackerGridSessionState>);
-static_assert(std::is_trivially_copyable_v<Ui2TrackerGridNavigationState>);
+static_assert(std::is_trivially_copyable_v<Ui2TrackerGridState>);
+static_assert(sizeof(Ui2TrackerGridState) <= 24U,
+              "grid state must remain a small embedded value");
 static_assert(std::is_trivially_copyable_v<Ui2TrackerActiveControllerState>);
 
 } // namespace ui2

@@ -10,12 +10,11 @@ namespace {
 
 class FakeGridPort final : public ui2::IUi2TrackerModelPort {
 public:
-  ui2::Ui2TrackerGridSessionState LoadGridSession() const override {
+  ui2::Ui2TrackerGridState LoadGridState() const override {
     return loaded;
   }
 
-  void StoreGridNavigation(
-      const ui2::Ui2TrackerGridNavigationState &state) override {
+  void StoreGridState(const ui2::Ui2TrackerGridState &state) override {
     navigation = state;
     ++storeCount;
   }
@@ -29,8 +28,8 @@ public:
       loaded.track = static_cast<std::uint8_t>(command.value);
   }
 
-  ui2::Ui2TrackerGridSessionState loaded{};
-  ui2::Ui2TrackerGridNavigationState navigation{};
+  ui2::Ui2TrackerGridState loaded{};
+  ui2::Ui2TrackerGridState navigation{};
   std::array<ui2::Ui2TrackerCommand, 8> applied{};
   std::size_t appliedCount = 0;
   std::size_t storeCount = 0;
@@ -39,7 +38,7 @@ public:
 } // namespace
 
 TEST_CASE("UI2 tracker hub restores independent grid page state") {
-  ui2::Ui2TrackerGridSessionState state{};
+  ui2::Ui2TrackerGridState state{};
   state.activePage = ui2::Ui2TrackerPage::Phrase;
   state.track = 5;
   state.songVisibleRow = 9;
@@ -68,6 +67,10 @@ TEST_CASE("UI2 tracker hub restores independent grid page state") {
   CHECK(hub.Phrase().Column() == 5);
   CHECK(hub.PhraseTable().Number() == 4);
   CHECK(hub.InstrumentTable().Number() == 9);
+
+  const auto stored = hub.State();
+  CHECK(stored.phraseTableNumber == 4);
+  CHECK(stored.instrumentTableNumber == 9);
 }
 
 TEST_CASE("UI2 tracker hub keeps key release with the press owner") {

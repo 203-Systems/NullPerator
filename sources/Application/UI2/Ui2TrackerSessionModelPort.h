@@ -21,8 +21,8 @@ class Ui2TrackerSessionModelPort final : public IUi2TrackerModelPort {
 public:
   explicit Ui2TrackerSessionModelPort(TrackerApplicationSession &session);
 
-  [[nodiscard]] Ui2TrackerGridSessionState LoadGridSession() const override;
-  void StoreGridNavigation(const Ui2TrackerGridNavigationState &state) override;
+  [[nodiscard]] Ui2TrackerGridState LoadGridState() const override;
+  void StoreGridState(const Ui2TrackerGridState &state) override;
   void ApplyGridCommand(const Ui2TrackerCommand &command) override;
   [[nodiscard]] bool PreparePageNavigation(Ui2TrackerPage source,
                                            Ui2TrackerPage target,

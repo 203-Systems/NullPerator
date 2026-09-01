@@ -246,7 +246,7 @@ void Ui2TrackerSessionModelPort::ResetProjectBoundary() {
   projectMutationGeneration_ = 0U;
 }
 
-Ui2TrackerGridSessionState Ui2TrackerSessionModelPort::LoadGridSession() const {
+Ui2TrackerGridState Ui2TrackerSessionModelPort::LoadGridState() const {
   const TrackerSessionState &editor = session_.EditorState();
   return {
       .activePage = activePage_,
@@ -279,8 +279,8 @@ Ui2TrackerGridSessionState Ui2TrackerSessionModelPort::LoadGridSession() const {
   };
 }
 
-void Ui2TrackerSessionModelPort::StoreGridNavigation(
-    const Ui2TrackerGridNavigationState &state) {
+void Ui2TrackerSessionModelPort::StoreGridState(
+    const Ui2TrackerGridState &state) {
   TrackerSessionState &editor = session_.EditorState();
   activePage_ = state.activePage;
   editor.songX_ = state.track;
@@ -296,17 +296,14 @@ void Ui2TrackerSessionModelPort::StoreGridNavigation(
   editor.phraseCurPos_ = state.phraseRow;
   phraseColumn_ = state.phraseColumn;
   phraseDigit_ = state.phraseDigit;
-  if (state.tablePage == Ui2TrackerPage::InstrumentTable) {
-    instrumentTableNumber_ = state.tableNumber;
-    instrumentTableRow_ = state.tableRow;
-    instrumentTableColumn_ = state.tableColumn;
-    instrumentTableDigit_ = state.tableDigit;
-  } else {
-    phraseTableNumber_ = state.tableNumber;
-    phraseTableRow_ = state.tableRow;
-    phraseTableColumn_ = state.tableColumn;
-    phraseTableDigit_ = state.tableDigit;
-  }
+  phraseTableNumber_ = state.phraseTableNumber;
+  phraseTableRow_ = state.phraseTableRow;
+  phraseTableColumn_ = state.phraseTableColumn;
+  phraseTableDigit_ = state.phraseTableDigit;
+  instrumentTableNumber_ = state.instrumentTableNumber;
+  instrumentTableRow_ = state.instrumentTableRow;
+  instrumentTableColumn_ = state.instrumentTableColumn;
+  instrumentTableDigit_ = state.instrumentTableDigit;
   if (state.activePage == Ui2TrackerPage::PhraseTable)
     editor.currentTable_ = phraseTableNumber_;
   else if (state.activePage == Ui2TrackerPage::InstrumentTable)

@@ -1136,28 +1136,15 @@ TEST_CASE("UI2 model port synchronizes Phrase audition row and adjacent phrases"
   song.chain_.data_[3 * PHRASES_PER_CHAIN + 4] = 0x22U;
   song.chain_.data_[3 * PHRASES_PER_CHAIN + 6] = 0x23U;
 
-  auto navigation = port.LoadGridSession();
-  ui2::Ui2TrackerGridNavigationState state{
-      .activePage = Ui2TrackerPage::Phrase,
-      .track = navigation.track,
-      .songVisibleRow = navigation.songVisibleRow,
-      .songRowOffset = navigation.songRowOffset,
-      .chainNumber = navigation.chainNumber,
-      .chainRow = navigation.chainRow,
-      .chainColumn = navigation.chainColumn,
-      .phraseNumber = navigation.phraseNumber,
-      .phraseRow = 0U,
-      .phraseColumn = navigation.phraseColumn,
-      .phraseDigit = navigation.phraseDigit,
-      .tablePage = Ui2TrackerPage::PhraseTable,
-      .tableNumber = navigation.phraseTableNumber,
-      .tableRow = navigation.phraseTableRow,
-      .tableColumn = navigation.phraseTableColumn,
-      .tableDigit = navigation.phraseTableDigit,
-      .liveMode = navigation.liveMode,
-  };
-  port.StoreGridNavigation(state);
+  auto state = port.LoadGridState();
+  state.activePage = Ui2TrackerPage::Phrase;
+  state.phraseRow = 0U;
+  state.phraseTableNumber = 4U;
+  state.instrumentTableNumber = 9U;
+  port.StoreGridState(state);
   CHECK(session.EditorState().phraseCurPos_ == 0);
+  CHECK(port.LoadGridState().phraseTableNumber == 4U);
+  CHECK(port.LoadGridState().instrumentTableNumber == 9U);
 
   Ui2TrackerCommand previous = GridCommand(
       Ui2TrackerCommandType::WarpVertical, Ui2TrackerPage::Phrase, 0, 0);
@@ -1166,28 +1153,28 @@ TEST_CASE("UI2 model port synchronizes Phrase audition row and adjacent phrases"
   port.ApplyGridCommand(previous);
   CHECK(session.EditorState().chainRow_ == 4);
   CHECK(session.EditorState().currentPhrase_ == 0x22);
-  CHECK(port.LoadGridSession().phraseRow == 15U);
+  CHECK(port.LoadGridState().phraseRow == 15U);
 
   state.chainRow = 5U;
   state.phraseRow = 15U;
-  port.StoreGridNavigation(state);
+  port.StoreGridState(state);
   Ui2TrackerCommand next = previous;
   next.row = 15U;
   next.value = 1;
   port.ApplyGridCommand(next);
   CHECK(session.EditorState().chainRow_ == 6);
   CHECK(session.EditorState().currentPhrase_ == 0x23);
-  CHECK(port.LoadGridSession().phraseRow == 0U);
+  CHECK(port.LoadGridState().phraseRow == 0U);
 
   state.chainRow = 5U;
   state.phraseRow = 0U;
-  port.StoreGridNavigation(state);
+  port.StoreGridState(state);
   Ui2TrackerCommand quickPrevious = previous;
   quickPrevious.flag = true;
   port.ApplyGridCommand(quickPrevious);
   CHECK(session.EditorState().chainRow_ == 4);
   CHECK(session.EditorState().currentPhrase_ == 0x22);
-  CHECK(port.LoadGridSession().phraseRow == 0U);
+  CHECK(port.LoadGridState().phraseRow == 0U);
 }
 
 TEST_CASE("UI2 model port resolves Chain quick-select and vertical song position") {
@@ -1244,32 +1231,16 @@ TEST_CASE("UI2 model port resolves Phrase Table context on track quick-select") 
   song.phrase_.cmd2_[phraseIndex] = FourCC::InstrumentCommandTable;
   song.phrase_.param2_[phraseIndex] = 0x0007U;
 
-  const auto loaded = port.LoadGridSession();
-  port.StoreGridNavigation({
-      .activePage = Ui2TrackerPage::PhraseTable,
-      .track = loaded.track,
-      .songVisibleRow = loaded.songVisibleRow,
-      .songRowOffset = loaded.songRowOffset,
-      .chainNumber = loaded.chainNumber,
-      .chainRow = loaded.chainRow,
-      .chainColumn = loaded.chainColumn,
-      .phraseNumber = loaded.phraseNumber,
-      .phraseRow = phraseRow,
-      .phraseColumn = loaded.phraseColumn,
-      .phraseDigit = loaded.phraseDigit,
-      .tablePage = Ui2TrackerPage::PhraseTable,
-      .tableNumber = loaded.phraseTableNumber,
-      .tableRow = loaded.phraseTableRow,
-      .tableColumn = loaded.phraseTableColumn,
-      .tableDigit = loaded.phraseTableDigit,
-      .liveMode = loaded.liveMode,
-  });
+  auto loaded = port.LoadGridState();
+  loaded.activePage = Ui2TrackerPage::PhraseTable;
+  loaded.phraseRow = phraseRow;
+  port.StoreGridState(loaded);
 
   Ui2TrackerCommand select = GridCommand(
       Ui2TrackerCommandType::SelectTrack, Ui2TrackerPage::PhraseTable, 0, 0);
   select.value = 1;
   port.ApplyGridCommand(select);
-  const auto resolved = port.LoadGridSession();
+  const auto resolved = port.LoadGridState();
   CHECK(resolved.track == 1U);
   CHECK(resolved.chainNumber == 2U);
   CHECK(resolved.phraseNumber == 5U);
@@ -1296,7 +1267,7 @@ TEST_CASE("UI2 model port resolves Phrase and Instrument navigation references")
   song.phrase_.param2_[index] = 0x23U;
   CHECK(port.PreparePageNavigation(Ui2TrackerPage::Phrase,
                                    Ui2TrackerPage::PhraseTable, 0, row));
-  CHECK(port.LoadGridSession().phraseTableNumber == 3U);
+  CHECK(port.LoadGridState().phraseTableNumber == 3U);
   CHECK(session.EditorState().currentTable_ == 3);
 
   InstrumentBank *bank = session.ProjectModel().GetInstrumentBank();
@@ -1305,7 +1276,7 @@ TEST_CASE("UI2 model port resolves Phrase and Instrument navigation references")
   session.EditorState().currentInstrumentID_ = 6;
   CHECK(port.PreparePageNavigation(Ui2TrackerPage::Instrument,
                                    Ui2TrackerPage::InstrumentTable, 0, 0));
-  CHECK(port.LoadGridSession().instrumentTableNumber == 9U);
+  CHECK(port.LoadGridState().instrumentTableNumber == 9U);
   CHECK(session.EditorState().currentTable_ == 9);
 }
 

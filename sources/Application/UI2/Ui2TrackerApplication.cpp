@@ -610,7 +610,7 @@ bool Ui2TrackerApplication::TryNavigate(TrackerAction action) {
   ActivatePage(target);
   if (trackerTarget != Ui2TrackerPage::None) {
     tracker_.Hub().Activate(trackerTarget);
-    modelPort_.StoreGridNavigation(tracker_.Hub().Navigation());
+    modelPort_.StoreGridState(tracker_.Hub().State());
   }
   return true;
 }
@@ -743,7 +743,7 @@ bool Ui2TrackerApplication::ActivatePage(UiApplicationPage page) {
   const Ui2TrackerPage trackerPage = TrackerPageFor(page);
   if (trackerPage != Ui2TrackerPage::None) {
     tracker_.Hub().Activate(trackerPage);
-    modelPort_.StoreGridNavigation(tracker_.Hub().Navigation());
+    modelPort_.StoreGridState(tracker_.Hub().State());
   }
   if (changed)
     runtime_.Invalidate();
@@ -759,7 +759,7 @@ bool Ui2TrackerApplication::ActivateDiagnosticTable(
   if (activePage_ != UiApplicationPage::Table)
     return false;
   if (tracker_.Hub().Activate(tablePage)) {
-    modelPort_.StoreGridNavigation(tracker_.Hub().Navigation());
+    modelPort_.StoreGridState(tracker_.Hub().State());
     runtime_.Invalidate();
   }
   return true;
