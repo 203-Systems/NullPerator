@@ -99,8 +99,10 @@ public:
       PushIfVisible(indices, 21, filter, retainDirectories);
       PushIfVisible(indices, 22, filter, retainDirectories);
       if (denseLibrary_) {
-        for (int index = 30; index < 42; ++index)
+        for (int index = 30; index < 41; ++index)
           PushIfVisible(indices, index, filter, retainDirectories);
+        PushIfVisible(indices, denseLibraryRewritten_ ? 50 : 41, filter,
+                      retainDirectories);
       }
     } else if (directory_ == Directory::Drums) {
       PushIfVisible(indices, 20, filter, retainDirectories);
@@ -112,8 +114,11 @@ public:
     if (name == nullptr || length <= 0)
       return;
     char generated[16]{};
-    if (index >= 30 && index < 42) {
+    if (index >= 30 && index < 42 &&
+        !(denseLibraryRewritten_ && index == 41)) {
       std::snprintf(generated, sizeof(generated), "S%02d.WAV", index - 30);
+    } else if (index == 50) {
+      std::snprintf(generated, sizeof(generated), "S11.WAV");
     }
     const char *value = index == 10   ? "AKWF.WAV"
                         : index == 20 ? ".."
@@ -129,7 +134,8 @@ public:
 
   PicoFileType getFileType(int index) override {
     if (index == 10 || index == 21 || index == 23 || index == 25 ||
-        (index >= 30 && index < 42))
+        (index >= 30 && index < 41) ||
+        (!denseLibraryRewritten_ && index == 41) || index == 50)
       return PFT_FILE;
     if (index == 20 || index == 22 || index == 24)
       return PFT_DIR;
@@ -142,7 +148,10 @@ public:
   bool exists(const char *) override { return false; }
   bool makeDir(const char *, bool = false) override { return false; }
   std::uint64_t getFileSize(int index) override {
-    return index == 10 ? 13U * 1024U : index == 21 ? 1376U : 4096U;
+    return index == 10   ? 13U * 1024U
+           : index == 21 ? 1376U
+           : index == 50 ? 1376U
+                         : 4096U;
   }
   bool CopyFile(const char *, const char *) override { return false; }
   bool MoveFile(const char *, const char *) override { return false; }
@@ -151,6 +160,8 @@ public:
   [[nodiscard]] std::uint8_t NestedDirectoryEnterAttempts() const {
     return nestedDirectoryEnterAttempts_;
   }
+
+  void RewriteDenseLibraryTail() { denseLibraryRewritten_ = true; }
 
 private:
   void PushIfVisible(etl::ivector<int> *indices, int index,
@@ -187,6 +198,7 @@ private:
   bool empty_ = false;
   bool rootsUnavailable_ = false;
   bool denseLibrary_ = false;
+  bool denseLibraryRewritten_ = false;
 };
 
 template <typename Controller>
@@ -428,6 +440,47 @@ TEST_CASE("UI2 Sample Browser option directions jump eight entries") {
   CHECK(snapshot.selectedRow == 0U);
   CHECK(std::strcmp(snapshot.items[0].data(), "~KICK.WAV") == 0);
   controller.Handle(TrackerAction::Option, false);
+}
+
+TEST_CASE("UI2 Sample Browser refreshes a rewritten FAT entry and restores its "
+          "viewport") {
+  using namespace ui2;
+  SampleBrowserFileSystem fileSystem(false, false, true);
+  Ui2SampleBrowserController controller;
+  REQUIRE(controller.OpenLibrary("DEMO"));
+
+  for (int row = 0; row < 13; ++row)
+    Tap(controller, TrackerAction::Down);
+  Ui2BrowserSnapshot snapshot = controller.Snapshot(40);
+  REQUIRE(snapshot.topIndex == 1U);
+  REQUIRE(snapshot.selectedRow == 12U);
+  CHECK(std::strcmp(snapshot.items[snapshot.selectedRow].data(), "S11.WAV") ==
+        0);
+  CHECK(std::strcmp(snapshot.footer.data(), "4 KB  /  40") == 0);
+
+  // Simulate the save transaction replacing the last FAT directory entry. The
+  // cached index no longer names a file until the directory is listed again.
+  fileSystem.RewriteDenseLibraryTail();
+  snapshot = controller.Snapshot(40);
+  CHECK(std::strcmp(snapshot.items[snapshot.selectedRow].data(), "") == 0);
+  CHECK(std::strcmp(snapshot.footer.data(), "0 KB  /  40") == 0);
+
+  REQUIRE(controller.RefreshCurrentDirectoryAndSelect(
+      "/samples/DRUMS/S11.WAV"));
+  snapshot = controller.Snapshot(40);
+  CHECK(snapshot.topIndex == 1U);
+  CHECK(snapshot.selectedRow == 12U);
+  CHECK(std::strcmp(snapshot.items[snapshot.selectedRow].data(), "~S11.WAV") ==
+        0);
+  CHECK(std::strcmp(snapshot.footer.data(), "2 KB  /  40") == 0);
+
+  const Ui2SampleBrowserCommand preview =
+      controller.Handle(TrackerAction::Play, true);
+  CHECK(preview.type == Ui2SampleBrowserCommandType::PreviewStart);
+  CHECK(std::strcmp(preview.filename.data(), "S11.WAV") == 0);
+  CHECK(preview.singleCycle);
+  CHECK(controller.Handle(TrackerAction::Play, false).type ==
+        Ui2SampleBrowserCommandType::PreviewStop);
 }
 
 TEST_CASE("UI2 Sample Browser option edit requests confirmed pool deletion") {

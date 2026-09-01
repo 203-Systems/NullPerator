@@ -12,6 +12,7 @@
 #include "Application/UI2/Ui2SamplePathPolicy.h"
 #include "Application/Views/ModalDialogs/Ui2DialogSnapshot.h"
 #include "Application/Views/Ui2BrowserSnapshot.h"
+#include "System/FileSystem/CopyFileJournal.h"
 #include "System/FileSystem/FileSystem.h"
 
 #include <algorithm>
@@ -311,6 +312,34 @@ public:
            !Ui2IsFlatProjectSampleLeaf(name)))
         continue;
       indices_[count_++] = fileIndex;
+    }
+    return true;
+  }
+
+  // Re-listing is required after an in-place sample rewrite: FAT directory
+  // indexes and the size metadata behind them are not stable across the
+  // transaction's rename/delete sequence. Restore the edited leaf by name and
+  // retain the prior scroll origin whenever it still keeps that row visible.
+  bool RefreshCurrentDirectoryAndSelect(const char *preferredPath) {
+    const std::uint16_t priorTop = top_;
+    std::array<char, PFILENAME_SIZE> preferredName{};
+    const char *leaf = FileCopyJournal::LeafName(preferredPath);
+    if (leaf != nullptr)
+      std::snprintf(preferredName.data(), preferredName.size(), "%s", leaf);
+
+    if (!RefreshCurrentDirectory())
+      return false;
+    if (preferredName[0] == '\0')
+      return true;
+
+    for (std::uint16_t index = 0U; index < count_; ++index) {
+      char name[PFILENAME_SIZE]{};
+      ReadName(index, name, sizeof(name));
+      if (std::strcmp(name, preferredName.data()) != 0)
+        continue;
+      selected_ = index;
+      top_ = Ui2BrowserSnapshot::ResolveWindowTop(count_, selected_, priorTop);
+      return true;
     }
     return true;
   }

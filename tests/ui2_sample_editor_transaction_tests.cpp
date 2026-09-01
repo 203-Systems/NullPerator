@@ -393,6 +393,20 @@ TEST_CASE("UI2 sample editor restores the original when promotion fails") {
   CHECK(transaction.Save() == Ui2SampleEditorTransactionResult::SaveFailed);
   CHECK(fileSystem.Bytes(source) == original);
   CHECK_FALSE(fileSystem.exists(transaction.BackupPath()));
+  CHECK(transaction.Active());
+  CHECK(transaction.HasWorkingCopy());
+  REQUIRE(fileSystem.exists(transaction.WorkingPath()));
+
+  // A plain promotion failure is retryable in place. Application policy must
+  // not reopen the transaction, because Begin() cleans this valid generation.
+  CHECK_FALSE(Ui2SampleEditorSaveRequiresRecovery(
+      Ui2SampleEditorTransactionResult::SaveFailed));
+  CHECK(Ui2SampleEditorSaveRequiresRecovery(
+      Ui2SampleEditorTransactionResult::RecoveryFailed));
+  fileSystem.ClearFailures();
+  REQUIRE(transaction.Save() == Ui2SampleEditorTransactionResult::Saved);
+  CHECK(ReadU32(fileSystem.Bytes(source), 40U) == 6U);
+  CHECK(fileSystem.Bytes(source)[44U] == 200U);
 }
 
 TEST_CASE("UI2 sample editor retry preserves the only backup generation") {

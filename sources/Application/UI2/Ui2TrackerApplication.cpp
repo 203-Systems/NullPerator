@@ -1472,8 +1472,16 @@ void Ui2TrackerApplication::ExecuteSampleEditor(
         sampleEditorTransaction_.Save();
     if (result != Ui2SampleEditorTransactionResult::Saved &&
         result != Ui2SampleEditorTransactionResult::NoChanges) {
-      if (RecoverSampleEditorDestination())
+      if (Ui2SampleEditorSaveRequiresRecovery(result)) {
+        if (RecoverSampleEditorDestination())
+          ShowFeedbackError("SAMPLE SAVE FAILED");
+      } else {
+        // A promotion SaveFailed leaves the prior working generation valid for
+        // the editor transaction. Reopening it here would delete that
+        // generation and turn a retryable storage failure into silent edit
+        // loss.
         ShowFeedbackError("SAMPLE SAVE FAILED");
+      }
       break;
     }
 
@@ -1490,6 +1498,15 @@ void Ui2TrackerApplication::ExecuteSampleEditor(
       break;
     }
 
+    if (result == Ui2SampleEditorTransactionResult::Saved &&
+        sampleReturnPage_ == UiApplicationPage::Browser &&
+        sampleBrowser_.Active()) {
+      // The save promotion recreates the directory entry. Refresh before the
+      // browser renders or previews it so size/single-cycle metadata and the
+      // FAT index refer to the new generation, then restore the edited leaf.
+      (void)sampleBrowser_.RefreshCurrentDirectoryAndSelect(
+          destination.data());
+    }
     const bool projectPool = command.projectPool;
     (void)ActivatePage(sampleReturnPage_);
     if (projectPool) {

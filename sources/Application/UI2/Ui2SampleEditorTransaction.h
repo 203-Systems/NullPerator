@@ -33,6 +33,15 @@ enum class Ui2SampleEditorTransactionResult : std::uint8_t {
   DiscardFailed,
 };
 
+// SAVE can fail after the authoritative destination has already moved to its
+// backup generation. Only that rollback failure requires the application to
+// recover/reopen the destination. A plain SaveFailed leaves the destination
+// authoritative and may retain a working generation for a direct retry.
+[[nodiscard]] constexpr bool Ui2SampleEditorSaveRequiresRecovery(
+    Ui2SampleEditorTransactionResult result) {
+  return result == Ui2SampleEditorTransactionResult::RecoveryFailed;
+}
+
 // One editor-wide, fixed-capacity journal. SAVE/DISCARD remain atomic
 // transaction boundaries. Potentially multi-megabyte Apply work is advanced
 // cooperatively from the application owner task with a strict per-step payload
