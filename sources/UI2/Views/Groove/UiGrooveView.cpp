@@ -109,6 +109,7 @@ void UiGrooveView::RenderDelta(const UiGrooveViewData &previous,
       previous.selectionNextExpansionAll !=
           current.selectionNextExpansionAll ||
       previous.clipboardReady != current.clipboardReady ||
+      previous.clipboardPasted != current.clipboardPasted ||
       previous.clipboardWidth != current.clipboardWidth ||
       previous.clipboardHeight != current.clipboardHeight)
     render({0, 208, 240, 32});
@@ -137,6 +138,7 @@ UiBuildStatus UiGrooveView::Build(const UiGrooveViewData &data, UiPalette &,
       .clipboardReady = data.clipboardReady,
       .clipboardWidth = data.clipboardWidth,
       .clipboardHeight = data.clipboardHeight,
+      .clipboardPasted = data.clipboardPasted,
   });
   const UiBuildStatus topStatus =
       UiChromeRenderer::BuildTop(chrome.top, scene.top);

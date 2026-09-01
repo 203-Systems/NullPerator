@@ -35,6 +35,7 @@ public:
   [[nodiscard]] std::uint32_t ProjectMutationGeneration() const {
     return projectMutationGeneration_;
   }
+  [[nodiscard]] bool LastPasteAccepted() const { return lastPasteAccepted_; }
   // Non-grid workflows use the same monotonic mutation source as grid edits,
   // so autosave never depends on page-specific dirty bookkeeping.
   void MarkProjectMutated() { ++projectMutationGeneration_; }
@@ -93,6 +94,7 @@ private:
   std::array<bool, SONG_CHANNEL_COUNT> soloMuteMask_{};
   bool soloActive_ = false;
   bool auditionOwned_ = false;
+  bool lastPasteAccepted_ = false;
   std::uint32_t projectMutationGeneration_ = 0U;
 };
 

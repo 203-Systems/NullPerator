@@ -124,7 +124,13 @@ TEST_CASE("UI2 input workflow confirms a selection and pastes its contents") {
 
   CHECK(song.data_[SONG_CHANNEL_COUNT] == 0x2AU);
   CHECK(port.ProjectMutationGeneration() == 1U);
-  CHECK_FALSE(executor.ClipboardState().ready);
+  CHECK(executor.ClipboardState().ready);
+
+  port.ApplyGridCommand(GridCommand(Ui2TrackerCommandType::PasteSelection,
+                                    Ui2TrackerPage::Song, 2, 0));
+  CHECK(song.data_[2U * SONG_CHANNEL_COUNT] == 0x2AU);
+  CHECK(port.LastPasteAccepted());
+  CHECK(executor.ClipboardState().ready);
 }
 
 TEST_CASE("UI2 clipboard presentation follows paste compatibility") {

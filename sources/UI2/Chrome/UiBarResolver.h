@@ -22,6 +22,7 @@ struct UiBarInputs {
   bool clipboardReady = false;
   std::uint8_t clipboardWidth = 0;
   std::uint8_t clipboardHeight = 0;
+  bool clipboardPasted = false;
   bool enterHeldNumber = false;
 };
 
@@ -29,8 +30,8 @@ class UiBarResolver {
 public:
   [[nodiscard]] static UiBottomBarModel
   SelectionMode(bool nextExpansionAll);
-  [[nodiscard]] static UiBottomBarModel ClipboardReady(std::uint8_t width,
-                                                       std::uint8_t height);
+  [[nodiscard]] static UiBottomBarModel
+  ClipboardNotice(std::uint8_t width, std::uint8_t height, bool pasted);
   [[nodiscard]] static UiResolvedChrome Resolve(const UiBarInputs &inputs);
 };
 

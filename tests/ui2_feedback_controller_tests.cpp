@@ -1,9 +1,32 @@
 #include "doctest/doctest.h"
 
 #include "Application/UI2/Controllers/Ui2FeedbackController.h"
+#include "Application/UI2/Controllers/Ui2ClipboardNoticeController.h"
 
 #include <cstring>
 #include <type_traits>
+
+TEST_CASE("UI2 clipboard notices expire after two seconds") {
+  ui2::Ui2ClipboardNoticeController notice;
+  notice.ShowCopied(3U, 2U, 100U);
+  REQUIRE(notice.Active());
+  CHECK(notice.Model().notice ==
+        ui2::UiClipboardBarModel::Notice::Copied);
+  CHECK_FALSE(notice.Tick(2099U));
+  CHECK(notice.Active());
+  CHECK(notice.Tick(2100U));
+  CHECK_FALSE(notice.Active());
+
+  notice.ShowPasted(3U, 2U, 3000U);
+  REQUIRE(notice.Active());
+  CHECK(notice.Model().notice ==
+        ui2::UiClipboardBarModel::Notice::Pasted);
+  CHECK_FALSE(notice.Tick(4999U));
+  CHECK(notice.Tick(5000U));
+  CHECK_FALSE(notice.Active());
+  static_assert(
+      std::is_trivially_copyable_v<ui2::Ui2ClipboardNoticeController>);
+}
 
 TEST_CASE("UI2 feedback is fixed-capacity and expires without input") {
   ui2::Ui2FeedbackController feedback;

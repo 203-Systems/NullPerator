@@ -13,6 +13,7 @@
 #include "Application/Session/FirmwareLifecycleService.h"
 #include "Application/Session/TrackerApplicationSession.h"
 #include "Application/UI2/Controllers/Ui2ControllerPrimitives.h"
+#include "Application/UI2/Controllers/Ui2ClipboardNoticeController.h"
 #include "Application/UI2/Controllers/Ui2DeviceController.h"
 #include "Application/UI2/Controllers/Ui2DeviceLifecycleController.h"
 #include "Application/UI2/Controllers/Ui2FeedbackController.h"
@@ -156,6 +157,7 @@ private:
   void SaveCurrentProject(bool overwrite = false);
   void ExecutePendingSave(std::uint32_t nowMs);
   void ExecuteGroove(Ui2GrooveCommand command);
+  void ShowTrackerClipboardNotice(const Ui2TrackerCommandBatch<> &batch);
   void SynchronizeGridPage();
   void ResetControllersAfterProjectBoundary();
   void MarkProjectDirty();
@@ -173,6 +175,7 @@ private:
   Ui2ProjectController project_{};
   Ui2ProjectBrowserController projectBrowser_{};
   Ui2SettingsBrowserController settingsBrowser_{};
+  Ui2ClipboardNoticeController clipboardNotice_{};
   Ui2FeedbackController feedback_{};
   Ui2ProjectLifecycleController projectLifecycle_{};
   Ui2GrooveController groove_{};

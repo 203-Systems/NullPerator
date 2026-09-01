@@ -313,6 +313,8 @@ void Ui2TrackerSessionModelPort::StoreGridState(
 
 void Ui2TrackerSessionModelPort::ApplyGridCommand(
     const Ui2TrackerCommand &command) {
+  if (command.type == Ui2TrackerCommandType::PasteSelection)
+    lastPasteAccepted_ = false;
   bool storageMutated = false;
   switch (command.type) {
   case Ui2TrackerCommandType::AdjustCell:
@@ -1142,6 +1144,7 @@ bool Ui2TrackerSessionModelPort::ApplyPasteSelection(
         fieldKind(command.sourcePage, static_cast<std::uint8_t>(destination)))
       return false;
   }
+  lastPasteAccepted_ = true;
   bool storageMutated = false;
   for (std::uint8_t y = 0; y < selectionClipboardHeight_; ++y) {
     const unsigned row = static_cast<unsigned>(command.row) + y;
@@ -1218,15 +1221,6 @@ bool Ui2TrackerSessionModelPort::ApplyPasteSelection(
                         static_cast<std::uint8_t>(column));
     }
   }
-  // Selection paste is a one-shot UI workflow. A valid destination consumes
-  // the clipboard even when every destination cell already held the same
-  // value, so the paste-ready Bottom Bar cannot masquerade as a modal mode.
-  // Rejected destinations return above and intentionally retain the clipboard
-  // so the cursor can move to a compatible field and retry.
-  selectionClipboardPage_ = Ui2TrackerPage::None;
-  selectionClipboardStartColumn_ = 0U;
-  selectionClipboardWidth_ = 0U;
-  selectionClipboardHeight_ = 0U;
   return storageMutated;
 }
 

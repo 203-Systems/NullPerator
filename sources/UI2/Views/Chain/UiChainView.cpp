@@ -159,6 +159,7 @@ void UiChainView::RenderDelta(const UiChainViewData &previous,
       previous.selectionNextExpansionAll !=
           current.selectionNextExpansionAll ||
       previous.clipboardReady != current.clipboardReady ||
+      previous.clipboardPasted != current.clipboardPasted ||
       previous.clipboardWidth != current.clipboardWidth ||
       previous.clipboardHeight != current.clipboardHeight) {
     render({0, 208, 240, 32});
@@ -213,6 +214,7 @@ UiBuildStatus UiChainView::Build(const UiChainViewData &data,
       .clipboardReady = data.clipboardReady,
       .clipboardWidth = data.clipboardWidth,
       .clipboardHeight = data.clipboardHeight,
+      .clipboardPasted = data.clipboardPasted,
       .enterHeldNumber = data.numberFocus,
   };
   const UiResolvedChrome chrome = UiBarResolver::Resolve(barInputs);

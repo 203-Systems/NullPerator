@@ -389,6 +389,7 @@ UiSongViewData UiApplicationRuntime::ViewDataFor(const SongFrameState &state) {
   data.selectionActive = state.selectionActive;
   data.selectionNextExpansionAll = state.selectionNextExpansionAll;
   data.clipboardReady = state.clipboardReady;
+  data.clipboardPasted = state.clipboardPasted;
   data.clipboardWidth = state.clipboardWidth;
   data.clipboardHeight = state.clipboardHeight;
   data.playing = state.playing;
@@ -427,6 +428,7 @@ UiApplicationRuntime::ViewDataFor(const ChainFrameState &state) {
   data.selectionActive = state.selectionActive;
   data.selectionNextExpansionAll = state.selectionNextExpansionAll;
   data.clipboardReady = state.clipboardReady;
+  data.clipboardPasted = state.clipboardPasted;
   data.clipboardWidth = state.clipboardWidth;
   data.clipboardHeight = state.clipboardHeight;
   data.playbackRows = state.playbackRows;
@@ -598,6 +600,7 @@ UiApplicationRuntime::ViewDataFor(const PhraseFrameState &state) {
   data.selectionActive = state.selectionActive;
   data.selectionNextExpansionAll = state.selectionNextExpansionAll;
   data.clipboardReady = state.clipboardReady;
+  data.clipboardPasted = state.clipboardPasted;
   data.clipboardWidth = state.clipboardWidth;
   data.clipboardHeight = state.clipboardHeight;
   data.playbackRows = state.playbackRows;
@@ -759,6 +762,7 @@ UiApplicationRuntime::ViewDataFor(const TableFrameState &state) {
   data.selectionActive = state.selectionActive;
   data.selectionNextExpansionAll = state.selectionNextExpansionAll;
   data.clipboardReady = state.clipboardReady;
+  data.clipboardPasted = state.clipboardPasted;
   data.clipboardWidth = state.clipboardWidth;
   data.clipboardHeight = state.clipboardHeight;
   data.playbackRows = state.playbackRows;
@@ -1429,6 +1433,7 @@ UiApplicationRuntime::ViewDataFor(const GrooveFrameState &state) {
   data.selectionActive = state.selectionActive;
   data.selectionNextExpansionAll = state.selectionNextExpansionAll;
   data.clipboardReady = state.clipboardReady;
+  data.clipboardPasted = state.clipboardPasted;
   data.clipboardWidth = state.clipboardWidth;
   data.clipboardHeight = state.clipboardHeight;
   data.power = state.power;

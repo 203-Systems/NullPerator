@@ -1635,7 +1635,7 @@ TEST_CASE("UI2 selection mode overrides page and Enter bottom bars") {
         "OPTION: COPY  SHIFT+OPTION: ALL");
 }
 
-TEST_CASE("UI2 clipboard state exposes a paste-ready bottom bar") {
+TEST_CASE("UI2 clipboard copy notice uses the approved two-line message") {
   const ui2::UiResolvedChrome resolved = ui2::UiBarResolver::Resolve({
       .pageTop = {.title = "PHRASE", .meta = "3A"},
       .pageDefault = {.kind = ui2::UiBottomBarKind::Hidden},
@@ -1650,16 +1650,36 @@ TEST_CASE("UI2 clipboard state exposes a paste-ready bottom bar") {
   ui2::UiBarScene scene;
   REQUIRE(ui2::UiChromeRenderer::BuildBottom(resolved.bottom, scene) ==
           ui2::UiBuildStatus::Built);
-  const auto *copied = FindTextCommand(scene.Stream(), "COPIED");
-  const auto *dimensions = FindTextCommand(scene.Stream(), "3X2 CELLS");
-  const auto *paste = FindTextCommand(scene.Stream(), "SHIFT+ENTER: PASTE");
+  const auto *copied =
+      FindTextCommand(scene.Stream(), "3X2 SELECTION COPIED");
+  const auto *paste =
+      FindTextCommand(scene.Stream(), "SHIFT + ENTER TO PASTE");
   REQUIRE(copied != nullptr);
-  REQUIRE(dimensions != nullptr);
   REQUIRE(paste != nullptr);
   const ui2::UiPalette palette;
   CHECK(copied->color == palette.Index(ui2::UiColorToken::TextColored));
-  CHECK(dimensions->color == palette.Index(ui2::UiColorToken::TextColored));
   CHECK(paste->color == palette.Index(ui2::UiColorToken::TextNormal));
+}
+
+TEST_CASE("UI2 clipboard paste notice uses the approved two-line message") {
+  const ui2::UiResolvedChrome resolved = ui2::UiBarResolver::Resolve({
+      .pageTop = {.title = "PHRASE", .meta = "3A"},
+      .pageDefault = {.kind = ui2::UiBottomBarKind::Hidden},
+      .clipboardReady = true,
+      .clipboardWidth = 3U,
+      .clipboardHeight = 2U,
+      .clipboardPasted = true,
+  });
+  ui2::UiBarScene scene;
+  REQUIRE(ui2::UiChromeRenderer::BuildBottom(resolved.bottom, scene) ==
+          ui2::UiBuildStatus::Built);
+  const auto *title = FindTextCommand(scene.Stream(), "CLIPBOARD PASTED");
+  const auto *dimensions = FindTextCommand(scene.Stream(), "3X2 PASTED");
+  REQUIRE(title != nullptr);
+  REQUIRE(dimensions != nullptr);
+  const ui2::UiPalette palette;
+  CHECK(title->color == palette.Index(ui2::UiColorToken::TextColored));
+  CHECK(dimensions->color == palette.Index(ui2::UiColorToken::TextNormal));
 }
 
 TEST_CASE("UI2 tracker playback ticks share the song edge-tick geometry") {

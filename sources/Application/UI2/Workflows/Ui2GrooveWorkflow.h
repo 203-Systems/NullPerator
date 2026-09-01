@@ -115,9 +115,6 @@ public:
         mutated = mutated || steps[row] != clipboard.steps[index];
         steps[row] = clipboard.steps[index];
       }
-      // Match the tracker grids: a valid paste is one-shot and exits the
-      // paste-ready Bottom Bar. Copying another selection arms it again.
-      clipboard.count = 0U;
       return {.projectMutated = mutated};
     }
     case Ui2GrooveCommandType::InterpolateSelection: {

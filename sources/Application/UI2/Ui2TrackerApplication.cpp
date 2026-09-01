@@ -153,9 +153,9 @@ Ui2TrackerApplication::Ui2TrackerApplication(IUiPresenter &presenter)
       projectRenderBackend_(session_.ProjectModel(), session_.EditorState()),
       projectRender_(projectRenderBackend_),
       source_(session_, tracker_, project_, projectBrowser_, settingsBrowser_,
-              feedback_, projectLifecycle_, projectRender_, groove_,
-              grooveClipboard_, device_, deviceLifecycle_, theme_, font_,
-              rename_, mixer_, instrument_,
+              clipboardNotice_, feedback_, projectLifecycle_, projectRender_,
+              groove_, grooveClipboard_, device_, deviceLifecycle_, theme_,
+              font_, rename_, mixer_, instrument_,
               instrumentLifecycle_, instrumentBrowser_, sampleBrowser_,
               sampleEditor_, sampleSlices_, record_, firmwareLifecycle_,
               persistenceStatus_),
@@ -440,7 +440,8 @@ void Ui2TrackerApplication::DispatchPageAction(UiApplicationPage owner,
   case UiApplicationPage::Chain:
   case UiApplicationPage::Phrase:
   case UiApplicationPage::Table: {
-    tracker_.Handle(action, pressed);
+    const Ui2TrackerCommandBatch<> batch = tracker_.Handle(action, pressed);
+    ShowTrackerClipboardNotice(batch);
     SynchronizeProjectMutationState();
     SynchronizeGridPage();
     break;
@@ -630,6 +631,8 @@ void Ui2TrackerApplication::Tick(std::uint32_t nowMs) {
     return;
   persistenceStatus_.Tick(nowMs);
   if (feedback_.Tick(nowMs))
+    runtime_.Invalidate();
+  if (clipboardNotice_.Tick(nowMs))
     runtime_.Invalidate();
   const FirmwareLifecycleCommand firmwareCommand =
       firmwareLifecycle_.Tick(firmwareController_, nowMs);
@@ -1708,6 +1711,28 @@ void Ui2TrackerApplication::HandleGroove(TrackerAction action, bool pressed) {
   ExecuteGroove(groove_.Handle(action, pressed));
 }
 
+void Ui2TrackerApplication::ShowTrackerClipboardNotice(
+    const Ui2TrackerCommandBatch<> &batch) {
+  System *system = System::GetInstance();
+  const std::uint32_t nowMs = system == nullptr ? 0U : system->Millis();
+  for (std::uint8_t index = 0U; index < batch.count; ++index) {
+    const Ui2TrackerCommand &command = batch.commands[index];
+    if (command.type == Ui2TrackerCommandType::CopySelection ||
+        command.type == Ui2TrackerCommandType::CutSelection) {
+      const Ui2TrackerClipboardState clipboard =
+          modelPort_.ClipboardState(command.sourcePage);
+      if (clipboard.ready)
+        clipboardNotice_.ShowCopied(clipboard.width, clipboard.height, nowMs);
+    } else if (command.type == Ui2TrackerCommandType::PasteSelection &&
+               modelPort_.LastPasteAccepted()) {
+      const Ui2TrackerClipboardState clipboard =
+          modelPort_.ClipboardState(command.sourcePage);
+      if (clipboard.ready)
+        clipboardNotice_.ShowPasted(clipboard.width, clipboard.height, nowMs);
+    }
+  }
+}
+
 void Ui2TrackerApplication::HandleDevice(TrackerAction action, bool pressed) {
   ExecuteDevice(device_.Handle(action, pressed));
   if (Ui2IsPlainPlay(action, pressed, device_.HeldMask()))
@@ -2515,6 +2540,7 @@ void Ui2TrackerApplication::ResetControllersAfterProjectBoundary() {
 
   project_ = {};
   projectBrowser_ = {};
+  clipboardNotice_.Clear();
   feedback_ = {};
   projectLifecycle_ = {};
   projectRender_.Reset();
@@ -2679,6 +2705,7 @@ void Ui2TrackerApplication::ExecuteProject(Ui2ProjectCommand command) {
 void Ui2TrackerApplication::ExecuteGroove(Ui2GrooveCommand command) {
   if (!command.HasValue())
     return;
+  const std::uint8_t clipboardCountBefore = grooveClipboard_.count;
   const std::uint8_t number = groove_.Number();
   std::uint8_t *steps = Groove::GetInstance()->GetGrooveData(number);
   const Ui2GrooveWorkflowResult result =
@@ -2691,6 +2718,16 @@ void Ui2TrackerApplication::ExecuteGroove(Ui2GrooveCommand command) {
     const Ui2TrackerCommand trackerCommand = Ui2GrooveTrackerCommand(
         command, session_.EditorState().songX_);
     modelPort_.ApplyGridCommand(trackerCommand);
+  }
+  System *system = System::GetInstance();
+  const std::uint32_t nowMs = system == nullptr ? 0U : system->Millis();
+  if (command.type == Ui2GrooveCommandType::CopySelection ||
+      command.type == Ui2GrooveCommandType::CutSelection) {
+    if (grooveClipboard_.count != 0U)
+      clipboardNotice_.ShowCopied(1U, grooveClipboard_.count, nowMs);
+  } else if (command.type == Ui2GrooveCommandType::PasteSelection &&
+             clipboardCountBefore != 0U) {
+    clipboardNotice_.ShowPasted(1U, clipboardCountBefore, nowMs);
   }
 }
 

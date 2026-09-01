@@ -39,6 +39,18 @@
 
 namespace ui2 {
 
+void Ui2NativeApplicationStateSource::CaptureClipboardNotice(
+    bool &active, bool &pasted, std::uint8_t &width,
+    std::uint8_t &height) const {
+  active = clipboardNotice_.Active();
+  if (!active)
+    return;
+  const UiClipboardBarModel &notice = clipboardNotice_.Model();
+  pasted = notice.notice == UiClipboardBarModel::Notice::Pasted;
+  width = notice.width;
+  height = notice.height;
+}
+
 static_assert(Ui2FontController::TextCaseCount ==
               static_cast<std::uint8_t>(UiTextCaseMode::Lower) + 1U);
 
@@ -221,10 +233,8 @@ Ui2NativeApplicationStateSource::CaptureSong(UiSongFrameState &state) {
   state.selectionNextExpansionAll =
       state.selectionActive && controller.Selection().Left() == 0U &&
       controller.Selection().Right() == kUi2TrackerTrackCount - 1U;
-  const Ui2TrackerClipboardState clipboard = tracker_.ClipboardState();
-  state.clipboardReady = clipboard.ready;
-  state.clipboardWidth = clipboard.width;
-  state.clipboardHeight = clipboard.height;
+  CaptureClipboardNotice(state.clipboardReady, state.clipboardPasted,
+                         state.clipboardWidth, state.clipboardHeight);
   state.navigationHeld = navigationHeld_;
   for (std::uint8_t row = 0; row < 16U; ++row) {
     for (std::uint8_t track = 0; track < SONG_CHANNEL_COUNT; ++track) {
@@ -285,10 +295,8 @@ Ui2NativeApplicationStateSource::CaptureChain(UiChainFrameState &state) {
   state.selectionNextExpansionAll =
       state.selectionActive && controller.Selection().Left() == 0U &&
       controller.Selection().Right() == 1U;
-  const Ui2TrackerClipboardState clipboard = tracker_.ClipboardState();
-  state.clipboardReady = clipboard.ready;
-  state.clipboardWidth = clipboard.width;
-  state.clipboardHeight = clipboard.height;
+  CaptureClipboardNotice(state.clipboardReady, state.clipboardPasted,
+                         state.clipboardWidth, state.clipboardHeight);
   state.navigationHeld = navigationHeld_;
   if (controller.Selection().active) {
     const auto &selection = controller.Selection();
@@ -341,10 +349,8 @@ Ui2NativeApplicationStateSource::CapturePhrase(UiPhraseFrameState &state) {
   state.selectionNextExpansionAll =
       state.selectionActive && controller.Selection().Left() == 0U &&
       controller.Selection().Right() == 5U;
-  const Ui2TrackerClipboardState clipboard = tracker_.ClipboardState();
-  state.clipboardReady = clipboard.ready;
-  state.clipboardWidth = clipboard.width;
-  state.clipboardHeight = clipboard.height;
+  CaptureClipboardNotice(state.clipboardReady, state.clipboardPasted,
+                         state.clipboardWidth, state.clipboardHeight);
   state.navigationHeld = navigationHeld_;
   state.activeHeader = controller.Column() == 0U   ? UiPhraseHeader::Note
                        : controller.Column() == 1U ? UiPhraseHeader::Instrument
@@ -444,10 +450,8 @@ Ui2NativeApplicationStateSource::CaptureTable(UiTableFrameState &state) {
   state.selectionNextExpansionAll =
       state.selectionActive && controller.Selection().Left() == 0U &&
       controller.Selection().Right() == 5U;
-  const Ui2TrackerClipboardState clipboard = tracker_.ClipboardState();
-  state.clipboardReady = clipboard.ready;
-  state.clipboardWidth = clipboard.width;
-  state.clipboardHeight = clipboard.height;
+  CaptureClipboardNotice(state.clipboardReady, state.clipboardPasted,
+                         state.clipboardWidth, state.clipboardHeight);
   state.navigationHeld = navigationHeld_;
   state.activeHeader = controller.Column() < 2U   ? UiTableHeader::Fx1
                        : controller.Column() < 4U ? UiTableHeader::Fx2
@@ -965,9 +969,8 @@ Ui2NativeApplicationStateSource::CaptureGroove(UiGrooveFrameState &state) {
   state.selectionActive = groove_.Selection().active;
   // Groove has one column, so its first expansion target is already all rows.
   state.selectionNextExpansionAll = state.selectionActive;
-  state.clipboardReady = grooveClipboard_.count != 0U;
-  state.clipboardWidth = state.clipboardReady ? 1U : 0U;
-  state.clipboardHeight = grooveClipboard_.count;
+  CaptureClipboardNotice(state.clipboardReady, state.clipboardPasted,
+                         state.clipboardWidth, state.clipboardHeight);
   if (groove_.Selection().active) {
     state.selectionVisualRect = UiGrooveView::SelectionTargetRect(
         groove_.Selection().Top(), groove_.Selection().Bottom());

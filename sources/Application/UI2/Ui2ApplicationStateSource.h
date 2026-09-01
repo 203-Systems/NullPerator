@@ -81,6 +81,7 @@ struct UiSongFrameState {
   bool selectionActive = false;
   bool selectionNextExpansionAll = false;
   bool clipboardReady = false;
+  bool clipboardPasted = false;
   std::uint8_t clipboardWidth = 0;
   std::uint8_t clipboardHeight = 0;
   bool navigationHeld = false;
@@ -127,6 +128,7 @@ struct UiChainFrameState {
   bool selectionActive = false;
   bool selectionNextExpansionAll = false;
   bool clipboardReady = false;
+  bool clipboardPasted = false;
   std::uint8_t clipboardWidth = 0;
   std::uint8_t clipboardHeight = 0;
   bool navigationHeld = false;
@@ -170,6 +172,7 @@ struct UiPhraseFrameState {
   bool selectionActive = false;
   bool selectionNextExpansionAll = false;
   bool clipboardReady = false;
+  bool clipboardPasted = false;
   std::uint8_t clipboardWidth = 0;
   std::uint8_t clipboardHeight = 0;
   bool navigationHeld = false;
@@ -221,6 +224,7 @@ struct UiTableFrameState {
   bool selectionActive = false;
   bool selectionNextExpansionAll = false;
   bool clipboardReady = false;
+  bool clipboardPasted = false;
   std::uint8_t clipboardWidth = 0;
   std::uint8_t clipboardHeight = 0;
   bool navigationHeld = false;
@@ -246,6 +250,7 @@ struct UiGrooveFrameState {
   bool selectionActive = false;
   bool selectionNextExpansionAll = false;
   bool clipboardReady = false;
+  bool clipboardPasted = false;
   std::uint8_t clipboardWidth = 0;
   std::uint8_t clipboardHeight = 0;
   UiNavCursorModel navCursor{};

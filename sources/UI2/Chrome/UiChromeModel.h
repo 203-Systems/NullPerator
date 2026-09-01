@@ -152,8 +152,14 @@ struct UiRgbBarModel {
 };
 
 struct UiClipboardBarModel {
+  enum class Notice : std::uint8_t {
+    Copied,
+    Pasted,
+  };
+
   std::uint8_t width = 0;
   std::uint8_t height = 0;
+  Notice notice = Notice::Copied;
 };
 
 enum class UiBottomBarKind : std::uint8_t {

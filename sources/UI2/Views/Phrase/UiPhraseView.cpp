@@ -248,6 +248,7 @@ void UiPhraseView::RenderDelta(const UiPhraseViewData &previous,
       previous.selectionNextExpansionAll !=
           current.selectionNextExpansionAll ||
       previous.clipboardReady != current.clipboardReady ||
+      previous.clipboardPasted != current.clipboardPasted ||
       previous.clipboardWidth != current.clipboardWidth ||
       previous.clipboardHeight != current.clipboardHeight ||
       !BottomEqual(previous.cursorBottom, current.cursorBottom)) {
@@ -303,6 +304,7 @@ UiBuildStatus UiPhraseView::Build(const UiPhraseViewData &data, UiPalette &,
       .clipboardReady = data.clipboardReady,
       .clipboardWidth = data.clipboardWidth,
       .clipboardHeight = data.clipboardHeight,
+      .clipboardPasted = data.clipboardPasted,
       .enterHeldNumber = data.numberFocus,
   };
   const UiResolvedChrome chrome = UiBarResolver::Resolve(barInputs);

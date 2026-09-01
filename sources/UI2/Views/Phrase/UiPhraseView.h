@@ -53,6 +53,7 @@ struct UiPhraseViewData {
   bool selectionActive = false;
   bool selectionNextExpansionAll = false;
   bool clipboardReady = false;
+  bool clipboardPasted = false;
   std::uint8_t clipboardWidth = 0;
   std::uint8_t clipboardHeight = 0;
   std::array<std::int8_t, 8> playbackRows{-1, -1, -1, -1, -1, -1, -1, -1};

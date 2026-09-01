@@ -8,6 +8,7 @@
 
 #include "Application/UI2/Controllers/Ui2DeviceController.h"
 #include "Application/UI2/Controllers/Ui2DeviceLifecycleController.h"
+#include "Application/UI2/Controllers/Ui2ClipboardNoticeController.h"
 #include "Application/UI2/Controllers/Ui2FeedbackController.h"
 #include "Application/UI2/Controllers/Ui2FontController.h"
 #include "Application/UI2/Controllers/Ui2GrooveController.h"
@@ -46,6 +47,7 @@ public:
       Ui2ProjectController &project,
       Ui2ProjectBrowserController &projectBrowser,
       Ui2SettingsBrowserController &settingsBrowser,
+      Ui2ClipboardNoticeController &clipboardNotice,
       Ui2FeedbackController &feedback,
       Ui2ProjectLifecycleController &projectLifecycle,
       Ui2ProjectRenderController &projectRender, Ui2GrooveController &groove,
@@ -65,7 +67,7 @@ public:
       const Ui2PersistenceStatus &persistenceStatus)
       : session_(session), tracker_(tracker), project_(project),
         projectBrowser_(projectBrowser), settingsBrowser_(settingsBrowser),
-        feedback_(feedback),
+        clipboardNotice_(clipboardNotice), feedback_(feedback),
         projectLifecycle_(projectLifecycle), projectRender_(projectRender),
         groove_(groove), grooveClipboard_(grooveClipboard), device_(device),
         deviceLifecycle_(deviceLifecycle),
@@ -166,11 +168,16 @@ public:
   CaptureRecord(UiRecordFrameState &state) override;
 
 private:
+  void CaptureClipboardNotice(bool &active, bool &pasted,
+                              std::uint8_t &width,
+                              std::uint8_t &height) const;
+
   TrackerApplicationSession &session_;
   Ui2TrackerCommandExecutor &tracker_;
   Ui2ProjectController &project_;
   Ui2ProjectBrowserController &projectBrowser_;
   Ui2SettingsBrowserController &settingsBrowser_;
+  Ui2ClipboardNoticeController &clipboardNotice_;
   Ui2FeedbackController &feedback_;
   Ui2ProjectLifecycleController &projectLifecycle_;
   Ui2ProjectRenderController &projectRender_;

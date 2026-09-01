@@ -24,11 +24,17 @@ UiBottomBarModel UiBarResolver::SelectionMode(bool nextExpansionAll) {
   return bottom;
 }
 
-UiBottomBarModel UiBarResolver::ClipboardReady(std::uint8_t width,
-                                               std::uint8_t height) {
+UiBottomBarModel UiBarResolver::ClipboardNotice(std::uint8_t width,
+                                                std::uint8_t height,
+                                                bool pasted) {
   UiBottomBarModel bottom{};
   bottom.kind = UiBottomBarKind::Clipboard;
-  bottom.clipboard = {.width = width, .height = height};
+  bottom.clipboard = {
+      .width = width,
+      .height = height,
+      .notice = pasted ? UiClipboardBarModel::Notice::Pasted
+                       : UiClipboardBarModel::Notice::Copied,
+  };
   return bottom;
 }
 
@@ -37,8 +43,9 @@ UiResolvedChrome UiBarResolver::Resolve(const UiBarInputs &inputs) {
   if (inputs.cursorContext != nullptr) resolved.bottom = *inputs.cursorContext;
 
   if (inputs.clipboardReady) {
-    resolved.bottom =
-        ClipboardReady(inputs.clipboardWidth, inputs.clipboardHeight);
+    resolved.bottom = ClipboardNotice(inputs.clipboardWidth,
+                                      inputs.clipboardHeight,
+                                      inputs.clipboardPasted);
   }
 
   if (inputs.enterHeldNumber && inputs.enterHeldTracks != nullptr) {
