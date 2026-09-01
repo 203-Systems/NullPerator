@@ -626,6 +626,61 @@ TEST_CASE("sample directory scan removes an interrupted working-only copy") {
   CHECK_FALSE(fileSystem.exists(working));
 }
 
+TEST_CASE("sample directory scan preserves a non-WAV backup-shaped file") {
+  constexpr const char *source = "VOICE.wav";
+  SampleEditMemoryFileSystem fileSystem;
+  const std::vector<std::uint8_t> original = MakeWav();
+  const std::vector<std::uint8_t> unrelated{0x52U, 0x49U, 0x46U, 0x46U};
+  fileSystem.Put(source, original);
+  char backup[PFILENAME_SIZE]{};
+  REQUIRE(SampleEditorFileJournal::BuildPath(
+      source, SampleEditorFileJournal::Generation::Backup, backup,
+      sizeof(backup)));
+  fileSystem.Put(backup, unrelated);
+
+  REQUIRE(SampleEditorFileJournal::RecoverCurrentDirectory(fileSystem));
+  CHECK(fileSystem.Bytes(source) == original);
+  REQUIRE(fileSystem.exists(backup));
+  CHECK(fileSystem.Bytes(backup) == unrelated);
+}
+
+TEST_CASE("sample editor reports a reserved backup conflict directly") {
+  using namespace ui2;
+  constexpr const char *source = "VOICE.wav";
+  SampleEditMemoryFileSystem fileSystem;
+  fileSystem.Put(source, MakeWav());
+  char backup[PFILENAME_SIZE]{};
+  REQUIRE(SampleEditorFileJournal::BuildPath(
+      source, SampleEditorFileJournal::Generation::Backup, backup,
+      sizeof(backup)));
+  const std::vector<std::uint8_t> unrelated{0x52U, 0x49U, 0x46U, 0x46U};
+  fileSystem.Put(backup, unrelated);
+
+  Ui2SampleEditorTransaction transaction;
+  CHECK(transaction.Begin(fileSystem, source) ==
+        Ui2SampleEditorTransactionResult::RecoveryFailed);
+  REQUIRE(fileSystem.exists(backup));
+  CHECK(fileSystem.Bytes(backup) == unrelated);
+}
+
+TEST_CASE("sample directory scan preserves an incompatible WAV backup") {
+  constexpr const char *source = "VOICE.wav";
+  SampleEditMemoryFileSystem fileSystem;
+  const std::vector<std::uint8_t> original = MakeWav();
+  const std::vector<std::uint8_t> unrelated = MakeWavWithEncoding(1U, 8U);
+  fileSystem.Put(source, original);
+  char backup[PFILENAME_SIZE]{};
+  REQUIRE(SampleEditorFileJournal::BuildPath(
+      source, SampleEditorFileJournal::Generation::Backup, backup,
+      sizeof(backup)));
+  fileSystem.Put(backup, unrelated);
+
+  REQUIRE(SampleEditorFileJournal::RecoverCurrentDirectory(fileSystem));
+  CHECK(fileSystem.Bytes(source) == original);
+  REQUIRE(fileSystem.exists(backup));
+  CHECK(fileSystem.Bytes(backup) == unrelated);
+}
+
 TEST_CASE("UI2 sample normalize rejects encodings it cannot transform") {
   using namespace ui2;
   constexpr const char *source = "/samples/VOICE.wav";

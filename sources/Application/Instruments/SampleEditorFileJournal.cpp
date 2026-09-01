@@ -10,14 +10,16 @@
 
 #include <array>
 
-bool SampleEditorFileJournal::ValidateWav(FileSystem &fileSystem,
-                                          const char *path) {
+namespace {
+
+bool ReadValidWav(FileSystem &fileSystem, const char *path,
+                  WavHeaderInfo &info) {
   if (path == nullptr || path[0] == '\0' || !fileSystem.exists(path))
     return false;
   FileHandle file = fileSystem.Open(path, "r");
   if (!file)
     return false;
-  const auto header = WavHeaderWriter::ReadHeader(file.get());
+  auto header = WavHeaderWriter::ReadHeader(file.get());
   if (!header.has_value() || header->numChannels == 0U ||
       header->numChannels > 2U || header->blockAlign == 0U ||
       header->dataChunkSize / header->blockAlign == 0U)
@@ -28,11 +30,33 @@ bool SampleEditorFileJournal::ValidateWav(FileSystem &fileSystem,
   const bool supportedFloat =
       header->audioFormat == 3U &&
       (header->bytesPerSample == 4U || header->bytesPerSample == 8U);
-  return supportedPcm || supportedFloat;
+  if (!supportedPcm && !supportedFloat)
+    return false;
+  info = *header;
+  return true;
 }
 
-bool SampleEditorFileJournal::RecoverDestination(FileSystem &fileSystem,
-                                                 const char *destination) {
+bool SameSampleEncoding(const WavHeaderInfo &left,
+                        const WavHeaderInfo &right) {
+  return left.audioFormat == right.audioFormat &&
+         left.numChannels == right.numChannels &&
+         left.sampleRate == right.sampleRate &&
+         left.blockAlign == right.blockAlign &&
+         left.bitsPerSample == right.bitsPerSample &&
+         left.bytesPerSample == right.bytesPerSample;
+}
+
+} // namespace
+
+bool SampleEditorFileJournal::ValidateWav(FileSystem &fileSystem,
+                                          const char *path) {
+  WavHeaderInfo info{};
+  return ReadValidWav(fileSystem, path, info);
+}
+
+SampleEditorFileJournal::RecoveryStatus
+SampleEditorFileJournal::RecoverDestinationStatus(FileSystem &fileSystem,
+                                                  const char *destination) {
   std::array<char, PFILENAME_SIZE> working{};
   std::array<char, PFILENAME_SIZE> operation{};
   std::array<char, PFILENAME_SIZE> backup{};
@@ -42,29 +66,46 @@ bool SampleEditorFileJournal::RecoverDestination(FileSystem &fileSystem,
                  operation.size()) ||
       !BuildPath(destination, Generation::Backup, backup.data(),
                  backup.size()))
-    return false;
+    return RecoveryStatus::Failed;
   if (!fileSystem.exists(backup.data()))
-    return true;
+    return RecoveryStatus::Complete;
 
-  if (ValidateWav(fileSystem, destination)) {
+  WavHeaderInfo backupHeader{};
+  const bool backupValid =
+      ReadValidWav(fileSystem, backup.data(), backupHeader);
+  WavHeaderInfo destinationHeader{};
+  const bool destinationValid =
+      ReadValidWav(fileSystem, destination, destinationHeader);
+
+  if (!backupValid ||
+      (destinationValid &&
+       !SameSampleEncoding(destinationHeader, backupHeader)))
+    return RecoveryStatus::NotOwned;
+
+  if (destinationValid) {
     if (!fileSystem.DeleteFile(backup.data()))
-      return false;
+      return RecoveryStatus::Failed;
   } else {
-    if (!ValidateWav(fileSystem, backup.data()))
-      return false;
     if (fileSystem.exists(destination) &&
         !fileSystem.DeleteFile(destination))
-      return false;
+      return RecoveryStatus::Failed;
     if (!fileSystem.MoveFile(backup.data(), destination) ||
         !ValidateWav(fileSystem, destination))
-      return false;
+      return RecoveryStatus::Failed;
   }
 
   const bool workingClean = !fileSystem.exists(working.data()) ||
                             fileSystem.DeleteFile(working.data());
   const bool operationClean = !fileSystem.exists(operation.data()) ||
                               fileSystem.DeleteFile(operation.data());
-  return workingClean && operationClean;
+  return workingClean && operationClean ? RecoveryStatus::Complete
+                                        : RecoveryStatus::Failed;
+}
+
+bool SampleEditorFileJournal::RecoverDestination(FileSystem &fileSystem,
+                                                 const char *destination) {
+  return RecoverDestinationStatus(fileSystem, destination) ==
+         RecoveryStatus::Complete;
 }
 
 bool SampleEditorFileJournal::RecoverCurrentDirectory(
@@ -84,10 +125,12 @@ bool SampleEditorFileJournal::RecoverCurrentDirectory(
     if (!DecodeBackupPath(backup.data(), destination.data(),
                           destination.size()))
       continue;
-    // Journal leaf names are reserved. A backup can be the only surviving
-    // generation after a failed rollback, so destination/working existence
-    // cannot be used as a prerequisite for recovery.
-    if (!RecoverDestination(fileSystem, destination.data()))
+    // A valid backup can be the only surviving generation after a failed
+    // rollback. Broad scans ignore reserved-looking files that fail ownership
+    // validation; direct transaction recovery reports them as conflicts.
+    const RecoveryStatus recovered =
+        RecoverDestinationStatus(fileSystem, destination.data());
+    if (recovered == RecoveryStatus::Failed)
       return false;
   }
 

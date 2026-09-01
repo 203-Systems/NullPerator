@@ -86,6 +86,11 @@ public:
   static bool RecoverCurrentDirectory(FileSystem &fileSystem);
 
 private:
+  enum class RecoveryStatus : std::uint8_t { Complete, NotOwned, Failed };
+
+  static RecoveryStatus RecoverDestinationStatus(FileSystem &fileSystem,
+                                                  const char *destination);
+
   static bool DecodePath(const char *journal, Generation generation,
                          char *destination, std::size_t capacity) {
     if (destination == nullptr || capacity == 0U)
