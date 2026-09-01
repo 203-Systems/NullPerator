@@ -4436,6 +4436,7 @@ TEST_CASE("UI2 Sample Slices delta is pixel-identical to a full redraw") {
   current.start = "000119";
   current.zoom = "2X";
   current.autoSliceApplyAvailable = false;
+  current.bottomActive = 2U;
   current.selectedMarker = 3;
   current.waveformRevision += 1;
   current.cursorVisualOverride = true;
@@ -4605,6 +4606,7 @@ TEST_CASE("UI2 Sample Slices adapter maps real markers focus and help") {
   snapshot.markers.Push(177U, Ui2WaveformMarkerKind::Playhead, false);
   snapshot.selectedSlice = 1U;
   snapshot.autoSliceCount = 16U;
+  snapshot.definedMask = 0x0007U;
   snapshot.hasSample = true;
   snapshot.previewActive = true;
   snapshot.previewPlayheadVisible = true;
@@ -4626,10 +4628,17 @@ TEST_CASE("UI2 Sample Slices adapter maps real markers focus and help") {
   CHECK(data.markers[1].selected);
   CHECK(data.markers[2].kind == ui2::UiSampleWaveformMarkerKind::Playhead);
   CHECK(data.cursor == ui2::UiSampleSlicesCursor::Waveform);
+  CHECK(data.bottomActive == 1U);
   CHECK(ui2::UiSampleSlicesView::CursorTargetRect(data) ==
         ui2::RectI16{7, 43, 226, 86});
   CHECK(data.help == "UP/DOWN ZOOM");
   CHECK(data.power == ui2::UiPowerState::Playing);
+
+  const ui2::UiSampleSlicesControllerState deleting =
+      ui2::MakeUiSampleSlicesControllerState(
+          snapshot, ui2::UiPowerState::BatteryNormal,
+          {.shiftHeld = true});
+  CHECK(deleting.ToViewData().bottomActive == 2U);
 
   const ui2::UiSampleSlicesControllerState copy = state;
   CHECK(copy == state);

@@ -264,6 +264,8 @@ void UiSampleSlicesView::RenderDelta(
       previous.autoSliceApplyAvailable != current.autoSliceApplyAvailable)
     render({5, 172, 230, 23});
   if (previous.help != current.help) render({5, 184, 230, 23});
+  if (previous.bottomActive != current.bottomActive)
+    render({0, 208, 240, 32});
   const RectI16 oldCursor =
       ResolvedCursorRect(previous, CursorTargetRect(previous));
   const RectI16 newCursor =
@@ -290,7 +292,7 @@ UiBuildStatus UiSampleSlicesView::Build(const UiSampleSlicesViewData &data,
   UiBottomBarModel bottom{.kind = UiBottomBarKind::Actions};
   bottom.actions.actions = {"ADD", "MOVE", "DELETE", {}};
   bottom.actions.count = 3;
-  bottom.actions.active = 1;
+  bottom.actions.active = std::min<std::uint8_t>(data.bottomActive, 2U);
   const UiBuildStatus bottomStatus =
       UiChromeRenderer::BuildBottom(bottom, scene.bottom);
   if (bottomStatus != UiBuildStatus::Built) return bottomStatus;
@@ -323,7 +325,7 @@ UiBuildStatus UiSampleSlicesView::Build(const UiSampleSlicesViewData &data,
   } else {
     DrawField(builder, "AUTO", data.autoSliceCount, 174);
     DrawField(builder, "SLICE",
-              data.autoSliceApplyAvailable ? "APPLY" : "LOCKED", 185);
+              data.autoSliceApplyAvailable ? "APPLY" : "REPLACE", 185);
     builder.Text(data.help, 9, 198, UiColorToken::DerivedTextFaint);
   }
   if (!waveformFocused && !cursor.Empty())
@@ -341,7 +343,7 @@ UiBuildStatus UiSampleSlicesView::Build(const UiSampleSlicesViewData &data,
       break;
     case UiSampleSlicesCursor::AutoSlice:
       builder.Text("SLICE", 9, 185, UiColorToken::TextHighlighted);
-      builder.Text(data.autoSliceApplyAvailable ? "APPLY" : "LOCKED", 92,
+      builder.Text(data.autoSliceApplyAvailable ? "APPLY" : "REPLACE", 92,
                    185, UiColorToken::TextHighlighted);
       break;
     case UiSampleSlicesCursor::Waveform:

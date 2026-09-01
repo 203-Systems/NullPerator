@@ -401,6 +401,11 @@ void Ui2TrackerApplication::DispatchLogicalAction(TrackerAction action,
     finishModalRelease();
     return;
   }
+  if (sampleSlices_.DialogActive()) {
+    HandleSampleSlicesDialog(action, pressed);
+    finishModalRelease();
+    return;
+  }
   if (deviceLifecycle_.Active()) {
     HandleDeviceLifecycle(action, pressed);
     finishModalRelease();
@@ -1545,13 +1550,26 @@ void Ui2TrackerApplication::HandleSampleSlices(TrackerAction action,
   if (action == TrackerAction::Play && pressed) {
     Player *player = Player::GetInstance();
     SampleInstrument *sample = CurrentSampleInstrument(session_);
-    if (player == nullptr || player->IsRunning() || sample == nullptr ||
-        sample->GetSampleIndex() < 0 ||
-        (sample->HasSlicesForPlayback() &&
-         !sample->IsSliceDefined(sampleSlices_.SelectedSlice())))
+    if (player == nullptr || player->IsRunning()) {
+      ShowFeedbackMessage("STOP PLAYBACK TO PREVIEW");
       return;
+    }
+    if (sample == nullptr || sample->GetSampleIndex() < 0) {
+      ShowFeedbackError("SAMPLE UNAVAILABLE");
+      return;
+    }
+    if (sample->HasSlicesForPlayback() &&
+        !sample->IsSliceDefined(sampleSlices_.SelectedSlice())) {
+      ShowFeedbackMessage("SLICE SLOT EMPTY");
+      return;
+    }
   }
   ExecuteSampleSlices(sampleSlices_.Handle(action, pressed));
+}
+
+void Ui2TrackerApplication::HandleSampleSlicesDialog(TrackerAction action,
+                                                     bool pressed) {
+  ExecuteSampleSlices(sampleSlices_.HandleDialog(action, pressed));
 }
 
 void Ui2TrackerApplication::ExecuteSampleSlices(
@@ -1560,6 +1578,17 @@ void Ui2TrackerApplication::ExecuteSampleSlices(
     return;
   SampleInstrument *sample = CurrentSampleInstrument(session_);
   Player *player = Player::GetInstance();
+  const auto commitSlices = [this](SampleInstrument &instrument) {
+    instrument.ClearSlices();
+    for (std::uint8_t index = 0U; index < SampleInstrument::MaxSlices;
+         ++index) {
+      if ((sampleSlices_.DefinedMask() &
+           static_cast<std::uint16_t>(1U << index)) != 0U)
+        instrument.SetSlicePoint(index, sampleSlices_.SlicePoints()[index]);
+    }
+    SynchronizeSampleSlices();
+    MarkProjectDirty();
+  };
   switch (command.type) {
   case Ui2SampleSlicesCommandType::PreviewStart: {
     if (player == nullptr || player->IsRunning() || sample == nullptr ||
@@ -1612,29 +1641,38 @@ void Ui2TrackerApplication::ExecuteSampleSlices(
     }
     break;
   case Ui2SampleSlicesCommandType::RequestAutoSlice:
-    if (sample == nullptr || sample->HasSlicesForPlayback()) {
-      // Replacing existing slices is destructive and still needs the approved
-      // confirmation state. Preserve the current points until that exists.
+  case Ui2SampleSlicesCommandType::ReplaceAutoSlices:
+    if (sample == nullptr) {
+      ShowFeedbackError("AUTO SLICE UNAVAILABLE");
       break;
     }
     sampleSlices_.ApplyEvenSlices(command.count);
-    sample->ClearSlices();
-    for (std::uint8_t index = 0U; index < SampleInstrument::MaxSlices;
-         ++index) {
-      if ((sampleSlices_.DefinedMask() &
-           static_cast<std::uint16_t>(1U << index)) != 0U)
-        sample->SetSlicePoint(index, sampleSlices_.SlicePoints()[index]);
-    }
-    SynchronizeSampleSlices();
-    MarkProjectDirty();
+    commitSlices(*sample);
     break;
   case Ui2SampleSlicesCommandType::NavigateBack:
     ActivatePage(sampleReturnPage_);
     break;
   case Ui2SampleSlicesCommandType::DeleteSlice:
-    // The approved bar names DELETE but no physical gesture or delete/shift
-    // semantics have been approved. Do not silently rewrite neighboring
-    // slice indices.
+    if (sample == nullptr) {
+      ShowFeedbackError("DELETE UNAVAILABLE");
+      break;
+    }
+    commitSlices(*sample);
+    break;
+  case Ui2SampleSlicesCommandType::OperationUnavailable:
+    switch (command.failure) {
+    case Ui2SampleSlicesFailure::AddLocked:
+      ShowFeedbackMessage("SLICE ADD LOCKED");
+      break;
+    case Ui2SampleSlicesFailure::DeleteLocked:
+      ShowFeedbackMessage("SLICE SLOT EMPTY");
+      break;
+    case Ui2SampleSlicesFailure::MoveLimit:
+      ShowFeedbackMessage("SLICE LIMIT");
+      break;
+    case Ui2SampleSlicesFailure::None:
+      break;
+    }
     break;
   case Ui2SampleSlicesCommandType::SetAutoSliceCount:
   case Ui2SampleSlicesCommandType::None:

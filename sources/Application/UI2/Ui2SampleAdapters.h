@@ -21,6 +21,7 @@ namespace ui2 {
 struct UiSampleControllerModifiers {
   bool enterHeld = false;
   bool optionHeld = false;
+  bool shiftHeld = false;
 };
 
 namespace detail {
@@ -96,6 +97,7 @@ inline bool EqualSlicesCapture(const SampleSlicesViewUi2Snapshot &left,
          left.focus == right.focus &&
          left.selectedSlice == right.selectedSlice &&
          left.autoSliceCount == right.autoSliceCount &&
+         left.definedMask == right.definedMask &&
          left.waveformReady == right.waveformReady &&
          left.hasSample == right.hasSample &&
          left.previewActive == right.previewActive &&
@@ -267,6 +269,7 @@ struct UiSampleSlicesControllerState {
   UiSampleSlicesCursor cursor = UiSampleSlicesCursor::None;
   UiPowerState power = UiPowerState::BatteryNormal;
   std::uint8_t markerCount = 0;
+  std::uint8_t bottomActive = 1;
   bool cursorVisualOverride = false;
   bool cursorInkVisible = true;
 
@@ -283,6 +286,7 @@ struct UiSampleSlicesControllerState {
         capture.waveformReady ? capture.waveform.revision : 0U;
     data.markers = {markers.data(), markerCount};
     data.selectedMarker = capture.selectedSlice;
+    data.bottomActive = bottomActive;
     data.cursor = cursor;
     data.cursorVisualRect = cursorVisualRect;
     data.cursorVisualOverride = cursorVisualOverride;
@@ -303,6 +307,7 @@ struct UiSampleSlicesControllerState {
            cursorVisualRect == other.cursorVisualRect &&
            cursor == other.cursor && power == other.power &&
            markerCount == other.markerCount &&
+           bottomActive == other.bottomActive &&
            cursorVisualOverride == other.cursorVisualOverride &&
            cursorInkVisible == other.cursorInkVisible;
   }
@@ -321,6 +326,13 @@ inline UiSampleSlicesControllerState MakeUiSampleSlicesControllerState(
       static_cast<std::uint8_t>(SampleSlicesViewUi2Snapshot::SliceCapacity));
   state.autoSliceCount = {static_cast<char>('0' + count / 10U),
                           static_cast<char>('0' + count % 10U), '\0'};
+  const std::uint16_t selectedBit = static_cast<std::uint16_t>(
+      1U << std::min<std::uint8_t>(snapshot.selectedSlice, 15U));
+  const bool selectedDefined =
+      (snapshot.definedMask & selectedBit) != 0U;
+  state.bottomActive = modifiers.shiftHeld && selectedDefined
+                           ? 2U
+                           : selectedDefined ? 1U : 0U;
 
   std::string_view help;
   switch (snapshot.focus) {
@@ -341,7 +353,7 @@ inline UiSampleSlicesControllerState MakeUiSampleSlicesControllerState(
     state.cursor = UiSampleSlicesCursor::AutoSlice;
     help = snapshot.autoSliceApplyAvailable
                ? "ENTER APPLY EVEN SLICES"
-               : "EXISTING SLICES  AUTO LOCKED";
+               : "ENTER REPLACE EVEN SLICES";
     break;
   case SampleSlicesViewUi2Focus::Unknown:
     state.cursor = UiSampleSlicesCursor::None;

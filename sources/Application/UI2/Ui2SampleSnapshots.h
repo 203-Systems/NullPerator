@@ -64,6 +64,7 @@ struct SampleSlicesViewUi2Snapshot {
   SampleSlicesViewUi2Focus focus = SampleSlicesViewUi2Focus::Unknown;
   std::uint8_t selectedSlice = 0;
   std::uint8_t autoSliceCount = 0;
+  std::uint16_t definedMask = 0;
   bool waveformReady = false;
   bool hasSample = false;
   bool previewActive = false;

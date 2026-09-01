@@ -39,6 +39,7 @@ enum class UiDialogAction : std::uint8_t {
   No,
   Save,
   Random,
+  Replace,
 };
 
 enum class UiDialogFocus : std::uint8_t {

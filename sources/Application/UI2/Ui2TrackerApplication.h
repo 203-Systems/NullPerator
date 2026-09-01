@@ -124,6 +124,7 @@ private:
   [[nodiscard]] bool ImportSampleToCurrentInstrument(const char *path,
                                                       const char *&error);
   void HandleSampleSlices(TrackerAction action, bool pressed);
+  void HandleSampleSlicesDialog(TrackerAction action, bool pressed);
   void ExecuteSampleSlices(Ui2SampleSlicesCommand command);
   [[nodiscard]] bool OpenSampleEditor(const char *path, bool projectPool,
                                       UiApplicationPage returnPage);

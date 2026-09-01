@@ -97,6 +97,7 @@ public:
     return projectRender_.Active() || projectLifecycle_.Active() ||
            sampleBrowser_.DialogActive() || deviceLifecycle_.Active() ||
            instrumentLifecycle_.Active() || sampleEditor_.DialogActive() ||
+           sampleSlices_.DialogActive() ||
            rename_.Active() || feedback_.Active();
   }
   [[nodiscard]] Ui2DialogSnapshot DialogSnapshot() const override {
@@ -112,13 +113,15 @@ public:
       return instrumentLifecycle_.Snapshot();
     if (sampleEditor_.DialogActive())
       return sampleEditor_.DialogSnapshot();
+    if (sampleSlices_.DialogActive())
+      return sampleSlices_.DialogSnapshot();
     return rename_.Active() ? rename_.Snapshot() : feedback_.Snapshot();
   }
   [[nodiscard]] std::uint32_t DialogInstanceId() const override {
-    // Modal owners need three tag bits. The owner tag prevents equal
+    // Modal owners need four tag bits. The owner tag prevents equal
     // local counters from making a newly opened Render/Firmware dialog look
     // like the previous modal instance.
-    constexpr std::uint32_t tagBits = 3U;
+    constexpr std::uint32_t tagBits = 4U;
     if (projectRender_.Active())
       return (projectRender_.InstanceId() << tagBits) | 3U;
     if (projectLifecycle_.Active())
@@ -131,6 +134,8 @@ public:
       return (instrumentLifecycle_.InstanceId() << tagBits) | 5U;
     if (sampleEditor_.DialogActive())
       return (sampleEditor_.DialogInstanceId() << tagBits) | 7U;
+    if (sampleSlices_.DialogActive())
+      return (sampleSlices_.DialogInstanceId() << tagBits) | 8U;
     if (rename_.Active())
       return rename_.InstanceId() << tagBits;
     return (feedback_.InstanceId() << tagBits) | 6U;

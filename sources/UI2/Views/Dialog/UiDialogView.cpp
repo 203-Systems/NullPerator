@@ -29,6 +29,8 @@ constexpr std::string_view ActionLabel(UiDialogAction action) {
     return "SAVE";
   case UiDialogAction::Random:
     return "RANDOM";
+  case UiDialogAction::Replace:
+    return "REPLACE";
   }
   return {};
 }

@@ -683,10 +683,11 @@ TEST_CASE("UI2 Sample Slices selects moves previews adds and deletes") {
 
   Tap(controller, TrackerAction::Right); // slot 2
   Tap(controller, TrackerAction::Right); // slot 3, initially undefined
-  const Ui2SampleSlicesCommand added = controller.AddSelectedAt(700U);
+  const Ui2SampleSlicesCommand added = Tap(controller, TrackerAction::Enter);
   CHECK(added.type == Ui2SampleSlicesCommandType::AddSlice);
   CHECK((controller.DefinedMask() & 0x0008U) != 0U);
-  const Ui2SampleSlicesCommand deleted = controller.DeleteSelected();
+  const Ui2SampleSlicesCommand deleted =
+      Chord(controller, TrackerAction::Shift, TrackerAction::Enter);
   CHECK(deleted.type == Ui2SampleSlicesCommandType::DeleteSlice);
   CHECK((controller.DefinedMask() & 0x0008U) == 0U);
 }
@@ -717,7 +718,32 @@ TEST_CASE("UI2 Sample Slices emits auto-slice request before replacement") {
   CHECK(controller.Snapshot().markers.count == 5U);
 }
 
-TEST_CASE("UI2 Sample Slices exposes existing-slice replacement as locked") {
+TEST_CASE("UI2 Sample Slices deletion keeps slice notes contiguous") {
+  using namespace ui2;
+  Config::SetImportResampler(0);
+  SampleWaveFileSystem fileSystem;
+  fileSystem.BuildPcm(1024U);
+  Ui2SampleWaveformBackend waveform;
+  Ui2SampleSlicesController controller(waveform);
+  REQUIRE(controller.OpenPath(fileSystem, "LOOP.WAV") ==
+          Ui2SampleWaveformLoadResult::Loaded);
+  std::array<std::uint32_t, Ui2SampleSlicesController::SliceCapacity> points{};
+  points[0] = 0U;
+  points[1] = 256U;
+  points[2] = 512U;
+  controller.SynchronizeSlices(points, 0x0007U);
+
+  Tap(controller, TrackerAction::Right);
+  const Ui2SampleSlicesCommand deleted =
+      Chord(controller, TrackerAction::Shift, TrackerAction::Enter);
+  CHECK(deleted.type == Ui2SampleSlicesCommandType::DeleteSlice);
+  CHECK(controller.DefinedMask() == 0x0003U);
+  CHECK(controller.SlicePoints()[0] == 0U);
+  CHECK(controller.SlicePoints()[1] == 512U);
+  CHECK(std::strcmp(controller.Snapshot().slice.data(), "02 / 02") == 0);
+}
+
+TEST_CASE("UI2 Sample Slices confirms replacement of existing slices") {
   using namespace ui2;
   Config::SetImportResampler(0);
   SampleWaveFileSystem fileSystem;
@@ -735,11 +761,32 @@ TEST_CASE("UI2 Sample Slices exposes existing-slice replacement as locked") {
   const SampleSlicesViewUi2Snapshot snapshot = controller.Snapshot();
   CHECK_FALSE(snapshot.autoSliceApplyAvailable);
   CHECK_FALSE(Tap(controller, TrackerAction::Enter).HasValue());
+  CHECK(controller.DialogActive());
+  CHECK(controller.DialogSnapshot().actions[0] == UiDialogAction::Cancel);
+  CHECK(controller.DialogSnapshot().actions[1] == UiDialogAction::Replace);
+
+  // The opening ENTER release belongs to the dialog before another press can
+  // accept the destructive action.
+  CHECK_FALSE(controller.HandleDialog(TrackerAction::Enter, false).HasValue());
+  const Ui2SampleSlicesCommand replace =
+      controller.HandleDialog(TrackerAction::Enter, true);
+  CHECK(replace.type == Ui2SampleSlicesCommandType::ReplaceAutoSlices);
+  CHECK(replace.count == 4U);
+  CHECK_FALSE(controller.DialogActive());
+
+  CHECK_FALSE(Tap(controller, TrackerAction::Enter).HasValue());
+  CHECK(controller.DialogActive());
+  CHECK_FALSE(controller.HandleDialog(TrackerAction::Enter, false).HasValue());
+  CHECK_FALSE(controller.HandleDialog(TrackerAction::Left, true).HasValue());
+  CHECK_FALSE(controller.HandleDialog(TrackerAction::Left, false).HasValue());
+  CHECK_FALSE(controller.HandleDialog(TrackerAction::Enter, true).HasValue());
+  CHECK_FALSE(controller.DialogActive());
+  CHECK(controller.DefinedMask() == 0x0003U);
 
   const UiSampleSlicesControllerState state =
       MakeUiSampleSlicesControllerState(snapshot);
   CHECK_FALSE(state.ToViewData().autoSliceApplyAvailable);
-  CHECK(std::strcmp(state.help.data(), "EXISTING SLICES  AUTO LOCKED") == 0);
+  CHECK(std::strcmp(state.help.data(), "ENTER REPLACE EVEN SLICES") == 0);
 }
 
 TEST_CASE("UI2 Sample Slices clamps synchronized and moved markers") {

@@ -1057,7 +1057,9 @@ UiApplicationActivityState Ui2NativeApplicationStateSource::CaptureSampleEditor(
       {.enterHeld =
            (held & TrackerActionBit(TrackerAction::Enter)) != 0U,
        .optionHeld =
-           (held & TrackerActionBit(TrackerAction::Option)) != 0U});
+           (held & TrackerActionBit(TrackerAction::Option)) != 0U,
+       .shiftHeld =
+           (held & TrackerActionBit(TrackerAction::Shift)) != 0U});
   return {.active = snapshot.playing};
 }
 
@@ -1070,7 +1072,9 @@ UiApplicationActivityState Ui2NativeApplicationStateSource::CaptureSampleSlices(
       {.enterHeld =
            (held & TrackerActionBit(TrackerAction::Enter)) != 0U,
        .optionHeld =
-           (held & TrackerActionBit(TrackerAction::Option)) != 0U});
+           (held & TrackerActionBit(TrackerAction::Option)) != 0U,
+       .shiftHeld =
+           (held & TrackerActionBit(TrackerAction::Shift)) != 0U});
   return {.active = snapshot.previewActive};
 }
 

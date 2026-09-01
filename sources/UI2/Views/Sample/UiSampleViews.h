@@ -123,6 +123,7 @@ struct UiSampleSlicesViewData {
   std::span<const UiSampleWaveformMarker> markers{};
   std::uint32_t waveformRevision = 0;
   std::uint8_t selectedMarker = 1;
+  std::uint8_t bottomActive = 1;
   UiSampleSlicesCursor cursor = UiSampleSlicesCursor::Status;
   RectI16 cursorVisualRect{};
   bool cursorVisualOverride = false;
