@@ -245,8 +245,8 @@
           <div class="row-copy"><strong>SOFTWARE VERSION</strong><small>Application and firmware builds</small></div>
           <div class="version-side">
             <div class="version-values">
-              <span><b>iOS</b>{iosVersion} ({iosBuild})</span>
-              <span><b>NULLPERATOR</b>{nullPeratorVersion}</span>
+              <b>iOS</b><span>{iosVersion} ({iosBuild})</span>
+              <b>NULLPERATOR</b><span>{nullPeratorVersion}</span>
             </div>
             <span class:open={softwareBuildOpen} class="version-disclosure" aria-hidden="true">›</span>
           </div>
@@ -296,9 +296,9 @@
   .toggle i { position:absolute; inset:5px; border-radius:1px; background:#555; transition:background 140ms ease; }
   .toggle.on { border-color:#49d6e6; background:#102a2d; }
   .toggle.on i { background:#49d6e6; }
-  .version-values { display:grid; flex:0 0 auto; gap:5px; color:#aaa; font-size:9px; letter-spacing:.04em; text-align:right; }
-  .version-values span { display:flex; justify-content:flex-end; gap:7px; white-space:nowrap; }
-  .version-values b { color:#666; font-size:8px; letter-spacing:.08em; }
+  .version-values { display:grid; grid-template-columns:max-content max-content; flex:0 0 auto; align-items:baseline; column-gap:8px; row-gap:5px; color:#aaa; font-size:9px; letter-spacing:.04em; }
+  .version-values span { white-space:nowrap; text-align:left; }
+  .version-values b { color:#666; font-size:8px; letter-spacing:.08em; text-align:right; }
   .version-row { grid-column:1 / -1; }
   .version-side { display:flex; flex:0 0 auto; align-items:center; gap:12px; }
   .version-disclosure { display:grid; width:22px; height:22px; place-items:center; color:#888; font:300 25px/1 system-ui; transition:transform 160ms ease,color 120ms ease; }
