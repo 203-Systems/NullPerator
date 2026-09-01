@@ -195,7 +195,7 @@ TEST_CASE("Rename keyboard case bypasses the global label case mode") {
       });
   REQUIRE(upperShift != upper.commands.end());
   CHECK(upperShift->color ==
-        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextColored));
+        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextDim));
 }
 
 TEST_CASE("Rename special-key icons preserve approved pixel geometry") {
@@ -231,7 +231,7 @@ TEST_CASE("Rename special-key icons preserve approved pixel geometry") {
   ui2::UiIndexedSurface upper(upperStorage);
   ui2::UiFrameRenderer::RenderStatic(upperScene, upper, palette);
   CHECK(upper.Pixel(26, 172) ==
-        palette.Index(ui2::UiColorToken::TextColored));
+        palette.Index(ui2::UiColorToken::TextDim));
 }
 
 TEST_CASE("Rename cursor-only changes are pixel-identical to full redraw") {

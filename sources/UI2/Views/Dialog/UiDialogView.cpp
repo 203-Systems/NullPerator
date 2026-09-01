@@ -206,8 +206,7 @@ void RenderRename(const UiDialogViewData &data,
     if (index == 0U) {
       const UiColorToken shiftColor =
           selectedInk    ? UiColorToken::TextHighlighted
-          : data.uppercase ? UiColorToken::TextColored
-                           : UiColorToken::TextDim;
+                         : UiColorToken::TextDim;
       builder.PixelMask(
           {21, 169, 11, 11},
           data.uppercase ? std::span{kShiftSolid} : std::span{kShiftOutline},
