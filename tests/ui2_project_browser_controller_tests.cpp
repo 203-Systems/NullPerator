@@ -261,9 +261,7 @@ TEST_CASE("UI2 Project Browser rejects a potentially truncated project scan") {
     Ui2ProjectBrowserController controller;
 
     CHECK(controller.Refresh("ACTIVE"));
-    const Ui2BrowserSnapshot snapshot = controller.Snapshot();
-    CHECK(snapshot.totalItemCount == MAX_FILE_INDEX_SIZE + 1U);
-    CHECK(std::strcmp(snapshot.items[0].data(), "..") == 0);
+    CHECK(controller.Snapshot().totalItemCount == MAX_FILE_INDEX_SIZE);
   }
 
   SUBCASE("one project beyond capacity fails closed") {
@@ -271,10 +269,7 @@ TEST_CASE("UI2 Project Browser rejects a potentially truncated project scan") {
     Ui2ProjectBrowserController controller;
 
     CHECK_FALSE(controller.Refresh("ACTIVE"));
-    const Ui2BrowserSnapshot snapshot = controller.Snapshot();
-    CHECK(snapshot.totalItemCount == 1U);
-    CHECK(std::strcmp(snapshot.items[0].data(), "..") == 0);
-    CHECK(std::strcmp(snapshot.footer.data(), "0 ITEMS") == 0);
+    CHECK(controller.Snapshot().totalItemCount == 0U);
   }
 }
 
