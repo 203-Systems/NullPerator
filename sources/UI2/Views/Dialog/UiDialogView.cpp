@@ -237,7 +237,7 @@ void RenderRename(const UiDialogViewData &data,
     const bool save = data.actions[index] == UiDialogAction::Save;
     const bool enabled = !save || data.saveEnabled;
     const UiColorToken color =
-        !enabled ? UiColorToken::TextDim
+        !enabled ? UiColorToken::DerivedTextFaint
         : selected ? UiColorToken::TextColored
                    : UiColorToken::TextDim;
     builder.CenteredText(label, center, 218, color);

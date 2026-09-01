@@ -160,6 +160,15 @@ TEST_CASE("Rename page exposes pixel icons and three actions") {
   REQUIRE(save != nullptr);
   CHECK(save->color ==
         static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextDim));
+
+  data.saveEnabled = false;
+  ui2::UiFrameScene disabledScene;
+  REQUIRE(ui2::UiDialogView::Apply(data, disabledScene) ==
+          ui2::UiBuildStatus::Built);
+  save = FindTextCommand(disabledScene.overlay.Stream(), "SAVE");
+  REQUIRE(save != nullptr);
+  CHECK(save->color == static_cast<ui2::PaletteIndex>(
+                           ui2::UiColorToken::DerivedTextFaint));
 }
 
 TEST_CASE("Rename keyboard case bypasses the global label case mode") {
