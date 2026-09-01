@@ -45,6 +45,17 @@ function center(box) {
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 }
 }
 
+function expectPointClose(actual, expected, tolerance = 1.25) {
+  expect(Math.abs(actual.x - expected.x)).toBeLessThanOrEqual(tolerance)
+  expect(Math.abs(actual.y - expected.y)).toBeLessThanOrEqual(tolerance)
+}
+
+function expectBoxClose(actual, expected, tolerance = 1) {
+  for (const key of ['x', 'y', 'width', 'height']) {
+    expect(Math.abs(actual[key] - expected[key])).toBeLessThanOrEqual(tolerance)
+  }
+}
+
 async function installNativeBridge(page) {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'requestMIDIAccess', {
@@ -173,7 +184,7 @@ for (const device of devices) {
       // Preserve the established iPhone layout: the face-button pair sits
       // slightly to the right so ENTER has a comfortable trailing margin.
       expect(upperControlsOffset).toBeGreaterThanOrEqual(0)
-      expect(upperControlsOffset).toBeLessThanOrEqual(3.1)
+      expect(upperControlsOffset).toBeLessThanOrEqual(4)
     } else {
       expect(Math.abs(upperControlsOffset)).toBeLessThanOrEqual(2)
     }
@@ -185,8 +196,7 @@ for (const device of devices) {
       expect(Math.abs(center(actionBoxes.get('play')).x - directionCenter.x)).toBeLessThanOrEqual(2)
       expect(Math.abs(center(actionBoxes.get('shift')).x - faceCenter.x)).toBeLessThanOrEqual(2)
     } else {
-      const upperVerticalTolerance = device.width < 500 ? 5 : 2
-      expect(Math.abs(directionCenter.y - faceCenter.y)).toBeLessThanOrEqual(upperVerticalTolerance)
+      expect(Math.abs(directionCenter.y - faceCenter.y)).toBeLessThanOrEqual(2)
     }
 
     const settings = page.getByRole('button', { name: 'Open settings' })
@@ -198,6 +208,22 @@ for (const device of devices) {
     expect(settingsBox.y + settingsBox.height).toBeLessThanOrEqual(device.height)
     expect(Math.abs(center(settingsBox).y - bottomCenter.y)).toBeLessThanOrEqual(2)
     for (const box of boxes) expect(intersects(settingsBox, box)).toBe(false)
+
+    if (device.name === 'iPhone Pro portrait') {
+      // Approved native layout: IMG_3475.PNG is a 3x capture of this
+      // 402x874 viewport. Keep its major geometry stable pixel-for-pixel.
+      const bezelBox = await page.locator('.screen-bezel').boundingBox()
+      expectBoxClose(bezelBox, { x: 21, y: 100, width: 360, height: 360 })
+      expectPointClose(center(actionBoxes.get('up')), { x: 104.5, y: 558.5 })
+      expectPointClose(center(actionBoxes.get('left')), { x: 46.25, y: 616.75 })
+      expectPointClose(center(actionBoxes.get('down')), { x: 104.5, y: 675 })
+      expectPointClose(center(actionBoxes.get('right')), { x: 162.75, y: 616.75 })
+      expectBoxClose(actionBoxes.get('option'), { x: 221, y: 578, width: 76.5, height: 76.5 })
+      expectBoxClose(actionBoxes.get('edit'), { x: 309, y: 578, width: 76.5, height: 76.5 })
+      expectBoxClose(actionBoxes.get('shift'), { x: 74, y: 770, width: 117, height: 62 })
+      expectBoxClose(actionBoxes.get('play'), { x: 213, y: 770, width: 117, height: 62 })
+      expectBoxClose(settingsBox, { x: 352, y: 780, width: 42, height: 42 })
+    }
 
     await saveScreenshot(page, testInfo, device, 'main')
     if (captureScreenshots) {
