@@ -14,7 +14,7 @@ function entry(action, ...bindings) {
   return Object.freeze({ action, bindings: Object.freeze(bindings.map((binding) => Object.freeze(binding))) })
 }
 
-// M8 semantic layout over the Node A/B/SELECT/START hardware positions.
+// Nullperator's fixed product-semantic keyboard layout.
 export const DEFAULT_KEY_MAP = Object.freeze({
   left: entry(ACTIONS.left, ['KeyA'], ['ArrowLeft']),
   down: entry(ACTIONS.down, ['KeyS'], ['ArrowDown']),

@@ -8,17 +8,16 @@
 
 #include <cstdint>
 
-// Stable M8-style UI2 action order. Platform adapters translate their raw
-// button labels (A/B/SELECT/START) into these semantic actions exactly once.
+// Stable product action order shared by native and Web input adapters.
 enum class TrackerAction : std::uint8_t {
   Left = 0,
   Down,
   Right,
   Up,
-  Shift,  // Node START; M8 page/navigation modifier.
-  Option, // Node B; M8 context/fast-action modifier.
-  Enter,  // Node A; confirm/data-entry action.
-  Play,   // Node SELECT; immediate context playback action.
+  Shift,  // Page/navigation modifier.
+  Option, // Context/fast-action modifier.
+  Enter,  // Confirm/data-entry action.
+  Play,   // Immediate context playback action.
   Reserved8,
   Reserved9,
   Power = 10,
@@ -39,7 +38,7 @@ enum TrackerButtonMask : std::uint16_t {
   EPBM_SHIFT = TrackerActionBit(TrackerAction::Shift),
   EPBM_OPTION = TrackerActionBit(TrackerAction::Option),
   EPBM_ENTER = TrackerActionBit(TrackerAction::Enter),
-  EPBM_M8_PLAY = TrackerActionBit(TrackerAction::Play),
+  EPBM_PLAY = TrackerActionBit(TrackerAction::Play),
   EPBM_POWER = TrackerActionBit(TrackerAction::Power),
 };
 

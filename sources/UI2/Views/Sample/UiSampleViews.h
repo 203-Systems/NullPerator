@@ -117,7 +117,7 @@ struct UiSampleSlicesViewData {
   std::string_view start = "000064";
   std::string_view zoom = "1X";
   std::string_view autoSliceCount{};
-  std::string_view help = "NAV SELECT  ENTER FINE";
+  std::string_view help = "PLAY PREVIEW  OPTION ZOOM";
   // The model only rebuilds this packet when waveformRevision changes.
   std::span<const std::uint8_t> waveformMask{};
   std::span<const UiSampleWaveformMarker> markers{};

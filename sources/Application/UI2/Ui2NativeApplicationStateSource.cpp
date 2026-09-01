@@ -221,7 +221,7 @@ Ui2NativeApplicationStateSource::CaptureSong(UiSongFrameState &state) {
   state.selectionNextExpansionAll =
       state.selectionActive && controller.Selection().Left() == 0U &&
       controller.Selection().Right() == kUi2TrackerTrackCount - 1U;
-  state.navHeld = navigationHeld_;
+  state.navigationHeld = navigationHeld_;
   for (std::uint8_t row = 0; row < 16U; ++row) {
     for (std::uint8_t track = 0; track < SONG_CHANNEL_COUNT; ++track) {
       state.rows[row][track] = project.song_.data_[
@@ -281,7 +281,7 @@ Ui2NativeApplicationStateSource::CaptureChain(UiChainFrameState &state) {
   state.selectionNextExpansionAll =
       state.selectionActive && controller.Selection().Left() == 0U &&
       controller.Selection().Right() == 1U;
-  state.navHeld = navigationHeld_;
+  state.navigationHeld = navigationHeld_;
   if (controller.Selection().active) {
     const auto &selection = controller.Selection();
     state.selectionVisualRect = UiChainView::SelectionTargetRect(
@@ -333,7 +333,7 @@ Ui2NativeApplicationStateSource::CapturePhrase(UiPhraseFrameState &state) {
   state.selectionNextExpansionAll =
       state.selectionActive && controller.Selection().Left() == 0U &&
       controller.Selection().Right() == 5U;
-  state.navHeld = navigationHeld_;
+  state.navigationHeld = navigationHeld_;
   state.activeHeader = controller.Column() == 0U   ? UiPhraseHeader::Note
                        : controller.Column() == 1U ? UiPhraseHeader::Instrument
                        : controller.Column() <= 3U ? UiPhraseHeader::Fx1
@@ -432,7 +432,7 @@ Ui2NativeApplicationStateSource::CaptureTable(UiTableFrameState &state) {
   state.selectionNextExpansionAll =
       state.selectionActive && controller.Selection().Left() == 0U &&
       controller.Selection().Right() == 5U;
-  state.navHeld = navigationHeld_;
+  state.navigationHeld = navigationHeld_;
   state.activeHeader = controller.Column() < 2U   ? UiTableHeader::Fx1
                        : controller.Column() < 4U ? UiTableHeader::Fx2
                                                    : UiTableHeader::Fx3;
