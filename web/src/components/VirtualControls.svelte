@@ -194,6 +194,12 @@
   @media(orientation:portrait){
     .operator-controls.native-host { align-self:center; }
   }
+  @media(max-width:499px) and (orientation:portrait){
+    .operator-controls.native-host {
+      grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+      padding-inline:46px;
+    }
+  }
   @media(min-width:500px) and (orientation:portrait){
     .operator-controls.native-host { --control-slot-edge:66px; --face-edge:88px; --bottom-w:142px; --bottom-h:68px; --bottom-gap:30px; --upper-controls-top:clamp(64px,7.5dvh,82px); width:min(100%,720px); padding-inline:42px; }
     .operator-controls.native-host .face-buttons { gap:18px; }

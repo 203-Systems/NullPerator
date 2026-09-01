@@ -178,6 +178,12 @@ for (const device of devices) {
       expect(Math.abs(center(actionBoxes.get('shift')).x - faceCenter.x)).toBeLessThanOrEqual(2)
     } else {
       expect(Math.abs(directionCenter.y - faceCenter.y)).toBeLessThanOrEqual(2)
+      if (device.width < 500) {
+        expect(canvasBox.y).toBeGreaterThanOrEqual(56)
+        expect(directionBox.x).toBeGreaterThanOrEqual(20)
+        expect(faceBox.x + faceBox.width).toBeLessThanOrEqual(device.width - 20)
+        expect(device.height - (bottomBox.y + bottomBox.height)).toBeGreaterThanOrEqual(20)
+      }
     }
 
     const settings = page.getByRole('button', { name: 'Open settings' })
@@ -188,6 +194,9 @@ for (const device of devices) {
     expect(settingsBox.x + settingsBox.width).toBeLessThanOrEqual(device.width)
     expect(settingsBox.y + settingsBox.height).toBeLessThanOrEqual(device.height)
     expect(Math.abs(center(settingsBox).y - bottomCenter.y)).toBeLessThanOrEqual(2)
+    if (device.width < 500 && device.height > device.width) {
+      expect(device.width - (settingsBox.x + settingsBox.width)).toBeGreaterThanOrEqual(18)
+    }
     for (const box of boxes) expect(intersects(settingsBox, box)).toBe(false)
 
     await saveScreenshot(page, testInfo, device, 'main')

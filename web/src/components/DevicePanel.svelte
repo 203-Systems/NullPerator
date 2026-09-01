@@ -358,6 +358,12 @@
     .compact.native-host .operator-device{height:100%;min-height:0}
     .compact.native-host :global(.operator-controls){position:relative;left:auto;bottom:auto;margin-top:12px}
   }
+  @media(max-width:499px) and (orientation:portrait){
+    .native-host .device-scene {
+      padding-top:max(56px,calc(env(safe-area-inset-top) + 28px));
+      padding-bottom:max(20px,env(safe-area-inset-bottom));
+    }
+  }
   @media(orientation:landscape){
     .native-host .device-scene {
       align-items:center;

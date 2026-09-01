@@ -345,6 +345,12 @@
   .privacy-page section p { margin:0; color:#888; font-size:9px; line-height:1.55; }
   .privacy-contact { min-height:40px; border:1px solid #3d6870; border-radius:3px; color:#49d6e6; background:#0a1719; font-size:8px; letter-spacing:.1em; }
   .privacy-contact:active { color:#050505; border-color:#49d6e6; background:#49d6e6; }
+  @media(max-width:499px) and (orientation:portrait){
+    .settings-trigger {
+      right:max(18px,env(safe-area-inset-right));
+      bottom:calc(max(20px,env(safe-area-inset-bottom)) + 10px);
+    }
+  }
   @media(min-width:500px) and (orientation:portrait){
     .settings-trigger { bottom:calc(max(8px,env(safe-area-inset-bottom)) + 13px); }
   }
