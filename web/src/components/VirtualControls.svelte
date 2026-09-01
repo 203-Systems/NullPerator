@@ -204,8 +204,6 @@
       margin-top:calc(var(--upper-controls-top) + var(--control-gap) + (var(--control-edge) - var(--face-edge)) / 2 - .25px);
       margin-left:12px;
     }
-    .operator-controls.native-host .bottom-buttons button:first-child { grid-column:2; grid-row:1; }
-    .operator-controls.native-host .bottom-buttons button:last-child { grid-column:1; grid-row:1; }
   }
   @media(min-width:500px) and (orientation:portrait){
     .operator-controls.native-host { --control-slot-edge:66px; --face-edge:88px; --bottom-w:142px; --bottom-h:68px; --bottom-gap:30px; --upper-controls-top:clamp(64px,7.5dvh,82px); width:min(100%,720px); padding-inline:42px; }

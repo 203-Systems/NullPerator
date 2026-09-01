@@ -220,8 +220,8 @@ for (const device of devices) {
       expectPointClose(center(actionBoxes.get('right')), { x: 162.75, y: 616.75 })
       expectBoxClose(actionBoxes.get('option'), { x: 221, y: 578, width: 76.5, height: 76.5 })
       expectBoxClose(actionBoxes.get('enter'), { x: 309, y: 578, width: 76.5, height: 76.5 })
-      expectBoxClose(actionBoxes.get('shift'), { x: 74, y: 770, width: 117, height: 62 })
-      expectBoxClose(actionBoxes.get('play'), { x: 213, y: 770, width: 117, height: 62 })
+      expectBoxClose(actionBoxes.get('play'), { x: 74, y: 770, width: 117, height: 62 })
+      expectBoxClose(actionBoxes.get('shift'), { x: 213, y: 770, width: 117, height: 62 })
       expectBoxClose(settingsBox, { x: 352, y: 780, width: 42, height: 42 })
     }
 

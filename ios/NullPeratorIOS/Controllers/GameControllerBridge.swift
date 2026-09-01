@@ -94,12 +94,12 @@ final class GameControllerBridge {
         // `microGamepad` entirely.
         bindSystemButton(
             controller.physicalInputProfile.buttons[GCInputButtonMenu],
-            action: "shift",
+            action: "play",
             source: "start/menu"
         )
         let select = controller.physicalInputProfile.buttons[GCInputButtonOptions]
             ?? controller.physicalInputProfile.buttons[GCInputButtonShare]
-        bindSystemButton(select, action: "play", source: "select/options/share")
+        bindSystemButton(select, action: "shift", source: "select/options/share")
     }
 
     private func bindSystemButton(
