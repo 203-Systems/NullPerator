@@ -66,7 +66,7 @@ public:
       ReadName(index, name, sizeof(name));
       if (std::strcmp(name, preferredProject) != 0)
         continue;
-      selected_ = static_cast<std::uint16_t>(index + NavigationRowCount());
+      selected_ = static_cast<std::uint16_t>(index + (HasParent() ? 1U : 0U));
       KeepSelectionVisible();
       return true;
     }
@@ -95,8 +95,6 @@ public:
       count_ = 0U;
       return false;
     }
-    if (count_ != 0U)
-      selected_ = NavigationRowCount();
     return true;
   }
 
@@ -119,13 +117,13 @@ public:
     } else if (action == TrackerAction::Right) {
       MoveAction(1);
     } else if (action == TrackerAction::Edit) {
-      const std::uint16_t navigationRows = NavigationRowCount();
-      if (navigationRows != 0U && selected_ == 0U) {
+      const std::uint16_t parentRows = HasParent() ? 1U : 0U;
+      if (parentRows != 0U && selected_ == 0U) {
         NavigateParent();
         return {};
       }
       const std::uint16_t directoryIndex =
-          static_cast<std::uint16_t>(selected_ - navigationRows);
+          static_cast<std::uint16_t>(selected_ - parentRows);
       if (!InProjectDirectory()) {
         NavigateInto(directoryIndex);
         return {};
@@ -154,16 +152,16 @@ public:
     Ui2BrowserSnapshot::CopyText(
         snapshot.meta, depth_ == 0U ? "/" : path_[depth_ - 1U].data());
     snapshot.ConfigureWindow(RowCount(), selected_, top_);
-    const std::uint16_t navigationRows = NavigationRowCount();
+    const std::uint16_t parentRows = HasParent() ? 1U : 0U;
     for (std::uint8_t row = 0U; row < snapshot.visibleItemCount; ++row) {
       const std::uint16_t listIndex =
           static_cast<std::uint16_t>(snapshot.topIndex + row);
-      if (navigationRows != 0U && listIndex == 0U) {
+      if (parentRows != 0U && listIndex == 0U) {
         Ui2BrowserSnapshot::CopyText(snapshot.items[row], "..");
         continue;
       }
       char name[Ui2BrowserSnapshot::ItemTextCapacity]{};
-      ReadName(static_cast<std::uint16_t>(listIndex - navigationRows), name,
+      ReadName(static_cast<std::uint16_t>(listIndex - parentRows), name,
                sizeof(name));
       char display[Ui2BrowserSnapshot::ItemTextCapacity]{};
       const char *activeProject =
@@ -178,17 +176,15 @@ public:
     }
     std::snprintf(snapshot.footer.data(), snapshot.footer.size(), "%u ITEM%s",
                   static_cast<unsigned>(count_), count_ == 1U ? "" : "S");
-    const bool navigationSelected =
-        navigationRows != 0U && selected_ == 0U;
-    Ui2BrowserSnapshot::CopyText(snapshot.actions[0], navigationSelected
-                                                         ? "UP"
-                                                         : InProjectDirectory()
-                                                               ? "LOAD"
-                                                               : "OPEN");
+    const bool parentSelected = parentRows != 0U && selected_ == 0U;
+    Ui2BrowserSnapshot::CopyText(snapshot.actions[0], parentSelected ? "UP"
+                                                      : InProjectDirectory()
+                                                          ? "LOAD"
+                                                          : "OPEN");
     snapshot.actionCount = snapshot.hasSelection ? 1U : 0U;
-    if (snapshot.hasSelection && !navigationSelected && InProjectDirectory()) {
+    if (snapshot.hasSelection && !parentSelected && InProjectDirectory()) {
       char selectedName[Ui2BrowserSnapshot::ItemTextCapacity]{};
-      ReadName(static_cast<std::uint16_t>(selected_ - navigationRows), selectedName,
+      ReadName(static_cast<std::uint16_t>(selected_ - parentRows), selectedName,
                sizeof(selectedName));
       if (!IsCurrentProject(selectedName)) {
         Ui2BrowserSnapshot::CopyText(snapshot.actions[1], "DELETE");
@@ -208,17 +204,14 @@ private:
   }
 
   [[nodiscard]] std::uint16_t RowCount() const {
-    return static_cast<std::uint16_t>(count_ + NavigationRowCount());
-  }
-
-  [[nodiscard]] std::uint16_t NavigationRowCount() const {
-    return HasParent() ? 1U : 0U;
+    return static_cast<std::uint16_t>(count_ + (HasParent() ? 1U : 0U));
   }
 
   [[nodiscard]] bool HasParent() const {
-    // depth 0 is the simulated SD-card root. Every folder below it exposes a
-    // real ".." row that navigates one directory upward.
-    return depth_ > 0U;
+    // /projects is the product root, not merely the initial filesystem
+    // location. Exposing its parent leaks unrelated /data content and makes
+    // the synthetic ".." row look like a way to leave the browser.
+    return depth_ > 1U;
   }
 
   [[nodiscard]] bool InProjectDirectory() const {
@@ -245,8 +238,8 @@ private:
       return;
     }
     char project[Ui2BrowserSnapshot::ItemTextCapacity]{};
-    const std::uint16_t navigationRows = NavigationRowCount();
-    ReadName(static_cast<std::uint16_t>(selected_ - navigationRows), project,
+    const std::uint16_t parentRows = HasParent() ? 1U : 0U;
+    ReadName(static_cast<std::uint16_t>(selected_ - parentRows), project,
              sizeof(project));
     if (IsCurrentProject(project)) {
       activeAction_ = 0U;
@@ -258,9 +251,8 @@ private:
   }
 
   [[nodiscard]] bool HasProjectSelection() const {
-    const std::uint16_t navigationRows = NavigationRowCount();
-    return selected_ >= navigationRows &&
-           selected_ - navigationRows < count_;
+    const std::uint16_t parentRows = HasParent() ? 1U : 0U;
+    return selected_ >= parentRows && selected_ - parentRows < count_;
   }
 
   static constexpr const char *ProjectDirectoryName() {
@@ -279,7 +271,7 @@ private:
   }
 
   void NavigateParent() {
-    if (depth_ == 0U)
+    if (depth_ <= 1U)
       return;
     --depth_;
     path_[depth_].fill('\0');
