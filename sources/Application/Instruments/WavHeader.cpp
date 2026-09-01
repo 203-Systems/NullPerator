@@ -50,7 +50,7 @@ uint64_t PaddedChunkEnd(uint64_t dataStart, uint32_t chunkSize) {
   return dataStart + static_cast<uint64_t>(chunkSize) + (chunkSize & 1U);
 }
 
-bool IsCanonicalUnfinalizedHeader(I_File *file) {
+bool IsCanonicalHeaderLayout(I_File *file) {
   uint8_t header[44]{};
   if (!SeekTo(file, 0U) ||
       file->Read(header, static_cast<int>(sizeof(header))) !=
@@ -425,21 +425,21 @@ bool WavHeaderWriter::UpdateFileSize(I_File *file, uint32_t sampleCount,
   }
   const uint32_t logicalFileSize = static_cast<uint32_t>(finalPosition);
 
-  // Existing WAVs can have JUNK/LIST chunks or an extended fmt chunk, so use
-  // the parsed data offset rather than assuming the size field is byte 40.
-  // A newly written canonical header still has placeholder sizes and cannot
-  // pass ReadHeader, so accept only WriteHeader's exact layout as a fallback.
+  // Canonical files always place the data-size field at byte 40. Detect that
+  // layout before calling ReadHeader so a newly written header with placeholder
+  // sizes does not emit a spurious parse error during normal finalization.
+  // Existing noncanonical WAVs can have JUNK/LIST chunks or an extended fmt
+  // chunk, so use their parsed data offset instead.
   uint32_t dataSizeOffset = 0U;
-  const auto header = ReadHeader(file);
-  if (header.has_value()) {
-    if (header->dataOffset < sizeof(uint32_t))
-      return false;
-    dataSizeOffset = header->dataOffset - sizeof(uint32_t);
-  } else if (IsCanonicalUnfinalizedHeader(file)) {
+  if (IsCanonicalHeaderLayout(file)) {
     dataSizeOffset = 40U;
   } else {
-    Trace::Error("WAVHEADER: cannot locate data chunk size field");
-    return false;
+    const auto header = ReadHeader(file);
+    if (!header.has_value() || header->dataOffset < sizeof(uint32_t)) {
+      Trace::Error("WAVHEADER: cannot locate data chunk size field");
+      return false;
+    }
+    dataSizeOffset = header->dataOffset - sizeof(uint32_t);
   }
 
   const uint64_t dataSize = static_cast<uint64_t>(sampleCount) * channels *
