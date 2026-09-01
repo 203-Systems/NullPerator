@@ -158,6 +158,29 @@ TEST_CASE("Rename page exposes input keyboard case space and three actions") {
         static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextDim));
 }
 
+TEST_CASE("Rename keyboard case bypasses the global label case mode") {
+  ui2::UiDialogViewData data;
+  data.kind = ui2::UiDialogKind::Rename;
+  data.uppercase = false;
+
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiDialogView::Apply(data, scene) == ui2::UiBuildStatus::Built);
+  const ui2::UiCommandStream lower = scene.overlay.Stream();
+  const ui2::UiCommand *q = FindTextCommand(lower, "q");
+  const ui2::UiCommand *abc = FindTextCommand(lower, "abc");
+  REQUIRE(q != nullptr);
+  REQUIRE(abc != nullptr);
+  CHECK((q->parameter & 0x80U) != 0U);
+  CHECK((abc->parameter & 0x80U) != 0U);
+
+  data.uppercase = true;
+  REQUIRE(ui2::UiDialogView::Apply(data, scene) == ui2::UiBuildStatus::Built);
+  const ui2::UiCommand *upperQ =
+      FindTextCommand(scene.overlay.Stream(), "Q");
+  REQUIRE(upperQ != nullptr);
+  CHECK((upperQ->parameter & 0x80U) != 0U);
+}
+
 TEST_CASE("Rename cursor-only changes are pixel-identical to full redraw") {
   ui2::UiPalette palette;
   ui2::UiDialogViewData previous;

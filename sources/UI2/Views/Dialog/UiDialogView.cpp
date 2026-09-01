@@ -143,9 +143,12 @@ void RenderRename(const UiDialogViewData &data,
                            static_cast<std::int16_t>(row.y - 2),
                            13, 11});
       }
-      builder.Text(std::string_view(&key, 1), x, row.y,
-                   selectedInk ? UiColorToken::TextHighlighted
-                               : UiColorToken::TextDim);
+      // Keyboard case is interaction state, not a presentation preference.
+      // Preserve the selected glyph even when the global font mode requests
+      // all-upper or all-lower UI labels.
+      builder.LiteralText(std::string_view(&key, 1), x, row.y,
+                          selectedInk ? UiColorToken::TextHighlighted
+                                      : UiColorToken::TextDim);
       ++keyIndex;
     }
   }
@@ -160,12 +163,18 @@ void RenderRename(const UiDialogViewData &data,
         selected && (!data.cursorVisualOverride || data.cursorInkVisible);
     if (selected && !data.cursorVisualOverride)
       builder.Selection(kRenameSpecialKeys[index]);
-    builder.CenteredText(specialLabels[index],
-                         static_cast<std::int16_t>(
-                             kRenameSpecialKeys[index].x +
-                             kRenameSpecialKeys[index].width / 2),
-                         171, selectedInk ? UiColorToken::TextHighlighted
-                                          : UiColorToken::TextDim);
+    const std::int16_t center = static_cast<std::int16_t>(
+        kRenameSpecialKeys[index].x + kRenameSpecialKeys[index].width / 2);
+    if (index == 0U) {
+      builder.CenteredLiteralText(
+          specialLabels[index], center, 171,
+          selectedInk ? UiColorToken::TextHighlighted
+                      : UiColorToken::TextDim);
+    } else {
+      builder.CenteredText(specialLabels[index], center, 171,
+                           selectedInk ? UiColorToken::TextHighlighted
+                                       : UiColorToken::TextDim);
+    }
     ++keyIndex;
   }
 
