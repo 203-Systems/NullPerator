@@ -25,6 +25,7 @@
 #include "Application/Model/Groove.h"
 #include "Application/Model/Phrase.h"
 #include "Application/Model/ProjectParameterRestore.h"
+#include "Application/Model/ProjectVersion.h"
 #include "Application/Model/Song.h"
 #include "Application/Model/Table.h"
 #include "Application/Utils/HexBuffers.h"
@@ -754,6 +755,10 @@ TEST_CASE("Project PARAMETER restore stages a complete payload before commit") {
 
 TEST_CASE("Project version restore accepts release suffixes without float UB") {
   int version = 0;
+  CHECK(std::string_view(nullperator_project::FileVersion) == "NP0.1");
+  CHECK(ParseProjectVersionHundredthsForRestore("NP0.1", version));
+  CHECK(version ==
+        nullperator_project::PicoCompatibilityVersionHundredths);
   CHECK(ParseProjectVersionHundredthsForRestore("2.3-Beta3", version));
   CHECK(version == 230);
   CHECK(ParseProjectVersionHundredthsForRestore("2.30", version));
@@ -767,6 +772,7 @@ TEST_CASE("Project version restore accepts release suffixes without float UB") {
   CHECK_FALSE(ParseProjectVersionHundredthsForRestore(
       "999999999999999999999999999999", version));
   CHECK_FALSE(ParseProjectVersionHundredthsForRestore("nan", version));
+  CHECK_FALSE(ParseProjectVersionHundredthsForRestore("NP0.2", version));
 
   int ratio = 0;
   CHECK(ParsePersistedIntegerAttribute("1", 1, 64, ratio));

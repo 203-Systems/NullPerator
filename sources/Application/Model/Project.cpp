@@ -15,13 +15,12 @@
 #include "Application/Player/SyncMaster.h"
 #include "Foundation/Variables/WatchedVariable.h"
 #include "Groove.h"
+#include "ProjectParameterRestore.h"
 #include "Scale.h"
 #include "Services/Midi/MidiService.h"
 #include "System/Console/Trace.h"
 #include "System/io/Status.h"
 #include "Table.h"
-
-#include <math.h>
 
 #define DEFAULT_CHANNEL_VOLUME 99
 #define DEFAULT_PREVIEW_VOLUME 60
@@ -370,10 +369,18 @@ void Project::PurgeInstruments() {
 void Project::RestoreContent(PersistencyDocument *doc) {
   bool attr = doc->NextAttribute();
   doc->version_ = 32;
+  bool hasVersion = false;
   int tableRatio = 0;
   while (attr) {
     if (!strcmp(doc->attrname_, "VERSION")) {
-      doc->version_ = int(atof(doc->attrval_) * 100);
+      int parsedVersion = 0;
+      if (hasVersion || !ParseProjectVersionHundredthsForRestore(
+                            doc->attrval_, parsedVersion)) {
+        doc->MarkError();
+        return;
+      }
+      doc->version_ = parsedVersion;
+      hasVersion = true;
     }
     if (!strcmp(doc->attrname_, "TABLERATIO")) {
       tableRatio = atoi(doc->attrval_);
@@ -409,7 +416,7 @@ void Project::RestoreContent(PersistencyDocument *doc) {
 void Project::SaveContent(tinyxml2::XMLPrinter *printer) {
 
   // store project version
-  printer->PushAttribute("VERSION", PROJECT_NUMBER);
+  printer->PushAttribute("VERSION", nullperator_project::FileVersion);
 
   // store table ratio if not one
   int tableRatio = SyncMaster::GetInstance()->GetTableRatio();

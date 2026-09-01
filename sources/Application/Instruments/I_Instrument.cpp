@@ -107,7 +107,7 @@ I_Instrument::~I_Instrument() {
 
 void I_Instrument::SaveContent(tinyxml2::XMLPrinter *printer) {
   // Add firmware version information
-  printer->PushAttribute("VERSION", PROJECT_NUMBER);
+  printer->PushAttribute("VERSION", nullperator_project::FileVersion);
   // Save the instrument type
   printer->PushAttribute("TYPE", InstrumentTypeNames[GetType()]);
 

@@ -814,7 +814,7 @@ Ui2NativeApplicationStateSource::CaptureDevice(UiDeviceFrameState &state) {
       }
     }
   }
-  CopyUiText(state.version, nullperator_product::DisplayVersion);
+  CopyUiText(state.version, nullperator_product::Version);
   state.cursor = DeviceCursorFor(device_.SelectedField());
   state.enterHeld =
       (device_.HeldMask() & TrackerActionBit(TrackerAction::Enter)) != 0U;

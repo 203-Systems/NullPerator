@@ -3745,7 +3745,7 @@ TEST_CASE("UI2 Device idle frame stays clean") {
   REQUIRE(ui2::UiDeviceView::Build(data, palette, scene) ==
           ui2::UiBuildStatus::Built);
   const auto *version =
-      FindTextCommand(scene.content.Stream(), "NullPerator V0.1");
+      FindTextCommand(scene.content.Stream(), "0.1");
   REQUIRE(version != nullptr);
   CHECK(version->bounds.y == 194);
   ui2::UiSurfaceStorage storage;

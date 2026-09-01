@@ -5,6 +5,7 @@
 
 #include "ProjectParameterRestore.h"
 
+#include "Application/Model/ProjectVersion.h"
 #include "Application/Persistency/PersistencyAttribute.h"
 #include "Application/Persistency/PersistencyDocument.h"
 
@@ -42,6 +43,10 @@ bool IsVersionSuffixCharacter(char value) {
 bool ParseProjectVersionHundredthsForRestore(const char *text, int &result) {
   if (text == nullptr || text[0] == '\0')
     return false;
+  if (std::strcmp(text, nullperator_project::FileVersion) == 0) {
+    result = nullperator_project::PicoCompatibilityVersionHundredths;
+    return true;
+  }
   const char *cursor = text;
   int whole = 0;
   bool gotWhole = false;

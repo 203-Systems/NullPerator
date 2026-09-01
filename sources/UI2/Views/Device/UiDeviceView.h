@@ -40,7 +40,7 @@ struct UiDeviceViewData {
   std::string_view brightness = "100%";
   std::string_view theme = "DEFAULT";
   std::string_view font = "REGULAR";
-  std::string_view version = nullperator_product::DisplayVersion;
+  std::string_view version = nullperator_product::Version;
   std::array<std::string_view, 8> selectorOptions{};
   std::uint8_t selectorCount = 0;
   std::uint8_t selectorCurrent = 0;
