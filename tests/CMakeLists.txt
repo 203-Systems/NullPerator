@@ -472,6 +472,7 @@ target_sources(picoTracker_tests PRIVATE
   ui2_project_browser_controller_tests.cpp
   ui2_sample_browser_controller_tests.cpp
   ui2_sample_editor_controller_tests.cpp
+  ui2_sample_editor_save_workflow_tests.cpp
   ui2_sample_editor_transaction_tests.cpp
   ui2_settings_controller_tests.cpp
   ui2_tracker_grid_controller_tests.cpp

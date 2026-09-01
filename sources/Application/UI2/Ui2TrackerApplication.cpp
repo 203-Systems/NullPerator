@@ -15,6 +15,7 @@
 #include "Application/UI2/Ui2TransportPolicy.h"
 #include "Application/UI2/Workflows/Ui2FontWorkflow.h"
 #include "Application/UI2/Workflows/Ui2InstrumentWorkflow.h"
+#include "Application/UI2/Workflows/Ui2SampleEditorSaveWorkflow.h"
 #include "Application/UI2/Workflows/Ui2ThemeWorkflow.h"
 
 #include "Application/Audio/RecordingPlatform.h"
@@ -1472,20 +1473,32 @@ void Ui2TrackerApplication::ExecuteSampleEditor(
         sampleEditorTransaction_.Save();
     if (result != Ui2SampleEditorTransactionResult::Saved &&
         result != Ui2SampleEditorTransactionResult::NoChanges) {
-      if (Ui2SampleEditorSaveRequiresRecovery(result)) {
+      if (Ui2SampleEditorSaveWorkflow::ResolveFailure(result) ==
+          Ui2SampleEditorSaveFailureResolution::ReloadDestination) {
         if (RecoverSampleEditorDestination())
           ShowFeedbackError("SAMPLE SAVE FAILED");
       } else {
-        // A promotion SaveFailed leaves the prior working generation valid for
-        // the editor transaction. Reopening it here would delete that
-        // generation and turn a retryable storage failure into silent edit
-        // loss.
+        // The transaction result guarantees that the controller's current
+        // working path still names a validated generation.
         ShowFeedbackError("SAMPLE SAVE FAILED");
       }
       break;
     }
 
-    if (command.type == Ui2SampleEditorCommandType::RequestSaveAndLoad) {
+    const Ui2SampleEditorSaveFollowUp followUp =
+        Ui2SampleEditorSaveWorkflow::PrepareFollowUp(
+            result,
+            command.type == Ui2SampleEditorCommandType::RequestSaveAndLoad,
+            sampleReturnPage_ == UiApplicationPage::Browser &&
+                sampleBrowser_.Active(),
+            [this, &destination]() {
+              // Promotion recreates the directory entry. Restore the edited
+              // leaf before SAVE&LOAD import or return-page rendering can
+              // observe stale FAT indexes and metadata.
+              (void)sampleBrowser_.RefreshCurrentDirectoryAndSelect(
+                  destination.data());
+            });
+    if (followUp == Ui2SampleEditorSaveFollowUp::SaveAndLoad) {
       const char *error = nullptr;
       const bool imported =
           ImportSampleToCurrentInstrument(destination.data(), error);
@@ -1498,15 +1511,6 @@ void Ui2TrackerApplication::ExecuteSampleEditor(
       break;
     }
 
-    if (result == Ui2SampleEditorTransactionResult::Saved &&
-        sampleReturnPage_ == UiApplicationPage::Browser &&
-        sampleBrowser_.Active()) {
-      // The save promotion recreates the directory entry. Refresh before the
-      // browser renders or previews it so size/single-cycle metadata and the
-      // FAT index refer to the new generation, then restore the edited leaf.
-      (void)sampleBrowser_.RefreshCurrentDirectoryAndSelect(
-          destination.data());
-    }
     const bool projectPool = command.projectPool;
     (void)ActivatePage(sampleReturnPage_);
     if (projectPool) {

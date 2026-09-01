@@ -406,23 +406,53 @@ TEST_CASE("UI2 sample editor restores the original when promotion fails") {
   REQUIRE(transaction.ApplyTrim(1U, 3U) ==
           Ui2SampleEditorTransactionResult::Applied);
   fileSystem.FailMove(transaction.WorkingPath(), source);
-  CHECK(transaction.Save() == Ui2SampleEditorTransactionResult::SaveFailed);
+  CHECK(transaction.Save() ==
+        Ui2SampleEditorTransactionResult::SaveFailedRetryable);
   CHECK(fileSystem.Bytes(source) == original);
   CHECK_FALSE(fileSystem.exists(transaction.BackupPath()));
   CHECK(transaction.Active());
   CHECK(transaction.HasWorkingCopy());
   REQUIRE(fileSystem.exists(transaction.WorkingPath()));
 
-  // A plain promotion failure is retryable in place. Application policy must
-  // not reopen the transaction, because Begin() cleans this valid generation.
-  CHECK_FALSE(Ui2SampleEditorSaveRequiresRecovery(
-      Ui2SampleEditorTransactionResult::SaveFailed));
-  CHECK(Ui2SampleEditorSaveRequiresRecovery(
-      Ui2SampleEditorTransactionResult::RecoveryFailed));
+  // The explicit result guarantees that application policy may keep the
+  // editor bound to this generation. A generic SaveFailed makes no such
+  // promise.
   fileSystem.ClearFailures();
   REQUIRE(transaction.Save() == Ui2SampleEditorTransactionResult::Saved);
   CHECK(ReadU32(fileSystem.Bytes(source), 40U) == 6U);
   CHECK(fileSystem.Bytes(source)[44U] == 200U);
+}
+
+TEST_CASE("UI2 sample editor save failure without a working generation reopens "
+          "the destination") {
+  using namespace ui2;
+  constexpr const char *source = "/samples/VOICE.wav";
+  SampleEditMemoryFileSystem fileSystem;
+  const std::vector<std::uint8_t> original = MakeWav();
+  fileSystem.Put(source, original);
+  Ui2SampleEditorTransaction transaction;
+
+  REQUIRE(transaction.Begin(fileSystem, source) ==
+          Ui2SampleEditorTransactionResult::Ready);
+  REQUIRE(transaction.ApplyTrim(1U, 3U) ==
+          Ui2SampleEditorTransactionResult::Applied);
+  const std::string working = transaction.WorkingPath();
+  fileSystem.Put(working.c_str(), {0x00U});
+
+  CHECK(transaction.Save() == Ui2SampleEditorTransactionResult::SaveFailed);
+  CHECK(transaction.Active());
+  CHECK_FALSE(transaction.HasWorkingCopy());
+  CHECK_FALSE(fileSystem.exists(working.c_str()));
+  CHECK(fileSystem.Bytes(source) == original);
+
+  // Mirror the application recovery path: re-beginning the transaction makes
+  // the authoritative destination the only valid waveform binding instead of
+  // leaving the editor attached to a deleted working filename.
+  REQUIRE(transaction.Begin(fileSystem, source) ==
+          Ui2SampleEditorTransactionResult::Ready);
+  CHECK_FALSE(transaction.HasWorkingCopy());
+  CHECK(std::strcmp(transaction.DestinationPath(), source) == 0);
+  CHECK(fileSystem.Bytes(source) == original);
 }
 
 TEST_CASE("UI2 sample editor retry preserves the only backup generation") {

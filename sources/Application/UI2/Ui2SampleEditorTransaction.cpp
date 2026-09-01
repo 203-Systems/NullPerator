@@ -104,6 +104,16 @@ bool Ui2SampleEditorTransaction::RestoreBackup() {
          Validate(destination_.data());
 }
 
+Ui2SampleEditorTransactionResult
+Ui2SampleEditorTransaction::ClassifyPromotionFailure() {
+  if (!Validate(destination_.data()))
+    return Ui2SampleEditorTransactionResult::RecoveryFailed;
+  if (hasWorkingCopy_ && Validate(WorkingPath()))
+    return Ui2SampleEditorTransactionResult::SaveFailedRetryable;
+  hasWorkingCopy_ = false;
+  return Ui2SampleEditorTransactionResult::SaveFailed;
+}
+
 Ui2SampleEditorTransactionResult Ui2SampleEditorTransaction::Save() {
   if (!active_ || fileSystem_ == nullptr || ApplyActive())
     return Ui2SampleEditorTransactionResult::SaveFailed;
@@ -118,10 +128,11 @@ Ui2SampleEditorTransactionResult Ui2SampleEditorTransaction::Save() {
     return Ui2SampleEditorTransactionResult::SaveFailed;
   }
   if (!fileSystem_->MoveFile(destination_.data(), backup_.data()))
-    return Ui2SampleEditorTransactionResult::SaveFailed;
+    return ClassifyPromotionFailure();
   if (!fileSystem_->MoveFile(edited, destination_.data())) {
-    return RestoreBackup() ? Ui2SampleEditorTransactionResult::SaveFailed
-                           : Ui2SampleEditorTransactionResult::RecoveryFailed;
+    if (!RestoreBackup())
+      return Ui2SampleEditorTransactionResult::RecoveryFailed;
+    return ClassifyPromotionFailure();
   }
   hasWorkingCopy_ = false;
   if (!Validate(destination_.data())) {

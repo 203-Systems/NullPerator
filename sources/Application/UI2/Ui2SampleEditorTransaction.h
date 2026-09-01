@@ -29,18 +29,14 @@ enum class Ui2SampleEditorTransactionResult : std::uint8_t {
   RecoveryFailed,
   CopyFailed,
   MutationFailed,
+  // The destination is authoritative and a validated working generation is
+  // still present. This is the only save failure that may retry in place.
+  SaveFailedRetryable,
+  // No retryable working generation is guaranteed. The application must
+  // reopen/reload the authoritative destination before accepting more input.
   SaveFailed,
   DiscardFailed,
 };
-
-// SAVE can fail after the authoritative destination has already moved to its
-// backup generation. Only that rollback failure requires the application to
-// recover/reopen the destination. A plain SaveFailed leaves the destination
-// authoritative and may retain a working generation for a direct retry.
-[[nodiscard]] constexpr bool Ui2SampleEditorSaveRequiresRecovery(
-    Ui2SampleEditorTransactionResult result) {
-  return result == Ui2SampleEditorTransactionResult::RecoveryFailed;
-}
 
 // One editor-wide, fixed-capacity journal. SAVE/DISCARD remain atomic
 // transaction boundaries. Potentially multi-megabyte Apply work is advanced
@@ -104,6 +100,7 @@ private:
   [[nodiscard]] bool Validate(const char *path) const;
   [[nodiscard]] bool Recover();
   [[nodiscard]] bool RestoreBackup();
+  [[nodiscard]] Ui2SampleEditorTransactionResult ClassifyPromotionFailure();
   [[nodiscard]] bool ReadApplyHeader(const char *path, FileHandle &file);
   [[nodiscard]] Ui2SampleEditorTransactionResult
   BeginCopy(const char *sourcePath);
