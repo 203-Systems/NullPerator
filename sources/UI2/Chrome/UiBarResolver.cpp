@@ -24,9 +24,22 @@ UiBottomBarModel UiBarResolver::SelectionMode(bool nextExpansionAll) {
   return bottom;
 }
 
+UiBottomBarModel UiBarResolver::ClipboardReady(std::uint8_t width,
+                                               std::uint8_t height) {
+  UiBottomBarModel bottom{};
+  bottom.kind = UiBottomBarKind::Clipboard;
+  bottom.clipboard = {.width = width, .height = height};
+  return bottom;
+}
+
 UiResolvedChrome UiBarResolver::Resolve(const UiBarInputs &inputs) {
   UiResolvedChrome resolved{inputs.pageTop, inputs.pageDefault};
   if (inputs.cursorContext != nullptr) resolved.bottom = *inputs.cursorContext;
+
+  if (inputs.clipboardReady) {
+    resolved.bottom =
+        ClipboardReady(inputs.clipboardWidth, inputs.clipboardHeight);
+  }
 
   if (inputs.enterHeldNumber && inputs.enterHeldTracks != nullptr) {
     resolved.top.metaSelected = true;

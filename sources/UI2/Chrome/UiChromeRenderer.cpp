@@ -518,6 +518,27 @@ UiBuildStatus UiChromeRenderer::BuildBottom(const UiBottomBarModel &model,
     }
     break;
   }
+  case UiBottomBarKind::Clipboard: {
+    std::array<char, 16> dimensions{};
+    const unsigned width = model.clipboard.width;
+    const unsigned height = model.clipboard.height;
+    std::snprintf(dimensions.data(), dimensions.size(), "%uX%u %s", width,
+                  height, width == 1U && height == 1U ? "CELL" : "CELLS");
+    constexpr std::string_view copied = "COPIED";
+    constexpr std::int16_t gap = 9;
+    const std::int16_t copiedWidth = UiFont5x7::TextWidth(copied.size());
+    const std::int16_t dimensionsWidth =
+        UiFont5x7::TextWidth(std::char_traits<char>::length(dimensions.data()));
+    const std::int16_t start = static_cast<std::int16_t>(
+        (240 - copiedWidth - gap - dimensionsWidth) / 2);
+    builder.Text(copied, start, 216, UiColorToken::TextColored);
+    builder.Text(dimensions.data(),
+                 static_cast<std::int16_t>(start + copiedWidth + gap), 216,
+                 UiColorToken::TextNormal);
+    builder.CenteredText("SHIFT+ENTER: PASTE", 120, 228,
+                         UiColorToken::TextDim);
+    break;
+  }
   }
   return builder.Ok() ? UiBuildStatus::Built : UiBuildStatus::CommandOverflow;
 }

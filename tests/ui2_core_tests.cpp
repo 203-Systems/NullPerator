@@ -1635,6 +1635,26 @@ TEST_CASE("UI2 selection mode overrides page and Enter bottom bars") {
         "OPTION: COPY  SHIFT+OPTION: ALL");
 }
 
+TEST_CASE("UI2 clipboard state exposes a paste-ready bottom bar") {
+  const ui2::UiResolvedChrome resolved = ui2::UiBarResolver::Resolve({
+      .pageTop = {.title = "PHRASE", .meta = "3A"},
+      .pageDefault = {.kind = ui2::UiBottomBarKind::Hidden},
+      .clipboardReady = true,
+      .clipboardWidth = 3U,
+      .clipboardHeight = 2U,
+  });
+  REQUIRE(resolved.bottom.kind == ui2::UiBottomBarKind::Clipboard);
+  CHECK(resolved.bottom.clipboard.width == 3U);
+  CHECK(resolved.bottom.clipboard.height == 2U);
+
+  ui2::UiBarScene scene;
+  REQUIRE(ui2::UiChromeRenderer::BuildBottom(resolved.bottom, scene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK(FindTextCommand(scene.Stream(), "COPIED") != nullptr);
+  CHECK(FindTextCommand(scene.Stream(), "3X2 CELLS") != nullptr);
+  CHECK(FindTextCommand(scene.Stream(), "SHIFT+ENTER: PASTE") != nullptr);
+}
+
 TEST_CASE("UI2 tracker playback ticks share the song edge-tick geometry") {
   const std::uint8_t row = 7U;
   const auto chain = ui2::UiChainView::PlaybackTickRect(row);

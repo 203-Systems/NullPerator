@@ -157,7 +157,10 @@ void UiChainView::RenderDelta(const UiChainViewData &previous,
       previous.adjustmentFocus != current.adjustmentFocus ||
       previous.selectionActive != current.selectionActive ||
       previous.selectionNextExpansionAll !=
-          current.selectionNextExpansionAll) {
+          current.selectionNextExpansionAll ||
+      previous.clipboardReady != current.clipboardReady ||
+      previous.clipboardWidth != current.clipboardWidth ||
+      previous.clipboardHeight != current.clipboardHeight) {
     render({0, 208, 240, 32});
   }
   for (std::uint8_t side = 0; side < 2U; ++side) {
@@ -207,6 +210,9 @@ UiBuildStatus UiChainView::Build(const UiChainViewData &data,
       .enterHeldAdjustment = data.adjustmentFocus ? &adjustment : nullptr,
       .selectionActive = data.selectionActive,
       .selectionNextExpansionAll = data.selectionNextExpansionAll,
+      .clipboardReady = data.clipboardReady,
+      .clipboardWidth = data.clipboardWidth,
+      .clipboardHeight = data.clipboardHeight,
       .enterHeldNumber = data.numberFocus,
   };
   const UiResolvedChrome chrome = UiBarResolver::Resolve(barInputs);

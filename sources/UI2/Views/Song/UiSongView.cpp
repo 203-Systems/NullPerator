@@ -244,6 +244,9 @@ void UiSongView::RenderDelta(const UiSongViewData &previous,
       previous.selectionActive != current.selectionActive ||
       previous.selectionNextExpansionAll !=
           current.selectionNextExpansionAll ||
+      previous.clipboardReady != current.clipboardReady ||
+      previous.clipboardWidth != current.clipboardWidth ||
+      previous.clipboardHeight != current.clipboardHeight ||
       (previous.liveMode != current.liveMode &&
        (previous.modeFocus || current.modeFocus))) {
     render({0, 208, 240, 32});
@@ -289,6 +292,9 @@ UiBuildStatus UiSongView::Build(const UiSongViewData &data, UiPalette &palette,
     bottom.selector.options = kSongModes;
     bottom.selector.current = data.liveMode ? 1U : 0U;
     bottom.selector.wrap = true;
+  } else if (data.showBottom && data.clipboardReady) {
+    bottom =
+        UiBarResolver::ClipboardReady(data.clipboardWidth, data.clipboardHeight);
   } else if (data.showBottom) {
     bottom.kind = UiBottomBarKind::TrackNotes;
   }

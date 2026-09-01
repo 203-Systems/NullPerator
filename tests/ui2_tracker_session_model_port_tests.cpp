@@ -108,6 +108,10 @@ TEST_CASE("UI2 input workflow confirms a selection and pastes its contents") {
   REQUIRE(copy.count == 1U);
   CHECK(copy[0].type == Ui2TrackerCommandType::CopySelection);
   CHECK_FALSE(executor.Hub().Song().Selection().active);
+  const ui2::Ui2TrackerClipboardState clipboard = executor.ClipboardState();
+  CHECK(clipboard.ready);
+  CHECK(clipboard.width == 1U);
+  CHECK(clipboard.height == 1U);
 
   CHECK(executor.Handle(TrackerAction::Down, true).Empty());
   CHECK(executor.Handle(TrackerAction::Down, false).Empty());
@@ -120,6 +124,22 @@ TEST_CASE("UI2 input workflow confirms a selection and pastes its contents") {
 
   CHECK(song.data_[SONG_CHANNEL_COUNT] == 0x2AU);
   CHECK(port.ProjectMutationGeneration() == 1U);
+}
+
+TEST_CASE("UI2 clipboard presentation follows paste compatibility") {
+  TrackerApplicationSession session;
+  Ui2TrackerSessionModelPort port(session);
+  port.ApplyGridCommand(SelectionCommand(Ui2TrackerCommandType::CopySelection,
+                                         Ui2TrackerPage::Phrase, 0, 0, 1, 2));
+
+  const auto phrase = port.ClipboardState(Ui2TrackerPage::Phrase);
+  CHECK(phrase.ready);
+  CHECK(phrase.width == 2U);
+  CHECK(phrase.height == 3U);
+  CHECK(port.ClipboardState(Ui2TrackerPage::PhraseTable).ready);
+  CHECK(port.ClipboardState(Ui2TrackerPage::InstrumentTable).ready);
+  CHECK_FALSE(port.ClipboardState(Ui2TrackerPage::Song).ready);
+  CHECK_FALSE(port.ClipboardState(Ui2TrackerPage::Chain).ready);
 }
 
 TEST_CASE("UI2 model port rejects semantically incompatible Phrase paste") {

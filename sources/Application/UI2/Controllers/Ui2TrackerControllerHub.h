@@ -57,12 +57,22 @@ struct Ui2TrackerActiveControllerState {
   bool enterDigitFocus = false;
 };
 
+struct Ui2TrackerClipboardState {
+  std::uint8_t width = 0;
+  std::uint8_t height = 0;
+  bool ready = false;
+};
+
 class IUi2TrackerModelPort {
 public:
   virtual ~IUi2TrackerModelPort() = default;
   [[nodiscard]] virtual Ui2TrackerGridState LoadGridState() const = 0;
   virtual void StoreGridState(const Ui2TrackerGridState &state) = 0;
   virtual void ApplyGridCommand(const Ui2TrackerCommand &command) = 0;
+  [[nodiscard]] virtual Ui2TrackerClipboardState
+  ClipboardState(Ui2TrackerPage) const {
+    return {};
+  }
 };
 
 class Ui2TrackerControllerHub {
@@ -379,6 +389,9 @@ public:
   }
   [[nodiscard]] Ui2TrackerActiveControllerState ActiveState() const {
     return hub_.ActiveState();
+  }
+  [[nodiscard]] Ui2TrackerClipboardState ClipboardState() const {
+    return port_.ClipboardState(hub_.ActivePage());
   }
 
   Ui2TrackerCommandBatch<> Handle(TrackerAction action, bool pressed) {

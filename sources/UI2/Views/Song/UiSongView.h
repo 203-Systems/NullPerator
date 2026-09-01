@@ -39,6 +39,9 @@ struct UiSongViewData {
   bool modeFocus = false;
   bool selectionActive = false;
   bool selectionNextExpansionAll = false;
+  bool clipboardReady = false;
+  std::uint8_t clipboardWidth = 0;
+  std::uint8_t clipboardHeight = 0;
   bool playing = true;
   bool liveMode = false;
   UiNavCursorModel navCursor{};

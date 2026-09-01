@@ -221,6 +221,10 @@ Ui2NativeApplicationStateSource::CaptureSong(UiSongFrameState &state) {
   state.selectionNextExpansionAll =
       state.selectionActive && controller.Selection().Left() == 0U &&
       controller.Selection().Right() == kUi2TrackerTrackCount - 1U;
+  const Ui2TrackerClipboardState clipboard = tracker_.ClipboardState();
+  state.clipboardReady = clipboard.ready;
+  state.clipboardWidth = clipboard.width;
+  state.clipboardHeight = clipboard.height;
   state.navigationHeld = navigationHeld_;
   for (std::uint8_t row = 0; row < 16U; ++row) {
     for (std::uint8_t track = 0; track < SONG_CHANNEL_COUNT; ++track) {
@@ -281,6 +285,10 @@ Ui2NativeApplicationStateSource::CaptureChain(UiChainFrameState &state) {
   state.selectionNextExpansionAll =
       state.selectionActive && controller.Selection().Left() == 0U &&
       controller.Selection().Right() == 1U;
+  const Ui2TrackerClipboardState clipboard = tracker_.ClipboardState();
+  state.clipboardReady = clipboard.ready;
+  state.clipboardWidth = clipboard.width;
+  state.clipboardHeight = clipboard.height;
   state.navigationHeld = navigationHeld_;
   if (controller.Selection().active) {
     const auto &selection = controller.Selection();
@@ -333,6 +341,10 @@ Ui2NativeApplicationStateSource::CapturePhrase(UiPhraseFrameState &state) {
   state.selectionNextExpansionAll =
       state.selectionActive && controller.Selection().Left() == 0U &&
       controller.Selection().Right() == 5U;
+  const Ui2TrackerClipboardState clipboard = tracker_.ClipboardState();
+  state.clipboardReady = clipboard.ready;
+  state.clipboardWidth = clipboard.width;
+  state.clipboardHeight = clipboard.height;
   state.navigationHeld = navigationHeld_;
   state.activeHeader = controller.Column() == 0U   ? UiPhraseHeader::Note
                        : controller.Column() == 1U ? UiPhraseHeader::Instrument
@@ -432,6 +444,10 @@ Ui2NativeApplicationStateSource::CaptureTable(UiTableFrameState &state) {
   state.selectionNextExpansionAll =
       state.selectionActive && controller.Selection().Left() == 0U &&
       controller.Selection().Right() == 5U;
+  const Ui2TrackerClipboardState clipboard = tracker_.ClipboardState();
+  state.clipboardReady = clipboard.ready;
+  state.clipboardWidth = clipboard.width;
+  state.clipboardHeight = clipboard.height;
   state.navigationHeld = navigationHeld_;
   state.activeHeader = controller.Column() < 2U   ? UiTableHeader::Fx1
                        : controller.Column() < 4U ? UiTableHeader::Fx2
@@ -949,6 +965,9 @@ Ui2NativeApplicationStateSource::CaptureGroove(UiGrooveFrameState &state) {
   state.selectionActive = groove_.Selection().active;
   // Groove has one column, so its first expansion target is already all rows.
   state.selectionNextExpansionAll = state.selectionActive;
+  state.clipboardReady = grooveClipboard_.count != 0U;
+  state.clipboardWidth = state.clipboardReady ? 1U : 0U;
+  state.clipboardHeight = grooveClipboard_.count;
   if (groove_.Selection().active) {
     state.selectionVisualRect = UiGrooveView::SelectionTargetRect(
         groove_.Selection().Top(), groove_.Selection().Bottom());

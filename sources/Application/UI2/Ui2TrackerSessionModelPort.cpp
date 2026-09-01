@@ -1076,26 +1076,36 @@ bool Ui2TrackerSessionModelPort::ApplyCopySelection(
   return storageMutated;
 }
 
-bool Ui2TrackerSessionModelPort::ApplyPasteSelection(
-    const Ui2TrackerCommand &command) {
+bool Ui2TrackerSessionModelPort::ClipboardCompatible(
+    Ui2TrackerPage target) const {
   const auto isTablePage = [](Ui2TrackerPage page) {
     return page == Ui2TrackerPage::PhraseTable ||
            page == Ui2TrackerPage::InstrumentTable;
   };
-  const auto isPhrasePage = [](Ui2TrackerPage page) {
-    return page == Ui2TrackerPage::Phrase;
-  };
   const bool phraseTableTransfer =
-      (isPhrasePage(selectionClipboardPage_) &&
-       isTablePage(command.sourcePage)) ||
+      (selectionClipboardPage_ == Ui2TrackerPage::Phrase &&
+       isTablePage(target)) ||
       (isTablePage(selectionClipboardPage_) &&
-       isPhrasePage(command.sourcePage));
-  const bool compatiblePage =
-      selectionClipboardPage_ == command.sourcePage ||
-      (isTablePage(selectionClipboardPage_) &&
-       isTablePage(command.sourcePage)) ||
-      phraseTableTransfer;
-  if (!compatiblePage || selectionClipboardWidth_ == 0U ||
+       target == Ui2TrackerPage::Phrase);
+  return selectionClipboardPage_ == target ||
+         (isTablePage(selectionClipboardPage_) && isTablePage(target)) ||
+         phraseTableTransfer;
+}
+
+Ui2TrackerClipboardState Ui2TrackerSessionModelPort::ClipboardState(
+    Ui2TrackerPage target) const {
+  const bool ready = selectionClipboardWidth_ != 0U &&
+                     selectionClipboardHeight_ != 0U &&
+                     ClipboardCompatible(target);
+  return {.width = selectionClipboardWidth_,
+          .height = selectionClipboardHeight_,
+          .ready = ready};
+}
+
+bool Ui2TrackerSessionModelPort::ApplyPasteSelection(
+    const Ui2TrackerCommand &command) {
+  if (!ClipboardCompatible(command.sourcePage) ||
+      selectionClipboardWidth_ == 0U ||
       selectionClipboardHeight_ == 0U)
     return false;
   GridBounds bounds{};

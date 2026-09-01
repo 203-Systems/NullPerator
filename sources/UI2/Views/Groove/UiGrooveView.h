@@ -29,6 +29,9 @@ struct UiGrooveViewData {
   bool cursorInkVisible = true;
   bool selectionActive = false;
   bool selectionNextExpansionAll = false;
+  bool clipboardReady = false;
+  std::uint8_t clipboardWidth = 0;
+  std::uint8_t clipboardHeight = 0;
   UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
 };

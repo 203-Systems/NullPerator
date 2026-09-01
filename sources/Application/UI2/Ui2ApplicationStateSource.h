@@ -80,6 +80,9 @@ struct UiSongFrameState {
   bool modeFocus = false;
   bool selectionActive = false;
   bool selectionNextExpansionAll = false;
+  bool clipboardReady = false;
+  std::uint8_t clipboardWidth = 0;
+  std::uint8_t clipboardHeight = 0;
   bool navigationHeld = false;
   bool playing = false;
   bool liveMode = false;
@@ -123,6 +126,9 @@ struct UiChainFrameState {
   bool adjustmentFocus = false;
   bool selectionActive = false;
   bool selectionNextExpansionAll = false;
+  bool clipboardReady = false;
+  std::uint8_t clipboardWidth = 0;
+  std::uint8_t clipboardHeight = 0;
   bool navigationHeld = false;
   std::array<std::int8_t, 8> playbackRows{-1, -1, -1, -1, -1, -1, -1, -1};
   std::array<bool, 8> mutedTracks{};
@@ -163,6 +169,9 @@ struct UiPhraseFrameState {
   bool adjustmentFocus = false;
   bool selectionActive = false;
   bool selectionNextExpansionAll = false;
+  bool clipboardReady = false;
+  std::uint8_t clipboardWidth = 0;
+  std::uint8_t clipboardHeight = 0;
   bool navigationHeld = false;
   std::array<std::int8_t, 8> playbackRows{-1, -1, -1, -1, -1, -1, -1, -1};
   std::array<bool, 8> mutedTracks{};
@@ -211,6 +220,9 @@ struct UiTableFrameState {
   bool adjustmentFocus = false;
   bool selectionActive = false;
   bool selectionNextExpansionAll = false;
+  bool clipboardReady = false;
+  std::uint8_t clipboardWidth = 0;
+  std::uint8_t clipboardHeight = 0;
   bool navigationHeld = false;
   std::array<std::int8_t, 3> playbackRows{-1, -1, -1};
   std::array<std::int8_t, 3> automationPlaybackRows{-1, -1, -1};
@@ -233,6 +245,9 @@ struct UiGrooveFrameState {
   bool cursorInkVisible = true;
   bool selectionActive = false;
   bool selectionNextExpansionAll = false;
+  bool clipboardReady = false;
+  std::uint8_t clipboardWidth = 0;
+  std::uint8_t clipboardHeight = 0;
   UiNavCursorModel navCursor{};
   UiPowerState power = UiPowerState::BatteryNormal;
 

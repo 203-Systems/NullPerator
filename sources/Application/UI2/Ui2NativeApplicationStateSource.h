@@ -29,6 +29,7 @@
 #include "Application/UI2/Controllers/Ui2TrackerControllerHub.h"
 #include "Application/UI2/Ui2ApplicationStateSource.h"
 #include "Application/UI2/Ui2PersistenceStatus.h"
+#include "Application/UI2/Workflows/Ui2GrooveWorkflow.h"
 
 class TrackerApplicationSession;
 class FirmwareLifecycleService;
@@ -48,6 +49,7 @@ public:
       Ui2FeedbackController &feedback,
       Ui2ProjectLifecycleController &projectLifecycle,
       Ui2ProjectRenderController &projectRender, Ui2GrooveController &groove,
+      Ui2GrooveClipboard &grooveClipboard,
       Ui2DeviceController &device,
       Ui2DeviceLifecycleController &deviceLifecycle,
       Ui2ThemeController &theme, Ui2FontController &font,
@@ -65,7 +67,8 @@ public:
         projectBrowser_(projectBrowser), settingsBrowser_(settingsBrowser),
         feedback_(feedback),
         projectLifecycle_(projectLifecycle), projectRender_(projectRender),
-        groove_(groove), device_(device), deviceLifecycle_(deviceLifecycle),
+        groove_(groove), grooveClipboard_(grooveClipboard), device_(device),
+        deviceLifecycle_(deviceLifecycle),
         theme_(theme), font_(font), rename_(rename), mixer_(mixer),
         instrument_(instrument), instrumentLifecycle_(instrumentLifecycle),
         instrumentBrowser_(instrumentBrowser), sampleBrowser_(sampleBrowser),
@@ -172,6 +175,7 @@ private:
   Ui2ProjectLifecycleController &projectLifecycle_;
   Ui2ProjectRenderController &projectRender_;
   Ui2GrooveController &groove_;
+  Ui2GrooveClipboard &grooveClipboard_;
   Ui2DeviceController &device_;
   Ui2DeviceLifecycleController &deviceLifecycle_;
   Ui2ThemeController &theme_;

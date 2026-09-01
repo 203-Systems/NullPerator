@@ -151,6 +151,11 @@ struct UiRgbBarModel {
   std::uint8_t active = 0;
 };
 
+struct UiClipboardBarModel {
+  std::uint8_t width = 0;
+  std::uint8_t height = 0;
+};
+
 enum class UiBottomBarKind : std::uint8_t {
   Hidden,
   TrackNotes,
@@ -159,6 +164,7 @@ enum class UiBottomBarKind : std::uint8_t {
   Selector,
   AdjustmentLegend,
   Rgb,
+  Clipboard,
 };
 
 struct UiBottomBarModel {
@@ -169,6 +175,7 @@ struct UiBottomBarModel {
   UiSelectorBarModel selector{};
   UiAdjustmentLegendModel adjustment{};
   UiRgbBarModel rgb{};
+  UiClipboardBarModel clipboard{};
 };
 
 struct UiResolvedChrome {

@@ -236,6 +236,9 @@ void UiTableView::RenderDelta(const UiTableViewData &previous,
       previous.selectionActive != current.selectionActive ||
       previous.selectionNextExpansionAll !=
           current.selectionNextExpansionAll ||
+      previous.clipboardReady != current.clipboardReady ||
+      previous.clipboardWidth != current.clipboardWidth ||
+      previous.clipboardHeight != current.clipboardHeight ||
       !ContextEqual(previous.cursorBottom, current.cursorBottom)) {
     render({0, 208, 240, 32});
   }
@@ -279,6 +282,9 @@ UiBuildStatus UiTableView::Build(const UiTableViewData &data, UiPalette &,
       .enterHeldAdjustment = nullptr,
       .selectionActive = data.selectionActive,
       .selectionNextExpansionAll = data.selectionNextExpansionAll,
+      .clipboardReady = data.clipboardReady,
+      .clipboardWidth = data.clipboardWidth,
+      .clipboardHeight = data.clipboardHeight,
       .enterHeldNumber = data.numberFocus,
   };
   const UiResolvedChrome chrome = UiBarResolver::Resolve(inputs);

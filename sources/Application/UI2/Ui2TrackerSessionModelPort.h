@@ -24,6 +24,8 @@ public:
   [[nodiscard]] Ui2TrackerGridState LoadGridState() const override;
   void StoreGridState(const Ui2TrackerGridState &state) override;
   void ApplyGridCommand(const Ui2TrackerCommand &command) override;
+  [[nodiscard]] Ui2TrackerClipboardState
+  ClipboardState(Ui2TrackerPage target) const override;
   [[nodiscard]] bool PreparePageNavigation(Ui2TrackerPage source,
                                            Ui2TrackerPage target,
                                            std::uint8_t track,
@@ -49,6 +51,7 @@ private:
   [[nodiscard]] bool ApplyCopySelection(const Ui2TrackerCommand &command,
                                         bool cut);
   [[nodiscard]] bool ApplyPasteSelection(const Ui2TrackerCommand &command);
+  [[nodiscard]] bool ClipboardCompatible(Ui2TrackerPage target) const;
   [[nodiscard]] std::uint32_t ReadCell(Ui2TrackerPage page, std::uint8_t row,
                                        std::uint8_t column) const;
   void WriteCell(Ui2TrackerPage page, std::uint8_t row, std::uint8_t column,

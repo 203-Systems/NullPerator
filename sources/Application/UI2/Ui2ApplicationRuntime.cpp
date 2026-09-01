@@ -388,6 +388,9 @@ UiSongViewData UiApplicationRuntime::ViewDataFor(const SongFrameState &state) {
   data.modeFocus = state.modeFocus;
   data.selectionActive = state.selectionActive;
   data.selectionNextExpansionAll = state.selectionNextExpansionAll;
+  data.clipboardReady = state.clipboardReady;
+  data.clipboardWidth = state.clipboardWidth;
+  data.clipboardHeight = state.clipboardHeight;
   data.playing = state.playing;
   data.liveMode = state.liveMode;
   data.power = state.power;
@@ -423,6 +426,9 @@ UiApplicationRuntime::ViewDataFor(const ChainFrameState &state) {
   data.adjustmentFocus = state.adjustmentFocus;
   data.selectionActive = state.selectionActive;
   data.selectionNextExpansionAll = state.selectionNextExpansionAll;
+  data.clipboardReady = state.clipboardReady;
+  data.clipboardWidth = state.clipboardWidth;
+  data.clipboardHeight = state.clipboardHeight;
   data.playbackRows = state.playbackRows;
   data.mutedTracks = state.mutedTracks;
   data.power = state.power;
@@ -591,6 +597,9 @@ UiApplicationRuntime::ViewDataFor(const PhraseFrameState &state) {
   data.adjustmentFocus = state.adjustmentFocus;
   data.selectionActive = state.selectionActive;
   data.selectionNextExpansionAll = state.selectionNextExpansionAll;
+  data.clipboardReady = state.clipboardReady;
+  data.clipboardWidth = state.clipboardWidth;
+  data.clipboardHeight = state.clipboardHeight;
   data.playbackRows = state.playbackRows;
   data.mutedTracks = state.mutedTracks;
   data.power = state.power;
@@ -749,6 +758,9 @@ UiApplicationRuntime::ViewDataFor(const TableFrameState &state) {
   data.adjustmentFocus = state.adjustmentFocus;
   data.selectionActive = state.selectionActive;
   data.selectionNextExpansionAll = state.selectionNextExpansionAll;
+  data.clipboardReady = state.clipboardReady;
+  data.clipboardWidth = state.clipboardWidth;
+  data.clipboardHeight = state.clipboardHeight;
   data.playbackRows = state.playbackRows;
   data.automationPlaybackRows = state.automationPlaybackRows;
   data.selectedTrackMuted = state.selectedTrackMuted;
@@ -1416,6 +1428,9 @@ UiApplicationRuntime::ViewDataFor(const GrooveFrameState &state) {
   data.cursorInkVisible = state.cursorInkVisible;
   data.selectionActive = state.selectionActive;
   data.selectionNextExpansionAll = state.selectionNextExpansionAll;
+  data.clipboardReady = state.clipboardReady;
+  data.clipboardWidth = state.clipboardWidth;
+  data.clipboardHeight = state.clipboardHeight;
   data.power = state.power;
   data.navCursor = state.navCursor;
   return data;
