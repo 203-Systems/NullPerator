@@ -127,8 +127,11 @@
   .compact .bottom-buttons em { top:21px; bottom:auto; }
   .compact .face.enter,.compact .bottom-buttons button:last-child { border-color:rgba(76,201,240,.3); }
   .operator-controls.native-host {
-    --control-edge:clamp(56px,14vw,62px);
-    --control-gap:calc(var(--control-edge) + 2px);
+    --control-slot-edge:clamp(56px,14vw,62px);
+    --control-edge:calc(var(--control-slot-edge) + 6px);
+    /* Grow each diamond toward the centre while preserving the old outer
+       diamond footprint: 2*step + key*sqrt(2) stays constant. */
+    --control-gap:calc(var(--control-slot-edge) - 2.25px);
     --face-edge:clamp(76px,19vw,82px);
     --bottom-w:clamp(116px,29vw,128px);
     --bottom-h:62px;
@@ -188,12 +191,12 @@
   }
   .operator-controls.native-host .bottom-buttons button { width:var(--bottom-w); height:var(--bottom-h); }
   @media(min-width:500px) and (orientation:portrait){
-    .operator-controls.native-host { --control-edge:66px; --face-edge:88px; --bottom-w:142px; --bottom-h:68px; --bottom-gap:30px; --upper-controls-top:clamp(64px,7.5dvh,82px); width:min(100%,720px); padding-inline:42px; }
+    .operator-controls.native-host { --control-slot-edge:66px; --face-edge:88px; --bottom-w:142px; --bottom-h:68px; --bottom-gap:30px; --upper-controls-top:clamp(64px,7.5dvh,82px); width:min(100%,720px); padding-inline:42px; }
     .operator-controls.native-host .face-buttons { gap:18px; }
   }
   @media(orientation:landscape){
     .operator-controls.native-host {
-      --control-edge:clamp(48px,6.8vw,64px); --control-gap:calc(var(--control-edge) + 2px); --face-edge:clamp(66px,9vw,86px);
+      --control-slot-edge:clamp(48px,6.8vw,64px); --face-edge:clamp(66px,9vw,86px);
       --bottom-w:clamp(96px,12vw,116px); --bottom-h:56px; --bottom-gap:clamp(14px,2vw,24px);
       grid-template-columns:minmax(0,1fr) var(--native-screen-size) minmax(0,1fr); grid-template-rows:minmax(0,1fr) var(--bottom-h);
       column-gap:var(--landscape-control-gap); row-gap:12px; width:100%; height:var(--native-screen-size); margin:0; padding:0; overflow:visible; pointer-events:none;
