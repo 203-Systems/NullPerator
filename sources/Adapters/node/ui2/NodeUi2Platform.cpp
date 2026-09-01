@@ -12,7 +12,6 @@
 #include "Adapters/node/platform/platform.h"
 #include "Adapters/node/system/TaskStackTelemetry.h"
 #include "Adapters/node/system/Ui2System.h"
-#include "Adapters/node/ui2/NodeUi2ButtonMap.h"
 #include "Services/Midi/MidiService.h"
 
 #include "esp_attr.h"
@@ -48,21 +47,20 @@ DMA_ATTR std::uint16_t
   const NullperatorHAL::Input::ButtonState_t buttons =
       NullperatorHAL::Input::GetButtonState(headphoneConnected);
   std::uint16_t mask = 0U;
-  const auto set = [&mask](node::ui2::PhysicalButton button, bool held) {
-    const TrackerAction action = node::ui2::ActionForPhysicalButton(button);
-    if (held && action != TrackerAction::Count) {
+  const auto set = [&mask](TrackerAction action, bool held) {
+    if (held) {
       mask |= TrackerActionBit(action);
     }
   };
-  set(node::ui2::PhysicalButton::Left, buttons.left);
-  set(node::ui2::PhysicalButton::Down, buttons.down);
-  set(node::ui2::PhysicalButton::Right, buttons.right);
-  set(node::ui2::PhysicalButton::Up, buttons.up);
-  set(node::ui2::PhysicalButton::Select, buttons.select);
-  set(node::ui2::PhysicalButton::B, buttons.b);
-  set(node::ui2::PhysicalButton::A, buttons.a);
-  set(node::ui2::PhysicalButton::Start, buttons.start);
-  set(node::ui2::PhysicalButton::Func, buttons.func);
+  set(TrackerAction::Left, buttons.left);
+  set(TrackerAction::Down, buttons.down);
+  set(TrackerAction::Right, buttons.right);
+  set(TrackerAction::Up, buttons.up);
+  set(TrackerAction::Play, buttons.select);
+  set(TrackerAction::Option, buttons.b);
+  set(TrackerAction::Enter, buttons.a);
+  set(TrackerAction::Shift, buttons.start);
+  set(TrackerAction::Power, buttons.func);
   return mask;
 }
 
