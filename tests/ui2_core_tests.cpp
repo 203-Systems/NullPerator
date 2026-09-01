@@ -3652,6 +3652,8 @@ TEST_CASE("UI2 Device idle frame stays clean") {
   ui2::UiFrameScene scene;
   REQUIRE(ui2::UiDeviceView::Build(data, palette, scene) ==
           ui2::UiBuildStatus::Built);
+  CHECK(FindTextCommand(scene.content.Stream(), "NullPerator V0.1") !=
+        nullptr);
   ui2::UiSurfaceStorage storage;
   ui2::UiIndexedSurface surface(storage);
   ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);

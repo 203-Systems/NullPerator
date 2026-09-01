@@ -11,5 +11,6 @@
 namespace nullperator_product {
 
 inline constexpr char Version[] = "0.1";
+inline constexpr char DisplayVersion[] = "NullPerator V0.1";
 
 } // namespace nullperator_product
