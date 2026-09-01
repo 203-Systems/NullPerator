@@ -58,6 +58,8 @@ TEST_CASE("Rename dialog snapshot is fixed-capacity and owns its projection") {
 TEST_CASE("Rename keyboard has visually distinct lower-case glyphs") {
   CHECK(ui2::UiFont5x7::Glyph('a') != ui2::UiFont5x7::Glyph('A'));
   CHECK(ui2::UiFont5x7::Glyph('g') != ui2::UiFont5x7::Glyph('G'));
+  CHECK(ui2::UiFont5x7::Glyph('p') != ui2::UiFont5x7::Glyph('P'));
+  CHECK(ui2::UiFont5x7::Glyph('p')[1] == 0b10110);
 }
 
 TEST_CASE("Rename full page and all cursor targets stay in 240x240") {
