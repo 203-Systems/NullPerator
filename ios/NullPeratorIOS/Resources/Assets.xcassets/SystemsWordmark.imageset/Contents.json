@@ -1,15 +1,23 @@
 {
   "images" : [
     {
-      "filename" : "SystemsWordmark.svg",
-      "idiom" : "universal"
+      "filename" : "SystemsWordmark.png",
+      "idiom" : "universal",
+      "scale" : "1x"
+    },
+    {
+      "filename" : "SystemsWordmark@2x.png",
+      "idiom" : "universal",
+      "scale" : "2x"
+    },
+    {
+      "filename" : "SystemsWordmark@3x.png",
+      "idiom" : "universal",
+      "scale" : "3x"
     }
   ],
   "info" : {
     "author" : "xcode",
     "version" : 1
-  },
-  "properties" : {
-    "preserves-vector-representation" : true
   }
 }
