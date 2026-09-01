@@ -16,6 +16,7 @@ namespace ui2 {
 namespace {
 
 constexpr std::array<std::string_view, 2> kBooleanOptions{"OFF", "ON"};
+constexpr std::int16_t kVersionAnchorY = 194;
 
 struct DeviceLayout {
   std::int16_t connections = 42;
@@ -57,7 +58,11 @@ DeviceLayout LayoutFor(const UiDeviceViewData &data) {
     layout.font = static_cast<std::int16_t>(lastDisplay + 11);
     lastDisplay = layout.font;
   }
-  layout.version = static_cast<std::int16_t>(lastDisplay + 27);
+  // Keep the product version attached to the bottom of the content area when
+  // optional rows are absent. If a target adds enough rows to reach it, let
+  // the version continue after those rows so the list can scroll normally.
+  layout.version = std::max<std::int16_t>(
+      kVersionAnchorY, static_cast<std::int16_t>(lastDisplay + 27));
   layout.contentBottom = static_cast<std::int16_t>(layout.version + 9);
   if (data.showUpdateFirmware) {
     layout.maintenance = static_cast<std::int16_t>(layout.version + 22);
