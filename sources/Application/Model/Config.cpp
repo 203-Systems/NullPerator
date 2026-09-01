@@ -45,8 +45,8 @@ static constexpr int kUiTextCaseOptionCount = 3;
 
 // NOTE: these MUST match the persisted RecordSource enum in
 // Application/Audio/RecordingPlatform.h.
-static const char *recordSourceOptions[3] = {"Line In", "Onboard Mic",
-                                             "Headphone Mic"};
+static const char *recordSourceOptions[3] = {"Line IN", "On board mic",
+                                             "Headphone mic"};
 
 // Param keys MUST fit in this length limit!
 typedef etl::string<13> ParamString;

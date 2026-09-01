@@ -4262,7 +4262,7 @@ TEST_CASE("UI2 Record delta rendering is pixel-identical to a full redraw") {
   surface.ClearDirty();
 
   ui2::UiRecordViewData current = previous;
-  current.source = "ONBOARD MIC";
+  current.source = "ON BOARD MIC";
   current.elapsed = "01:23";
   current.safeWidth = 128;
   current.warningWidth = 60;

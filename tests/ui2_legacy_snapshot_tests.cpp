@@ -81,7 +81,7 @@ TEST_CASE("UI2 legacy snapshot helpers clamp geometry and text") {
 
 TEST_CASE("UI2 Record snapshot projects fixed-capacity live state") {
   RecordViewUi2Snapshot snapshot;
-  std::copy_n("ONBOARD MIC", 12U, snapshot.source.begin());
+  std::copy_n("ON BOARD MIC", 12U, snapshot.source.begin());
   std::copy_n("00:17", 6U, snapshot.elapsed.begin());
   snapshot.focus = RecordViewUi2Focus::Source;
   snapshot.state = RecordViewUi2State::Recording;
@@ -92,7 +92,7 @@ TEST_CASE("UI2 Record snapshot projects fixed-capacity live state") {
 
   const ui2::UiRecordViewData data =
       snapshot.ViewData(ui2::UiPowerState::BatteryLow);
-  CHECK(data.source == "ONBOARD MIC");
+  CHECK(data.source == "ON BOARD MIC");
   CHECK(data.elapsed == "00:17");
   CHECK(data.focus == ui2::UiRecordFocus::Source);
   CHECK(data.state == ui2::UiRecordState::Recording);

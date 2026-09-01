@@ -1086,7 +1086,7 @@ Ui2NativeApplicationStateSource::CaptureRecord(UiRecordFrameState &state) {
   const std::uint8_t source = static_cast<std::uint8_t>(
       std::clamp(value(FourCC::VarRecordSource), 0, 2));
   record_.Synchronize(source);
-  constexpr const char *sources[] = {"LINE IN", "ONBOARD MIC",
+  constexpr const char *sources[] = {"LINE IN", "ON BOARD MIC",
                                      "HEADPHONE MIC"};
   CopyUiText(state.snapshot.source, sources[source]);
   const std::uint32_t elapsedSeconds =
