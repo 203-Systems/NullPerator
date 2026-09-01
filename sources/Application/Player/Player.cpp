@@ -144,8 +144,8 @@ void Player::Start(PlayMode mode, bool forceSongMode, MixerServiceMode msmMode,
                    bool stopAtEnd, int contextChannel,
                    int contextChainPosition) {
 
-  if (!audioReadiness_.IsReady() || project_ == nullptr ||
-      viewData_ == nullptr) {
+  if (!audioReadiness_.CanStartTransport(project_ != nullptr,
+                                         viewData_ != nullptr)) {
     Trace::Error("PLAYER", "Ignoring playback start: audio is not ready");
     return;
   }
@@ -392,6 +392,12 @@ bool Player::IsChannelPlaying(int channel) {
 void Player::OnStartButton(PlayMode origin, unsigned int from,
                            bool startFromPrevious, unsigned char chainPos,
                            MixerServiceMode msmMode, bool stopAtEnd) {
+  if (!audioReadiness_.CanStartTransport(project_ != nullptr,
+                                         viewData_ != nullptr)) {
+    Trace::Error("PLAYER", "Ignoring playback start: audio is not ready");
+    return;
+  }
+
   mixer_.Lock();
   // SequencerMode is the persistent SONG/LIVE selector for Song-screen
   // actions. Context screens still own their local transport while that
@@ -416,6 +422,12 @@ void Player::OnStartButton(PlayMode origin, unsigned int from,
 void Player::OnSongStartButton(unsigned int from, unsigned int to,
                                bool requestStop, bool forceImmediate,
                                MixerServiceMode msmMode, bool stopAtEnd) {
+  if (!audioReadiness_.CanStartTransport(project_ != nullptr,
+                                         viewData_ != nullptr)) {
+    Trace::Error("PLAYER", "Ignoring playback start: audio is not ready");
+    return;
+  }
+
   mixer_.Lock();
 
   const SongTrackRange range =

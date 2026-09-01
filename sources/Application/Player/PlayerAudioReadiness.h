@@ -35,6 +35,15 @@ public:
     return ready_.load(std::memory_order_acquire) != 0U;
   }
 
+  // Starting transport also reads the project-backed editor state. Keep the
+  // complete fail-closed predicate shared by every public start entry point so
+  // a failed initialization cannot reach that state after its bindings have
+  // been rolled back.
+  [[nodiscard]] bool CanStartTransport(bool projectBound,
+                                       bool viewDataBound) const noexcept {
+    return IsReady() && projectBound && viewDataBound;
+  }
+
 private:
   static_assert(std::atomic<std::uint32_t>::is_always_lock_free,
                 "audio readiness must remain lock-free");
