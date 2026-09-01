@@ -18,7 +18,9 @@ final class NativeHybridAppModel: ObservableObject {
     private var controllerBridge: GameControllerBridge!
     private var batteryBridge: BatteryBridge!
     private var readinessTask: Task<Void, Never>?
+#if DEBUG
     private let launchStartedAt = ProcessInfo.processInfo.systemUptime
+#endif
 
     init() {
         Self.activateAudioSession()
@@ -84,10 +86,12 @@ final class NativeHybridAppModel: ObservableObject {
                     batteryBridge.pushState()
                     controllerBridge.pushState()
                     isWebReady = true
+#if DEBUG
                     NSLog(
                         "NullPerator native UI ready in %.3f seconds",
                         ProcessInfo.processInfo.systemUptime - launchStartedAt
                     )
+#endif
                     return
                 }
                 try? await Task.sleep(for: .milliseconds(50))
