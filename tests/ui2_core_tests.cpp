@@ -1569,6 +1569,30 @@ TEST_CASE("UI2 playing elapsed text keeps its right edge fixed") {
   }
 }
 
+TEST_CASE("UI2 playing state uses a solid pixel triangle") {
+  ui2::UiBarScene scene;
+  REQUIRE(ui2::UiChromeRenderer::BuildTop(
+              {.title = "SONG",
+               .elapsed = "00:08",
+               .power = ui2::UiPowerState::Playing},
+              scene) == ui2::UiBuildStatus::Built);
+  CHECK(FindTextCommand(scene.Stream(), ">") == nullptr);
+  constexpr std::array<std::int16_t, 9> widths{1, 2, 3, 4, 5, 4, 3, 2, 1};
+  for (std::int16_t row = 0; row < static_cast<std::int16_t>(widths.size());
+       ++row) {
+    const ui2::RectI16 expected{194, static_cast<std::int16_t>(13 + row),
+                                widths[row], 1};
+    CHECK(std::any_of(scene.Stream().commands.begin(),
+                      scene.Stream().commands.end(),
+                      [&](const ui2::UiCommand &command) {
+                        return command.kind == ui2::UiCommandKind::FillRect &&
+                               command.bounds == expected &&
+                               command.color == static_cast<ui2::PaletteIndex>(
+                                                    ui2::UiColorToken::PlaybackActive);
+                      }));
+  }
+}
+
 TEST_CASE("UI2 battery fill maps percentage without charging inflation") {
   const auto fill = [](std::uint8_t percentage, ui2::UiPowerState power,
                        bool available = true) {

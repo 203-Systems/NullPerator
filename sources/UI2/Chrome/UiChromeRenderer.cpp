@@ -63,6 +63,18 @@ void DrawPlusMinus(BarBuilder &builder, std::int16_t x, std::int16_t y) {
                UiColorToken::TextColored);
 }
 
+void DrawPlayTriangle(BarBuilder &builder, std::int16_t x, std::int16_t y) {
+  // A smooth 9 px pixel wedge reads as a filled play triangle at native
+  // resolution. Changing width one pixel per row avoids the sharp center
+  // spike of the previous 1/2/3/5 profile, which looked like a `>` glyph.
+  constexpr std::array<std::int16_t, 9> widths{1, 2, 3, 4, 5, 4, 3, 2, 1};
+  for (std::int16_t row = 0; row < static_cast<std::int16_t>(widths.size());
+       ++row) {
+    builder.Fill({x, static_cast<std::int16_t>(y + row), widths[row], 1},
+                 UiColorToken::PlaybackActive);
+  }
+}
+
 } // namespace
 
 void UiChromeRenderer::DrawPower(const UiTopBarModel &model,
@@ -164,7 +176,7 @@ UiBuildStatus UiChromeRenderer::BuildTop(const UiTopBarModel &model,
   }
 
   if (model.power == UiPowerState::Playing) {
-    builder.Text(">", 193, 14, UiColorToken::PlaybackActive);
+    DrawPlayTriangle(builder, 194, 13);
     constexpr std::int16_t kPlayingTextRight = 230;
     const std::int16_t elapsedX = static_cast<std::int16_t>(
         kPlayingTextRight - UiFont5x7::TextWidth(model.elapsed.size()));
