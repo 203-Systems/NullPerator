@@ -2,6 +2,7 @@
 
 #include "Application/Instruments/WavHeader.h"
 #include "Application/Instruments/WavFile.h"
+#include "Application/Instruments/WavFileWriter.h"
 #include "Application/Model/Config.h"
 #include "Adapters/wasm/filesystem/WasmFileSystem.h"
 #include "System/FileSystem/I_File.h"
@@ -418,6 +419,37 @@ TEST_CASE("UpdateFileSize patches the parsed data chunk and truncates") {
 
   verify(BuildPcmWavWithAncillaryChunks(8U));
   verify(BuildExtensibleWav(1U, 44100U, 16U, 8U, 1U));
+}
+
+TEST_CASE("WavFileWriter finalizes a WAV through a real stdio stream") {
+  const std::filesystem::path root =
+      std::filesystem::temp_directory_path() /
+      "picotracker-wav-writer-finalization-test";
+  std::error_code error;
+  std::filesystem::remove_all(root, error);
+  REQUIRE(std::filesystem::create_directories(root, error));
+
+  WasmFileSystem fileSystem(root.string());
+  FileSystemInstallGuard install(fileSystem);
+  fixed samples[4]{};
+
+  {
+    WavFileWriter writer;
+    REQUIRE(writer.Open("/round-trip.wav"));
+    writer.AddBuffer(samples, 2);
+    writer.Close();
+  }
+
+  auto file = fileSystem.Open("/round-trip.wav", "rb");
+  REQUIRE(file);
+  const auto header = WavHeaderWriter::ReadHeader(file.get());
+  REQUIRE(header.has_value());
+  CHECK(header->dataChunkSize == 8U);
+  CHECK(std::filesystem::file_size(root / "round-trip.wav", error) == 52U);
+  CHECK_FALSE(error);
+
+  file.reset();
+  std::filesystem::remove_all(root, error);
 }
 
 TEST_CASE("WavFile zero-pads GetBuffer past logical end of file") {

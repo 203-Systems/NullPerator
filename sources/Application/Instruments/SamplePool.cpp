@@ -233,7 +233,8 @@ int SamplePool::ImportSample(const char *name, const char *projectName) {
   Status::SetMultiLine("Loading %s->\n%s", name,
                        projSampleFilename.c_str());
 
-  auto fout = FileSystem::GetInstance()->Open(projectSamplePath.c_str(), "w");
+  auto fout =
+      FileSystem::GetInstance()->Open(projectSamplePath.c_str(), "w+b");
   if (!fout) {
     Trace::Error("Failed to open sample project file:%s",
                  projectSamplePath.c_str());

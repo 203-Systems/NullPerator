@@ -35,7 +35,7 @@ WavFileWriter::WavFileWriter(const char *path) : sampleCount_(0) {
 bool WavFileWriter::Open(const char *path) {
   Close();
   sampleCount_ = 0;
-  file_ = FileSystem::GetInstance()->Open(path, "wb");
+  file_ = FileSystem::GetInstance()->Open(path, "w+b");
   if (!file_) {
     return false;
   }
