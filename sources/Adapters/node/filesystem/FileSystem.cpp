@@ -544,6 +544,10 @@ int VfsFile::Write(const void *ptr, int size, int nmemb) {
 }
 void VfsFile::Seek(long offset, int whence) { fseek(f_, offset, whence); }
 long VfsFile::Tell() { return ftell(f_); }
+bool VfsFile::Truncate(long size) {
+  return f_ && size >= 0 && fflush(f_) == 0 &&
+         ftruncate(fileno(f_), static_cast<off_t>(size)) == 0;
+}
 bool VfsFile::Close() {
   if (!f_)
     return true;

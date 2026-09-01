@@ -50,6 +50,20 @@ uint64_t PaddedChunkEnd(uint64_t dataStart, uint32_t chunkSize) {
   return dataStart + static_cast<uint64_t>(chunkSize) + (chunkSize & 1U);
 }
 
+bool IsCanonicalUnfinalizedHeader(I_File *file) {
+  uint8_t header[44]{};
+  if (!SeekTo(file, 0U) ||
+      file->Read(header, static_cast<int>(sizeof(header))) !=
+          static_cast<int>(sizeof(header)))
+    return false;
+  uint32_t fmtSize = 0U;
+  std::memcpy(&fmtSize, header + 16U, sizeof(fmtSize));
+  return std::memcmp(header, "RIFF", 4U) == 0 &&
+         std::memcmp(header + 8U, "WAVE", 4U) == 0 &&
+         std::memcmp(header + 12U, "fmt ", 4U) == 0 && fmtSize == 16U &&
+         std::memcmp(header + 36U, "data", 4U) == 0;
+}
+
 } // namespace
 
 bool WavHeaderWriter::WriteHeader(I_File *file, uint32_t sampleRate,
@@ -399,42 +413,88 @@ bool WavHeaderWriter::UpdateFileSize(I_File *file, uint32_t sampleCount,
     return false;
   }
 
-  // Get the current position, which is the total file size
-  uint32_t totalFileSize = file->Tell();
-  if (totalFileSize < 44) {
-    Trace::Error("WAVHEADER: file too small to patch header (%u bytes)",
-                 totalFileSize);
+  // Callers position the stream at the intended logical end of the data. The
+  // physical file can still be longer after an in-place trim.
+  const long finalPosition = file->Tell();
+  if (finalPosition < 0 ||
+      static_cast<uint64_t>(finalPosition) >
+          std::numeric_limits<uint32_t>::max()) {
+    Trace::Error("WAVHEADER: invalid final file position (%ld)",
+                 finalPosition);
+    return false;
+  }
+  const uint32_t logicalFileSize = static_cast<uint32_t>(finalPosition);
+
+  // Existing WAVs can have JUNK/LIST chunks or an extended fmt chunk, so use
+  // the parsed data offset rather than assuming the size field is byte 40.
+  // A newly written canonical header still has placeholder sizes and cannot
+  // pass ReadHeader, so accept only WriteHeader's exact layout as a fallback.
+  uint32_t dataSizeOffset = 0U;
+  const auto header = ReadHeader(file);
+  if (header.has_value()) {
+    if (header->dataOffset < sizeof(uint32_t))
+      return false;
+    dataSizeOffset = header->dataOffset - sizeof(uint32_t);
+  } else if (IsCanonicalUnfinalizedHeader(file)) {
+    dataSizeOffset = 40U;
+  } else {
+    Trace::Error("WAVHEADER: cannot locate data chunk size field");
     return false;
   }
 
-  // Calculate the two size fields required by the WAV header
-  uint32_t chunk_size = totalFileSize - 8;
-  uint32_t subchunk2_size = sampleCount * channels * bytesPerSample;
-
-  // Update ChunkSize (Total file size - 8)
-  file->Seek(4, SEEK_SET);
-  int written = file->Write(&chunk_size, 1, 4);
-  if (written != 4) {
-    Trace::Error("WAVHEADER: failed to write RIFF chunk size (wrote=%d err=%d)",
-                 written, file->Error());
+  const uint64_t dataSize = static_cast<uint64_t>(sampleCount) * channels *
+                            bytesPerSample;
+  if (logicalFileSize < 8U ||
+      dataSize > std::numeric_limits<uint32_t>::max() ||
+      dataSizeOffset > logicalFileSize ||
+      dataSizeOffset + sizeof(uint32_t) + dataSize != logicalFileSize) {
+    Trace::Error("WAVHEADER: inconsistent final size (%u) and data size (%llu)",
+                 logicalFileSize,
+                 static_cast<unsigned long long>(dataSize));
     return false;
   }
+  const uint64_t paddedFileSize =
+      static_cast<uint64_t>(logicalFileSize) + (dataSize & 1U);
+  if (paddedFileSize > std::numeric_limits<uint32_t>::max())
+    return false;
+  const uint32_t totalFileSize = static_cast<uint32_t>(paddedFileSize);
+  const uint32_t chunkSize = totalFileSize - 8U;
+  const uint32_t dataChunkSize = static_cast<uint32_t>(dataSize);
 
-  Trace::Log("WAVHEADER", "Updating header: FileSize=%u, DataSize=%u",
-             chunk_size, subchunk2_size);
-
-  // Update Subchunk2Size (the size of the raw data)
-  file->Seek(40, SEEK_SET);
-  written = file->Write(&subchunk2_size, 1, 4);
+  if (!SeekTo(file, dataSizeOffset))
+    return false;
+  int written = file->Write(&dataChunkSize, 1, sizeof(dataChunkSize));
   if (written != 4) {
     Trace::Error("WAVHEADER: failed to write data chunk size (wrote=%d err=%d)",
                  written, file->Error());
     return false;
   }
 
-  // Return the file pointer to its original position at the end of the file
-  file->Seek(totalFileSize, SEEK_SET);
+  Trace::Log("WAVHEADER", "Updating header: FileSize=%u, DataSize=%u",
+             chunkSize, dataChunkSize);
 
-  // Force a sync to write all cached data to the disk before closing.
+  if (!SeekTo(file, 4U))
+    return false;
+  written = file->Write(&chunkSize, 1, sizeof(chunkSize));
+  if (written != 4) {
+    Trace::Error("WAVHEADER: failed to write RIFF chunk size (wrote=%d err=%d)",
+                 written, file->Error());
+    return false;
+  }
+
+  if ((dataSize & 1U) != 0U) {
+    const uint8_t padding = 0U;
+    if (!SeekTo(file, logicalFileSize) || file->Write(&padding, 1, 1) != 1) {
+      Trace::Error("WAVHEADER: failed to write data chunk padding");
+      return false;
+    }
+  }
+
+  if (!file->Truncate(static_cast<long>(totalFileSize)) ||
+      !SeekTo(file, totalFileSize)) {
+    Trace::Error("WAVHEADER: failed to truncate file to %u bytes",
+                 totalFileSize);
+    return false;
+  }
   return file->Sync();
 }

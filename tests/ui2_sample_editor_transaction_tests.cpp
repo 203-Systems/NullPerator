@@ -18,11 +18,13 @@ class SampleEditMemoryFile final : public I_File {
 public:
   SampleEditMemoryFile(std::vector<std::uint8_t> &bytes, bool writable,
                        const bool &failRead, const bool &failWrite,
-                       const bool &failSync, std::uint32_t &syncCalls,
+                       const bool &failTruncate, const bool &failSync,
+                       std::uint32_t &syncCalls,
                        const std::uint32_t &failSyncAfter)
       : bytes_(bytes), failRead_(failRead), failWrite_(failWrite),
-        failSync_(failSync), syncCalls_(syncCalls),
-        failSyncAfter_(failSyncAfter), writable_(writable) {}
+        failTruncate_(failTruncate), failSync_(failSync),
+        syncCalls_(syncCalls), failSyncAfter_(failSyncAfter),
+        writable_(writable) {}
 
   int Read(void *destination, int size) override {
     if (failRead_) {
@@ -84,6 +86,14 @@ public:
   }
 
   long Tell() override { return static_cast<long>(position_); }
+  bool Truncate(long size) override {
+    if (!writable_ || failTruncate_ || size < 0) {
+      error_ = true;
+      return false;
+    }
+    bytes_.resize(static_cast<std::size_t>(size));
+    return true;
+  }
   int Error() override { return error_ ? 1 : 0; }
   bool Sync() override {
     ++syncCalls_;
@@ -98,6 +108,7 @@ private:
   std::vector<std::uint8_t> &bytes_;
   const bool &failRead_;
   const bool &failWrite_;
+  const bool &failTruncate_;
   const bool &failSync_;
   std::uint32_t &syncCalls_;
   const std::uint32_t &failSyncAfter_;
@@ -126,8 +137,8 @@ public:
     const bool writable = std::strchr(mode, '+') != nullptr ||
                           std::strchr(mode, 'w') != nullptr;
     return MakeFileHandle(new SampleEditMemoryFile(
-        found->second, writable, failRead_, failWrite_, failSync_, syncCalls_,
-        failSyncAfter_));
+        found->second, writable, failRead_, failWrite_, failTruncate_,
+        failSync_, syncCalls_, failSyncAfter_));
   }
 
   bool chdir(const char *) override { return true; }
@@ -200,6 +211,7 @@ public:
   void FailCopy(bool fail) { failCopy_ = fail; }
   void FailRead(bool fail) { failRead_ = fail; }
   void FailWrite(bool fail) { failWrite_ = fail; }
+  void FailTruncate(bool fail) { failTruncate_ = fail; }
   void FailSyncAfter(std::uint32_t successfulCalls) {
     failSync_ = true;
     syncCalls_ = 0U;
@@ -215,6 +227,7 @@ public:
     failCopy_ = false;
     failRead_ = false;
     failWrite_ = false;
+    failTruncate_ = false;
     failSync_ = false;
     syncCalls_ = 0U;
     failSyncAfter_ = 0U;
@@ -233,6 +246,7 @@ private:
   bool failCopy_ = false;
   bool failRead_ = false;
   bool failWrite_ = false;
+  bool failTruncate_ = false;
   bool failSync_ = false;
   std::uint32_t syncCalls_ = 0U;
   std::uint32_t failSyncAfter_ = 0U;
@@ -348,6 +362,8 @@ TEST_CASE("UI2 sample editor applies to a working copy and commits atomically") 
           Ui2SampleEditorTransactionResult::Applied);
   CHECK(fileSystem.Bytes(source) == original);
   REQUIRE(fileSystem.exists(transaction.WorkingPath()));
+  CHECK(fileSystem.Bytes(transaction.WorkingPath()).size() == 50U);
+  CHECK(ReadU32(fileSystem.Bytes(transaction.WorkingPath()), 4U) == 42U);
   CHECK(ReadU32(fileSystem.Bytes(transaction.WorkingPath()), 40U) == 6U);
   CHECK(fileSystem.Bytes(transaction.WorkingPath())[44U] == 200U);
 
@@ -517,6 +533,24 @@ TEST_CASE("UI2 sample editor copy failure never mutates the source") {
         Ui2SampleEditorTransactionResult::CopyFailed);
   CHECK(fileSystem.Bytes(source) == original);
   CHECK_FALSE(transaction.HasWorkingCopy());
+}
+
+TEST_CASE("UI2 sample trim failure to truncate discards only staging") {
+  using namespace ui2;
+  constexpr const char *source = "/samples/VOICE.wav";
+  SampleEditMemoryFileSystem fileSystem;
+  const std::vector<std::uint8_t> original = MakeWav();
+  fileSystem.Put(source, original);
+  Ui2SampleEditorTransaction transaction;
+  REQUIRE(transaction.Begin(fileSystem, source) ==
+          Ui2SampleEditorTransactionResult::Ready);
+  fileSystem.FailTruncate(true);
+
+  CHECK(transaction.ApplyTrim(1U, 2U) ==
+        Ui2SampleEditorTransactionResult::MutationFailed);
+  CHECK(fileSystem.Bytes(source) == original);
+  CHECK_FALSE(transaction.HasWorkingCopy());
+  CHECK_FALSE(fileSystem.exists(transaction.WorkingPath()));
 }
 
 TEST_CASE("UI2 sample editor journal supports long FAT-safe names") {
@@ -805,6 +839,13 @@ TEST_CASE("UI2 sample second apply preserves the previous edit on failure") {
     // Let the staging copy become durable, then fail the trim header/data
     // finalization. The previous generation must remain the active edit.
     fileSystem.FailSyncAfter(1U);
+    do {
+      result = transaction.StepApply(256U);
+    } while (result == Ui2SampleEditorTransactionResult::InProgress);
+    CHECK(result == Ui2SampleEditorTransactionResult::MutationFailed);
+  }
+  SUBCASE("truncate failure") {
+    fileSystem.FailTruncate(true);
     do {
       result = transaction.StepApply(256U);
     } while (result == Ui2SampleEditorTransactionResult::InProgress);

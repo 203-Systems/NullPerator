@@ -19,6 +19,7 @@ public:
   int Write(const void *ptr, int size, int nmemb) override;
   void Seek(long offset, int whence) override;
   long Tell() override;
+  bool Truncate(long size) override;
   int Error() override;
   bool Sync() override;
   void Dispose() override;

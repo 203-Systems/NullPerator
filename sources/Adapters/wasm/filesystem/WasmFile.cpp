@@ -6,6 +6,7 @@
 #include "WasmStorageBridge.h"
 #include "Adapters/wasm/tracing/WasmProfiler.h"
 
+#include <unistd.h>
 #include <utility>
 
 WasmFile::WasmFile(std::FILE *file, bool initiallyDirty)
@@ -42,6 +43,15 @@ void WasmFile::Seek(long offset, int whence) {
 }
 
 long WasmFile::Tell() { return file_ == nullptr ? -1L : std::ftell(file_); }
+
+bool WasmFile::Truncate(long size) {
+  if (file_ == nullptr || size < 0 || std::fflush(file_) != 0 ||
+      ftruncate(fileno(file_), static_cast<off_t>(size)) != 0) {
+    return false;
+  }
+  dirty_ = true;
+  return true;
+}
 
 int WasmFile::Error() { return file_ == nullptr ? -1 : std::ferror(file_); }
 

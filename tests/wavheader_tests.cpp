@@ -177,6 +177,14 @@ public:
   }
 
   long Tell() override { return static_cast<long>(position_); }
+  bool Truncate(long size) override {
+    if (size < 0 || static_cast<size_t>(size) > sizeof(data_)) {
+      error_ = true;
+      return false;
+    }
+    size_ = static_cast<size_t>(size);
+    return true;
+  }
   int Error() override { return error_ ? 1 : 0; }
   bool Sync() override { return !error_; }
   void Dispose() override {}
@@ -188,7 +196,7 @@ protected:
   bool Close() override { return true; }
 
 private:
-  uint8_t data_[64] = {0};
+  uint8_t data_[256] = {0};
   size_t size_ = 0;
   size_t position_ = 0;
   bool error_ = false;
@@ -257,6 +265,41 @@ ByteWriter BuildPcmWav(uint16_t channels, uint32_t sampleRate,
   return writer;
 }
 
+ByteWriter BuildPcmWavWithAncillaryChunks(uint32_t dataSize) {
+  ByteWriter writer;
+  writer.AppendFourCC("RIFF");
+  writer.AppendU32(0);
+  writer.AppendFourCC("WAVE");
+  writer.AppendFourCC("JUNK");
+  writer.AppendU32(4);
+  writer.AppendFourCC("safe");
+  writer.AppendFourCC("fmt ");
+  writer.AppendU32(16);
+  writer.AppendU16(1);
+  writer.AppendU16(1);
+  writer.AppendU32(44100);
+  writer.AppendU32(88200);
+  writer.AppendU16(2);
+  writer.AppendU16(16);
+  writer.AppendFourCC("LIST");
+  writer.AppendU32(3);
+  writer.AppendBytes("tag", 3);
+  const uint8_t padding = 0U;
+  writer.AppendBytes(&padding, 1);
+  writer.AppendFourCC("data");
+  writer.AppendU32(dataSize);
+  uint8_t zeros[8]{};
+  uint32_t remaining = dataSize;
+  while (remaining != 0U) {
+    const uint32_t count = std::min<uint32_t>(remaining, sizeof(zeros));
+    writer.AppendBytes(zeros, count);
+    remaining -= count;
+  }
+  const uint32_t riffSize = static_cast<uint32_t>(writer.size - 8U);
+  std::memcpy(writer.data + 4U, &riffSize, sizeof(riffSize));
+  return writer;
+}
+
 ByteWriter BuildExtensibleWav(uint16_t channels, uint32_t sampleRate,
                               uint16_t bitsPerSample, uint32_t dataSize,
                               uint16_t subtype) {
@@ -316,6 +359,65 @@ TEST_CASE("WriteHeader defaults to 16-bit stereo PCM") {
   CHECK(ReadU32(file.data() + 28U) == 176400U);
   CHECK(ReadU16(file.data() + 32U) == 4U);
   CHECK(ReadU16(file.data() + 34U) == 16U);
+}
+
+TEST_CASE("UpdateFileSize finalizes the canonical placeholder header") {
+  HeaderWriteFile file;
+  REQUIRE(WavHeaderWriter::WriteHeader(&file, 44100U, 1U, 16U));
+  const uint8_t samples[4]{};
+  REQUIRE(file.Write(samples, 1, sizeof(samples)) == sizeof(samples));
+
+  REQUIRE(WavHeaderWriter::UpdateFileSize(&file, 2U, 1U, 2U));
+  CHECK(file.size() == 48U);
+  CHECK(ReadU32(file.data() + 4U) == 40U);
+  CHECK(ReadU32(file.data() + 40U) == 4U);
+}
+
+TEST_CASE("UpdateFileSize pads an odd mono 8-bit data chunk") {
+  HeaderWriteFile file;
+  REQUIRE(WavHeaderWriter::WriteHeader(&file, 44100U, 1U, 8U));
+  const uint8_t sample = 0x80U;
+  REQUIRE(file.Write(&sample, 1, 1) == 1);
+
+  REQUIRE(WavHeaderWriter::UpdateFileSize(&file, 1U, 1U, 1U));
+  CHECK(file.size() == 46U);
+  CHECK(ReadU32(file.data() + 4U) == 38U);
+  CHECK(ReadU32(file.data() + 40U) == 1U);
+  CHECK(file.data()[45U] == 0U);
+  const auto finalized = WavHeaderWriter::ReadHeader(&file);
+  REQUIRE(finalized.has_value());
+  CHECK(finalized->dataChunkSize == 1U);
+}
+
+TEST_CASE("UpdateFileSize patches the parsed data chunk and truncates") {
+  Config::SetImportResampler(0);
+  const auto verify = [](const ByteWriter &wav) {
+    TestFile source(wav.data, wav.size);
+    const auto parsed = WavHeaderWriter::ReadHeader(&source);
+    REQUIRE(parsed.has_value());
+    REQUIRE(parsed->dataOffset > 44U);
+
+    HeaderWriteFile file;
+    REQUIRE(file.Write(wav.data, 1, static_cast<int>(wav.size)) ==
+            static_cast<int>(wav.size));
+    const uint32_t byte40Before = ReadU32(file.data() + 40U);
+    const uint32_t finalSize = parsed->dataOffset + 4U;
+    file.Seek(static_cast<long>(finalSize), SEEK_SET);
+
+    REQUIRE(WavHeaderWriter::UpdateFileSize(&file, 2U, 1U, 2U));
+    CHECK(file.size() == finalSize);
+    CHECK(ReadU32(file.data() + 4U) == finalSize - 8U);
+    CHECK(ReadU32(file.data() + parsed->dataOffset - 4U) == 4U);
+    CHECK(ReadU32(file.data() + 40U) == byte40Before);
+
+    const auto finalized = WavHeaderWriter::ReadHeader(&file);
+    REQUIRE(finalized.has_value());
+    CHECK(finalized->dataOffset == parsed->dataOffset);
+    CHECK(finalized->dataChunkSize == 4U);
+  };
+
+  verify(BuildPcmWavWithAncillaryChunks(8U));
+  verify(BuildExtensibleWav(1U, 44100U, 16U, 8U, 1U));
 }
 
 TEST_CASE("WavFile zero-pads GetBuffer past logical end of file") {

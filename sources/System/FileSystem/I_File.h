@@ -24,6 +24,10 @@ public:
   virtual int Write(const void *ptr, int size, int nmemb) = 0;
   virtual void Seek(long offset, int whence) = 0;
   virtual long Tell() = 0;
+  virtual bool Truncate(long size) {
+    (void)size;
+    return false;
+  }
   virtual int Error() = 0;
   virtual bool Sync() = 0;
   virtual void Dispose() = 0;
