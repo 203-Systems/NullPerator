@@ -66,6 +66,9 @@ public:
   [[nodiscard]] bool Rendering() const { return phase_ == Phase::Rendering; }
   [[nodiscard]] std::uint32_t InstanceId() const { return instanceId_; }
   [[nodiscard]] Ui2ProjectRenderMode Mode() const { return mode_; }
+  [[nodiscard]] Ui2ProjectRenderStartResult LastStartResult() const {
+    return lastStartResult_;
+  }
   [[nodiscard]] int ProgressPercent() const {
     return phase_ == Phase::Complete ? 100 : CalculatePercent();
   }
@@ -82,10 +85,13 @@ public:
   }
 
   bool Request(Ui2ProjectRenderMode mode) {
-    if (Active() || backend_ == nullptr)
+    if (Active() || backend_ == nullptr) {
+      lastStartResult_ = Ui2ProjectRenderStartResult::BackendUnavailable;
       return false;
+    }
 
     const Ui2ProjectRenderStartResult result = backend_->Start(mode);
+    lastStartResult_ = result;
     switch (result) {
     case Ui2ProjectRenderStartResult::Started:
       mode_ = mode;
@@ -337,6 +343,8 @@ private:
   int totalRenderUnits_ = 1;
   int progressChannel_ = -1;
   Ui2ProjectRenderMode mode_ = Ui2ProjectRenderMode::Mixdown;
+  Ui2ProjectRenderStartResult lastStartResult_ =
+      Ui2ProjectRenderStartResult::BackendUnavailable;
   Phase phase_ = Phase::Idle;
   Message message_ = Message::None;
   bool startSongRowCaptured_ = false;

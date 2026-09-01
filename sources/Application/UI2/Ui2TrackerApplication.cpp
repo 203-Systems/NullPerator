@@ -1729,6 +1729,9 @@ void Ui2TrackerApplication::ShowTrackerClipboardNotice(
           modelPort_.ClipboardState(command.sourcePage);
       if (clipboard.ready)
         clipboardNotice_.ShowPasted(clipboard.width, clipboard.height, nowMs);
+    } else if (command.type == Ui2TrackerCommandType::PasteSelection) {
+      feedback_.ShowError("CLIPBOARD INCOMPATIBLE", nowMs);
+      runtime_.Invalidate();
     }
   }
 }
@@ -2601,6 +2604,12 @@ void Ui2TrackerApplication::ShowFeedbackError(const char *message) {
   runtime_.Invalidate();
 }
 
+void Ui2TrackerApplication::ShowFeedbackMessage(const char *message) {
+  System *system = System::GetInstance();
+  feedback_.ShowMessage(message, system == nullptr ? 0U : system->Millis());
+  runtime_.Invalidate();
+}
+
 bool Ui2TrackerApplication::FlushConfig() {
   Config *config = Config::GetInstance();
   const bool saved = configSave_.Flush(
@@ -2692,10 +2701,16 @@ void Ui2TrackerApplication::ExecuteProject(Ui2ProjectCommand command) {
     break;
   }
   case Ui2ProjectCommandType::RenderMixdown:
-    (void)projectRender_.Request(Ui2ProjectRenderMode::Mixdown);
+    if (!projectRender_.Request(Ui2ProjectRenderMode::Mixdown) &&
+        projectRender_.LastStartResult() ==
+            Ui2ProjectRenderStartResult::PlayerBusy)
+      ShowFeedbackMessage("STOP PLAYBACK TO RENDER");
     break;
   case Ui2ProjectCommandType::RenderStems:
-    (void)projectRender_.Request(Ui2ProjectRenderMode::Stems);
+    if (!projectRender_.Request(Ui2ProjectRenderMode::Stems) &&
+        projectRender_.LastStartResult() ==
+            Ui2ProjectRenderStartResult::PlayerBusy)
+      ShowFeedbackMessage("STOP PLAYBACK TO RENDER");
     break;
   case Ui2ProjectCommandType::None:
     break;

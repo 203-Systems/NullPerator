@@ -163,6 +163,7 @@ private:
   void MarkProjectDirty();
   void SynchronizeProjectMutationState();
   void ShowFeedbackError(const char *message);
+  void ShowFeedbackMessage(const char *message);
   [[nodiscard]] bool FlushConfig();
   [[nodiscard]] bool AutosaveSafePage() const;
   [[nodiscard]] AutoSaveCoordinator::Conditions AutoSaveConditions() const;

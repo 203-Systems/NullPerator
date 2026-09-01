@@ -62,6 +62,8 @@ TEST_CASE("UI2 Project render preserves legacy empty-row and busy guards") {
 
   backend.startResult = Ui2ProjectRenderStartResult::PlayerBusy;
   CHECK_FALSE(controller.Request(Ui2ProjectRenderMode::Mixdown));
+  CHECK(controller.LastStartResult() ==
+        Ui2ProjectRenderStartResult::PlayerBusy);
   CHECK_FALSE(controller.Active());
 
   backend.startResult = Ui2ProjectRenderStartResult::EmptyFirstSongRow;
