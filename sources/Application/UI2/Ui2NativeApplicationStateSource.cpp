@@ -9,7 +9,7 @@
 #include "Application/Model/Config.h"
 
 #include "Application/Model/Groove.h"
-#include "Application/Model/ProjectVersion.h"
+#include "ProductVersion.h"
 #include "Application/Model/Scale.h"
 #include "Application/Model/Table.h"
 #include "Application/Instruments/SIDInstrument.h"
@@ -778,7 +778,7 @@ Ui2NativeApplicationStateSource::CaptureDevice(UiDeviceFrameState &state) {
       }
     }
   }
-  CopyUiText(state.version, PROJECT_NUMBER);
+  CopyUiText(state.version, nullperator_product::Version);
   state.cursor = DeviceCursorFor(device_.SelectedField());
   state.editHeld =
       (device_.HeldMask() & TrackerActionBit(TrackerAction::Edit)) != 0U;
