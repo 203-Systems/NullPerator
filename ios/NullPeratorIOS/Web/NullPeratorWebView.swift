@@ -27,9 +27,32 @@ final class BundledWebSchemeHandler: NSObject, WKURLSchemeHandler {
             return
         }
         let fileURL = resourceRoot.appendingPathComponent(relativePath)
-        guard let data = try? Data(contentsOf: fileURL) else {
+        guard var data = try? Data(contentsOf: fileURL) else {
             urlSchemeTask.didFailWithError(URLError(.fileDoesNotExist))
             return
+        }
+        if relativePath == "index.html",
+           var html = String(data: data, encoding: .utf8) {
+            // The shared web workbench deliberately keeps a browser-friendly
+            // viewport. The iOS shell fills the physical display and owns its
+            // zoom gestures, so apply the native viewport before WebKit parses
+            // the page. In particular, viewport-fit=cover is what makes the
+            // CSS safe-area insets and the control spacing deterministic.
+            let nativeViewport = """
+            <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+            """
+            if let viewportRange = html.range(
+                of: #"<meta\s+name=[\"']viewport[\"'][^>]*>"#,
+                options: [.regularExpression, .caseInsensitive]
+            ) {
+                html.replaceSubrange(viewportRange, with: nativeViewport)
+            } else if let headRange = html.range(
+                of: "<head>",
+                options: .caseInsensitive
+            ) {
+                html.insert(contentsOf: "\n    \(nativeViewport)", at: headRange.upperBound)
+            }
+            data = Data(html.utf8)
         }
         let response = URLResponse(
             url: requestURL,

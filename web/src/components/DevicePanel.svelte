@@ -307,7 +307,9 @@
   .device-scene { position:relative; display:flex; flex:1; min-height:0; align-items:safe center; justify-content:safe center; overflow:auto; padding:24px; background:#0e0f12; }
   .compact .device-scene { overflow:hidden; padding:clamp(6px,2vw,14px); background:var(--bg-0); }
   .native-host .device-scene { align-items:flex-start; overflow:hidden; padding:max(38px,calc(env(safe-area-inset-top) + 28px)) 0 max(8px,env(safe-area-inset-bottom)); background:#000; }
-  .native-host .operator-device { --native-screen-size:min(89vw,440px); display:flex; width:100vw; height:100%; min-height:0; flex-direction:column; zoom:1!important; }
+  /* Preserve the former fixed "Large" iOS geometry. The native shell owns
+     viewport scaling, so these values should not be derived from web prefs. */
+  .native-host .operator-device { --native-screen-size:min(89.64vw,475.2px); display:flex; width:100vw; height:100%; min-height:0; flex-direction:column; zoom:1!important; }
   .native-host .operator-screen-housing { flex:0 0 auto; }
   .native-host .screen-bezel { width:var(--native-screen-size); height:var(--native-screen-size); padding:0; border:1px solid #383838; background:#050505; }
   .native-host canvas[data-tracker-display] { width:100%; height:100%; background:#050505; }
@@ -360,7 +362,7 @@
       padding:max(8px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));
     }
     .native-host .operator-device {
-      --native-screen-size:min(84dvh,50vw,calc(100dvh - 16px),620px);
+      --native-screen-size:min(90.72dvh,54vw,calc(100dvh - 16px),620px);
       --landscape-control-gap:clamp(12px,1.8vw,24px);
       display:grid;
       grid-template-columns:minmax(0,1fr) var(--native-screen-size) minmax(0,1fr);
@@ -374,6 +376,6 @@
     .native-host :global(.operator-controls) { grid-column:1 / -1; grid-row:1; }
   }
   @media(min-width:500px) and (orientation:portrait){
-    .native-host .operator-device { --native-screen-size:min(88vw,720px); }
+    .native-host .operator-device { --native-screen-size:min(88.56vw,777.6px); }
   }
 </style>
