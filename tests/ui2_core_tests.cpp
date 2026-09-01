@@ -3805,6 +3805,37 @@ TEST_CASE("UI2 Device represents all approved rows and reveals optional rows") {
   CHECK(scene.contentOffsetY == data.scrollOffset);
 }
 
+TEST_CASE("UI2 Device hides unavailable platform rows and compacts layout") {
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  ui2::UiDeviceViewData data;
+  data.showMidiDevice = false;
+  data.showVolume = false;
+  data.showBrightness = false;
+
+  REQUIRE(ui2::UiDeviceView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK(FindTextCommand(scene.content.Stream(), "MIDI DEVICE") == nullptr);
+  CHECK(FindTextCommand(scene.content.Stream(), "VOLUME") == nullptr);
+  CHECK(FindTextCommand(scene.content.Stream(), "BRIGHTNESS") == nullptr);
+  CHECK(FindTextCommand(scene.content.Stream(), "MIDI SYNC") != nullptr);
+  CHECK(FindTextCommand(scene.content.Stream(), "RESAMPLER") != nullptr);
+
+  data.cursor = ui2::UiDeviceCursor::MidiDevice;
+  CHECK(ui2::UiDeviceView::CursorTargetRect(data).Empty());
+  data.cursor = ui2::UiDeviceCursor::Volume;
+  CHECK(ui2::UiDeviceView::CursorTargetRect(data).Empty());
+  data.cursor = ui2::UiDeviceCursor::Brightness;
+  CHECK(ui2::UiDeviceView::CursorTargetRect(data).Empty());
+
+  data.cursor = ui2::UiDeviceCursor::MidiSync;
+  const ui2::RectI16 compactMidiSync =
+      ui2::UiDeviceView::CursorTargetRect(data);
+  ui2::UiDeviceViewData fullData;
+  fullData.cursor = ui2::UiDeviceCursor::MidiSync;
+  CHECK(compactMidiSync.y < ui2::UiDeviceView::CursorTargetRect(fullData).y);
+}
+
 TEST_CASE("UI2 Theme and Font remain separate page contracts") {
   ui2::UiPalette palette;
   ui2::UiFrameScene scene;

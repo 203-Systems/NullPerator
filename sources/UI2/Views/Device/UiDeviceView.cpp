@@ -38,6 +38,10 @@ struct DeviceLayout {
 
 DeviceLayout LayoutFor(const UiDeviceViewData &data) {
   DeviceLayout layout;
+  layout.midiDevice = data.showMidiDevice ? 54 : -1;
+  layout.midiSync = data.showMidiDevice ? 65 : 54;
+  layout.audio = static_cast<std::int16_t>(layout.midiSync + 17);
+  layout.resampler = static_cast<std::int16_t>(layout.audio + 12);
   std::int16_t lastAudio = layout.resampler;
   if (data.showLineOut) {
     layout.lineOut = static_cast<std::int16_t>(lastAudio + 11);
@@ -48,8 +52,10 @@ DeviceLayout LayoutFor(const UiDeviceViewData &data) {
     lastAudio = layout.volume;
   }
   layout.display = static_cast<std::int16_t>(lastAudio + 17);
-  layout.brightness = static_cast<std::int16_t>(layout.display + 12);
-  std::int16_t lastDisplay = layout.brightness;
+  layout.brightness =
+      data.showBrightness ? static_cast<std::int16_t>(layout.display + 12) : -1;
+  std::int16_t lastDisplay =
+      data.showBrightness ? layout.brightness : layout.display;
   if (data.showTheme) {
     layout.theme = static_cast<std::int16_t>(lastDisplay + 11);
     lastDisplay = layout.theme;
@@ -174,8 +180,10 @@ void DrawSelectedInk(UiSceneBuilder<256, 1024> &builder,
 
 bool StructureChanged(const UiDeviceViewData &previous,
                       const UiDeviceViewData &current) {
-  return previous.showLineOut != current.showLineOut ||
+  return previous.showMidiDevice != current.showMidiDevice ||
+         previous.showLineOut != current.showLineOut ||
          previous.showVolume != current.showVolume ||
+         previous.showBrightness != current.showBrightness ||
          previous.showTheme != current.showTheme ||
          previous.showFont != current.showFont ||
          previous.showUpdateFirmware != current.showUpdateFirmware;

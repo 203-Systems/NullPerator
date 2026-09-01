@@ -1127,8 +1127,10 @@ UiApplicationRuntime::ViewDataFor(const DeviceFrameState &state) {
   data.selectorCurrent = state.selectorCurrent;
   data.selectorWrap = state.selectorWrap;
   data.enterHeld = state.enterHeld;
+  data.showMidiDevice = state.showMidiDevice;
   data.showLineOut = state.showLineOut;
   data.showVolume = state.showVolume;
+  data.showBrightness = state.showBrightness;
   data.showTheme = state.showTheme;
   data.showFont = state.showFont;
   data.showUpdateFirmware = state.showUpdateFirmware;

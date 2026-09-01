@@ -46,8 +46,10 @@ struct UiDeviceViewData {
   std::uint8_t selectorCurrent = 0;
   bool selectorWrap = false;
   bool enterHeld = false;
+  bool showMidiDevice = true;
   bool showLineOut = false;
   bool showVolume = true;
+  bool showBrightness = true;
   bool showTheme = true;
   bool showFont = true;
   bool showUpdateFirmware = false;

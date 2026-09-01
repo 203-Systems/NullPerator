@@ -818,14 +818,15 @@ Ui2NativeApplicationStateSource::CaptureDevice(UiDeviceFrameState &state) {
   state.cursor = DeviceCursorFor(device_.SelectedField());
   state.enterHeld =
       (device_.HeldMask() & TrackerActionBit(TrackerAction::Enter)) != 0U;
-  state.showLineOut =
-      (device_.VisibleFields() &
-       (std::uint32_t{1}
-        << static_cast<std::uint8_t>(Ui2DeviceField::LineOut))) != 0U;
-  state.showUpdateFirmware =
-      (device_.VisibleFields() &
-       (std::uint32_t{1}
-        << static_cast<std::uint8_t>(Ui2DeviceField::UpdateFirmware))) != 0U;
+  const auto fieldVisible = [&](Ui2DeviceField field) {
+    return (device_.VisibleFields() &
+            (std::uint32_t{1} << static_cast<std::uint8_t>(field))) != 0U;
+  };
+  state.showMidiDevice = fieldVisible(Ui2DeviceField::MidiDevice);
+  state.showLineOut = fieldVisible(Ui2DeviceField::LineOut);
+  state.showVolume = fieldVisible(Ui2DeviceField::Volume);
+  state.showBrightness = fieldVisible(Ui2DeviceField::Brightness);
+  state.showUpdateFirmware = fieldVisible(Ui2DeviceField::UpdateFirmware);
   const Ui2DeviceBottomState bottom = device_.Bottom();
   if (bottom.kind == Ui2DeviceBottomKind::Selector) {
     const char *const *options = boolean;

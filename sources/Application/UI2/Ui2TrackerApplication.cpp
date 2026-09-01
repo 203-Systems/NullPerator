@@ -285,6 +285,17 @@ bool Ui2TrackerApplication::Init(Ui2StartupOptions options) {
   visibleDeviceFields &=
       ~(std::uint32_t{1}
         << static_cast<std::uint8_t>(Ui2DeviceField::UpdateFirmware));
+#if defined(NULLPERATOR_IOS)
+  visibleDeviceFields &=
+      ~(std::uint32_t{1}
+        << static_cast<std::uint8_t>(Ui2DeviceField::MidiDevice));
+  visibleDeviceFields &=
+      ~(std::uint32_t{1}
+        << static_cast<std::uint8_t>(Ui2DeviceField::Volume));
+  visibleDeviceFields &=
+      ~(std::uint32_t{1}
+        << static_cast<std::uint8_t>(Ui2DeviceField::Brightness));
+#endif
   device_.SetVisibleFields(visibleDeviceFields);
   ConfigureRecordController();
   ActivatePage(UiApplicationPage::Song);
