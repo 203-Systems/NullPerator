@@ -353,6 +353,8 @@
   @media(min-height:540px){
     .compact .operator-device{height:min(720px,calc(100dvh - 72px - env(safe-area-inset-bottom)))}
     .compact :global(.operator-controls){position:absolute;left:0;bottom:0;margin:0}
+  }
+  @media(min-height:540px) and (orientation:portrait){
     .compact.native-host .operator-device{height:100%;min-height:0}
     .compact.native-host :global(.operator-controls){position:relative;left:auto;bottom:auto;margin-top:12px}
   }

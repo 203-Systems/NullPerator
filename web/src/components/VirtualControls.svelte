@@ -171,7 +171,8 @@
   .operator-controls.native-host .d-pad .down { left:var(--control-gap); top:calc(var(--control-gap) * 2); }
   .operator-controls.native-host .face-buttons {
     position:relative; inset:auto; grid-column:2; grid-row:1; display:grid; grid-template-columns:repeat(2,var(--face-edge)); gap:12px;
-    align-self:start; justify-self:center; width:auto; height:auto; margin-top:calc(var(--upper-controls-top) + 48px); margin-left:12px;
+    align-self:start; justify-self:center; width:auto; height:auto;
+    margin-top:calc(var(--upper-controls-top) + var(--control-gap) + (var(--control-edge) - var(--face-edge)) / 2);
   }
   .operator-controls.native-host .face,
   .operator-controls.native-host .bottom-buttons button {
@@ -190,6 +191,9 @@
     justify-content:center; align-self:end; width:auto; height:var(--bottom-h); margin-left:0;
   }
   .operator-controls.native-host .bottom-buttons button { width:var(--bottom-w); height:var(--bottom-h); }
+  @media(orientation:portrait){
+    .operator-controls.native-host { align-self:center; }
+  }
   @media(min-width:500px) and (orientation:portrait){
     .operator-controls.native-host { --control-slot-edge:66px; --face-edge:88px; --bottom-w:142px; --bottom-h:68px; --bottom-gap:30px; --upper-controls-top:clamp(64px,7.5dvh,82px); width:min(100%,720px); padding-inline:42px; }
     .operator-controls.native-host .face-buttons { gap:18px; }
@@ -205,8 +209,8 @@
     .operator-controls.native-host .d-pad { grid-column:1; align-self:center; margin-top:0; }
     .operator-controls.native-host .face-buttons { grid-column:3; align-self:center; gap:clamp(10px,1.5vw,18px); margin:0; }
     .operator-controls.native-host .bottom-buttons { display:contents; }
-    .operator-controls.native-host .bottom-buttons button:first-child { grid-column:1; grid-row:2; align-self:end; justify-self:end; }
-    .operator-controls.native-host .bottom-buttons button:last-child { grid-column:3; grid-row:2; align-self:end; justify-self:start; }
+    .operator-controls.native-host .bottom-buttons button:first-child { grid-column:1; grid-row:2; align-self:end; justify-self:center; }
+    .operator-controls.native-host .bottom-buttons button:last-child { grid-column:3; grid-row:2; align-self:end; justify-self:center; }
   }
   @media(orientation:portrait) and (max-height:499px){
     .operator-controls.compact{margin-top:5px}

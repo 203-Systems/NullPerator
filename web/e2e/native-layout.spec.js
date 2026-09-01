@@ -33,6 +33,18 @@ function intersects(a, b) {
     && a.y + a.height > b.y
 }
 
+function union(boxes) {
+  const left = Math.min(...boxes.map((box) => box.x))
+  const top = Math.min(...boxes.map((box) => box.y))
+  const right = Math.max(...boxes.map((box) => box.x + box.width))
+  const bottom = Math.max(...boxes.map((box) => box.y + box.height))
+  return { x: left, y: top, width: right - left, height: bottom - top }
+}
+
+function center(box) {
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+}
+
 async function installNativeBridge(page) {
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'requestMIDIAccess', {
@@ -126,6 +138,7 @@ for (const device of devices) {
     const controls = page.locator('.operator-controls [data-action]')
     await expect(controls).toHaveCount(8)
     const boxes = []
+    const actionBoxes = new Map()
     for (const control of await controls.all()) {
       const box = await control.boundingBox()
       expect(box).not.toBeNull()
@@ -142,6 +155,29 @@ for (const device of devices) {
       ), { x: box.x + box.width / 2, y: box.y + box.height / 2 })
       expect(hitAction).toBe(action)
       boxes.push(box)
+      actionBoxes.set(action, box)
+    }
+
+    const controlsBox = await page.locator('.operator-controls').boundingBox()
+    const directionBox = union(['up', 'left', 'down', 'right'].map((action) => actionBoxes.get(action)))
+    const faceBox = union(['edit', 'option'].map((action) => actionBoxes.get(action)))
+    const bottomBox = union(['play', 'shift'].map((action) => actionBoxes.get(action)))
+    const viewportCenter = center(viewport)
+    const controlsCenter = center(controlsBox)
+    const directionCenter = center(directionBox)
+    const faceCenter = center(faceBox)
+    const bottomCenter = center(bottomBox)
+    expect(Math.abs(controlsCenter.x - viewportCenter.x)).toBeLessThanOrEqual(1)
+    expect(Math.abs((directionCenter.x + faceCenter.x) / 2 - viewportCenter.x)).toBeLessThanOrEqual(2)
+    expect(Math.abs(bottomCenter.x - viewportCenter.x)).toBeLessThanOrEqual(2)
+    if (device.width > device.height) {
+      expect(Math.abs(directionCenter.y - faceCenter.y)).toBeLessThanOrEqual(2)
+      expect(Math.abs(canvasBox.x + canvasBox.width / 2 - viewportCenter.x)).toBeLessThanOrEqual(1)
+      expect(Math.abs(canvasBox.y + canvasBox.height / 2 - viewportCenter.y)).toBeLessThanOrEqual(1)
+      expect(Math.abs(center(actionBoxes.get('play')).x - directionCenter.x)).toBeLessThanOrEqual(2)
+      expect(Math.abs(center(actionBoxes.get('shift')).x - faceCenter.x)).toBeLessThanOrEqual(2)
+    } else {
+      expect(Math.abs(directionCenter.y - faceCenter.y)).toBeLessThanOrEqual(2)
     }
 
     const settings = page.getByRole('button', { name: 'Open settings' })
@@ -151,6 +187,7 @@ for (const device of devices) {
     expect(settingsBox.y).toBeGreaterThanOrEqual(0)
     expect(settingsBox.x + settingsBox.width).toBeLessThanOrEqual(device.width)
     expect(settingsBox.y + settingsBox.height).toBeLessThanOrEqual(device.height)
+    expect(Math.abs(center(settingsBox).y - bottomCenter.y)).toBeLessThanOrEqual(2)
     for (const box of boxes) expect(intersects(settingsBox, box)).toBe(false)
 
     await saveScreenshot(page, testInfo, device, 'main')
