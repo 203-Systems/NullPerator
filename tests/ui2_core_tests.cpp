@@ -2667,7 +2667,9 @@ TEST_CASE("UI2 Phrase bottom bar keeps Note adjustment and FX help distinct") {
   ui2::UiFrameScene emptyScene;
   REQUIRE(ui2::UiPhraseView::Build(empty, palette, emptyScene) ==
           ui2::UiBuildStatus::Built);
-  CHECK_FALSE(emptyScene.bottomVisible);
+  CHECK(emptyScene.bottomVisible);
+  CHECK(FindTextCommand(emptyScene.bottom.Stream(), "T1") != nullptr);
+  CHECK(FindTextCommand(emptyScene.bottom.Stream(), "D3") != nullptr);
 }
 
 TEST_CASE("UI2 Phrase dual cursor animation renders exact visual overrides") {
@@ -2818,7 +2820,27 @@ TEST_CASE("UI2 Table ENTER-held cells retain command help without legend") {
   ui2::UiFrameScene emptyScene;
   REQUIRE(ui2::UiTableView::Build(data, palette, emptyScene) ==
           ui2::UiBuildStatus::Built);
-  CHECK_FALSE(emptyScene.bottomVisible);
+  CHECK(emptyScene.bottomVisible);
+  CHECK(FindTextCommand(emptyScene.bottom.Stream(), "T1") != nullptr);
+  CHECK(FindTextCommand(emptyScene.bottom.Stream(), "D3") != nullptr);
+}
+
+TEST_CASE("UI2 Groove defaults to live track notes until help overrides it") {
+  ui2::UiGrooveViewData data = ui2::test::ApprovedGrooveFixture();
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiGrooveView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  REQUIRE(scene.bottomVisible);
+  CHECK(FindTextCommand(scene.bottom.Stream(), "T1") != nullptr);
+  CHECK(FindTextCommand(scene.bottom.Stream(), "D3") != nullptr);
+
+  data.selectionActive = true;
+  data.selectionVisualRect = ui2::UiGrooveView::SelectionTargetRect(0, 2);
+  REQUIRE(ui2::UiGrooveView::Build(data, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  CHECK(FindTextCommand(scene.bottom.Stream(), "SELECTION MODE") != nullptr);
+  CHECK(FindTextCommand(scene.bottom.Stream(), "T1") == nullptr);
 }
 
 TEST_CASE("UI2 Table idle is clean and row motion stays locally dirty") {

@@ -20,6 +20,7 @@ namespace ui2 {
 struct UiGrooveViewData {
   std::string_view number = "00";
   std::array<std::uint8_t, 16> steps{};
+  std::array<std::string_view, 8> trackNotes{};
   std::uint8_t editRow = 0;
   std::int8_t playbackRow = -1;
   bool selectedTrackMuted = false;

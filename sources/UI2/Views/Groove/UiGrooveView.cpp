@@ -111,6 +111,7 @@ void UiGrooveView::RenderDelta(const UiGrooveViewData &previous,
       previous.clipboardReady != current.clipboardReady ||
       previous.clipboardPasted != current.clipboardPasted ||
       previous.interpolationCompleted != current.interpolationCompleted ||
+      previous.trackNotes != current.trackNotes ||
       previous.clipboardWidth != current.clipboardWidth ||
       previous.clipboardHeight != current.clipboardHeight)
     render({0, 208, 240, 32});
@@ -130,10 +131,11 @@ UiBuildStatus UiGrooveView::Build(const UiGrooveViewData &data, UiPalette &,
       .navTarget = UiNavTarget::Groove,
       .navCursor = data.navCursor,
   };
-  const UiBottomBarModel hidden{.kind = UiBottomBarKind::Hidden};
+  UiBottomBarModel pageBottom{.kind = UiBottomBarKind::TrackNotes};
+  pageBottom.trackNotes.notes = data.trackNotes;
   UiResolvedChrome chrome = UiBarResolver::Resolve({
       .pageTop = pageTop,
-      .pageDefault = hidden,
+      .pageDefault = pageBottom,
       .selectionActive = data.selectionActive,
       .selectionNextExpansionAll = data.selectionNextExpansionAll,
       .selectionSupportsInterpolation = true,

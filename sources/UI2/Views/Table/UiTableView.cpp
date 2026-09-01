@@ -266,17 +266,22 @@ UiBuildStatus UiTableView::Build(const UiTableViewData &data, UiPalette &,
       .metaSelectionOverride = data.topMetaVisualOverride,
       .metaInkVisible = data.topMetaInkVisible,
   };
-  const UiBottomBarModel hidden{.kind = UiBottomBarKind::Hidden};
+  UiBottomBarModel pageBottom{.kind = UiBottomBarKind::TrackNotes};
+  pageBottom.trackNotes.notes = data.trackNotes;
   UiTrackNotesModel tracks;
   tracks.notes = data.trackNotes;
   tracks.selectedTrack = data.selectedTrack;
   tracks.trackSelectionRect = data.bottomTrackVisualRect;
   tracks.trackSelectionOverride = data.bottomTrackVisualOverride;
   tracks.trackInkVisible = data.bottomTrackInkVisible;
+  const UiBottomBarModel *cursorContext =
+      !data.numberFocus && data.cursorBottom.kind != UiBottomBarKind::Hidden
+          ? &data.cursorBottom
+          : nullptr;
   const UiBarInputs inputs{
       .pageTop = pageTop,
-      .pageDefault = hidden,
-      .cursorContext = data.numberFocus ? nullptr : &data.cursorBottom,
+      .pageDefault = pageBottom,
+      .cursorContext = cursorContext,
       .enterHeldTracks = &tracks,
       // Table values are command-specific. Their help remains more useful
       // than a generic +/- legend; digit focus still appears in the cell.

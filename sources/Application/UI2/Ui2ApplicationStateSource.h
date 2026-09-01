@@ -240,6 +240,7 @@ struct UiTableFrameState {
 struct UiGrooveFrameState {
   std::array<char, 3> number{};
   std::array<std::uint8_t, 16> steps{};
+  std::array<std::array<char, 5>, 8> trackNotes{};
   std::uint8_t editRow = 0;
   std::int8_t playbackRow = -1;
   bool selectedTrackMuted = false;

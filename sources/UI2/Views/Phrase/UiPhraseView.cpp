@@ -276,7 +276,8 @@ UiBuildStatus UiPhraseView::Build(const UiPhraseViewData &data, UiPalette &,
       .metaSelectionOverride = data.topMetaVisualOverride,
       .metaInkVisible = data.topMetaInkVisible,
   };
-  const UiBottomBarModel pageBottom{.kind = UiBottomBarKind::Hidden};
+  UiBottomBarModel pageBottom{.kind = UiBottomBarKind::TrackNotes};
+  pageBottom.trackNotes.notes = data.trackNotes;
   UiTrackNotesModel editTracks;
   editTracks.notes = data.trackNotes;
   editTracks.selectedTrack = data.selectedTrack;
@@ -288,10 +289,14 @@ UiBuildStatus UiPhraseView::Build(const UiPhraseViewData &data, UiPalette &,
       .fineLabel = "NOTE",
       .coarseLabel = "OCT",
   };
+  const UiBottomBarModel *cursorContext =
+      !data.numberFocus && data.cursorBottom.kind != UiBottomBarKind::Hidden
+          ? &data.cursorBottom
+          : nullptr;
   const UiBarInputs barInputs{
       .pageTop = pageTop,
       .pageDefault = pageBottom,
-      .cursorContext = data.numberFocus ? nullptr : &data.cursorBottom,
+      .cursorContext = cursorContext,
       .enterHeldTracks = &editTracks,
       // FX and parameter cells retain their contextual help while held. Only
       // Note is a semantic coarse/fine domain (note / octave).

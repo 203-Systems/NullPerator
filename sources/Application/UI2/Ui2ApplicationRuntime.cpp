@@ -1423,6 +1423,8 @@ UiApplicationRuntime::ViewDataFor(const GrooveFrameState &state) {
   UiGrooveViewData data;
   data.number = state.number.data();
   data.steps = state.steps;
+  for (std::size_t track = 0; track < state.trackNotes.size(); ++track)
+    data.trackNotes[track] = state.trackNotes[track].data();
   data.editRow = state.editRow;
   data.playbackRow = state.playbackRow;
   data.selectedTrackMuted = state.selectedTrackMuted;

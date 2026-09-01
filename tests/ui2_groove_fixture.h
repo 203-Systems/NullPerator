@@ -10,6 +10,7 @@ inline UiGrooveViewData ApprovedGrooveFixture() {
   data.steps.fill(0xFFU);
   data.steps[0] = 0x06;
   data.steps[1] = 0x06;
+  data.trackNotes = {"D3", "C4", "--", "F2", "A3", "D#3", "C3", "G2"};
   data.editRow = 0;
   data.power = UiPowerState::BatteryNormal;
   return data;

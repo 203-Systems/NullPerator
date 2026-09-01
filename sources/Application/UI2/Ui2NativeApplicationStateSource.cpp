@@ -990,6 +990,7 @@ Ui2NativeApplicationStateSource::CaptureGroove(UiGrooveFrameState &state) {
   const unsigned char *steps = groove->GetGrooveData(groove_.Number());
   std::copy_n(steps, 16, state.steps.begin());
   Player *player = Player::GetInstance();
+  CaptureUiTrackNotes(player, PlayerRunning(), state.trackNotes);
   if (player == nullptr)
     return {.active = false};
   const PlayerTransportSnapshot transport = player->CaptureTransportSnapshot();
