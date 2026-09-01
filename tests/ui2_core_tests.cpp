@@ -3108,6 +3108,45 @@ TEST_CASE("UI2 Instrument reveals the fixed-capacity Sample tail") {
   CHECK(scene.contentOffsetY == 56);
 }
 
+TEST_CASE("UI2 Instrument keeps the animated selection visible at the Sample "
+          "tail") {
+  ui2::UiInstrumentViewData sample =
+      ui2::test::ApprovedInstrumentFixture("sample");
+  sample.fields[11] = {"FILTER MODE", "ORIGINAL", 176};
+  sample.fields[12] = {"INTERPOLATION", "LINEAR", 186};
+  sample.fields[13] = {"LOOP", "ONE SHOT", 196};
+  sample.fields[14] = {"START", "0000000", 206};
+  sample.fields[15] = {"LOOP START", "0000000", 216};
+  sample.fields[16] = {"LOOP END", "0000000", 226};
+  sample.fields[17] = {"TABLE", "--", 236};
+  sample.fields[18] = {"AUTOMATION", "NO", 246};
+  sample.fieldCount = 19U;
+  sample.cursor = ui2::UiInstrumentCursor::Field;
+  sample.selectedField = 18U;
+  sample.fieldBottom = ui2::UiInstrumentFieldBottom::Selector;
+  sample.fieldOptions = ui2::UiInstrumentFieldOptions::Boolean;
+  sample.cursorVisualOverride = true;
+  sample.cursorVisualRect = ui2::UiInstrumentView::CursorTargetRect(sample);
+  sample.scrollOffset = ui2::UiInstrumentView::RevealCursor(0, sample);
+
+  ui2::UiPalette palette;
+  ui2::UiFrameScene scene;
+  REQUIRE(ui2::UiInstrumentView::Build(sample, palette, scene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+
+  const ui2::RectI16 logical =
+      ui2::UiInstrumentView::CursorTargetRect(sample);
+  const std::int16_t visualY =
+      static_cast<std::int16_t>(logical.y - scene.contentOffsetY);
+  CHECK(visualY >= scene.topHeight);
+  CHECK(logical.Bottom() - scene.contentOffsetY <= scene.bottomTop);
+  CHECK(surface.Pixel(logical.x + 1, visualY + 1) ==
+        palette.Index(ui2::UiColorToken::CursorPrimary));
+}
+
 TEST_CASE("UI2 Sample Instrument supplies contextual bars for every field kind") {
   ui2::UiPalette palette;
   ui2::UiFrameScene scene;

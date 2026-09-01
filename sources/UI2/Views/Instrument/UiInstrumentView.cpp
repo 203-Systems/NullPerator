@@ -69,7 +69,11 @@ std::string_view TypeName(UiInstrumentKind kind) {
 
 RectI16 ResolvedCursorRect(const UiInstrumentViewData &data) {
   if (data.cursorVisualOverride && !data.cursorVisualRect.Empty()) {
-    return Intersect(data.cursorVisualRect, RectI16::Screen());
+    // Instrument cursor animation runs in the scrollable content's logical
+    // coordinate space. Tail fields can therefore sit below y=240 before the
+    // content offset is applied. Clipping here would discard their selection
+    // bubble before the renderer has a chance to translate it into view.
+    return data.cursorVisualRect;
   }
   return UiInstrumentView::CursorTargetRect(data);
 }
