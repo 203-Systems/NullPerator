@@ -683,6 +683,41 @@ TEST_CASE("UI2 approved font renders exact 5 by 7 glyphs and clips") {
   CHECK(surface.Pixel(3, 5) == 9);
 }
 
+TEST_CASE("UI2 animated selections recolor only covered glyph pixels") {
+  for (const bool selectionFirst : {false, true}) {
+    CAPTURE(selectionFirst);
+    ui2::UiPalette palette;
+    ui2::UiSurfaceStorage storage;
+    ui2::UiIndexedSurface surface(storage);
+    surface.Clear(palette.Index(ui2::UiColorToken::SurfaceBackground));
+    ui2::UiCommandList<2, 1> commands;
+    const auto text = [&]() {
+      return commands.Text(
+          {10, 10}, "A", palette.Index(ui2::UiColorToken::TextNormal));
+    };
+    const auto selection = [&]() {
+      return commands.FillSelection(
+          {10, 9, 2, 9}, palette.Index(ui2::UiColorToken::CursorPrimary),
+          ui2::UiCoverage::Cursor);
+    };
+    if (selectionFirst) {
+      REQUIRE(selection());
+      REQUIRE(text());
+    } else {
+      REQUIRE(text());
+      REQUIRE(selection());
+    }
+    ui2::UiRasterizer::Render(commands.Stream(), surface, &palette);
+    CHECK(surface.Pixel(11, 10) ==
+          static_cast<ui2::PaletteIndex>(
+              ui2::UiColorToken::TextHighlighted));
+    CHECK(surface.Pixel(12, 10) ==
+          static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextNormal));
+    CHECK(surface.Pixel(13, 10) ==
+          static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextNormal));
+  }
+}
+
 TEST_CASE("UI2 rasterizer preserves original corners through layer clips") {
   ui2::UiSurfaceStorage storage;
   ui2::UiIndexedSurface surface(storage);
@@ -2428,7 +2463,7 @@ TEST_CASE("UI2 Song animated cursor delta matches the same full visual frame") {
                    fullSurface.Pixels().begin(), fullSurface.Pixels().end()));
   CHECK(deltaSurface.Pixel(current.cursorVisualRect.x + 7,
                            current.cursorVisualRect.y + 4) ==
-        deltaPalette.Index(ui2::UiColorToken::CursorPrimary));
+        deltaPalette.Index(ui2::UiColorToken::TextHighlighted));
   CHECK(ui2::UiSongView::CursorTargetRect(5, 3) ==
         ui2::RectI16{142, 77, 15, 9});
 }
@@ -2813,7 +2848,7 @@ TEST_CASE("UI2 Instrument enter mode resolves both independent cursors") {
   ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
 
   CHECK(surface.Pixel(64, 13) ==
-        palette.Index(ui2::UiColorToken::CursorPrimary));
+        palette.Index(ui2::UiColorToken::TextHighlighted));
   CHECK(surface.Pixel(91, 215) ==
         palette.Index(ui2::UiColorToken::CursorPrimary));
 }

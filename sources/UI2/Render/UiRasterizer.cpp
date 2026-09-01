@@ -10,6 +10,52 @@
 
 namespace ui2 {
 
+namespace {
+
+void RenderTextCommand(const UiCommand &command, const UiCommandStream &stream,
+                       UiIndexedSurface &surface, PointI16 origin,
+                       RectI16 clip, UiTextCaseMode textCase,
+                       PaletteIndex color) {
+  const std::size_t length = command.auxiliaryColor;
+  if (command.payload > stream.text.size() ||
+      length > stream.text.size() - command.payload) {
+    return;
+  }
+
+  RectI16 bounds = command.bounds;
+  bounds.x = static_cast<std::int16_t>(bounds.x + origin.x);
+  bounds.y = static_cast<std::int16_t>(bounds.y + origin.y);
+  if (Intersect(bounds, clip).Empty())
+    return;
+
+  PointI16 glyphOrigin{bounds.x, bounds.y};
+  const std::uint8_t scale = command.parameter & 0x7FU;
+  const bool preserveCase = (command.parameter & 0x80U) != 0U;
+  bool wordStart = true;
+  for (const char character :
+       stream.text.subspan(command.payload, length)) {
+    char displayed = character;
+    const bool lower = displayed >= 'a' && displayed <= 'z';
+    const bool upper = displayed >= 'A' && displayed <= 'Z';
+    if (!preserveCase && (lower || upper)) {
+      if (textCase == UiTextCaseMode::Upper ||
+          (textCase == UiTextCaseMode::Title && wordStart))
+        displayed = static_cast<char>(displayed & ~0x20);
+      else
+        displayed = static_cast<char>(displayed | 0x20);
+      wordStart = false;
+    } else if (!lower && !upper && displayed != '_' && displayed != '-') {
+      wordStart = true;
+    }
+    surface.DrawGlyph5x7(glyphOrigin, UiFont5x7::Glyph(displayed), color,
+                         scale, clip);
+    glyphOrigin.x = static_cast<std::int16_t>(
+        glyphOrigin.x + UiFont5x7::kAdvance * scale);
+  }
+}
+
+} // namespace
+
 void UiRasterizer::Render(UiCommandStream stream, UiIndexedSurface &surface,
                           const UiPalette *palette, PointI16 origin,
                           RectI16 clip, UiTextCaseMode textCase) {
@@ -106,37 +152,36 @@ void UiRasterizer::Render(UiCommandStream stream, UiIndexedSurface &surface,
       break;
     }
     case UiCommandKind::Text: {
-      const std::size_t length = command.auxiliaryColor;
-      if (command.payload > stream.text.size() ||
-          length > stream.text.size() - command.payload) {
-        break;
-      }
-      PointI16 glyphOrigin{bounds.x, bounds.y};
-      const std::uint8_t scale = command.parameter & 0x7FU;
-      const bool preserveCase = (command.parameter & 0x80U) != 0U;
-      bool wordStart = true;
-      for (const char character :
-           stream.text.subspan(command.payload, length)) {
-        char displayed = character;
-        const bool lower = displayed >= 'a' && displayed <= 'z';
-        const bool upper = displayed >= 'A' && displayed <= 'Z';
-        if (!preserveCase && (lower || upper)) {
-          if (textCase == UiTextCaseMode::Upper ||
-              (textCase == UiTextCaseMode::Title && wordStart))
-            displayed = static_cast<char>(displayed & ~0x20);
-          else
-            displayed = static_cast<char>(displayed | 0x20);
-          wordStart = false;
-        } else if (!lower && !upper && displayed != '_' && displayed != '-') {
-          wordStart = true;
-        }
-        surface.DrawGlyph5x7(glyphOrigin, UiFont5x7::Glyph(displayed),
-                             command.color, scale, clip);
-        glyphOrigin.x = static_cast<std::int16_t>(
-            glyphOrigin.x + UiFont5x7::kAdvance * scale);
-      }
+      RenderTextCommand(command, stream, surface, origin, clip, textCase,
+                        command.color);
       break;
     }
+    }
+  }
+
+  // Cursor selections move independently from their logical target. Repaint
+  // only the glyph pixels currently covered by each animated bubble so text
+  // changes color continuously as the cursor crosses it. This second pass is
+  // intentionally driven by the command stream: it handles content, chrome,
+  // and dual cursors without per-view animation code or another framebuffer.
+  const PaletteIndex highlighted =
+      static_cast<PaletteIndex>(UiColorToken::TextHighlighted);
+  for (const UiCommand &selection : stream.commands) {
+    if (selection.kind != UiCommandKind::FillCoverageRoundedRect)
+      continue;
+    RectI16 selectionBounds = selection.bounds;
+    selectionBounds.x =
+        static_cast<std::int16_t>(selectionBounds.x + origin.x);
+    selectionBounds.y =
+        static_cast<std::int16_t>(selectionBounds.y + origin.y);
+    const RectI16 selectionClip = Intersect(selectionBounds, clip);
+    if (selectionClip.Empty())
+      continue;
+    for (const UiCommand &text : stream.commands) {
+      if (text.kind == UiCommandKind::Text) {
+        RenderTextCommand(text, stream, surface, origin, selectionClip,
+                          textCase, highlighted);
+      }
     }
   }
 }
