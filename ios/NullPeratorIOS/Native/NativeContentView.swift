@@ -175,43 +175,51 @@ struct NativeContentView: View {
     }
 }
 
-private struct NativeSplashScreen: View {
-    var body: some View {
-        GeometryReader { proxy in
-            let brandEdge = min(176, max(0, min(proxy.size.width, proxy.size.height) - 120))
-            let wordmarkWidth = min(240, max(0, proxy.size.width - 80))
-            let systemsWidth = min(210, max(0, proxy.size.width - 80))
+private struct NativeSplashScreen: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIView {
+        let container = UIView()
+        container.backgroundColor = .black
+        container.isAccessibilityElement = false
 
-            ZStack {
-                VStack(spacing: 28) {
-                    Image("BrandLogo")
-                        .resizable()
-                        .interpolation(.high)
-                        .scaledToFit()
-                        .frame(width: brandEdge, height: brandEdge)
+        let brandLogo = imageView(named: "BrandLogo")
+        let nullPeratorWordmark = imageView(named: "NullPeratorWordmark")
+        let systemsWordmark = imageView(named: "SystemsWordmark")
+        [brandLogo, nullPeratorWordmark, systemsWordmark].forEach(container.addSubview)
 
-                    Image("NullPeratorWordmark")
-                        .resizable()
-                        .interpolation(.high)
-                        .scaledToFit()
-                        .frame(width: wordmarkWidth)
-                }
-                .offset(y: -12)
+        // Keep these constraints identical to LaunchScreen.storyboard. UIKit
+        // resolves the safe-area guide during its first layout pass, avoiding
+        // the transient zero inset that SwiftUI reports beneath ignoresSafeArea.
+        NSLayoutConstraint.activate([
+            brandLogo.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            brandLogo.centerYAnchor.constraint(equalTo: container.centerYAnchor, constant: -43.5),
+            brandLogo.widthAnchor.constraint(equalToConstant: 176),
+            brandLogo.heightAnchor.constraint(equalToConstant: 176),
 
-                VStack {
-                    Spacer()
-                    Image("SystemsWordmark")
-                        .resizable()
-                        .interpolation(.high)
-                        .scaledToFit()
-                        .frame(width: systemsWidth)
-                        .padding(.bottom, max(34, proxy.safeAreaInsets.bottom + 22))
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .accessibilityHidden(true)
-        }
-        .background(Color.black)
-        .ignoresSafeArea()
+            nullPeratorWordmark.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            nullPeratorWordmark.topAnchor.constraint(equalTo: brandLogo.bottomAnchor, constant: 28),
+            nullPeratorWordmark.widthAnchor.constraint(equalToConstant: 240),
+            nullPeratorWordmark.heightAnchor.constraint(equalToConstant: 36),
+
+            systemsWordmark.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            systemsWordmark.bottomAnchor.constraint(
+                equalTo: container.safeAreaLayoutGuide.bottomAnchor,
+                constant: -34
+            ),
+            systemsWordmark.widthAnchor.constraint(equalToConstant: 210),
+            systemsWordmark.heightAnchor.constraint(equalToConstant: 24.5),
+        ])
+
+        return container
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {}
+
+    private func imageView(named name: String) -> UIImageView {
+        let view = UIImageView(image: UIImage(named: name))
+        view.translatesAutoresizingMaskIntoConstraints = false
+        view.contentMode = .scaleAspectFit
+        view.clipsToBounds = true
+        view.isAccessibilityElement = false
+        return view
     }
 }
