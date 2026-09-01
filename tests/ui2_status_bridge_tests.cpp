@@ -44,9 +44,13 @@ TEST_CASE("UI2 persistence waits for a presented saving frame") {
   CHECK(status.Saving());
   CHECK(status.ReadyToPersist());
 
-  status.FinishSaving();
-  CHECK_FALSE(status.Saving());
+  status.FinishSaving(100U);
+  CHECK(status.Saving());
   CHECK_FALSE(status.ReadyToPersist());
+  status.Tick(100U + ui2::Ui2PersistenceStatus::IndicatorHoldMs - 1U);
+  CHECK(status.Saving());
+  status.Tick(100U + ui2::Ui2PersistenceStatus::IndicatorHoldMs);
+  CHECK_FALSE(status.Saving());
 }
 
 TEST_CASE("UI2 persistence ignores presentation outside a save") {

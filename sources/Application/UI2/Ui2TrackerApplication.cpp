@@ -169,7 +169,7 @@ bool Ui2TrackerApplication::Init(Ui2StartupOptions options) {
   // platform or a future approved UI treatment instead of disappearing.
   statusBridge_.Attach();
   statusBridge_.Clear();
-  persistenceStatus_.FinishSaving();
+  persistenceStatus_.Reset();
   pendingSave_ = PendingSaveKind::None;
   pendingSaveOverwrite_ = false;
   deferredProjectSave_.Cancel();
@@ -627,6 +627,7 @@ PresentResult Ui2TrackerApplication::Present() {
 void Ui2TrackerApplication::Tick(std::uint32_t nowMs) {
   if (!initialized_)
     return;
+  persistenceStatus_.Tick(nowMs);
   if (feedback_.Tick(nowMs))
     runtime_.Invalidate();
   const FirmwareLifecycleCommand firmwareCommand =
@@ -2333,27 +2334,27 @@ void Ui2TrackerApplication::ExecutePendingSave(std::uint32_t nowMs) {
     if (!conditions.projectLoaded || conditions.playerRunning ||
         conditions.recordingActive || !conditions.operationAllowsSave) {
       autoSave_.CompleteAutoSave(nowMs, false);
-      persistenceStatus_.FinishSaving();
+      persistenceStatus_.FinishSaving(nowMs);
       return;
     }
     const bool saved =
         session_.AutoSave(conditions.operationAllowsSave,
                           conditions.recordingActive);
     autoSave_.CompleteAutoSave(nowMs, saved);
-    persistenceStatus_.FinishSaving();
+    persistenceStatus_.FinishSaving(nowMs);
     if (!saved)
       projectLifecycle_.ReportFailure(Ui2ProjectLifecycleFailure::SaveProject);
     return;
   }
   if (kind != PendingSaveKind::Project) {
-    persistenceStatus_.FinishSaving();
+    persistenceStatus_.FinishSaving(nowMs);
     return;
   }
 
   const TrackerApplicationSession::SaveResult result = session_.SaveProject(
       savedProjectName_.data(), projectSaveAsPending_, overwrite);
   autoSave_.SetPersistBusy(false);
-  persistenceStatus_.FinishSaving();
+  persistenceStatus_.FinishSaving(nowMs);
   if (result == TrackerApplicationSession::SaveResult::Exists) {
     // Saving is deferred until the saving indicator has been presented. A
     // fast tap may therefore release ENTER before this dialog opens; only arm

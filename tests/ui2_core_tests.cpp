@@ -1522,10 +1522,10 @@ TEST_CASE("UI2 saving spinner replaces the top-right battery presentation") {
                                     static_cast<ui2::PaletteIndex>(color);
                        });
   };
-  CHECK(hasFill({216, 11, 3, 3}, ui2::UiColorToken::SystemWarning));
-  CHECK(hasFill({222, 15, 3, 3}, ui2::UiColorToken::DerivedTextFaint));
-  CHECK(hasFill({216, 20, 3, 3}, ui2::UiColorToken::DerivedTextFaint));
-  CHECK(hasFill({210, 15, 3, 3}, ui2::UiColorToken::DerivedTextFaint));
+  CHECK(hasFill({207, 12, 3, 10}, ui2::UiColorToken::TextColored));
+  CHECK(hasFill({212, 12, 3, 10}, ui2::UiColorToken::TextNormal));
+  CHECK(hasFill({217, 12, 3, 10}, ui2::UiColorToken::DerivedTextFaint));
+  CHECK(hasFill({222, 12, 3, 10}, ui2::UiColorToken::DerivedTextFaint));
   CHECK(scene.Size() == 5U);
 }
 
@@ -2104,10 +2104,10 @@ TEST_CASE("UI2 persistence status overrides navigation and battery chrome") {
   REQUIRE(runtime.Present(source) == ui2::PresentResult::Presented);
   REQUIRE(presenter.pixels != nullptr);
   const auto topRightPixel = [&]() {
-    return presenter.pixels[11U * ui2::kScreenWidth + 216U];
+    return presenter.pixels[12U * ui2::kScreenWidth + 207U];
   };
   CHECK(topRightPixel() ==
-        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::SystemWarning));
+        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextColored));
 
   // Holding NAV cannot replace a persistence indicator that must remain
   // visible until the blocking write completes.
@@ -2115,13 +2115,13 @@ TEST_CASE("UI2 persistence status overrides navigation and battery chrome") {
   source.nowMs = 2U;
   REQUIRE(runtime.Present(source) == ui2::PresentResult::Presented);
   CHECK(topRightPixel() ==
-        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::SystemWarning));
+        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextColored));
 
   source.persistenceSaving = false;
   source.nowMs = 3U;
   REQUIRE(runtime.Present(source) == ui2::PresentResult::Presented);
   CHECK(topRightPixel() !=
-        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::SystemWarning));
+        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextColored));
 }
 
 TEST_CASE("UI2 runtime applies all persisted semantic theme colors globally") {

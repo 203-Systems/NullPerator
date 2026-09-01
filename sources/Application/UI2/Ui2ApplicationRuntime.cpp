@@ -18,6 +18,7 @@ constexpr std::uint16_t kPhraseCursorDurationMs = 120;
 constexpr std::uint16_t kGrooveCursorDurationMs = 120;
 constexpr std::uint16_t kListCursorDurationMs = 120;
 constexpr std::uint16_t kDialogCursorDurationMs = 110;
+constexpr std::uint32_t kSavingAnimationStepMs = 140;
 
 } // namespace
 
@@ -66,7 +67,9 @@ UiPowerState
 UiApplicationRuntime::CurrentPowerState(IUiApplicationStateSource &source,
                                         bool playing) {
   if (source.PersistenceSaving())
-    return UiPowerState::Saving;
+    return static_cast<UiPowerState>(
+        static_cast<std::uint8_t>(UiPowerState::Saving) +
+        (frameNowMs_ / kSavingAnimationStepMs) % 4U);
   if (source.NavigationHeld())
     return UiPowerState::Navigation;
   return CapturePowerState(source, playing).power;

@@ -90,14 +90,23 @@ void UiChromeRenderer::DrawPower(const UiTopBarModel &model,
                color);
 }
 
-void UiChromeRenderer::DrawSaving(BarBuilder &builder) {
-  // Reuse the battery slot and the established warning color used by other
-  // persistence progress UI. The subdued trailing segments keep the compact
-  // indicator legible without introducing a new palette or full-screen state.
-  builder.Fill({216, 11, 3, 3}, UiColorToken::SystemWarning);
-  builder.Fill({222, 15, 3, 3}, UiColorToken::DerivedTextFaint);
-  builder.Fill({216, 20, 3, 3}, UiColorToken::DerivedTextFaint);
-  builder.Fill({210, 15, 3, 3}, UiColorToken::DerivedTextFaint);
+void UiChromeRenderer::DrawSaving(const UiTopBarModel &model,
+                                  BarBuilder &builder) {
+  constexpr std::int16_t kX = 207;
+  constexpr std::int16_t kY = 12;
+  constexpr std::uint8_t kBarCount = 4;
+  const std::uint8_t phase = static_cast<std::uint8_t>(model.power) -
+                             static_cast<std::uint8_t>(UiPowerState::Saving);
+  for (std::uint8_t index = 0; index < kBarCount; ++index) {
+    const std::uint8_t distance =
+        static_cast<std::uint8_t>((index + kBarCount - phase) % kBarCount);
+    const UiColorToken color =
+        distance == 0U ? UiColorToken::TextColored
+                       : (distance == 1U ? UiColorToken::TextNormal
+                                         : UiColorToken::DerivedTextFaint);
+    builder.Fill({static_cast<std::int16_t>(kX + index * 5), kY, 3, 10},
+                 color);
+  }
 }
 
 std::int16_t UiChromeRenderer::BatteryFillWidth(const UiTopBarModel &model) {
@@ -160,8 +169,8 @@ UiBuildStatus UiChromeRenderer::BuildTop(const UiTopBarModel &model,
     const std::int16_t elapsedX = static_cast<std::int16_t>(
         kPlayingTextRight - UiFont5x7::TextWidth(model.elapsed.size()));
     builder.Text(model.elapsed, elapsedX, 14, UiColorToken::TextNormal);
-  } else if (model.power == UiPowerState::Saving) {
-    DrawSaving(builder);
+  } else if (IsSavingPowerState(model.power)) {
+    DrawSaving(model, builder);
   } else if (model.power == UiPowerState::Navigation) {
     const UiNavMapModel map =
         model.navMapOverride ? model.navMap : NavigationMap(model.navTarget);

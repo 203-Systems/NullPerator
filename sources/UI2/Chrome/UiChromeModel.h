@@ -23,7 +23,14 @@ enum class UiPowerState : std::uint8_t {
   Charging,
   Navigation,
   Saving,
+  Saving1,
+  Saving2,
+  Saving3,
 };
+
+[[nodiscard]] constexpr bool IsSavingPowerState(UiPowerState state) {
+  return state >= UiPowerState::Saving && state <= UiPowerState::Saving3;
+}
 
 enum class UiNavTarget : std::uint8_t {
   Project,
