@@ -7,7 +7,7 @@ This file is a working submission sheet. Copy the approved values into App Store
 ## Build identity
 
 - App name: `NullPerator`
-- Bundle ID: `io.nullperator.client`
+- Bundle ID: `io.203systems.nullperator`
 - Version: `1.0`
 - Build: `1`
 - Primary category: Music

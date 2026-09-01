@@ -14,7 +14,7 @@ loopback HTTP server, or AudioWorklet.
 
 The Xcode build phase compiles the native C++ library for the active SDK and
 architecture before linking the application. The bundle identifier is
-`io.nullperator.client`.
+`io.203systems.nullperator`.
 
 ## Runtime integration
 
