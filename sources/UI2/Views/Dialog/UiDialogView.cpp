@@ -58,6 +58,43 @@ constexpr std::array<RectI16, 5> kRenameSpecialKeys{{
     {196, 168, 35, 13},
 }};
 
+template <std::size_t Width, std::size_t Height>
+constexpr auto PackPixelMask(
+    const std::array<std::string_view, Height> &rows) {
+  std::array<std::uint8_t, (Width * Height + 7U) / 8U> packed{};
+  for (std::size_t y = 0; y < Height; ++y) {
+    for (std::size_t x = 0; x < Width; ++x) {
+      if (x < rows[y].size() && rows[y][x] == '1') {
+        const std::size_t bit = y * Width + x;
+        packed[bit / 8U] = static_cast<std::uint8_t>(
+            packed[bit / 8U] | (1U << (bit % 8U)));
+      }
+    }
+  }
+  return packed;
+}
+
+constexpr auto kShiftSolid = PackPixelMask<11>(std::array<std::string_view, 11>{
+    "00000100000", "00001110000", "00011111000", "00111111100",
+    "01111111110", "11111111111", "00011111000", "00011111000",
+    "00011111000", "00011111000", "00011111000"});
+constexpr auto kShiftOutline =
+    PackPixelMask<11>(std::array<std::string_view, 11>{
+        "00000100000", "00001010000", "00010001000", "00100000100",
+        "01000000010", "11100000111", "00010001000", "00010001000",
+        "00010001000", "00010001000", "00011111000"});
+constexpr auto kSpaceIcon = PackPixelMask<21>(std::array<std::string_view, 5>{
+    "100000000000000000001", "100000000000000000001",
+    "100000000000000000001", "100000000000000000001",
+    "111111111111111111111"});
+constexpr auto kEraseOutline =
+    PackPixelMask<17>(std::array<std::string_view, 9>{
+        "00001111111111111", "00010000000000001", "00100000000000001",
+        "01000000000000001", "10000000000000001", "01000000000000001",
+        "00100000000000001", "00010000000000001", "00001111111111111"});
+constexpr auto kEraseX = PackPixelMask<5>(std::array<std::string_view, 5>{
+    "10001", "01010", "00100", "01010", "10001"});
+
 std::int16_t ActionCenter(std::uint8_t index, std::uint8_t count) {
   if (count <= 1U)
     return 120;
@@ -153,9 +190,8 @@ void RenderRename(const UiDialogViewData &data,
     }
   }
 
-  const std::array<std::string_view, 5> specialLabels{
-      data.uppercase ? std::string_view{"ABC"} : std::string_view{"abc"},
-      "-", "SPACE", ".", "DEL"};
+  constexpr std::array<std::string_view, 5> specialLabels{"", "-", "", ".",
+                                                          ""};
   for (std::uint8_t index = 0; index < specialLabels.size(); ++index) {
     const bool selected = data.focus == UiDialogFocus::Keyboard &&
                           data.selectedKey == keyIndex;
@@ -165,11 +201,22 @@ void RenderRename(const UiDialogViewData &data,
       builder.Selection(kRenameSpecialKeys[index]);
     const std::int16_t center = static_cast<std::int16_t>(
         kRenameSpecialKeys[index].x + kRenameSpecialKeys[index].width / 2);
+    const UiColorToken iconColor =
+        selectedInk ? UiColorToken::TextHighlighted : UiColorToken::TextDim;
     if (index == 0U) {
-      builder.CenteredLiteralText(
-          specialLabels[index], center, 171,
-          selectedInk ? UiColorToken::TextHighlighted
-                      : UiColorToken::TextDim);
+      const UiColorToken shiftColor =
+          selectedInk    ? UiColorToken::TextHighlighted
+          : data.uppercase ? UiColorToken::TextColored
+                           : UiColorToken::TextDim;
+      builder.PixelMask(
+          {21, 169, 11, 11},
+          data.uppercase ? std::span{kShiftSolid} : std::span{kShiftOutline},
+          shiftColor);
+    } else if (index == 2U) {
+      builder.PixelMask({110, 173, 21, 5}, kSpaceIcon, iconColor);
+    } else if (index == 4U) {
+      builder.PixelMask({205, 169, 17, 9}, kEraseOutline, iconColor);
+      builder.PixelMask({214, 171, 5, 5}, kEraseX, iconColor);
     } else {
       builder.CenteredText(specialLabels[index], center, 171,
                            selectedInk ? UiColorToken::TextHighlighted

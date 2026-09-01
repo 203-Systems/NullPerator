@@ -1470,6 +1470,35 @@ TEST_CASE("UI2 sparse coverage masks copy bounded data and decode columns") {
         palette.AntialiasIndex(ui2::UiCoverage::Cursor, 2));
 }
 
+TEST_CASE("UI2 pixel masks copy crisp row-major palette symbols") {
+  ui2::UiPalette palette;
+  ui2::UiContentScene scene;
+  ui2::UiSceneBuilder<256, 1024> builder(scene);
+  std::array<std::uint8_t, 2> encoded{0x69, 0x09};
+  builder.PixelMask({10, 10, 4, 3}, encoded,
+                    ui2::UiColorToken::TextColored);
+  REQUIRE(builder.Ok());
+  encoded.fill(0);
+
+  ui2::UiSurfaceStorage storage;
+  ui2::UiIndexedSurface surface(storage);
+  const ui2::PaletteIndex background =
+      palette.Index(ui2::UiColorToken::SurfaceBackground);
+  const ui2::PaletteIndex foreground =
+      palette.Index(ui2::UiColorToken::TextColored);
+  surface.Clear(background);
+  ui2::UiRasterizer::Render(scene.Stream(), surface, &palette);
+
+  CHECK(surface.Pixel(10, 10) == foreground);
+  CHECK(surface.Pixel(13, 10) == foreground);
+  CHECK(surface.Pixel(11, 11) == foreground);
+  CHECK(surface.Pixel(12, 11) == foreground);
+  CHECK(surface.Pixel(10, 12) == foreground);
+  CHECK(surface.Pixel(13, 12) == foreground);
+  CHECK(surface.Pixel(11, 10) == background);
+  CHECK(surface.Pixel(12, 12) == background);
+}
+
 TEST_CASE("UI2 VU gradient uses fixed palette slots without RGB framebuffer") {
   ui2::UiPalette palette;
   REQUIRE(ui2::UiVuGradient::Configure(palette, 153));

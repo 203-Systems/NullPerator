@@ -71,6 +71,11 @@ public:
                                         coverage));
   }
 
+  void PixelMask(RectI16 bounds, std::span<const std::uint8_t> encoded,
+                 UiColorToken color) {
+    Accept(commands_.PixelMask(bounds, encoded, Index(color)));
+  }
+
   void Text(std::string_view text, std::int16_t x, std::int16_t y,
             UiColorToken color, std::uint8_t scale = 1) {
     Accept(commands_.Text({x, y}, text, Index(color), scale));

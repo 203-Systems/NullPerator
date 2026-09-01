@@ -54,6 +54,46 @@ void RenderTextCommand(const UiCommand &command, const UiCommandStream &stream,
   }
 }
 
+void RenderPixelMaskCommand(const UiCommand &command,
+                            const UiCommandStream &stream,
+                            UiIndexedSurface &surface, PointI16 origin,
+                            RectI16 clip, PaletteIndex color) {
+  if (command.bounds.width <= 0 || command.bounds.height <= 0 ||
+      command.payload > stream.text.size() ||
+      stream.text.size() - command.payload < 2U) {
+    return;
+  }
+  const auto byteAt = [&](std::size_t index) {
+    return static_cast<std::uint8_t>(stream.text[index]);
+  };
+  const std::size_t length =
+      static_cast<std::size_t>(byteAt(command.payload)) |
+      (static_cast<std::size_t>(byteAt(command.payload + 1U)) << 8U);
+  const std::size_t bytes =
+      (static_cast<std::size_t>(command.bounds.width) *
+           static_cast<std::size_t>(command.bounds.height) +
+       7U) /
+      8U;
+  const std::size_t data = command.payload + 2U;
+  if (length != bytes || length > stream.text.size() - data)
+    return;
+
+  RectI16 bounds = command.bounds;
+  bounds.x = static_cast<std::int16_t>(bounds.x + origin.x);
+  bounds.y = static_cast<std::int16_t>(bounds.y + origin.y);
+  const RectI16 visible = Intersect(bounds, clip);
+  for (std::int16_t y = visible.y; y < visible.Bottom(); ++y) {
+    for (std::int16_t x = visible.x; x < visible.Right(); ++x) {
+      const std::size_t bit =
+          static_cast<std::size_t>(y - bounds.y) *
+              static_cast<std::size_t>(bounds.width) +
+          static_cast<std::size_t>(x - bounds.x);
+      if ((byteAt(data + bit / 8U) & (1U << (bit % 8U))) != 0U)
+        surface.SetPixel(x, y, color);
+    }
+  }
+}
+
 } // namespace
 
 void UiRasterizer::Render(UiCommandStream stream, UiIndexedSurface &surface,
@@ -151,6 +191,10 @@ void UiRasterizer::Render(UiCommandStream stream, UiIndexedSurface &surface,
       }
       break;
     }
+    case UiCommandKind::PixelMask:
+      RenderPixelMaskCommand(command, stream, surface, origin, clip,
+                             command.color);
+      break;
     case UiCommandKind::Text: {
       RenderTextCommand(command, stream, surface, origin, clip, textCase,
                         command.color);
@@ -181,6 +225,9 @@ void UiRasterizer::Render(UiCommandStream stream, UiIndexedSurface &surface,
       if (text.kind == UiCommandKind::Text) {
         RenderTextCommand(text, stream, surface, origin, selectionClip,
                           textCase, highlighted);
+      } else if (text.kind == UiCommandKind::PixelMask) {
+        RenderPixelMaskCommand(text, stream, surface, origin, selectionClip,
+                               highlighted);
       }
     }
   }

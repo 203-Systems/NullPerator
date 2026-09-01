@@ -23,6 +23,7 @@ enum class UiCommandKind : std::uint8_t {
   FillCoverageRoundedRect,
   FillVerticalPaletteRamp,
   SparseCoverageMask,
+  PixelMask,
   Text,
 };
 
@@ -91,6 +92,38 @@ public:
     }
     if (!Push({bounds, offset, UiCommandKind::SparseCoverageMask, background,
                static_cast<PaletteIndex>(coverage), 0})) {
+      textSize_ = offset;
+      return false;
+    }
+    return true;
+  }
+
+  // A row-major, one-bit-per-pixel mask for crisp palette-colored symbols.
+  // Bits are packed least-significant first and copied into the command list,
+  // so small UI icons cost one command and require no retained pointers.
+  [[nodiscard]] bool PixelMask(RectI16 bounds,
+                               std::span<const std::uint8_t> encoded,
+                               PaletteIndex color) {
+    constexpr std::size_t kLengthBytes = 2;
+    const std::size_t required =
+        bounds.width > 0 && bounds.height > 0
+            ? (static_cast<std::size_t>(bounds.width) *
+                       static_cast<std::size_t>(bounds.height) +
+                   7U) /
+                  8U
+            : 0U;
+    if (encoded.size() != required || encoded.size() > 0xFFFFU ||
+        encoded.size() + kLengthBytes > TextCapacity - textSize_) {
+      overflowed_ = true;
+      return false;
+    }
+    const std::uint16_t offset = static_cast<std::uint16_t>(textSize_);
+    const std::uint16_t length = static_cast<std::uint16_t>(encoded.size());
+    text_[textSize_++] = static_cast<char>(length & 0xFFU);
+    text_[textSize_++] = static_cast<char>(length >> 8U);
+    for (const std::uint8_t value : encoded)
+      text_[textSize_++] = static_cast<char>(value);
+    if (!Push({bounds, offset, UiCommandKind::PixelMask, color, color, 0})) {
       textSize_ = offset;
       return false;
     }

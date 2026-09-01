@@ -108,7 +108,7 @@ TEST_CASE("Rename full page and all cursor targets stay in 240x240") {
   }
 }
 
-TEST_CASE("Rename page exposes input keyboard case space and three actions") {
+TEST_CASE("Rename page exposes pixel icons and three actions") {
   ui2::UiDialogViewData data;
   data.kind = ui2::UiDialogKind::Rename;
   data.label = "NAME";
@@ -129,11 +129,8 @@ TEST_CASE("Rename page exposes input keyboard case space and three actions") {
   CHECK(text.find("ONECYCAC") != std::string_view::npos);
   CHECK(text.find("1234567890") != std::string_view::npos);
   CHECK(text.find("QWERTYUIOP") != std::string_view::npos);
-  CHECK(text.find("ABC") != std::string_view::npos);
   CHECK(text.find("-") != std::string_view::npos);
-  CHECK(text.find("SPACE") != std::string_view::npos);
   CHECK(text.find(".") != std::string_view::npos);
-  CHECK(text.find("DEL") != std::string_view::npos);
   CHECK(text.find("CANCEL") != std::string_view::npos);
   CHECK(text.find("SAVE") != std::string_view::npos);
   CHECK(text.find("RANDOM") != std::string_view::npos);
@@ -142,6 +139,10 @@ TEST_CASE("Rename page exposes input keyboard case space and three actions") {
                         return command.kind ==
                                ui2::UiCommandKind::FillCoverageRoundedRect;
                       }) == 0);
+  CHECK(std::count_if(stream.commands.begin(), stream.commands.end(),
+                      [](const ui2::UiCommand &command) {
+                        return command.kind == ui2::UiCommandKind::PixelMask;
+                      }) == 4);
 
   const ui2::UiCommand *save = FindTextCommand(stream, "SAVE");
   REQUIRE(save != nullptr);
@@ -167,11 +168,17 @@ TEST_CASE("Rename keyboard case bypasses the global label case mode") {
   REQUIRE(ui2::UiDialogView::Apply(data, scene) == ui2::UiBuildStatus::Built);
   const ui2::UiCommandStream lower = scene.overlay.Stream();
   const ui2::UiCommand *q = FindTextCommand(lower, "q");
-  const ui2::UiCommand *abc = FindTextCommand(lower, "abc");
+  const auto lowerShift = std::find_if(
+      lower.commands.begin(), lower.commands.end(),
+      [](const ui2::UiCommand &command) {
+        return command.kind == ui2::UiCommandKind::PixelMask &&
+               command.bounds == ui2::RectI16{21, 169, 11, 11};
+      });
   REQUIRE(q != nullptr);
-  REQUIRE(abc != nullptr);
+  REQUIRE(lowerShift != lower.commands.end());
   CHECK((q->parameter & 0x80U) != 0U);
-  CHECK((abc->parameter & 0x80U) != 0U);
+  CHECK(lowerShift->color ==
+        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextDim));
 
   data.uppercase = true;
   REQUIRE(ui2::UiDialogView::Apply(data, scene) == ui2::UiBuildStatus::Built);
@@ -179,6 +186,52 @@ TEST_CASE("Rename keyboard case bypasses the global label case mode") {
       FindTextCommand(scene.overlay.Stream(), "Q");
   REQUIRE(upperQ != nullptr);
   CHECK((upperQ->parameter & 0x80U) != 0U);
+  const ui2::UiCommandStream upper = scene.overlay.Stream();
+  const auto upperShift = std::find_if(
+      upper.commands.begin(), upper.commands.end(),
+      [](const ui2::UiCommand &command) {
+        return command.kind == ui2::UiCommandKind::PixelMask &&
+               command.bounds == ui2::RectI16{21, 169, 11, 11};
+      });
+  REQUIRE(upperShift != upper.commands.end());
+  CHECK(upperShift->color ==
+        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextColored));
+}
+
+TEST_CASE("Rename special-key icons preserve approved pixel geometry") {
+  ui2::UiPalette palette;
+  ui2::UiDialogViewData data;
+  data.kind = ui2::UiDialogKind::Rename;
+  data.uppercase = false;
+
+  ui2::UiFrameScene lowerScene;
+  REQUIRE(ui2::UiDialogView::Apply(data, lowerScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage lowerStorage;
+  ui2::UiIndexedSurface lower(lowerStorage);
+  ui2::UiFrameRenderer::RenderStatic(lowerScene, lower, palette);
+
+  const ui2::PaletteIndex background =
+      palette.Index(ui2::UiColorToken::SurfaceBackground);
+  const ui2::PaletteIndex dim = palette.Index(ui2::UiColorToken::TextDim);
+  CHECK(lower.Pixel(26, 169) == dim);        // Shift tip.
+  CHECK(lower.Pixel(26, 172) == background); // Hollow Shift body.
+  CHECK(lower.Pixel(110, 173) == dim);       // Space left wall.
+  CHECK(lower.Pixel(111, 173) == background);
+  CHECK(lower.Pixel(120, 177) == dim); // Space floor.
+  CHECK(lower.Pixel(209, 169) == dim); // Backspace top edge.
+  CHECK(lower.Pixel(210, 170) == background);
+  CHECK(lower.Pixel(214, 171) == dim); // Five-by-five X corner.
+
+  data.uppercase = true;
+  ui2::UiFrameScene upperScene;
+  REQUIRE(ui2::UiDialogView::Apply(data, upperScene) ==
+          ui2::UiBuildStatus::Built);
+  ui2::UiSurfaceStorage upperStorage;
+  ui2::UiIndexedSurface upper(upperStorage);
+  ui2::UiFrameRenderer::RenderStatic(upperScene, upper, palette);
+  CHECK(upper.Pixel(26, 172) ==
+        palette.Index(ui2::UiColorToken::TextColored));
 }
 
 TEST_CASE("Rename cursor-only changes are pixel-identical to full redraw") {
