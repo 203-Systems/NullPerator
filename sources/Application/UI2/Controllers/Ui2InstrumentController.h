@@ -384,17 +384,9 @@ private:
       return Ui2InstrumentValueDirection::Right;
     case TrackerAction::Up:
       return Ui2InstrumentValueDirection::Up;
-    case TrackerAction::Option:
-    case TrackerAction::Enter:
-    case TrackerAction::Shift:
-    case TrackerAction::Play:
-    case TrackerAction::Reserved8:
-    case TrackerAction::Reserved9:
-    case TrackerAction::Power:
-    case TrackerAction::Count:
+    default:
       return Ui2InstrumentValueDirection::None;
     }
-    return Ui2InstrumentValueDirection::None;
   }
 
   [[nodiscard]] constexpr Ui2InstrumentCommand

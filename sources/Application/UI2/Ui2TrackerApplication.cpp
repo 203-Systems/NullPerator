@@ -315,8 +315,7 @@ void Ui2TrackerApplication::Shutdown() {
 
 void Ui2TrackerApplication::DispatchTrackerAction(TrackerAction action,
                                                   bool pressed) {
-  if (!initialized_ || action >= TrackerAction::Count ||
-      action == TrackerAction::Reserved8 || action == TrackerAction::Reserved9)
+  if (!initialized_ || !TrackerActionIsValid(action))
     return;
 
   const std::uint16_t bit = TrackerActionBit(action);
@@ -870,10 +869,8 @@ void Ui2TrackerApplication::HandleProject(TrackerAction action, bool pressed) {
   case TrackerAction::Shift:
   case TrackerAction::Option:
   case TrackerAction::Enter:
-  case TrackerAction::Reserved8:
-  case TrackerAction::Reserved9:
   case TrackerAction::Power:
-  case TrackerAction::Count:
+  default:
     break;
   }
 }

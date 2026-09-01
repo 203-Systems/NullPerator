@@ -20,7 +20,7 @@ namespace ui2 {
 class Ui2ControllerInputState {
 public:
   constexpr bool Update(TrackerAction action, bool pressed) {
-    if (action >= TrackerAction::Count)
+    if (!TrackerActionIsValid(action))
       return false;
     const std::uint16_t bit = TrackerActionBit(action);
     if (pressed)
@@ -31,7 +31,7 @@ public:
   }
 
   [[nodiscard]] constexpr bool Held(TrackerAction action) const {
-    return action < TrackerAction::Count &&
+    return TrackerActionIsValid(action) &&
            (mask_ & TrackerActionBit(action)) != 0U;
   }
 
@@ -74,7 +74,7 @@ private:
 [[nodiscard]] constexpr bool
 Ui2AcceptInputEvent(TrackerAction action, bool pressed,
                     std::uint16_t heldBefore) {
-  if (action >= TrackerAction::Count)
+  if (!TrackerActionIsValid(action))
     return false;
   if (!pressed || (heldBefore & TrackerActionBit(action)) == 0U)
     return true;
@@ -115,13 +115,13 @@ template <typename Owner>
 class Ui2InputReleaseGate {
 public:
   constexpr void BlockUntilRelease(TrackerAction trigger) {
-    blockedMask_ = trigger < TrackerAction::Count
+    blockedMask_ = TrackerActionIsValid(trigger)
                        ? TrackerActionBit(trigger)
                        : 0U;
   }
 
   [[nodiscard]] constexpr bool Update(TrackerAction action, bool pressed) {
-    if (action >= TrackerAction::Count)
+    if (!TrackerActionIsValid(action))
       return false;
     if (!pressed)
       blockedMask_ = static_cast<std::uint16_t>(

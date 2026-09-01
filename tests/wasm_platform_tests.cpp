@@ -421,10 +421,8 @@ TEST_CASE("WASM semantic action edges are idempotent and reserved ids reject") {
   CHECK_FALSE(InputQueueFixture::events[1].second);
   CHECK(InputMap::GetHeldActionMask() == 0U);
 
-  CHECK_FALSE(InputMap::SetAction(
-      static_cast<std::uint16_t>(TrackerAction::Reserved8), true));
-  CHECK_FALSE(InputMap::SetAction(
-      static_cast<std::uint16_t>(TrackerAction::Reserved9), true));
+  CHECK_FALSE(InputMap::SetAction(8U, true));
+  CHECK_FALSE(InputMap::SetAction(9U, true));
   CHECK(InputQueueFixture::events.size() == 2U);
   InputMap::ResetQueueForTesting();
 }

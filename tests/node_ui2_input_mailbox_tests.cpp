@@ -336,8 +336,7 @@ TEST_CASE("Node UI2 mailbox reports latest headphone route once") {
 TEST_CASE("Node UI2 mailbox ignores reserved input bits") {
   InputMailbox mailbox;
   const std::uint16_t reserved =
-      TrackerActionBit(TrackerAction::Reserved8) |
-      TrackerActionBit(TrackerAction::Reserved9);
+      static_cast<std::uint16_t>((1U << 8U) | (1U << 9U));
   mailbox.PublishSample(reserved, false, 10U);
   const InputMailbox::Batch batch = mailbox.Drain();
   CHECK(batch.size == 0U);

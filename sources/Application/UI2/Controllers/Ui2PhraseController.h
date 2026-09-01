@@ -372,13 +372,7 @@ private:
       output.Push(playback);
       return;
     }
-    case TrackerAction::Option:
-    case TrackerAction::Enter:
-    case TrackerAction::Shift:
-    case TrackerAction::Reserved8:
-    case TrackerAction::Reserved9:
-    case TrackerAction::Power:
-    case TrackerAction::Count:
+    default:
       return;
     }
     Ui2TrackerCommand command = Command(Ui2TrackerCommandType::SwitchPage);

@@ -208,7 +208,7 @@ public:
   [[nodiscard]] Ui2TrackerCommandBatch<> Handle(TrackerAction action,
                                                   bool pressed) {
     const std::uint8_t actionIndex = static_cast<std::uint8_t>(action);
-    if (action >= TrackerAction::Count)
+    if (!TrackerActionIsValid(action))
       return {};
 
     Ui2TrackerPage owner = activePage_;

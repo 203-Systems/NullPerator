@@ -260,17 +260,9 @@ Ui2TrackerDirectionFor(TrackerAction action) {
     return Ui2TrackerEditDirection::Right;
   case TrackerAction::Up:
     return Ui2TrackerEditDirection::Up;
-  case TrackerAction::Shift:
-  case TrackerAction::Option:
-  case TrackerAction::Enter:
-  case TrackerAction::Play:
-  case TrackerAction::Reserved8:
-  case TrackerAction::Reserved9:
-  case TrackerAction::Power:
-  case TrackerAction::Count:
+  default:
     return Ui2TrackerEditDirection::None;
   }
-  return Ui2TrackerEditDirection::None;
 }
 
 [[nodiscard]] constexpr std::int16_t

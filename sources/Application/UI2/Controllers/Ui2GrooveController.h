@@ -210,17 +210,9 @@ private:
       return Ui2GrooveDirection::Right;
     case TrackerAction::Up:
       return Ui2GrooveDirection::Up;
-    case TrackerAction::Option:
-    case TrackerAction::Enter:
-    case TrackerAction::Shift:
-    case TrackerAction::Play:
-    case TrackerAction::Reserved8:
-    case TrackerAction::Reserved9:
-    case TrackerAction::Power:
-    case TrackerAction::Count:
+    default:
       return Ui2GrooveDirection::None;
     }
-    return Ui2GrooveDirection::None;
   }
 
   [[nodiscard]] constexpr Ui2GrooveCommand

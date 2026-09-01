@@ -28,14 +28,6 @@ std::uint32_t dispatchGeneration = 0;
 std::uint16_t lastDispatchedAction = ActionCount;
 std::array<std::uint16_t, ActionCount> pendingTraceCorrelations{};
 
-bool IsValidAction(std::uint16_t action) {
-  if (action >= ActionCount)
-    return false;
-  const TrackerAction semantic = static_cast<TrackerAction>(action);
-  return semantic != TrackerAction::Reserved8 &&
-         semantic != TrackerAction::Reserved9;
-}
-
 std::uintptr_t EncodeAction(std::uint16_t action, bool pressed) {
   return (static_cast<std::uintptr_t>(action) << 1u) | (pressed ? 1u : 0u);
 }
@@ -88,7 +80,7 @@ void RetryPendingTransitionsLocked() {
 } // namespace
 
 bool InputMap::SetAction(std::uint16_t action, bool pressed) {
-  if (!IsValidAction(action)) {
+  if (!TrackerActionIdIsValid(action)) {
     return false;
   }
 
@@ -112,7 +104,7 @@ bool InputMap::SetAction(std::uint16_t action, bool pressed) {
 }
 
 bool InputMap::RepeatAction(std::uint16_t action) {
-  if (!IsValidAction(action))
+  if (!TrackerActionIdIsValid(action))
     return false;
   const TrackerAction semantic = static_cast<TrackerAction>(action);
   if (semantic != TrackerAction::Left && semantic != TrackerAction::Down &&
@@ -158,7 +150,7 @@ std::uint16_t InputMap::GetLastDispatchedAction() {
 }
 
 void InputMap::AcknowledgeAction(std::uint16_t action, bool pressed) {
-  if (!IsValidAction(action)) {
+  if (!TrackerActionIdIsValid(action)) {
     return;
   }
   const std::uint16_t bit = static_cast<std::uint16_t>(1u << action);
@@ -176,7 +168,7 @@ bool InputMap::DecodeActionEvent(std::uintptr_t encoded, std::uint16_t &action,
                                  bool &pressed) {
   action = static_cast<std::uint16_t>(encoded >> 1u);
   pressed = (encoded & 1u) != 0;
-  if (!IsValidAction(action)) {
+  if (!TrackerActionIdIsValid(action)) {
     return false;
   }
   // DecodeActionEvent runs on the application pthread immediately before

@@ -216,7 +216,7 @@ public:
     dialogInput_ = {};
     // This controller owns both browser and dialog input. Transfer the opener
     // to the dialog so its later release cannot remain latched in the browser.
-    if (trigger < TrackerAction::Count)
+    if (TrackerActionIsValid(trigger))
       input_.Update(trigger, false);
     dialogReleaseGate_.BlockUntilRelease(trigger);
     ++dialogInstanceId_;

@@ -146,7 +146,7 @@ public:
     dialogSelectedAction_ = 0U;
     dialogInput_ = {};
     dialogReleaseGate_.Reset();
-    if (trigger < TrackerAction::Count)
+    if (TrackerActionIsValid(trigger))
       input_.Update(trigger, false);
     dialogReleaseGate_.BlockUntilRelease(trigger);
     dialogActive_ = true;
@@ -186,7 +186,7 @@ public:
     dialogProgressPercent_ = 0U;
     dialogInput_ = {};
     dialogReleaseGate_.Reset();
-    if (trigger < TrackerAction::Count)
+    if (TrackerActionIsValid(trigger))
       input_.Update(trigger, false);
     dialogReleaseGate_.BlockUntilRelease(trigger);
     dialogActive_ = true;
