@@ -755,10 +755,8 @@ TEST_CASE("Project PARAMETER restore stages a complete payload before commit") {
 
 TEST_CASE("Project version restore accepts release suffixes without float UB") {
   int version = 0;
-  CHECK(std::string_view(nullperator_project::FileVersion) == "NP0.1");
-  CHECK(ParseProjectVersionHundredthsForRestore("NP0.1", version));
-  CHECK(version ==
-        nullperator_project::PicoCompatibilityVersionHundredths);
+  CHECK(std::string_view(nullperator_project::Format) == "NP");
+  CHECK(std::string_view(nullperator_project::Schema) == "1");
   CHECK(ParseProjectVersionHundredthsForRestore("2.3-Beta3", version));
   CHECK(version == 230);
   CHECK(ParseProjectVersionHundredthsForRestore("2.30", version));
@@ -772,7 +770,7 @@ TEST_CASE("Project version restore accepts release suffixes without float UB") {
   CHECK_FALSE(ParseProjectVersionHundredthsForRestore(
       "999999999999999999999999999999", version));
   CHECK_FALSE(ParseProjectVersionHundredthsForRestore("nan", version));
-  CHECK_FALSE(ParseProjectVersionHundredthsForRestore("NP0.2", version));
+  CHECK_FALSE(ParseProjectVersionHundredthsForRestore("NP0.1", version));
 
   int ratio = 0;
   CHECK(ParsePersistedIntegerAttribute("1", 1, 64, ratio));
@@ -2169,6 +2167,22 @@ TEST_CASE("Instrument payload validation rejects truncated and empty files") {
   fixture.Write("standalone-id.pti",
                 "<INSTRUMENT ID=\"00\" TYPE=\"MIDI\">"
                 "<PARAM NAME=\"channel\" VALUE=\"7\"/></INSTRUMENT>");
+  fixture.Write("new-envelope.pti",
+                "<INSTRUMENT FORMAT=\"NP\" SCHEMA=\"1\" "
+                "CREATED_WITH=\"0.1\" TYPE=\"MIDI\">"
+                "<PARAM NAME=\"channel\" VALUE=\"7\"/></INSTRUMENT>");
+  fixture.Write("unknown-format.pti",
+                "<INSTRUMENT FORMAT=\"OTHER\" SCHEMA=\"1\" "
+                "CREATED_WITH=\"0.1\" TYPE=\"MIDI\">"
+                "<PARAM NAME=\"channel\" VALUE=\"7\"/></INSTRUMENT>");
+  fixture.Write("future-schema.pti",
+                "<INSTRUMENT FORMAT=\"NP\" SCHEMA=\"2\" "
+                "CREATED_WITH=\"0.2\" TYPE=\"MIDI\">"
+                "<PARAM NAME=\"channel\" VALUE=\"7\"/></INSTRUMENT>");
+  fixture.Write("mixed-envelope.pti",
+                "<INSTRUMENT FORMAT=\"NP\" SCHEMA=\"1\" "
+                "CREATED_WITH=\"0.1\" VERSION=\"2.3\" TYPE=\"MIDI\">"
+                "<PARAM NAME=\"channel\" VALUE=\"7\"/></INSTRUMENT>");
 
   CHECK_FALSE(ValidateInstrumentFilePayload("/truncated.pti"));
   CHECK_FALSE(ValidateInstrumentFilePayload("/empty.pti"));
@@ -2181,6 +2195,10 @@ TEST_CASE("Instrument payload validation rejects truncated and empty files") {
   CHECK_FALSE(ValidateInstrumentFilePayload("/unknown-type.pti"));
   CHECK_FALSE(ValidateInstrumentFilePayload("/duplicate-type.pti"));
   CHECK_FALSE(ValidateInstrumentFilePayload("/standalone-id.pti"));
+  CHECK(ValidateInstrumentFilePayload("/new-envelope.pti"));
+  CHECK_FALSE(ValidateInstrumentFilePayload("/unknown-format.pti"));
+  CHECK_FALSE(ValidateInstrumentFilePayload("/future-schema.pti"));
+  CHECK_FALSE(ValidateInstrumentFilePayload("/mixed-envelope.pti"));
 }
 
 TEST_CASE("Instrument type detection bounds the envelope and preserves legacy versions") {

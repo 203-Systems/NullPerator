@@ -21,6 +21,7 @@
 #include "System/Console/Trace.h"
 #include "System/io/Status.h"
 #include "Table.h"
+#include "ProductVersion.h"
 
 #define DEFAULT_CHANNEL_VOLUME 99
 #define DEFAULT_PREVIEW_VOLUME 60
@@ -370,6 +371,9 @@ void Project::RestoreContent(PersistencyDocument *doc) {
   bool attr = doc->NextAttribute();
   doc->version_ = 32;
   bool hasVersion = false;
+  bool hasFormat = false;
+  bool hasSchema = false;
+  bool hasCreatedWith = false;
   int tableRatio = 0;
   while (attr) {
     if (!strcmp(doc->attrname_, "VERSION")) {
@@ -381,11 +385,39 @@ void Project::RestoreContent(PersistencyDocument *doc) {
       }
       doc->version_ = parsedVersion;
       hasVersion = true;
+    } else if (!strcmp(doc->attrname_, "FORMAT")) {
+      if (hasFormat || strcmp(doc->attrval_, nullperator_project::Format)) {
+        doc->MarkError();
+        return;
+      }
+      hasFormat = true;
+    } else if (!strcmp(doc->attrname_, "SCHEMA")) {
+      if (hasSchema || strcmp(doc->attrval_, nullperator_project::Schema)) {
+        doc->MarkError();
+        return;
+      }
+      hasSchema = true;
+    } else if (!strcmp(doc->attrname_, "CREATED_WITH")) {
+      if (hasCreatedWith || doc->attrval_[0] == '\0') {
+        doc->MarkError();
+        return;
+      }
+      hasCreatedWith = true;
     }
     if (!strcmp(doc->attrname_, "TABLERATIO")) {
       tableRatio = atoi(doc->attrval_);
     }
     attr = doc->NextAttribute();
+  }
+  if (hasFormat) {
+    if (!hasSchema || !hasCreatedWith || hasVersion) {
+      doc->MarkError();
+      return;
+    }
+    doc->version_ = nullperator_project::PicoCompatibilityVersionHundredths;
+  } else if (hasSchema || hasCreatedWith) {
+    doc->MarkError();
+    return;
   }
   if (!tableRatio)
     tableRatio = (doc->version_ <= 32) ? 2 : 1;
@@ -415,8 +447,9 @@ void Project::RestoreContent(PersistencyDocument *doc) {
 
 void Project::SaveContent(tinyxml2::XMLPrinter *printer) {
 
-  // store project version
-  printer->PushAttribute("VERSION", nullperator_project::FileVersion);
+  printer->PushAttribute("FORMAT", nullperator_project::Format);
+  printer->PushAttribute("SCHEMA", nullperator_project::Schema);
+  printer->PushAttribute("CREATED_WITH", nullperator_product::Version);
 
   // store table ratio if not one
   int tableRatio = SyncMaster::GetInstance()->GetTableRatio();

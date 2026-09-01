@@ -9,6 +9,7 @@
 #include "InstrumentFileValidator.h"
 
 #include "Application/Instruments/I_Instrument.h"
+#include "Application/Model/ProjectVersion.h"
 #include "Application/Model/Table.h"
 #include "PersistenceConstants.h"
 #include "PersistencyAttribute.h"
@@ -71,6 +72,9 @@ bool ValidateInstrumentFilePayload(const char *name) {
   // deleted before import later rejects the file.
   bool hasType = false;
   bool hasVersion = false;
+  bool hasFormat = false;
+  bool hasSchema = false;
+  bool hasCreatedWith = false;
   bool attribute = doc.NextAttribute();
   while (attribute) {
     if (EqualsIgnoreCase(doc.attrname_, "TYPE")) {
@@ -81,6 +85,20 @@ bool ValidateInstrumentFilePayload(const char *name) {
       if (hasVersion)
         return false;
       hasVersion = true;
+    } else if (EqualsIgnoreCase(doc.attrname_, "FORMAT")) {
+      if (hasFormat ||
+          std::strcmp(doc.attrval_, nullperator_project::Format) != 0)
+        return false;
+      hasFormat = true;
+    } else if (EqualsIgnoreCase(doc.attrname_, "SCHEMA")) {
+      if (hasSchema ||
+          std::strcmp(doc.attrval_, nullperator_project::Schema) != 0)
+        return false;
+      hasSchema = true;
+    } else if (EqualsIgnoreCase(doc.attrname_, "CREATED_WITH")) {
+      if (hasCreatedWith || doc.attrval_[0] == '\0')
+        return false;
+      hasCreatedWith = true;
     } else if (EqualsIgnoreCase(doc.attrname_, "ID")) {
       // ID belongs to the project InstrumentBank envelope, never to a
       // standalone .pti file.
@@ -90,6 +108,12 @@ bool ValidateInstrumentFilePayload(const char *name) {
   }
   if (doc.HadError() || !hasType)
     return false;
+  if (hasFormat) {
+    if (!hasSchema || !hasCreatedWith || hasVersion)
+      return false;
+  } else if (hasSchema || hasCreatedWith) {
+    return false;
+  }
 
   bool foundParameter = false;
   // NextAttribute() may already have selected the first PARAM. Re-entering

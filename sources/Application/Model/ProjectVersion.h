@@ -6,13 +6,13 @@
 
 #pragma once
 
-// Kept separate from Project.h so single-file instrument persistence does not
-// pull the complete Project/InstrumentBank/SampleInstrument graph into host
-// tools merely to serialize the format marker. NullPerator uses its own marker
-// while retaining the PicoTracker 2.3 data layout for legacy restore rules.
+// File-format identity and schema compatibility are intentionally independent
+// from the product version. CREATED_WITH is diagnostic metadata; SCHEMA alone
+// decides whether a NullPerator document can be restored.
 namespace nullperator_project {
 
-inline constexpr char FileVersion[] = "NP0.1";
+inline constexpr char Format[] = "NP";
+inline constexpr char Schema[] = "1";
 inline constexpr int PicoCompatibilityVersionHundredths = 230;
 
 } // namespace nullperator_project

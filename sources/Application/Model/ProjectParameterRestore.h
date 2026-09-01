@@ -28,8 +28,7 @@ struct ProjectParameterRestorePacket {
 using ProjectParameterResolver = Variable *(*)(void *context,
                                                 const char *name);
 
-// Maps the current NullPerator file marker to its PicoTracker compatibility
-// revision, or parses bounded legacy versions such as "2.3-Beta3" into
+// Parses bounded legacy PicoTracker versions such as "2.3-Beta3" into
 // hundredths without floating conversion or exponent/overflow ambiguity.
 [[nodiscard]] bool ParseProjectVersionHundredthsForRestore(const char *text,
                                                            int &result);

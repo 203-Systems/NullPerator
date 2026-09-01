@@ -12,6 +12,7 @@
 #include "Application/Model/Table.h"
 #include "Application/Persistency/PersistencyAttribute.h"
 #include "System/Console/Trace.h"
+#include "ProductVersion.h"
 
 #include <array>
 #include <cstring>
@@ -106,8 +107,9 @@ I_Instrument::~I_Instrument() {
 }
 
 void I_Instrument::SaveContent(tinyxml2::XMLPrinter *printer) {
-  // Add firmware version information
-  printer->PushAttribute("VERSION", nullperator_project::FileVersion);
+  printer->PushAttribute("FORMAT", nullperator_project::Format);
+  printer->PushAttribute("SCHEMA", nullperator_project::Schema);
+  printer->PushAttribute("CREATED_WITH", nullperator_product::Version);
   // Save the instrument type
   printer->PushAttribute("TYPE", InstrumentTypeNames[GetType()]);
 
