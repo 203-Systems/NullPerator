@@ -23,13 +23,14 @@
     ? controller.names?.[0] ?? `${controller.count} connected`
     : 'Not connected'
   $: midiLabel = midiSnapshot.state === 'ready'
-    ? (midiSnapshot.inputConnected || midiSnapshot.outputConnected ? 'Connected' : 'Ready')
-    : midiSnapshot.state === 'idle' ? 'Available'
+    ? (midiSnapshot.inputConnected || midiSnapshot.outputConnected ? 'Connected' : 'Not connected')
+    : midiSnapshot.state === 'idle' ? 'Not connected'
     : midiSnapshot.state === 'unsupported' ? 'Unavailable on iOS' : midiSnapshot.state
   $: iosVersion = runtime?.buildMetadata?.iosVersion ?? 'Unknown'
   $: iosBuild = runtime?.buildMetadata?.iosBuild ?? 'Unknown'
   $: nullPeratorVersion = runtime?.buildMetadata?.nullPeratorVersion ?? 'Unknown'
   $: buildHash = runtime?.buildMetadata?.buildHash ?? 'Unknown'
+  $: shortBuildHash = buildHash === 'Unknown' ? buildHash : String(buildHash).slice(0, 8)
   $: buildTime = runtime?.buildMetadata?.buildTime ?? 'Unknown'
   $: detailPage = midiPage || privacyPage
   $: pageEyebrow = privacyPage ? 'LEGAL' : midiPage ? 'MIDI' : 'NULLPERATOR'
@@ -247,12 +248,12 @@
               <span><b>iOS</b>{iosVersion} ({iosBuild})</span>
               <span><b>NULLPERATOR</b>{nullPeratorVersion}</span>
             </div>
-            <span class="version-disclosure" aria-hidden="true">{softwareBuildOpen ? '−' : '+'}</span>
+            <span class:open={softwareBuildOpen} class="version-disclosure" aria-hidden="true">›</span>
           </div>
         </button>
         {#if softwareBuildOpen}
           <div class="build-details" transition:slide={{ duration: 180, easing: cubicOut }}>
-            <div><span>BUILD HASH</span><code>{buildHash}</code></div>
+            <div><span>BUILD HASH</span><code>{shortBuildHash}</code></div>
             <div><span>BUILD TIME</span><time>{buildTime}</time></div>
           </div>
         {/if}
@@ -300,8 +301,9 @@
   .version-values b { color:#666; font-size:8px; letter-spacing:.08em; }
   .version-row { grid-column:1 / -1; }
   .version-side { display:flex; flex:0 0 auto; align-items:center; gap:12px; }
-  .version-disclosure { display:grid; width:22px; height:22px; place-items:center; border:1px solid #3f3f3f; border-radius:3px; color:#888; font:400 14px/1 system-ui; }
-  .version-row:active .version-disclosure { color:#050505; border-color:#49d6e6; background:#49d6e6; }
+  .version-disclosure { display:grid; width:22px; height:22px; place-items:center; color:#888; font:300 25px/1 system-ui; transition:transform 160ms ease,color 120ms ease; }
+  .version-disclosure.open { transform:rotate(90deg); }
+  .version-row:active .version-disclosure { color:#49d6e6; }
   .build-details { display:grid; grid-column:1 / -1; gap:9px; padding:11px 12px; border-bottom:1px solid #292929; background:#0d0d0d; }
   .build-details > div { display:grid; grid-template-columns:78px minmax(0,1fr); align-items:start; gap:12px; }
   .build-details span { color:#666; font-size:8px; letter-spacing:.1em; }
