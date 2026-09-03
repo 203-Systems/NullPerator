@@ -2,10 +2,8 @@
   import { onMount, tick } from 'svelte'
   import DevicePanel from './components/DevicePanel.svelte'
   import TopBar from './components/TopBar.svelte'
-  import MobilePlayBar from './components/MobilePlayBar.svelte'
+  import MobileNavigation from './components/MobileNavigation.svelte'
   import LeftNav from './components/LeftNav.svelte'
-  import ToolTray from './components/ToolTray.svelte'
-  import ToolPanelStack from './components/ToolPanelStack.svelte'
   import ErrorBoundary from './components/ErrorBoundary.svelte'
   import SettingsPanel from './components/SettingsPanel.svelte'
   import AboutPanel from './components/AboutPanel.svelte'
@@ -14,27 +12,23 @@
   import LogsPanel from './components/LogsPanel.svelte'
   import NativeSettingsOverlay from './components/NativeSettingsOverlay.svelte'
   import TracePanel from './components/TracePanel.svelte'
-  import { toggleTool } from './stores/tools.js'
+  import { isDeveloperSection, visibleSections } from './navigation.js'
   import { runtimeStore } from './stores/runtime.js'
   import { nativeRuntimeStore } from './stores/nativeRuntime.js'
   import { nativeAppSettingsStore } from './stores/nativeAppSettings.js'
   import { settingsStore } from './stores/settings.js'
 
-  const sections = ['Device', 'Files', 'MIDI', 'Logs', 'Trace', 'Settings', 'About']
   const query = new URLSearchParams(window.location.search)
   const nativeHostActive = globalThis.__nullPeratorNativeCore === true
   const activeRuntimeStore = nativeHostActive ? nativeRuntimeStore : runtimeStore
   if (nativeHostActive) document.documentElement.classList.add('native-host')
   const forceDeveloperMode = query.get('dev') === '1' || query.get('views-test') === '1' || query.get('inputDiagnostics') === '1'
   const mobileViewport = window.matchMedia('(max-width: 720px), (orientation: landscape) and (max-width: 960px) and (max-height: 539px)')
-  const resolveDeveloperMode = (preference) => !nativeHostActive && (forceDeveloperMode || (preference === 'auto'
-    ? !mobileViewport.matches
-    : Boolean(preference)))
-  let developerPreference = settingsStore.snapshot().developerMode
+  const resolveDeveloperMode = (preference) => !nativeHostActive && (forceDeveloperMode || preference === true)
   let activeSection = 'Device'
-  let openTools = []
-  let developerMode = resolveDeveloperMode(developerPreference)
-  let mobileSettingsOpen = false
+  let developerMode = resolveDeveloperMode(settingsStore.snapshot().developerMode)
+  let compactLayout = nativeHostActive || mobileViewport.matches
+  let mobileMenuOpen = false
   let runtime = activeRuntimeStore.getSnapshot()
   let audio = runtime.audio?.snapshot?.() ?? { state:'unavailable', metrics:null, capability:null }
   let midi = runtime.midi?.snapshot?.() ?? { state:'unavailable' }
@@ -67,35 +61,37 @@
   }
   async function stopRuntime(){ await activeRuntimeStore.stop() }
   async function applySettingsRestart(){ const enabled=settingsStore.snapshot().lowLatencyAudio; const url=new URL(location.href); const active=url.searchParams.get('audio')==='worklet'; if(active!==enabled){enabled?url.searchParams.set('audio','worklet'):url.searchParams.delete('audio');location.assign(url);return} await restart() }
-  function selectSection(section){ activeSection=section }
-  function toggleDock(tool){ openTools=toggleTool(openTools,tool) }
-  async function closeDock(tool){
-    toggleDock(tool)
-    await tick()
-    document.querySelector(`.tool-tray [data-tool-id="${tool}"]`)?.focus({ preventScroll: true })
-  }
-  function synchronizeDeveloperMode(preference = developerPreference) {
-    developerPreference = preference
+  function selectSection(section){ if (sections.includes(section)) activeSection=section }
+  function synchronizeDeveloperMode(preference) {
     developerMode = resolveDeveloperMode(preference)
-    if (developerMode) mobileSettingsOpen = false
-  }
-  async function focusModeControl() {
-    await tick()
-    document.querySelector(developerMode ? '.developer-toggle' : '.settings-trigger')?.focus({ preventScroll: true })
+    if (!developerMode && isDeveloperSection(activeSection)) activeSection = 'Device'
   }
   async function handleViewportChange() {
-    const previousMode = developerMode
-    synchronizeDeveloperMode()
-    if (developerMode !== previousMode) await focusModeControl()
+    const focusTarget = document.activeElement
+    compactLayout = nativeHostActive || mobileViewport.matches
+    await tick()
+    if (focusTarget && focusTarget !== document.body && focusTarget.isConnected) {
+      restoreRuntimeFocus(focusTarget)
+      return
+    }
+    const layoutFallback = compactLayout
+      ? document.querySelector('.menu-trigger')
+      : document.querySelector('.left-nav button[aria-current="page"]')
+    if (layoutFallback) {
+      layoutFallback.focus({ preventScroll: true })
+      return
+    }
+    restoreRuntimeFocus(document.activeElement)
   }
   async function setDeveloperMode(enabled){
     const preference = Boolean(enabled)
     synchronizeDeveloperMode(preference)
-    mobileSettingsOpen = false
     settingsStore.update({ developerMode: preference })
-    if (!developerMode) { activeSection='Device'; openTools=[] }
-    await focusModeControl()
+    await tick()
+    document.querySelector('[data-developer-toggle]')?.focus({ preventScroll: true })
   }
+
+  $: sections = visibleSections(developerMode)
 
   $: synchronizeRecoveryFocus(runtime.state, recoveryButton)
 
@@ -105,7 +101,7 @@
     const workbenchKey = nativeHostActive ? '__nullPeratorWorkbench' : '__picoTrackerWorkbench'
     globalThis[workbenchKey] = workbenchHandle
     const unsubscribe=activeRuntimeStore.subscribe((snapshot)=>{
-      runtime=snapshot; detachAudio();detachMidi();detachStorage()
+      runtime=snapshot; document.title='NullPerator'; detachAudio();detachMidi();detachStorage()
       if(snapshot.audio)detachAudio=snapshot.audio.subscribe((next)=>(audio=next));else audio={state:'unavailable',metrics:null,capability:null}
       if(snapshot.midi)detachMidi=snapshot.midi.subscribe((next)=>(midi=next));else midi={state:'unavailable'}
       if(snapshot.storage)detachStorage=snapshot.storage.subscribe((next)=>(storage=next));else storage={state:'unavailable'}
@@ -120,40 +116,40 @@
   })
 </script>
 
-<svelte:head><title>{nativeHostActive ? 'NullPerator' : 'PicoTracker'}</title><link rel="icon" href="data:,"/><meta name="description" content={nativeHostActive ? 'NullPerator music workstation' : 'PicoTracker WebAssembly development and performance workbench'}/></svelte:head>
+<svelte:head><title>NullPerator</title><link rel="icon" href="data:,"/><meta name="description" content="NullPerator music workstation for Web, iOS and hardware"/></svelte:head>
 
-<div class="dashboard" class:native-host={nativeHostActive} data-developer-mode={developerMode ? 'true' : 'false'}>
-  {#if developerMode}
-    <TopBar {runtime} {audio} {storage} {midi} {developerMode} onDeveloperModeChange={setDeveloperMode}/>
+<div class="dashboard" class:native-host={nativeHostActive} class:compact-layout={compactLayout}
+  data-developer-mode={developerMode ? 'true' : 'false'} data-layout={compactLayout ? 'compact' : 'desktop'}
+  data-runtime-state={runtime.state}>
+  {#if !nativeHostActive && !compactLayout}
+    <TopBar {runtime} {audio} {storage} {midi} {developerMode}/>
   {:else if !nativeHostActive}
-    <MobilePlayBar onDeveloperModeChange={setDeveloperMode} onOpenChange={(open)=>(mobileSettingsOpen=open)}/>
+    <MobileNavigation {sections} active={activeSection} {developerMode} onSelect={selectSection}
+      developerModeLocked={forceDeveloperMode} onDeveloperModeChange={setDeveloperMode}
+      onOpenChange={(open)=>(mobileMenuOpen=open)}/>
   {/if}
   <div class="dashboard-body">
-    {#if developerMode}<LeftNav {sections} active={activeSection} onSelect={selectSection}/>{/if}
-    <main class="workspace" inert={mobileSettingsOpen}>
+    {#if !nativeHostActive && !compactLayout}<LeftNav {sections} active={activeSection} onSelect={selectSection}/>{/if}
+    <main class="workspace" inert={mobileMenuOpen}>
       {#if runtime.state==='failed'}
         <section class="recovery-card" role="alert" data-recovery-kind={runtime.error?.includes('Cross-origin isolation')?'isolation':'runtime'}>
-          <p class="eyebrow">Runtime recovery</p><h1>{runtime.error?.includes('Cross-origin isolation')?'Cross-origin isolation is missing':'PicoTracker runtime stopped'}</h1><p>{runtime.error}</p>
+          <p class="eyebrow">Runtime recovery</p><h1>{runtime.error?.includes('Cross-origin isolation')?'Cross-origin isolation is missing':'NullPerator stopped'}</h1><p>{runtime.error}</p>
           {#if runtime.error?.includes('Cross-origin isolation')}<code>Cross-Origin-Opener-Policy: same-origin<br/>Cross-Origin-Embedder-Policy: require-corp</code><button bind:this={recoveryButton} type="button" onclick={()=>location.reload()}>Reload after fixing headers</button>{:else}<button bind:this={recoveryButton} type="button" onclick={()=>restart().catch(()=>{})}>Retry runtime</button>{/if}
         </section>
       {/if}
       <ErrorBoundary label={`${activeSection} panel`}>
-        <section class="device-stage" aria-label="Operator simulator" hidden={developerMode && activeSection!=='Device'}
+        <section class="device-stage" aria-label="NullPerator player" hidden={activeSection!=='Device'}
           inert={runtime.state === 'failed' || runtime.state === 'stopping'}>
-          {#key canvasGeneration}<DevicePanel {runtime} {audio} settings={nativeHostActive ? nativeAppSettingsStore : settingsStore} compact={!developerMode} {nativeHostActive}/>{/key}
+          {#key canvasGeneration}<DevicePanel {runtime} {audio} settings={nativeHostActive ? nativeAppSettingsStore : settingsStore} compact={compactLayout} {nativeHostActive}/>{/key}
         </section>
-        {#if developerMode && activeSection==='Files'}<div class="page-panel"><FilesPanel files={runtime.files} storage={runtime.storage} hostFolder={runtime.hostFolder} disabled={runtime.state!=='ready'}/></div>
-        {:else if developerMode && activeSection==='MIDI'}<div class="page-panel"><MidiPanel midi={runtime.midi} disabled={runtime.state!=='ready'}/></div>
+        {#if activeSection==='Files'}<div class="page-panel"><FilesPanel files={runtime.files} storage={runtime.storage} hostFolder={runtime.hostFolder} disabled={runtime.state!=='ready'}/></div>
+        {:else if activeSection==='MIDI'}<div class="page-panel"><MidiPanel midi={runtime.midi} disabled={runtime.state!=='ready'} {developerMode}/></div>
         {:else if developerMode && activeSection==='Logs'}<div class="page-panel"><LogsPanel logs={runtime.logs}/></div>
         {:else if developerMode && activeSection==='Trace'}<div class="page-panel"><TracePanel trace={runtime.trace}/></div>
-        {:else if developerMode && activeSection==='Settings'}<div class="page-panel"><SettingsPanel settings={settingsStore} trace={runtime.trace} audio={runtime.audio} runtimeState={runtime.state} onRestart={()=>applySettingsRestart().catch(()=>{})}/></div>
-        {:else if developerMode && activeSection==='About'}<div class="page-panel"><AboutPanel buildMetadata={runtime.buildMetadata}/></div>{/if}
+        {:else if activeSection==='Settings'}<div class="page-panel"><SettingsPanel settings={settingsStore} trace={runtime.trace} audio={runtime.audio} runtimeState={runtime.state} {developerMode} developerModeLocked={forceDeveloperMode} onDeveloperModeChange={setDeveloperMode} onRestart={()=>applySettingsRestart().catch(()=>{})}/></div>
+        {:else if activeSection==='About'}<div class="page-panel"><AboutPanel buildMetadata={runtime.buildMetadata} {developerMode}/></div>{/if}
       </ErrorBoundary>
     </main>
-    {#if developerMode && activeSection==='Device'}
-      <ToolPanelStack {openTools} {runtime} onClose={closeDock}/>
-      <ToolTray {openTools} onToggle={toggleDock} onRestart={()=>restart().catch(()=>{})} disabled={runtime.state!=='ready'}/>
-    {/if}
     <div class="audio-diagnostics" hidden aria-hidden="true" data-audio-capability={audio.capability?(audio.capability.available?'available':'unavailable'):'unknown'} data-audio-capability-reason={audio.capability?.reason??''} data-audio-worklet-callbacks={audio.metrics?.callbackCount??0} data-audio-underruns={audio.metrics?.underrunFrames??0} data-audio-setup-phase={audio.metrics?.setupPhase??0} data-audio-unlock-main-thread={audio.metrics?.unlockOnBrowserMainThread??0} data-audio-render-micros={audio.metrics?.renderMicros??0} data-audio-callback-micros={audio.metrics?.callbackMicros??0} data-audio-callback-max-micros={audio.metrics?.callbackMaxMicros??0} data-audio-processing-deadline-micros={audio.metrics?.callbackDeadlineMicros??0} data-audio-processing-deadline-misses={audio.metrics?.callbackDeadlineMisses??0}></div>
   </div>
 </div>

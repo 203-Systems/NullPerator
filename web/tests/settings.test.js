@@ -10,7 +10,7 @@ import {
 describe('versioned workbench settings', () => {
   it('drops legacy remappable key maps while retaining audio settings', () => {
     const migrated = migrateSettings({ version: 1, keyMap: { enter: { bindings: [['Enter']] } }, audioBufferFrames: 1024 })
-    expect(migrated).toMatchObject({ version: 4, audioBufferFrames: 1024, lowLatencyAudio: true, developerMode: 'auto' })
+    expect(migrated).toMatchObject({ version: 4, audioBufferFrames: 1024, lowLatencyAudio: true, developerMode: false })
     expect(migrated).not.toHaveProperty('keyMap')
   })
 

@@ -1,5 +1,5 @@
 <script>
-  let { children, label = 'Workbench panel' } = $props()
+  let { children, label = 'NullPerator panel' } = $props()
   let error = $state(null)
   const reset = () => { error = null }
 </script>

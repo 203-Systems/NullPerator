@@ -1,6 +1,6 @@
 {
-  "name": "picotracker-wasm-workbench",
-  "version": "0.0.0",
+  "name": "nullperator-web",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@11.19.0",

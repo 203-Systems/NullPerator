@@ -84,8 +84,9 @@
   .trace-panel { width: min(100%, 1120px); margin: 0 auto; }
   .trace-card, .benchmark-card, .summary-card { margin-bottom: 14px; padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
   fieldset { border: 0; margin: 0; padding: 0; } legend, h2 { margin: 0 0 9px; font-size: 13px; } .categories, .actions { display: flex; flex-wrap: wrap; gap: 9px 14px; align-items: center; }
-  .categories label, .benchmark-card label { color: var(--muted); font-size: 11px; text-transform: capitalize; }
-  button, input { border: 1px solid var(--border); border-radius: 7px; padding: 8px 10px; color: #e7e7ea; background: var(--surface-raised); } button:not(:disabled) { cursor: pointer; }
+  .categories label, .benchmark-card label { min-width:44px; min-height:44px; align-items:center; color: var(--muted); font-size: 11px; text-transform: capitalize; }
+  .categories label { display:inline-flex; }
+  button, input:not([type='checkbox']) { min-width:44px; min-height:44px; border: 1px solid var(--border); border-radius: 7px; padding: 8px 10px; color: #e7e7ea; background: var(--surface-raised); } button:not(:disabled) { cursor: pointer; }
   .actions { margin-top: 14px; color: var(--muted); font-size: 11px; } .dropped, .error { color: #f28a8a; }
   .benchmark-card { display: grid; grid-template-columns: minmax(240px,1fr) 120px 140px auto; gap: 12px; align-items: end; } .benchmark-card p { margin: 0; color: var(--muted); font-size: 11px; }
   .benchmark-card label { display: grid; gap: 5px; } dl { grid-column: 1/-1; display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 8px; margin: 8px 0 0; } dl div { padding: 9px; background: rgba(255,255,255,.025); } dt { color: var(--muted); font-size: 10px; } dd { margin: 4px 0 0; font: 11px ui-monospace, monospace; }

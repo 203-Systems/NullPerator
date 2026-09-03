@@ -7,6 +7,9 @@
   export let trace = null
   export let audio = null
   export let runtimeState = 'idle'
+  export let developerMode = false
+  export let developerModeLocked = false
+  export let onDeveloperModeChange = () => {}
   export let onRestart = () => {}
 
   let snapshot = settings.snapshot()
@@ -39,8 +42,8 @@
 
 <section class="settings-panel" aria-labelledby="settings-heading">
   <div class="section-heading">
-    <div><p class="eyebrow">Local workbench preferences</p><h1 id="settings-heading">Settings</h1></div>
-    <span class="phase-badge">Schema v{snapshot.version}</span>
+    <div><p class="eyebrow">Your preferences</p><h1 id="settings-heading">Settings</h1></div>
+    {#if developerMode}<span class="phase-badge">Developer tools on</span>{/if}
   </div>
   <div class="settings-grid">
     <fieldset><legend>Display</legend>
@@ -49,22 +52,38 @@
       </select></label>
     </fieldset>
     <fieldset><legend>Audio</legend>
-      <label>Target buffer<select value={snapshot.audioBufferFrames} onchange={(event) => updateAudio({ audioBufferFrames: Number(event.currentTarget.value) })}>
-        {#each AUDIO_BUFFER_OPTIONS as frames}<option value={frames}>{frames} frames</option>{/each}
-      </select></label>
       <label>Output volume <output>{snapshot.outputVolume}%</output><input aria-label="Output volume" type="range" min="0" max="100" value={snapshot.outputVolume} oninput={(event) => updateAudio({ outputVolume: Number(event.currentTarget.value) })} /></label>
-      <label class="check"><input type="checkbox" checked={snapshot.lowLatencyAudio} onchange={(event) => update({ lowLatencyAudio: event.currentTarget.checked })} />Enable AudioWorklet on next reload</label>
-      {#if audioSnapshot.metrics}<dl class="audio-metrics" aria-label="Audio processing metrics" data-processing-deadline-misses={audioSnapshot.metrics.callbackDeadlineMisses}>
-        <div><dt>Producer render</dt><dd>{micros(audioSnapshot.metrics.renderMicros)}</dd></div>
-        <div><dt>Callback current / max</dt><dd>{micros(audioSnapshot.metrics.callbackMicros)} / {micros(audioSnapshot.metrics.callbackMaxMicros)}</dd></div>
-        <div><dt>Processing deadline</dt><dd>{micros(audioSnapshot.metrics.callbackDeadlineMicros)}</dd></div>
-        <div><dt>Processing deadline misses</dt><dd>{audioSnapshot.metrics.callbackDeadlineMisses.toLocaleString()}</dd></div>
-      </dl>{/if}
-      <button type="button" disabled={runtimeState === 'booting' || runtimeState === 'stopping'} onclick={onRestart}>Reload/restart for audio mode</button>
+      <p class="field-note">Volume changes apply immediately and stay on this device.</p>
     </fieldset>
-    <fieldset><legend>Default trace categories</legend>
-      <div class="checks">{#each categories as category}<label class="check"><input type="checkbox" checked={(snapshot.traceMask & category.bit) !== 0} onchange={(event) => toggleTrace(category.bit, event.currentTarget.checked)} />{category.name}</label>{/each}</div>
+    <fieldset class="developer-switch-field"><legend>Advanced</legend>
+      <div class="developer-setting">
+        <span><strong>Developer tools</strong><small>{developerModeLocked ? 'Enabled by this diagnostic URL.' : 'Add runtime logs, performance trace and detailed engine settings.'}</small></span>
+        <button type="button" class="toggle" class:on={developerMode} data-developer-toggle
+          aria-label="Developer tools" aria-pressed={developerMode} disabled={developerModeLocked}
+          onclick={() => onDeveloperModeChange(!developerMode)}><span></span></button>
+      </div>
     </fieldset>
+    <fieldset><legend>Troubleshooting</legend>
+      <p class="field-note">Restart the audio engine and interface without deleting your projects or files.</p>
+      <button type="button" disabled={runtimeState === 'booting' || runtimeState === 'stopping'} onclick={onRestart}>Restart NullPerator</button>
+    </fieldset>
+    {#if developerMode}
+      <fieldset><legend>Audio engine</legend>
+        <label>Target buffer<select value={snapshot.audioBufferFrames} onchange={(event) => updateAudio({ audioBufferFrames: Number(event.currentTarget.value) })}>
+          {#each AUDIO_BUFFER_OPTIONS as frames}<option value={frames}>{frames} frames</option>{/each}
+        </select></label>
+        <label class="check"><input type="checkbox" checked={snapshot.lowLatencyAudio} onchange={(event) => update({ lowLatencyAudio: event.currentTarget.checked })} />Enable AudioWorklet on next reload</label>
+        {#if audioSnapshot.metrics}<dl class="audio-metrics" aria-label="Audio processing metrics" data-processing-deadline-misses={audioSnapshot.metrics.callbackDeadlineMisses}>
+          <div><dt>Producer render</dt><dd>{micros(audioSnapshot.metrics.renderMicros)}</dd></div>
+          <div><dt>Callback current / max</dt><dd>{micros(audioSnapshot.metrics.callbackMicros)} / {micros(audioSnapshot.metrics.callbackMaxMicros)}</dd></div>
+          <div><dt>Processing deadline</dt><dd>{micros(audioSnapshot.metrics.callbackDeadlineMicros)}</dd></div>
+          <div><dt>Processing deadline misses</dt><dd>{audioSnapshot.metrics.callbackDeadlineMisses.toLocaleString()}</dd></div>
+        </dl>{/if}
+      </fieldset>
+      <fieldset><legend>Default trace categories</legend>
+        <div class="checks">{#each categories as category}<label class="check"><input type="checkbox" checked={(snapshot.traceMask & category.bit) !== 0} onchange={(event) => toggleTrace(category.bit, event.currentTarget.checked)} />{category.name}</label>{/each}</div>
+      </fieldset>
+    {/if}
   </div>
   <div class="settings-actions"><button type="button" onclick={() => { const next = settings.reset(); audio?.configure?.(next); feedback = 'Defaults restored and live audio settings applied.' }}>Restore defaults</button><p role="status">{feedback}</p></div>
 </section>
@@ -72,9 +91,20 @@
 <style>
   .settings-panel { width: min(100%, 1000px); margin: 0 auto; } .settings-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
   fieldset { min-width: 0; padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); } legend { padding: 0 5px; font-size: 12px; font-weight: 700; }
-  label { display: grid; gap: 6px; margin-bottom: 12px; color: var(--muted); font-size: 11px; } select,input,button { min-width: 0; padding: 8px; border: 1px solid var(--border); border-radius: 7px; color: #e7e7ea; background: var(--surface-raised); }
+  label { display: grid; gap: 6px; margin-bottom: 12px; color: var(--muted); font-size: 11px; } select,input,button { min-width: 0; min-height:44px; padding: 8px; border: 1px solid var(--border); border-radius: 7px; color: #e7e7ea; background: var(--surface-raised); }
   button:not(:disabled) { cursor: pointer; }
-  .check { display: flex; align-items: center; gap: 7px; text-transform: capitalize; } .check input { min-width: auto; } .checks { display: grid; grid-template-columns: repeat(2,1fr); }
+  .field-note { margin:0 0 12px; color:var(--muted); font-size:11px; line-height:1.5; }
+  .developer-setting { display:flex; min-height:48px; align-items:center; justify-content:space-between; gap:16px; }
+  .developer-setting>span { display:grid; gap:5px; }
+  .developer-setting strong { color:var(--text); font-size:12px; }
+  .developer-setting small { color:var(--muted); font-size:10px; line-height:1.4; }
+  .toggle { position:relative; width:44px; height:44px; flex:0 0 auto; padding:0; border:0; border-radius:10px; background:transparent; }
+  .toggle::before { content:""; position:absolute; inset:10px 1px; border:1px solid var(--border); border-radius:999px; background:#090a0c; }
+  .toggle span { position:absolute; left:5px; top:14px; width:16px; height:16px; border-radius:50%; background:#737984; transition:translate .16s ease,background .16s ease; }
+  .toggle.on::before { border-color:rgba(76,201,240,.45); }
+  .toggle.on span { translate:18px 0; background:var(--accent); }
+  .toggle:disabled { cursor:not-allowed; opacity:.65; }
+  .check { display: flex; min-height:44px; align-items: center; gap: 7px; text-transform: capitalize; } .check input { min-width: auto; min-height:auto; } .checks { display: grid; grid-template-columns: repeat(2,1fr); }
   .audio-metrics { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; margin:2px 0 12px; } .audio-metrics div { min-width:0; padding:8px; border:1px solid var(--border); border-radius:6px; background:rgba(255,255,255,.025); } .audio-metrics dt { color:var(--muted); font-size:10px; } .audio-metrics dd { margin:4px 0 0; font:11px ui-monospace,monospace; overflow-wrap:anywhere; }
   .settings-actions { display: flex; align-items: center; gap: 12px; margin-top: 14px; } .settings-actions p { margin: 0; color: var(--muted); font-size: 11px; }
   @media (max-width: 760px) { .settings-grid { grid-template-columns: 1fr; } }

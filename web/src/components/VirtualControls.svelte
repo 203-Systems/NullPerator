@@ -33,7 +33,7 @@
 
 <div class="operator-controls" class:compact class:native-host={nativeHostActive}
   role="group"
-  aria-label={nativeHostActive ? 'NullPerator virtual controls' : 'PicoTracker virtual controls'}
+  aria-label="NullPerator virtual controls"
   oncontextmenu={(event) => event.preventDefault()} ondragstart={(event) => event.preventDefault()}>
   <div class="d-pad" aria-label="Directional controls">
     {#each [['up','Up','W','▲'],['left','Left','A','◀'],['down','Down','S','▼'],['right','Right','D','▶']] as [action,label,key,glyph]}
@@ -223,8 +223,15 @@
     .operator-controls.native-host .bottom-buttons button:first-child { grid-column:1; grid-row:2; align-self:end; justify-self:center; }
     .operator-controls.native-host .bottom-buttons button:last-child { grid-column:3; grid-row:2; align-self:end; justify-self:center; }
   }
-  @media(orientation:portrait) and (max-height:499px){
-    .operator-controls.compact{margin-top:5px}
+  @media(orientation:portrait) and (max-height:539px){
+    .operator-controls.compact{width:280px;height:156px;margin-top:5px}
+    .compact button,.compact .d-pad button,.compact .face{width:48px;height:48px;border-radius:12px}
+    .compact .d-pad{left:0;top:4px;width:148px;height:144px}
+    .compact .d-pad .up{left:50px;top:0}.compact .d-pad .left{left:0;top:48px}.compact .d-pad .down{left:50px;top:96px}.compact .d-pad .right{left:100px;top:48px}
+    .compact .face-buttons{right:0;top:4px;width:116px;height:116px}
+    .compact .face.enter{left:60px;top:0}.compact .face.option{left:0;top:0}
+    .compact .bottom-buttons{right:0;top:60px;width:116px;height:48px}
+    .compact .bottom-buttons button:first-child{left:0}.compact .bottom-buttons button:last-child{right:0}
   }
   @media(orientation:landscape) and (max-height:539px){
     .operator-controls.compact{width:280px;height:156px}

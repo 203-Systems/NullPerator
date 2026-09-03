@@ -18,7 +18,7 @@ export function toChromeTrace(records, metadata = {}) {
   const ordered = [...records].sort((left, right) => left.sequence - right.sequence)
   const threadIds = [...new Set(ordered.map((record) => validateTraceRecord(record).thread))].sort((a, b) => a - b)
   const traceEvents = [
-    { name: 'process_name', ph: 'M', pid, tid: 0, args: { name: 'PicoTracker WASM' } },
+    { name: 'process_name', ph: 'M', pid, tid: 0, args: { name: 'NullPerator WASM' } },
     ...threadIds.map((thread) => ({ name: 'thread_name', ph: 'M', pid, tid: thread, args: { name: TRACE_THREADS[thread] } })),
   ]
   for (const record of ordered) {

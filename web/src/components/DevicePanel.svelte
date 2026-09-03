@@ -20,10 +20,11 @@
   let lastAction = -1
   let heldActions = []
   let displayScale = nativeHostActive ? '1.5' : (settings?.snapshot?.().displayScale ?? 'fit')
+  let fitScale = 1.4
   let hideControlsWithGamepad = settings?.snapshot?.().hideControlsWithGamepad ?? false
   let controllerConnected = false
   let detachSettings = () => {}
-  const scaleFor = (value, compactMode) => compactMode ? 1 : (value === 'fit' ? 1.4 : Number(value) || 1)
+  const scaleFor = (value, compactMode, availableScale) => compactMode ? 1 : (value === 'fit' ? availableScale : Number(value) || 1)
   const input = createInputStore({
     pressAction: (action) => runtime.input?.pressAction(action),
     repeatAction: (action) => runtime.input?.repeatAction(action),
@@ -33,10 +34,23 @@
   const detachInput = input.subscribe((next) => { heldActions = next })
 
   function focusCanvas() { panel?.querySelector('canvas[data-tracker-display]')?.focus({ preventScroll: true }) }
+  function updateFitScale() {
+    if (!scene || compact) return
+    const style = getComputedStyle(scene)
+    const innerWidth = scene.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)
+    const innerHeight = scene.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom)
+    // The Device page stays mounted while another workspace page is active.
+    // Ignore the transient zero-size ResizeObserver sample from `hidden` so
+    // returning to the tracker never flashes at the minimum fit scale.
+    if (innerWidth <= 0 || innerHeight <= 0) return
+    const next = Math.max(.75, Math.min(1.4, innerWidth / 320, innerHeight / 496))
+    fitScale = Math.floor(next * 1000) / 1000
+  }
   async function resetModeScroll(compactMode, target) {
     if (!target) return
     await tick()
     if (compact !== compactMode || scene !== target) return
+    updateFitScale()
     target.scrollTop = 0
     target.scrollLeft = 0
   }
@@ -91,6 +105,10 @@
     if (runtime.state !== 'ready') return false
     if (audioBlocked) return false
     if (!panel || panel.getClientRects().length === 0) return false
+    // DevicePanel remains mounted behind compact modal navigation. `inert`
+    // prevents focus and pointer input, but our window-level keyboard mapping
+    // must explicitly honor it as well.
+    if (panel.closest('[inert]')) return false
     const active = document.activeElement
     if (!active) return true
     const tag = active.tagName
@@ -215,12 +233,16 @@
   }
 
   $: audioBlocked = !nativeHostActive && (audio.state === 'locked' || audio.state === 'suspended')
+  $: deviceScale = scaleFor(displayScale, compact, fitScale)
   $: if (runtime.state !== 'ready' || audioBlocked) { input.releaseAll(); actionMask = 0; actionGeneration = 0; lastAction = -1 }
   $: synchronizeAudioPrompt(audioBlocked, unlockDialog, unlockButton)
   $: resetModeScroll(compact, scene)
   $: if (nativeHostActive && runtime.battery) applyNativeBattery()
 
   onMount(() => {
+    const resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(updateFitScale) : null
+    resizeObserver?.observe(scene)
+    updateFitScale()
     detachSettings = settings?.subscribe?.((next) => {
       displayScale = nativeHostActive ? '1.5' : next.displayScale
       hideControlsWithGamepad = Boolean(next.hideControlsWithGamepad)
@@ -249,7 +271,7 @@
       if (nativeBridge && globalThis.__nullPeratorHost === nativeBridge) delete globalThis.__nullPeratorHost
       globalThis.removeEventListener('nullperator-controller-change', controllerChanged)
       if (timer !== null) window.clearInterval(timer)
-      detachNativeFrames(); detachRawGamepad(); detach(); detachSettings()
+      resizeObserver?.disconnect(); detachNativeFrames(); detachRawGamepad(); detach(); detachSettings()
     }
   })
   onDestroy(() => {
@@ -266,13 +288,13 @@
 <div class="device-input-host" class:compact class:native-host={nativeHostActive} bind:this={panel}
   role={nativeHostActive ? 'application' : undefined} aria-label={nativeHostActive ? 'NullPerator' : undefined}
   onfocusout={(event) => { if (!panel?.contains(event.relatedTarget)) input.releaseAll() }}>
-  <h1 class="sr-only">{nativeHostActive ? 'NullPerator' : 'PicoTracker'} Device</h1>
+  <h1 class="sr-only">NullPerator Player</h1>
   <div class="device-scene" bind:this={scene}>
-    <div class="operator-device" inert={audioBlocked} data-display-scale={displayScale} style={`--device-scale:${scaleFor(displayScale, compact)}`}>
+    <div class="operator-device" inert={audioBlocked} data-display-scale={displayScale} style={`--device-scale:${deviceScale}`}>
       <div class="operator-screen-housing">
         <div class="screen-bezel">
           <canvas id="canvas" aria-hidden="true" tabindex="-1"></canvas>
-          <canvas id={nativeHostActive ? 'nullperator-canvas' : 'picotracker-canvas'} data-tracker-display width="240" height="240" tabindex="0" aria-label={nativeHostActive ? 'NullPerator display' : 'PicoTracker display'}
+          <canvas id={nativeHostActive ? 'nullperator-canvas' : 'picotracker-canvas'} data-tracker-display width="240" height="240" tabindex="0" aria-label="NullPerator display"
             data-frame-content={runtime.frameContent} data-action-mask={actionMask}
             data-action-generation={actionGeneration} data-last-action={lastAction}
             onpointerdown={focusCanvas}></canvas>
@@ -288,7 +310,7 @@
       onfocusout={containAudioPromptFocus}>
       <p class="eyebrow">Audio</p>
       <h2 id="audio-unlock-title">Enable sound</h2>
-      <p>Your browser needs one click before PicoTracker can play audio.</p>
+      <p>Your browser needs one click before NullPerator can play audio.</p>
       <button bind:this={unlockButton} type="button" onclick={unlockAudio}>Enable sound</button>
     </dialog>{/if}
   </div>
@@ -338,6 +360,12 @@
   @media(max-width:360px){
     .compact .device-scene{padding-inline:0}
     .device-input-host:not(.compact) .operator-device{zoom:.72!important}
+  }
+  @media(orientation:portrait) and (max-height:539px){
+    .compact .device-scene{padding:6px 0}
+    .compact .operator-device{width:280px}
+    .compact .screen-bezel{width:240px;height:240px;padding:0;border:0}
+    .compact .screen-glass{inset:0}
   }
   @media(orientation:landscape) and (max-height:539px){
     .compact .device-scene{padding:6px 12px}

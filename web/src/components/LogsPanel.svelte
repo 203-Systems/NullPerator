@@ -56,7 +56,7 @@
     {#each snapshot.records as record (record.sequence)}
       <li class:log-error={record.severity === 'error'}>
         <time>{time(record.wallTime)}</time><span class="severity">{record.severity}</span>
-        <span class="category">{record.category}</span><span class="thread">{record.thread}</span>
+        <span class="category" title={record.category}>{record.category}</span><span class="thread" title={record.thread}>{record.thread}</span>
         <span class="message">{record.message}{record.truncated ? ' …[truncated]' : ''}{record.repeat > 1 ? ` ×${record.repeat}` : ''}</span>
       </li>
     {:else}<li class="empty">No log records match the current filter.</li>{/each}
@@ -67,14 +67,21 @@
   .logs-panel { width: min(100%, 1180px); margin: 0 auto; }
   .log-toolbar { display: grid; grid-template-columns: repeat(3, minmax(110px, .5fr)) minmax(220px, 1.5fr); gap: 10px; }
   label { display: grid; gap: 5px; color: var(--muted); font-size: 11px; }
-  select, input, button { border: 1px solid var(--border); border-radius: 7px; padding: 8px 10px; color: #e7e7ea; background: var(--surface-raised); }
+  select, input, button { min-width:44px; min-height:44px; border: 1px solid var(--border); border-radius: 7px; padding: 8px 10px; color: #e7e7ea; background: var(--surface-raised); }
   button { cursor: pointer; }
   .log-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 12px 0; color: var(--muted); font-size: 11px; }
   .dropped { color: #f28a8a; }
   .feedback { color: var(--muted); font-size: 12px; }
   .log-list { max-height: calc(100vh - 310px); min-height: 260px; overflow: auto; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 9px; background: #0c0d10; list-style: none; }
   li { display: grid; grid-template-columns: 92px 48px 100px 90px minmax(0, 1fr); gap: 8px; padding: 7px 10px; border-bottom: 1px solid rgba(255,255,255,.045); font: 11px/1.35 ui-monospace, monospace; }
-  time, .thread { color: var(--muted); } .severity, .category { text-transform: uppercase; } .message { overflow-wrap: anywhere; white-space: pre-wrap; }
+  li>* { min-width:0; }
+  time, .thread { color: var(--muted); } .severity, .category { overflow:hidden; text-overflow:ellipsis; text-transform:uppercase; white-space:nowrap; } .thread { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .message { overflow-wrap: anywhere; white-space: pre-wrap; }
   .log-error .severity, .log-error .message { color: #f28a8a; } .empty { display: block; color: var(--muted); padding: 18px; }
   @media (max-width: 820px) { .log-toolbar { grid-template-columns: 1fr 1fr; } li { grid-template-columns: 76px 44px 78px minmax(0,1fr); } .thread { display: none; } }
+  @media (max-width: 520px) {
+    .log-toolbar { grid-template-columns:1fr; }
+    .log-list { max-height:none; min-height:260px; }
+    li { grid-template-columns:76px 44px minmax(0,1fr); gap:5px 8px; }
+    .message { grid-column:1/-1; padding-top:2px; }
+  }
 </style>

@@ -20,10 +20,9 @@ export const DEFAULT_SETTINGS = Object.freeze({
   outputVolume: 100,
   traceMask: TRACE_ALL_MASK,
   lowLatencyAudio: true,
-  // Auto keeps the desktop workbench available while opening directly into
-  // the touch-first player on narrow screens. The first toggle stores an
-  // explicit boolean preference.
-  developerMode: 'auto',
+  // Developer tools are an explicit, additive preference. Viewport changes
+  // only affect layout and must never change which capabilities a user sees.
+  developerMode: false,
 })
 
 export function migrateSettings(candidate) {
