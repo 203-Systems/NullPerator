@@ -71,6 +71,14 @@ UiColorToken StateColor(UiRecordState state) {
   return UiColorToken::TextNormal;
 }
 
+constexpr std::int16_t LevelLabelY(const UiRecordViewData &data) {
+  return data.sourceSelectable ? 65 : 43;
+}
+
+constexpr std::int16_t MeterY(const UiRecordViewData &data) {
+  return data.sourceSelectable ? 81 : 59;
+}
+
 void DrawSelectedInk(UiSceneBuilder<256, 1024> &builder,
                      const UiRecordViewData &data) {
   switch (data.focus) {
@@ -109,13 +117,17 @@ void UiRecordView::RenderDelta(const UiRecordViewData &previous,
   const auto render = [&](RectI16 rect) {
     UiFrameRenderer::RenderRegion(currentScene, surface, palette, rect);
   };
+  if (previous.sourceSelectable != current.sourceSelectable) {
+    render({0, 0, 240, 208});
+    return;
+  }
   if (previous.power != current.power || previous.source != current.source)
     render({0, 0, 240, 34});
   if (previous.source != current.source) render({5, 40, 230, 12});
   if (previous.meterAvailable != current.meterAvailable ||
       previous.safeWidth != current.safeWidth ||
       previous.warningWidth != current.warningWidth) {
-    render({9, 81, 222, 14});
+    render({9, MeterY(current), 222, 14});
   }
   if (previous.elapsed != current.elapsed ||
       previous.savingPercent != current.savingPercent ||
@@ -142,8 +154,10 @@ UiBuildStatus UiRecordView::Build(const UiRecordViewData &data,
   scene.bottomVisible = true;
   scene.topBackground = UiColorToken::SurfaceTopBar;
   scene.bottomBackground = UiColorToken::SurfaceBottomBar;
-  const UiTopBarModel top{
-      .title = "RECORD", .meta = data.source, .power = data.power};
+  const UiTopBarModel top{.title = "RECORD",
+                          .meta = data.sourceSelectable ? data.source
+                                                       : std::string_view{},
+                          .power = data.power};
   const UiBuildStatus topStatus = UiChromeRenderer::BuildTop(top, scene.top);
   if (topStatus != UiBuildStatus::Built) return topStatus;
   const UiBottomBarModel bottom = BottomBarFor(data.state);
@@ -153,17 +167,20 @@ UiBuildStatus UiRecordView::Build(const UiRecordViewData &data,
   if (bottomStatus != UiBuildStatus::Built) return bottomStatus;
 
   UiSceneBuilder<256, 1024> builder(scene.content);
-  builder.Text("SOURCE", 9, 43, UiColorToken::TextDim);
-  builder.Text(data.source, 92, 43, UiColorToken::TextNormal);
-  DrawSection(builder, "LEVEL", 65);
-  builder.Fill({9, 81, 222, 14}, UiColorToken::DerivedVuTrack);
+  if (data.sourceSelectable) {
+    builder.Text("SOURCE", 9, 43, UiColorToken::TextDim);
+    builder.Text(data.source, 92, 43, UiColorToken::TextNormal);
+  }
+  DrawSection(builder, "LEVEL", LevelLabelY(data));
+  builder.Fill({9, MeterY(data), 222, 14}, UiColorToken::DerivedVuTrack);
   if (data.meterAvailable) {
     const std::int16_t safe = static_cast<std::int16_t>(
         std::min<std::uint16_t>(data.safeWidth, 222));
-    builder.Fill({9, 81, safe, 14}, UiColorToken::VuSafe);
+    builder.Fill({9, MeterY(data), safe, 14}, UiColorToken::VuSafe);
     const std::int16_t warning = static_cast<std::int16_t>(
         std::min<std::uint16_t>(data.warningWidth, 222 - safe));
-    builder.Fill({static_cast<std::int16_t>(9 + safe), 81, warning, 14},
+    builder.Fill({static_cast<std::int16_t>(9 + safe), MeterY(data), warning,
+                  14},
                  UiColorToken::VuWarning);
   }
 

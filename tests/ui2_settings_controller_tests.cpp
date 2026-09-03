@@ -868,6 +868,19 @@ TEST_CASE("UI2 Record unavailable capability is read-only") {
   CHECK(controller.SelectedField() == Ui2RecordField::Source);
 }
 
+TEST_CASE("UI2 Record can use a platform-managed input route") {
+  using namespace ui2;
+  Ui2RecordController controller;
+  controller.SetAvailable(true);
+  controller.SetSourceSelectable(false);
+  controller.Synchronize(1U);
+
+  CHECK_FALSE(Tap(controller, TrackerAction::Left).HasValue());
+  CHECK_FALSE(Tap(controller, TrackerAction::Right).HasValue());
+  CHECK(Tap(controller, TrackerAction::Play).type ==
+        Ui2RecordCommandType::ToggleRecording);
+}
+
 TEST_CASE("UI2 Instrument name actions and type selector are independent") {
   using namespace ui2;
   Ui2InstrumentController controller;

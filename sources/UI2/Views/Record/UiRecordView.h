@@ -40,6 +40,7 @@ struct UiRecordViewData {
   bool cursorVisualOverride = false;
   bool cursorInkVisible = true;
   bool meterAvailable = true;
+  bool sourceSelectable = true;
   UiPowerState power = UiPowerState::BatteryNormal;
 };
 

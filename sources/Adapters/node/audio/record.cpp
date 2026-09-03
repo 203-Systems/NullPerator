@@ -346,6 +346,8 @@ void SetInputSource(RecordSource source) {
     StartMonitoring();
 }
 
+bool IsRecordingInputSelectable() { return true; }
+
 bool IsRecordingAvailable() {
   return NullperatorHAL::Audio::GetRxChannel() != nullptr &&
          heap_caps_get_total_size(MALLOC_CAP_SPIRAM) != 0U;

@@ -620,6 +620,7 @@ void FinishStopRecording() {}
 void StartMonitoring() {}
 void StopMonitoring() {}
 void SetInputSource(RecordSource) {}
+bool IsRecordingInputSelectable() { return false; }
 bool IsRecordingAvailable() { return false; }
 bool IsRecordingActive() { return false; }
 bool IsMonitoringActive() { return false; }

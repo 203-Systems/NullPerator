@@ -34,6 +34,7 @@ struct RecordViewUi2Snapshot {
   std::uint16_t meterWarningWidth = 0;
   bool meterAvailable = false;
   bool recordingAvailable = false;
+  bool sourceSelectable = true;
 
   bool operator==(const RecordViewUi2Snapshot &) const = default;
 
@@ -45,6 +46,7 @@ struct RecordViewUi2Snapshot {
     data.elapsed = elapsed.data();
     data.savingPercent = savingPercent;
     data.meterAvailable = meterAvailable;
+    data.sourceSelectable = sourceSelectable;
     data.safeWidth = meterAvailable ? meterSafeWidth : 0U;
     data.warningWidth = meterAvailable ? meterWarningWidth : 0U;
     data.power = power;

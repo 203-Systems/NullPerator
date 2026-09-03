@@ -35,6 +35,9 @@ public:
     available_ = available;
     input_ = {};
   }
+  constexpr void SetSourceSelectable(bool selectable) {
+    sourceSelectable_ = selectable;
+  }
   constexpr void Synchronize(std::uint8_t source) {
     source_ = source < 3U ? source : 0U;
   }
@@ -49,7 +52,8 @@ public:
     if (action == TrackerAction::Play)
       return {.type = Ui2RecordCommandType::ToggleRecording};
 
-    if (action != TrackerAction::Left && action != TrackerAction::Right)
+    if (!sourceSelectable_ ||
+        (action != TrackerAction::Left && action != TrackerAction::Right))
       return {};
 
     const int sign = action == TrackerAction::Left ? -1 : 1;
@@ -62,6 +66,7 @@ private:
   Ui2RecordField field_ = Ui2RecordField::Source;
   std::uint8_t source_ = 0U;
   bool available_ = false;
+  bool sourceSelectable_ = true;
 };
 
 static_assert(std::is_trivially_copyable_v<Ui2RecordController>);

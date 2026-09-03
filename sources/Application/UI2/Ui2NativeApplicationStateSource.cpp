@@ -1090,7 +1090,9 @@ Ui2NativeApplicationStateSource::CaptureRecord(UiRecordFrameState &state) {
   };
   const std::uint8_t source = static_cast<std::uint8_t>(
       std::clamp(value(FourCC::VarRecordSource), 0, 2));
-  record_.Synchronize(source);
+  const bool sourceSelectable = IsRecordingInputSelectable();
+  if (sourceSelectable)
+    record_.Synchronize(source);
   constexpr const char *sources[] = {"LINE IN", "ON BOARD MIC",
                                      "HEADPHONE MIC"};
   CopyUiText(state.snapshot.source, sources[source]);
@@ -1102,6 +1104,7 @@ Ui2NativeApplicationStateSource::CaptureRecord(UiRecordFrameState &state) {
                     std::min<std::uint32_t>(elapsedSeconds / 60U, 99U)),
                 static_cast<unsigned>(elapsedSeconds % 60U));
   state.snapshot.sourceIndex = source;
+  state.snapshot.sourceSelectable = sourceSelectable;
   const bool available = record_.Available();
   state.snapshot.recordingAvailable = available;
   state.snapshot.meterAvailable = IsMonitoringActive() || IsRecordingActive();
@@ -1116,10 +1119,14 @@ Ui2NativeApplicationStateSource::CaptureRecord(UiRecordFrameState &state) {
   if (!available) {
     state.snapshot.focus = RecordViewUi2Focus::Unknown;
   } else {
-    switch (record_.SelectedField()) {
-    case Ui2RecordField::Source:
-      state.snapshot.focus = RecordViewUi2Focus::Source;
-      break;
+    if (sourceSelectable) {
+      switch (record_.SelectedField()) {
+      case Ui2RecordField::Source:
+        state.snapshot.focus = RecordViewUi2Focus::Source;
+        break;
+      }
+    } else {
+      state.snapshot.focus = RecordViewUi2Focus::Unknown;
     }
     if (IsSavingRecording()) {
       state.snapshot.state = RecordViewUi2State::Saving;
@@ -1128,7 +1135,7 @@ Ui2NativeApplicationStateSource::CaptureRecord(UiRecordFrameState &state) {
       state.snapshot.state = RecordViewUi2State::Recording;
     }
   }
-  state.cursorInkVisible = available;
+  state.cursorInkVisible = available && sourceSelectable;
   const bool recordingBusy = available &&
                              (state.snapshot.state != RecordViewUi2State::Idle ||
                               IsMonitoringActive());

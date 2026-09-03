@@ -19,6 +19,10 @@ static_assert(LineIn == 0 && OnboardMic == 1 && HeadphoneMic == 2,
               "RecordSource values are persisted");
 
 void SetInputSource(RecordSource source);
+// Some hosts expose one system-managed input route instead of a product-level
+// source selector. The UI uses this capability to omit source editing while
+// keeping recording itself available.
+bool IsRecordingInputSelectable();
 // Capability is owned by the platform adapter so UI/application code does not
 // infer support from target names or from gain ranges. Backends must keep this
 // false until the complete record transaction is implemented.

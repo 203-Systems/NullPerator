@@ -2276,6 +2276,7 @@ void Ui2TrackerApplication::HandleRecord(TrackerAction action, bool pressed) {
 
 void Ui2TrackerApplication::ConfigureRecordController() {
   record_.SetAvailable(IsRecordingAvailable());
+  record_.SetSourceSelectable(IsRecordingInputSelectable());
 }
 
 void Ui2TrackerApplication::ExecuteRecord(Ui2RecordCommand command) {

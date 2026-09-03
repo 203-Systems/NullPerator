@@ -100,6 +100,10 @@ TEST_CASE("UI2 Record snapshot projects fixed-capacity live state") {
   CHECK(data.warningWidth == 40U);
   CHECK(data.power == ui2::UiPowerState::BatteryLow);
 
+  snapshot.sourceSelectable = false;
+  const ui2::UiRecordViewData systemInput = snapshot.ViewData();
+  CHECK_FALSE(systemInput.sourceSelectable);
+
   snapshot.recordingAvailable = false;
   snapshot.meterAvailable = false;
   const ui2::UiRecordViewData unavailable = snapshot.ViewData();
