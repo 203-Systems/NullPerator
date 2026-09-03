@@ -103,25 +103,25 @@ jobs:
           if-no-files-found: error
 
       - name: Link Vercel project
-        if: github.event_name == 'push' && github.ref == 'refs/heads/nullperator-main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: npx --yes vercel@59.11.2 link --yes --project nullperator-web --token "$VERCEL_TOKEN"
 
       - name: Pull Vercel production settings
-        if: github.event_name == 'push' && github.ref == 'refs/heads/nullperator-main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: npx --yes vercel@59.11.2 pull --yes --environment=production --token "$VERCEL_TOKEN"
 
       - name: Build Vercel deployment output
-        if: github.event_name == 'push' && github.ref == 'refs/heads/nullperator-main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: npx --yes vercel@59.11.2 build --prod --token "$VERCEL_TOKEN"
 
       - name: Deploy production Web app
-        if: github.event_name == 'push' && github.ref == 'refs/heads/nullperator-main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: npx --yes vercel@59.11.2 deploy --prebuilt --prod --token "$VERCEL_TOKEN"
