@@ -54,10 +54,10 @@ The test validates hashes before use and restores only the minimal valid
 factory tree, which contains nested/duplicate project and sample directories.
 The gate proves the C++ model loaded the named project, tempo, and sample; starts
 and stops the real player through C; edits and saves tempo through the fixed
-Node `WASD / JK / XC` controls; then verifies the result after both runtime
-restart and full page reload. The Save check first observes the real C++ file
-mutation generation, waits for that exact IDBFS durability fence, and does not
-invoke the test fixture's force-flush helper. If
+NullPerator `WASD / JK / XC` controls; then verifies the result after both
+runtime restart and full page reload. The Save check first observes the real
+C++ file mutation generation, waits for that exact IDBFS durability fence, and
+does not invoke the test fixture's force-flush helper. If
 `PICOTRACKER_FACTORY_CONTENT` is unset, this case is reported as skipped, never
 as acceptance evidence.
 
@@ -98,10 +98,11 @@ mocked/headless result.
 
 - [ ] Enter, draw, and operate every current PicoTracker view and modal.
 - [ ] Exercise every action from its default keyboard mapping and virtual button;
-      verify fixed Node WASD/JK/XC keys, chords, two simultaneous touches, and
-      blur/cancel release. Verify C taps as PLAY before 500 ms, holds as NAV at
-      or beyond 500 ms, and becomes NAV immediately when chorded. Verify input
-      order: X then C holds ALT+PLAY for as long as C is down (a third key,
+      verify fixed NullPerator WASD/JK/XC keys, chords, two simultaneous
+      touches, and blur/cancel release. Verify C taps as PLAY before 500 ms,
+      holds as NAV at or beyond 500 ms, and becomes NAV immediately when
+      chorded. Verify input order: X then C holds ALT+PLAY for as long as C is
+      down (a third key,
       including EDIT, cancels PLAY), while C then X
       remains NAV+ALT.
 - [ ] At 44.1 kHz output, play known material continuously with correct pitch and
@@ -135,10 +136,10 @@ and Web MIDI may be shown as unsupported; that must remain a local subsystem
 state and must not prevent UI, files, or supported audio from running. Record
 the exact unsupported capability and browser version.
 
-## Node regression
+## NullPerator hardware regression
 
 Host adapter tests and the full browser acceptance suite run in the WASM
-workflow. Before release, build and smoke-test Node using its documented
+workflow. Before release, build and smoke-test the hardware using its documented
 ESP-IDF environment, including UI, storage, buttons/headphone detection, and
 audio.
 

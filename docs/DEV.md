@@ -1,7 +1,7 @@
 # Developer guide
 
-PicoTracker supports three products: ESP32-S3 Node firmware, the browser WASM
-workbench, and the native NullPerator iOS application. All three use the same
+NullPerator supports three products: the ESP32-S3 hardware firmware, the
+browser WASM workbench, and the native iOS application. All three use the same
 application model and UI2 renderer.
 
 ## Host tests
@@ -25,7 +25,7 @@ pnpm dev
 See [the WASM build guide](wasm/BUILD.md) and
 [test guide](wasm/TESTING.md) for the complete browser workflow.
 
-## Node firmware
+## NullPerator hardware
 
 Install and export ESP-IDF, then run:
 
@@ -34,8 +34,8 @@ idf.py --project-dir sources -B sources/build/node -DNode=true build
 idf.py --project-dir sources -B sources/build/node -DNode=true flash monitor
 ```
 
-The target is fixed to `esp32s3`. See
-[README_NODE.MD](../README_NODE.MD) for configuration and troubleshooting.
+The target is fixed to `esp32s3`. See the
+[hardware build guide](HARDWARE.md) for configuration and troubleshooting.
 
 ## NullPerator for iOS
 
@@ -60,6 +60,7 @@ See the [iOS build guide](../ios/README.md) for runtime details.
   model and services.
 - Platform adapters implement explicit fixed-capacity interfaces.
 - The audio callback must not allocate, lock, log, or touch UI state.
-- Node, WASM, and iOS preserve the same project format and editing semantics.
+- NullPerator hardware, WASM, and iOS preserve the same project format and
+  editing semantics.
 - Add focused host tests for model, workflow, persistence, and input changes.
 - Run the native layout Playwright suite for shared mobile UI changes.

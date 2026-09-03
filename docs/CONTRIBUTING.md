@@ -21,7 +21,7 @@ Here are some guidelines for when you are ready to contribute code:
 * Always discuss what you plan to work on in the related issue before submitting a PR!
 * Issues where we would like contributions have the **help wanted** or **good first issue** labels attached to them
 * If an issue doesn't already exist, please create one first
-* Run the host and Web tests for shared changes. For Node-specific changes,
+* Run the host and Web tests for shared changes. For hardware-specific changes,
   include the ESP32-S3 build or device validation performed. For iOS changes,
   include an iOS build and the relevant native-layout or real-device checks.
 * Run through the minimal manual "smoke test" plan (see below)

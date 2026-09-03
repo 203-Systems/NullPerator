@@ -1,6 +1,6 @@
 # Release process
 
-NullPerator shares one product version across the Node firmware, WASM
+NullPerator shares one product version across the hardware firmware, WASM
 workbench, and iOS application. Release each target from a tested commit on
 `nullperator-main`; do not change the project-file schema merely to publish a
 new product version.
@@ -64,7 +64,7 @@ Archive with the distribution team/profile, upload the build to TestFlight,
 and complete the smoke test in `docs/AppStoreSubmission.md` on a real iPhone and
 iPad before App Review.
 
-### Node firmware
+### NullPerator hardware
 
 Build with the supported ESP-IDF environment and validate on hardware:
 

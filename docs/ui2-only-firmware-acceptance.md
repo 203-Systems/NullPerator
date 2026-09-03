@@ -1,11 +1,12 @@
 # UI2-only firmware acceptance
 
-The ESP32-S3 `Node` product is UI2-only. This acceptance gate verifies that
-retired character UI sources, archives, objects, and symbols have not leaked
-back into a firmware artifact. It inspects the compile database, link map, and
-final ELF instead of relying on a build flag or linker garbage collection.
+The ESP32-S3 NullPerator hardware is UI2-only. This acceptance gate verifies
+that retired character UI sources, archives, objects, and symbols have not
+leaked back into a firmware artifact. It inspects the compile database, link
+map, and final ELF instead of relying on a build flag or linker garbage
+collection.
 
-The gate is attached to the Node build as the explicit
+The gate is attached to the hardware build as the explicit
 `ui2_only_firmware_acceptance` target. It is not part of `ALL`, so release
 automation must request it after building the firmware.
 
@@ -53,8 +54,8 @@ guards:
   implementations;
 - `sources/UIFramework/**/*.cpp`;
 - the mixed `sources/Application/AppWindow.cpp`;
-- the legacy Node `gui/GUIWindowImp.cpp`;
-- the retired mixed Node `display/display.c` character renderer and RGB565
+- the legacy hardware `gui/GUIWindowImp.cpp`;
+- the retired mixed hardware `display/display.c` character renderer and RGB565
   transport.
 
 The link map must not contain:
@@ -68,7 +69,7 @@ The final ELF must not define:
 
 - `AppWindow` character buffers or legacy flush/draw methods;
 - concrete/base legacy View draw methods or legacy modal/field classes;
-- Node legacy window/fallback draw methods;
+- legacy hardware window/fallback draw methods;
 - character-mode `display_*` functions such as `display_putc`,
   `display_draw_changed`, or `display_draw_screen`.
 

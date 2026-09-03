@@ -30,7 +30,7 @@ NullPerator builds on the open-source picoTracker project and is developed by
 | Target | Runtime | Platform integration |
 | --- | --- | --- |
 | NullPerator for iOS | Native C++ core with a bundled Svelte presentation | Core Audio recording and playback, CoreMIDI, Bluetooth MIDI, GameController, background audio, and Files |
-| NullPerator hardware (Node firmware) | Native C++ firmware | ESP32-S3 hardware, display, controls, audio, MIDI, and storage |
+| NullPerator hardware | Native C++ firmware | ESP32-S3 hardware, display, controls, audio, MIDI, and storage |
 | WASM workbench | C++ core compiled to WebAssembly | Browser storage, host-folder synchronization, Web MIDI, logs, and tracing |
 
 All targets share the application model, project format, audio engine, and UI2
@@ -71,15 +71,15 @@ The development server prints the local URL after startup. See the
 [WASM build guide](docs/wasm/BUILD.md) for toolchain setup and production
 packaging.
 
-## Build the Node firmware
+## Build the NullPerator hardware firmware
 
-Node targets ESP32-S3 and builds with ESP-IDF:
+The hardware firmware targets ESP32-S3 and builds with ESP-IDF:
 
 ```bash
 idf.py --project-dir sources -B sources/build/node -DNode=true build
 ```
 
-See the [Node build guide](README_NODE.MD) for configuration, flashing,
+See the [hardware build guide](docs/HARDWARE.md) for configuration, flashing,
 monitoring, and troubleshooting.
 
 ## Run host tests
@@ -106,6 +106,7 @@ Shared changes should also be validated on every affected product target.
 ## Documentation
 
 - [Developer guide](docs/DEV.md)
+- [Hardware build and flashing](docs/HARDWARE.md)
 - [Release process](docs/RELEASES.md)
 - [WASM storage](docs/wasm/STORAGE.md)
 - [WASM testing](docs/wasm/TESTING.md)
