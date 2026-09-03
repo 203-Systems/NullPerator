@@ -160,7 +160,7 @@ struct NullPeratorWebView: UIViewRepresentable {
               document.addEventListener('gestureend', prevent, { capture: true, passive: false });
               try {
                 // Treat WebAudio as a real-time instrument rather than media
-                // playback so iOS does not publish 127.0.0.1 to Now Playing.
+                // playback so iOS does not publish browser-style Now Playing metadata.
                 if ('audioSession' in navigator) navigator.audioSession.type = 'play-and-record';
               } catch {}
             })();

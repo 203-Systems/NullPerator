@@ -68,8 +68,10 @@ final class GameControllerBridge {
     }
 
     private func configure(_ controller: GCController) {
+#if DEBUG
         let vendor = controller.vendorName ?? "unknown"
         print("[Controller] configure vendor=\(vendor) category=\(controller.productCategory)")
+#endif
         if let gamepad = controller.extendedGamepad {
             bind(gamepad.dpad.up, action: "up")
             bind(gamepad.dpad.down, action: "down")
@@ -120,8 +122,10 @@ final class GameControllerBridge {
         button.pressedChangedHandler = { [weak self] _, _, pressed in
             Task { @MainActor in
                 let method = pressed ? "press" : "release"
+#if DEBUG
                 let name = source ?? button.unmappedLocalizedName ?? button.localizedName ?? "button"
                 print("[Controller] \(name) \(method) -> \(action)")
+#endif
                 self?.evaluate("window.__nullPeratorHost?.\(method)('\(action)')")
             }
         }
