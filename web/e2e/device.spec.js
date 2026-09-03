@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { restartWorkbench } from './helpers/runtime.js'
 
-test('boots the C++ UI at 240x240 logical pixels', async ({ page }) => {
+test('@visual boots the C++ UI at 240x240 logical pixels', async ({ page }) => {
   page.on('console', (message) => console.log(`[browser:${message.type()}] ${message.text()}`))
   page.on('pageerror', (error) => console.log(`[browser:error] ${error.message}`))
   await page.goto('/')

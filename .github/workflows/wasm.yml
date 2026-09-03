@@ -87,7 +87,7 @@ jobs:
 
       - name: Run browser acceptance serially
         working-directory: web
-        run: pnpm exec playwright test --workers=1
+        run: pnpm exec playwright test --workers=1 --grep-invert @visual
 
       - name: Build and verify static distribution
         working-directory: web

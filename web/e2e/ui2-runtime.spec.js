@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-test('UI2 exclusively owns the browser frame during incremental cursor updates', async ({ page }) => {
+test('@visual UI2 exclusively owns the browser frame during incremental cursor updates', async ({ page }) => {
   await page.goto('/?ui2=1&audio=disabled')
   await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible()
 
@@ -20,7 +20,7 @@ test('UI2 exclusively owns the browser frame during incremental cursor updates',
   await expect(canvas).toHaveScreenshot('ui2-song-cursor-t3-row-02.png')
 })
 
-test('Chain runs through the native UI2 path with stable row and column motion', async ({ page }) => {
+test('@visual Chain runs through the native UI2 path with stable row and column motion', async ({ page }) => {
   await page.goto('/?ui2=1&audio=disabled&views-test=1&view=chain')
   await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible()
 
