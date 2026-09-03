@@ -1,8 +1,9 @@
 <p align="center">
-  <img src="ios/NullPeratorIOS/Resources/Brand/NP-Icon.svg" width="144" alt="NullPerator logo">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/NullPerator_White.svg">
+    <img src="docs/assets/NullPerator_Black.svg" width="420" alt="NullPerator">
+  </picture>
 </p>
-
-<h1 align="center">NullPerator</h1>
 
 <p align="center">
   An eight-track music tracker for NullPerator hardware, iPhone, iPad, and the web.
