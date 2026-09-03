@@ -73,13 +73,13 @@
       <span class="native-label">SHIFT</span>
     </button>
     {:else}
-    <button type="button" class:pressed={heldActions.includes('shift')} aria-label="SHIFT" aria-pressed={heldActions.includes('shift')} data-action="shift" {disabled}
-      onpointerdown={(e)=>press(e,'shift')} onpointerup={(e)=>release(e,'shift',true)} onpointercancel={(e)=>cancel(e,'shift')} onlostpointercapture={(e)=>release(e,'shift')} onclick={(e)=>activate(e,'shift')}>
-      <span class="switch"></span><kbd>X</kbd><em>SHIFT</em>
-    </button>
     <button type="button" class:pressed={heldActions.includes('play')} aria-label="PLAY" aria-pressed={heldActions.includes('play')} data-action="play" {disabled}
       onpointerdown={(e)=>press(e,'play')} onpointerup={(e)=>release(e,'play',true)} onpointercancel={(e)=>cancel(e,'play')} onlostpointercapture={(e)=>release(e,'play')} onclick={(e)=>activate(e,'play')}>
       <span class="switch"><span>▶</span></span><kbd>C</kbd><em>PLAY</em>
+    </button>
+    <button type="button" class:pressed={heldActions.includes('shift')} aria-label="SHIFT" aria-pressed={heldActions.includes('shift')} data-action="shift" {disabled}
+      onpointerdown={(e)=>press(e,'shift')} onpointerup={(e)=>release(e,'shift',true)} onpointercancel={(e)=>cancel(e,'shift')} onlostpointercapture={(e)=>release(e,'shift')} onclick={(e)=>activate(e,'shift')}>
+      <span class="switch"></span><kbd>X</kbd><em>SHIFT</em>
     </button>
     {/if}
   </div>

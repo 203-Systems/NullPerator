@@ -297,8 +297,8 @@
     <div><span class="key-cluster"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>Move</span></div>
     <div><kbd>J</kbd><span>Option</span></div>
     <div><kbd>K</kbd><span>Enter</span></div>
-    <div><kbd>X</kbd><span>Shift</span></div>
     <div><kbd>C</kbd><span>Play</span></div>
+    <div><kbd>X</kbd><span>Shift</span></div>
   </footer>{/if}
 </div>
 

@@ -97,6 +97,11 @@ test('Operator fixed WASD, J/K, and X/C controls reach C++ with direct M8 semant
   await expect(page.getByRole('button', { name: 'NAV', exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'SELECT', exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'POWER', exact: true })).toHaveCount(0)
+  expect(await page.locator('.bottom-buttons [data-action]').evaluateAll(
+    (buttons) => buttons.map((button) => button.dataset.action),
+  )).toEqual(['play', 'shift'])
+  await expect(page.getByRole('button', { name: 'PLAY', exact: true }).locator('kbd')).toHaveText('C')
+  await expect(page.getByRole('button', { name: 'SHIFT', exact: true }).locator('kbd')).toHaveText('X')
 
   const keyActions = [
     ['w', 'up', 3], ['a', 'left', 0], ['s', 'down', 1], ['d', 'right', 2],
