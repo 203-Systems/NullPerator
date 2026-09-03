@@ -3,6 +3,7 @@
 
   import ConflictDialog from './ConflictDialog.svelte'
   import { createFilesStore } from '../stores/files.js'
+  import { isInternalEntry } from '../fileVisibility.js'
 
   export let files = null
   export let storage = null
@@ -26,6 +27,7 @@
   let feedback = ''
   $: hostBusy = hostSnapshot?.state === 'syncing' || hostSnapshot?.state === 'conflict'
   $: mutatingDisabled = disabled || !fileStore || snapshot.loading || storageSnapshot?.state === 'syncing' || storageSnapshot?.syncing || storageSnapshot?.mutating || hostBusy
+  $: visibleEntries = snapshot.entries.filter((entry) => !isInternalEntry(snapshot.path, entry))
 
   $: if (files && files !== fileStoreHandle) {
     unsubscribe()
@@ -99,7 +101,7 @@
   const exportZip = () => run(() => {
     const blob = fileStore.exportZip()
     const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'picotracker-data.zip'; anchor.click()
+    const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'nullperator-backup.zip'; anchor.click()
     setTimeout(() => URL.revokeObjectURL(url), 0)
   })
   const retryPersistence = () => run(async () => {
@@ -123,7 +125,7 @@
 
 <section class="files-panel" aria-labelledby="files-heading" ondragover={(event) => { if (!mutatingDisabled) event.preventDefault() }} ondrop={(event) => { event.preventDefault(); upload(event.dataTransfer?.files) }}>
   <div class="section-heading">
-    <div><p class="eyebrow">Persistent virtual disk</p><h1 id="files-heading">Files</h1></div>
+    <div><p class="eyebrow">Projects, samples and backups</p><h1 id="files-heading">Files</h1></div>
     <div class="file-actions">
       <button type="button" disabled={mutatingDisabled} onclick={chooseFolder}>New folder</button>
       <button type="button" disabled={mutatingDisabled} onclick={() => uploadInput?.click()}>Upload files</button>
@@ -131,47 +133,47 @@
       <button type="button" disabled={mutatingDisabled} onclick={() => restoreInput?.click()}>Restore ZIP</button>
     </div>
   </div>
-  <section class="host-folder" aria-label="Host folder mirror" data-host-folder-state={hostSnapshot?.state ?? 'unmounted'}>
-    <p><strong>Host-folder mirror</strong> — explicit Pull, Push, and Sync; this is not a direct mount.</p>
+  <section class="host-folder" aria-label="Computer folder" data-host-folder-state={hostSnapshot?.state ?? 'unmounted'}>
+    <p><strong>Computer folder</strong> — bring files into NullPerator, save changes back, or keep both copies in sync.</p>
     {#if hostSnapshot?.state === 'unsupported'}
       <p role="status">{hostSnapshot.error ?? 'Host folder access is unsupported in this browser.'}</p>
     {:else if hostSnapshot?.state === 'unmounted' || (hostSnapshot?.state === 'failed' && hostSnapshot?.permission !== 'granted')}
-      {#if hostSnapshot?.error}<p class="file-feedback" role="status">Host-folder mirror failed: {hostSnapshot.error}</p>{/if}
-      <button type="button" disabled={mutatingDisabled || !hostFolder} onclick={() => hostAction(() => hostFolder.mountHostFolder())}>{hostSnapshot?.state === 'failed' ? 'Retry mount' : 'Mount folder'}</button>
+      {#if hostSnapshot?.error}<p class="file-feedback" role="status">Computer folder failed: {hostSnapshot.error}</p>{/if}
+      <button type="button" disabled={mutatingDisabled || !hostFolder} onclick={() => hostAction(() => hostFolder.mountHostFolder())}>{hostSnapshot?.state === 'failed' ? 'Try again' : 'Choose folder'}</button>
     {:else if hostSnapshot?.state === 'prompt' || hostSnapshot?.state === 'denied'}
-      <p role="status">Host folder permission is {hostSnapshot.state}. Reconnect to choose it again.</p>
-      <button type="button" disabled={mutatingDisabled || !hostFolder} onclick={() => hostAction(() => hostFolder.mountHostFolder())}>Reconnect folder</button>
-      <button type="button" disabled={mutatingDisabled || !hostFolder} onclick={() => hostAction(() => hostFolder.unmountHostFolder())}>Unmount folder</button>
+      <p role="status">Folder permission is {hostSnapshot.state}. Choose the folder again to reconnect.</p>
+      <button type="button" disabled={mutatingDisabled || !hostFolder} onclick={() => hostAction(() => hostFolder.mountHostFolder())}>Choose folder again</button>
+      <button type="button" disabled={mutatingDisabled || !hostFolder} onclick={() => hostAction(() => hostFolder.unmountHostFolder())}>Disconnect</button>
     {:else}
-      <p role="status">{hostSnapshot.name ? `Mirroring ${hostSnapshot.name}` : 'Host folder connected.'}</p>
+      <p role="status">{hostSnapshot.name ? `Connected to ${hostSnapshot.name}` : 'Computer folder connected.'}</p>
       <div class="file-actions">
-        <button type="button" disabled={mutatingDisabled} onclick={() => hostAction(() => hostFolder.syncHostFolder('pull'))}>Pull</button>
-        <button type="button" disabled={mutatingDisabled} onclick={() => hostAction(() => hostFolder.syncHostFolder('push'))}>Push</button>
-        <button type="button" disabled={mutatingDisabled} onclick={() => hostAction(() => hostFolder.syncHostFolder('bidirectional'))}>Sync</button>
-        <button type="button" disabled={mutatingDisabled} onclick={() => hostAction(() => hostFolder.unmountHostFolder())}>Unmount folder</button>
+        <button type="button" disabled={mutatingDisabled} onclick={() => hostAction(() => hostFolder.syncHostFolder('pull'))}>Import changes</button>
+        <button type="button" disabled={mutatingDisabled} onclick={() => hostAction(() => hostFolder.syncHostFolder('push'))}>Save changes</button>
+        <button type="button" disabled={mutatingDisabled} onclick={() => hostAction(() => hostFolder.syncHostFolder('bidirectional'))}>Sync both ways</button>
+        <button type="button" disabled={mutatingDisabled} onclick={() => hostAction(() => hostFolder.unmountHostFolder())}>Disconnect</button>
       </div>
       {#if hostSnapshot?.progress}
         <p role="status">
           {#if hostSnapshot.progress.total === null}
-            {hostSnapshot.progress.phase?.includes('host') ? 'Scanning host folder' : 'Scanning browser disk'}: {hostSnapshot.progress.entries ?? 0} entries, {hostSnapshot.progress.bytes ?? 0} bytes…
+            {hostSnapshot.progress.phase?.includes('host') ? 'Reading computer folder' : 'Reading browser storage'}: {hostSnapshot.progress.entries ?? 0} entries, {hostSnapshot.progress.bytes ?? 0} bytes…
           {:else}
             Syncing {hostSnapshot.progress.completed}/{hostSnapshot.progress.total}…
           {/if}
         </p>
       {/if}
       {#if hostSnapshot?.lastSuccessfulSync}
-        <p role="status">Last successful sync: {hostSnapshot.lastSuccessfulSync}</p>
+        <p role="status">Last synced: {hostSnapshot.lastSuccessfulSync}</p>
       {/if}
       {#if hostSnapshot?.error}
-        <p class="file-feedback" role="status">Host-folder mirror failed: {hostSnapshot.error}</p>
+        <p class="file-feedback" role="status">Computer folder failed: {hostSnapshot.error}</p>
       {/if}
     {/if}
   </section>
-  <input bind:this={uploadInput} class="sr-only" type="file" multiple disabled={mutatingDisabled} onchange={(event) => { upload(event.currentTarget.files); event.currentTarget.value = '' }} />
-  <input bind:this={restoreInput} class="sr-only" type="file" accept=".zip,application/zip" disabled={mutatingDisabled} onchange={(event) => { selectRestore(event.currentTarget.files); event.currentTarget.value = '' }} />
+  <input bind:this={uploadInput} class="sr-only" type="file" multiple tabindex="-1" aria-hidden="true" disabled={mutatingDisabled} onchange={(event) => { upload(event.currentTarget.files); event.currentTarget.value = '' }} />
+  <input bind:this={restoreInput} class="sr-only" type="file" accept=".zip,application/zip" tabindex="-1" aria-hidden="true" disabled={mutatingDisabled} onchange={(event) => { selectRestore(event.currentTarget.files); event.currentTarget.value = '' }} />
 
   <nav class="breadcrumbs" aria-label="Files breadcrumb">
-    <button type="button" disabled={!fileStore || snapshot.path === '/data'} onclick={() => run(() => fileStore.navigate(parent(snapshot.path)))}>/data</button>
+    <button type="button" aria-label="Files root" disabled={!fileStore || snapshot.path === '/data'} onclick={() => run(() => fileStore.navigate(parent(snapshot.path)))}>Files</button>
     {#each snapshot.path.slice('/data'.length).split('/').filter(Boolean) as part, index}
       <span>/</span><button type="button" onclick={() => run(() => fileStore.navigate(`/data/${snapshot.path.slice('/data'.length).split('/').filter(Boolean).slice(0, index + 1).join('/')}`))}>{part}</button>
     {/each}
@@ -190,7 +192,7 @@
     <p class="file-feedback" role="status">{feedback || snapshot.error}</p>
   {/if}
   <div class="file-sync" role={storageSnapshot?.state === 'failed' ? 'alert' : 'status'} data-storage-state={storageSnapshot?.state ?? 'unknown'} data-storage-dirty={storageSnapshot?.dirty ? 'true' : 'false'}>
-    <span>{storageSnapshot?.state === 'failed' ? `Persistence failed: ${storageSnapshot.error}` : storageSnapshot?.mutating ? 'Applying file changes…' : storageSnapshot?.syncing || storageSnapshot?.dirty ? 'Saving changes…' : 'Changes persist in this browser.'}</span>
+    <span>{storageSnapshot?.state === 'failed' ? `Saving failed: ${storageSnapshot.error}` : storageSnapshot?.mutating ? 'Applying file changes…' : storageSnapshot?.syncing || storageSnapshot?.dirty ? 'Saving changes…' : 'Saved in this browser.'}</span>
     {#if storageSnapshot?.state === 'failed'}
       <button type="button" disabled={!storage || storageSnapshot?.syncing || storageSnapshot?.mutating} onclick={retryPersistence}>Retry save</button>
     {/if}
@@ -199,13 +201,13 @@
     <thead><tr><th>Name</th><th>Kind</th><th>Size</th><th>Actions</th></tr></thead>
     <tbody>
       {#if snapshot.loading}<tr><td colspan="4">Loading files…</td></tr>
-      {:else if snapshot.entries.length === 0}<tr><td colspan="4">This folder is empty. Drop files here to upload.</td></tr>
+      {:else if visibleEntries.length === 0}<tr class="empty-row"><td colspan="4">This folder is empty. Drop files here to upload.</td></tr>
       {:else}
-        {#each snapshot.entries as entry (entry.path)}
+        {#each visibleEntries as entry (entry.path)}
           <tr>
-            <td>{#if entry.kind === 'directory'}<button type="button" class="file-name" onclick={() => run(() => fileStore.navigate(entry.path))}>{entry.name}</button>{:else}{entry.name}{/if}</td>
-            <td>{entry.kind}</td><td>{entry.kind === 'file' ? entry.size : '—'}</td>
-            <td><button type="button" disabled={mutatingDisabled} onclick={() => rename(entry)}>Rename</button>{#if entry.kind === 'file'}<button type="button" disabled={mutatingDisabled} onclick={() => run(() => fileStore.download(entry.path))}>Download</button>{/if}<button type="button" disabled={mutatingDisabled} onclick={() => remove(entry)}>Delete</button></td>
+            <td data-label="Name">{#if entry.kind === 'directory'}<button type="button" class="file-name" onclick={() => run(() => fileStore.navigate(entry.path))}>{entry.name}</button>{:else}{entry.name}{/if}</td>
+            <td data-label="Kind">{entry.kind === 'directory' ? 'Folder' : 'File'}</td><td data-label="Size">{entry.kind === 'file' ? entry.size : '—'}</td>
+            <td data-label="Actions"><button type="button" disabled={mutatingDisabled} onclick={() => rename(entry)}>Rename</button>{#if entry.kind === 'file'}<button type="button" disabled={mutatingDisabled} onclick={() => run(() => fileStore.download(entry.path))}>Download</button>{/if}<button type="button" disabled={mutatingDisabled} onclick={() => remove(entry)}>Delete</button></td>
           </tr>
         {/each}
       {/if}

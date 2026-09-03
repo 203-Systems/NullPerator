@@ -19,24 +19,59 @@ test('Files panel uploads, drops, renames, downloads, exports, restores, and per
   await clearDisk(page)
   await page.goto('/?storage-test=1')
   await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible({ timeout: 20_000 })
+  await page.evaluate(async () => {
+    const storage = globalThis.__picoTrackerStorageTest
+    storage.write('/data/.config.xml', [0x3c, 0x2f, 0x3e])
+    await storage.flush()
+  })
   await page.getByRole('button', { name: 'Files', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Files' })).toBeVisible()
+  await expect(page.getByText('.config.xml', { exact: true })).toHaveCount(0)
 
   await page.getByRole('button', { name: 'Upload files' }).click()
   await page.locator('input[type="file"][multiple]').setInputFiles([
     { name: 'tone.wav', mimeType: 'audio/wav', buffer: Buffer.from([0x52, 0x49, 0x46, 0x46]) },
     { name: 'project.dat', mimeType: 'application/octet-stream', buffer: Buffer.from([0x50, 0x54, 0x39]) },
+    { name: '.samples', mimeType: 'application/octet-stream', buffer: Buffer.from([0x01]) },
+    { name: '.picotracker-copy-temp-ABC', mimeType: 'application/octet-stream', buffer: Buffer.from([0x02]) },
   ])
   await expect(page.getByText('tone.wav', { exact: true })).toBeVisible()
   await expect(page.getByText('project.dat', { exact: true })).toBeVisible()
+  await expect(page.getByText('.samples', { exact: true })).toBeVisible()
+  await expect(page.getByText('.picotracker-copy-temp-ABC', { exact: true })).toBeVisible()
+
+  // A directory remains user-manageable even when its leaf is a valid
+  // transaction-file spelling.
+  page.once('dialog', (dialog) => dialog.accept('.picotracker-copy-temp-4142'))
+  await page.getByRole('button', { name: 'New folder' }).click()
+  await expect(page.getByRole('button', { name: '.picotracker-copy-temp-4142', exact: true })).toBeVisible()
+
+  // User-owned dotfiles remain manageable in both modes. Developer tools add
+  // diagnostics; they do not unlock file capabilities.
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await page.getByRole('button', { name: 'Developer tools', exact: true }).click()
+  await page.getByRole('button', { name: 'Files', exact: true }).click()
+  await expect(page.getByText('.samples', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await page.getByRole('button', { name: 'Developer tools', exact: true }).click()
+  await page.getByRole('button', { name: 'Files', exact: true }).click()
+  await expect(page.getByText('.samples', { exact: true })).toBeVisible()
 
   page.once('dialog', (dialog) => dialog.accept('projects'))
   await page.getByRole('button', { name: 'New folder' }).click()
   await expect(page.getByRole('button', { name: 'projects', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'projects', exact: true }).click()
-  await expect(page.getByRole('button', { name: '/data' })).toBeEnabled()
+  await page.evaluate(async () => {
+    const storage = globalThis.__picoTrackerStorageTest
+    storage.write('/data/projects/.load-rollback.dat', [0x50, 0x54, 0x39])
+    await storage.flush()
+  })
+  await page.getByRole('button', { name: 'Files root' }).click()
+  await page.getByRole('button', { name: 'projects', exact: true }).click()
+  await expect(page.getByText('.load-rollback.dat', { exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Files root' })).toBeEnabled()
 
-  await page.getByRole('button', { name: '/data' }).click()
+  await page.getByRole('button', { name: 'Files root' }).click()
   page.once('dialog', (dialog) => dialog.accept('renamed.wav'))
   await page.getByText('tone.wav', { exact: true }).locator('..').getByRole('button', { name: 'Rename' }).click()
   await expect(page.getByText('renamed.wav', { exact: true })).toBeVisible()
@@ -53,7 +88,7 @@ test('Files panel uploads, drops, renames, downloads, exports, restores, and per
 
   const exported = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Export ZIP' }).click()
-  expect((await exported).suggestedFilename()).toBe('picotracker-data.zip')
+  expect((await exported).suggestedFilename()).toBe('nullperator-backup.zip')
 
   const restoreZip = zipSync({ 'renamed.wav': strToU8('replacement'), 'restored/marker.dat': strToU8('marker') })
   await page.getByRole('button', { name: 'Restore ZIP' }).click()

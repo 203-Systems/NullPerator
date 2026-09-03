@@ -17,23 +17,39 @@ button,input,select{font:inherit}button{cursor:pointer}
 ::selection{background:rgba(76,201,240,.3)}
 ::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{border-radius:3px;background:rgba(255,255,255,.12)}
 .dashboard{display:flex;flex-direction:column;width:100%;height:100vh;height:100dvh;overflow:hidden}
-.dashboard[data-developer-mode='false']{touch-action:none}
 .dashboard.native-host,.dashboard.native-host *{-webkit-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important;-webkit-tap-highlight-color:transparent!important}
 .dashboard.native-host img,.dashboard.native-host canvas{-webkit-user-drag:none}
 .dashboard-body{position:relative;display:flex;flex:1;min-height:0;overflow:hidden}
-.workspace{position:relative;flex:1;min-width:420px;min-height:0;overflow:hidden;background:var(--bg-1)}
-[data-developer-mode='false'] .workspace{min-width:0;background:var(--bg-0)}
+.workspace{position:relative;flex:1;min-width:0;min-height:0;overflow:hidden;background:var(--bg-0)}
 .device-stage{width:100%;height:100%;min-height:0}
 .page-panel{width:100%;height:100%;padding:24px;overflow:auto}
 .section-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
 .eyebrow{margin:0 0 4px;color:var(--accent);font:600 10px/1.2 var(--mono);letter-spacing:.15em;text-transform:uppercase}
 h1,h2,p{margin-top:0}h1{margin-bottom:0;font-size:22px}.phase-badge{padding:5px 8px;border:1px solid var(--border);border-radius:999px;color:var(--muted);font:500 10px/1 var(--mono)}
 .recovery-card{position:relative;z-index:12;width:min(calc(100% - 40px),960px);margin:20px auto;padding:18px;border:1px solid rgba(242,107,107,.35);border-radius:8px;background:#241518;box-shadow:0 16px 40px rgba(0,0,0,.35)}
-.recovery-card p,.recovery-card span{color:var(--muted);font-size:12px}.recovery-card code{display:block;margin:12px 0;padding:10px;border-radius:6px;background:rgba(0,0,0,.25);font-size:11px}.recovery-card button{padding:8px 10px;border:1px solid var(--border);border-radius:6px;color:var(--text);background:var(--bg-2)}
+.recovery-card p,.recovery-card span{color:var(--muted);font-size:12px}.recovery-card code{display:block;margin:12px 0;padding:10px;border-radius:6px;background:rgba(0,0,0,.25);font-size:11px}.recovery-card button{min-width:44px;min-height:44px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;color:var(--text);background:var(--bg-2)}
 .sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
 
-/* Files is shared by the full page and the MatrixOS-style dock. */
-.files-panel{width:min(100%,1120px);margin:0 auto}.file-actions{display:flex;flex-wrap:wrap;gap:7px}.files-panel button,.files-panel input{padding:7px 9px;border:1px solid var(--border);border-radius:5px;color:var(--text);background:var(--bg-2);font-size:.74rem}.files-panel button:hover:not(:disabled){border-color:rgba(76,201,240,.45)}.files-panel button:disabled{opacity:.42;cursor:not-allowed}
+/* Browser-backed project and sample storage. */
+.files-panel{width:min(100%,1120px);margin:0 auto}.file-actions{display:flex;flex-wrap:wrap;gap:7px}.files-panel button,.files-panel input:not(.sr-only){min-width:44px;min-height:44px;padding:7px 9px;border:1px solid var(--border);border-radius:5px;color:var(--text);background:var(--bg-2);font-size:.74rem}.files-panel button:hover:not(:disabled){border-color:rgba(76,201,240,.45)}.files-panel button:disabled{opacity:.42;cursor:not-allowed}
 .host-folder,.restore-preview{margin:0 0 12px;padding:12px;border:1px solid var(--border);border-radius:6px;background:rgba(255,255,255,.02)}.host-folder p,.file-sync,.file-feedback{margin:0 0 9px;color:var(--muted);font-size:.72rem;line-height:1.5}.file-sync{display:flex;align-items:center;justify-content:space-between;gap:12px}.file-sync[role="alert"]{padding:9px 10px;border:1px solid rgba(255,117,117,.28);border-radius:5px;background:rgba(255,78,78,.06);color:#ffb0b0}.breadcrumbs{display:flex;align-items:center;gap:5px;margin:10px 0}.breadcrumbs button{padding:4px 6px;background:transparent}.file-list{width:100%;border-collapse:collapse;border:1px solid var(--border);background:#0f1013;font:11px/1.4 var(--mono)}.file-list th,.file-list td{padding:8px;border-bottom:1px solid var(--border);text-align:left}.file-list th{color:var(--muted);font-size:9px;letter-spacing:.08em;text-transform:uppercase}.file-list td:last-child{display:flex;flex-wrap:wrap;gap:5px}.file-name{color:var(--accent)!important;background:transparent!important}
 
-@media(max-width:720px){.workspace{min-width:0}.page-panel{padding:14px}.section-heading{align-items:flex-start;gap:12px}.section-heading h1{font-size:18px}}
+@media(max-width:720px){
+  .workspace{min-width:0}.page-panel{padding:14px}.section-heading{align-items:flex-start;gap:12px}.section-heading h1{font-size:18px}
+  .files-panel button,.files-panel input:not(.sr-only){min-height:44px;padding:9px 11px}
+  .file-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}
+  .section-heading:has(+ .host-folder){display:grid}
+  .file-sync{align-items:flex-start;flex-direction:column}
+  .file-list,.file-list tbody{display:block;border:0;background:transparent}
+  .file-list thead{display:none}
+  .file-list tr{display:grid;margin-bottom:9px;padding:10px;border:1px solid var(--border);border-radius:8px;background:#0f1013}
+  .file-list td{display:grid!important;grid-template-columns:64px minmax(0,1fr);align-items:center;min-height:34px;padding:4px 0;border:0;overflow-wrap:anywhere}
+  .file-list td::before{content:attr(data-label);color:var(--muted);font:600 8px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase}
+  .file-list td:last-child{display:flex!important;padding-top:8px;border-top:1px solid var(--border)}
+  .file-list td:last-child::before{display:none}
+  .file-list td:last-child button{flex:1 1 84px}
+  .file-list .empty-row td{display:block!important;padding:10px}.file-list .empty-row td::before{display:none}
+}
+
+/* Compact includes narrow portrait and short landscape viewports. */
+.dashboard[data-layout='compact'] .page-panel :is(button,a[href],select,input[type='range']){min-width:44px;min-height:44px}
