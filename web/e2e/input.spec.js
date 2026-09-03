@@ -92,7 +92,7 @@ test('Operator fixed WASD, J/K, and X/C controls reach C++ with direct M8 semant
   const canvas = page.locator('#picotracker-canvas')
   // Device input remains active after using the workbench chrome. This mirrors
   // the common case where the user clicks the Device rail and starts playing.
-  await page.getByRole('button', { name: 'Device', exact: true }).click()
+  await page.getByRole('button', { name: 'Tracker', exact: true }).click()
 
   await expect(page.getByRole('button', { name: 'NAV', exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'SELECT', exact: true })).toHaveCount(0)

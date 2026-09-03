@@ -6,7 +6,7 @@ test('bounded Logs panel filters, pauses, resumes, clears, copies, and downloads
   await context.grantPermissions(['clipboard-read', 'clipboard-write'], {
     origin: 'http://127.0.0.1:4173',
   })
-  await page.goto('/?logs-test=1')
+  await page.goto('/?logs-test=1&dev=1')
   await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible({ timeout: 20_000 })
   await page.evaluate(() => {
     globalThis.__picoTrackerLogsTest.append({
@@ -17,12 +17,22 @@ test('bounded Logs panel filters, pauses, resumes, clears, copies, and downloads
       monotonicUs: 20, wallTime: 1_700_000_000_001, severity: 'error',
       category: 'EXPORT', thread: 'browser', message: 'download record',
     })
+    globalThis.__picoTrackerLogsTest.append({
+      monotonicUs: 30, wallTime: 1_700_000_000_002, severity: 'info',
+      category: 'PERSISTENCYDOCUMENT', thread: 'application', message: 'long category layout record',
+    })
   })
   await page.getByRole('button', { name: 'Logs', exact: true }).click()
   const panel = page.locator('.logs-panel')
   const needle = panel.getByText('visible needle record', { exact: true })
   const exported = panel.getByText('download record', { exact: true })
   await expect(needle).toBeVisible()
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  const longCategoryRow = panel.getByText('long category layout record', { exact: true }).locator('..')
+  await expect(longCategoryRow).toBeVisible()
+  expect(await longCategoryRow.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true)
+  await page.setViewportSize({ width: 1280, height: 720 })
 
   await panel.getByLabel('Severity').selectOption('error')
   await expect(exported).toBeVisible()

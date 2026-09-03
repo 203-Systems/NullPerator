@@ -9,29 +9,81 @@ const mobileViewports = [
   { name: 'large phone landscape', width: 932, height: 430 },
 ]
 
+const userSections = [
+  { menuName: 'Tracker', title: 'Tracker' },
+  { menuName: 'Files', title: 'Files' },
+  { menuName: 'MIDI', title: 'MIDI' },
+  { menuName: 'Settings', title: 'Settings' },
+  { menuName: 'About', title: 'About' },
+]
+
+const userSectionNames = userSections.map(({ menuName }) => menuName)
+const developerSectionNames = ['Logs', 'Trace']
+
+const menuTrigger = (page) => page.getByRole('button', { name: 'Open menu' })
+const mobileMenu = (page) => page.getByRole('dialog', { name: 'Menu' })
+
+async function openMenu(page) {
+  await menuTrigger(page).click()
+  const menu = mobileMenu(page)
+  await expect(menu).toBeVisible()
+  await expect(menu.getByRole('button', { name: 'Close menu' })).toBeFocused()
+  return menu
+}
+
+async function sectionNames(navigation) {
+  return navigation.getByRole('button').evaluateAll((buttons) =>
+    buttons.map((button) => button.getAttribute('aria-label')),
+  )
+}
+
+async function expectUserSections(menu) {
+  const navigation = menu.getByRole('navigation', { name: 'Mobile workspace sections' })
+  await expect(navigation.getByRole('button')).toHaveCount(userSectionNames.length)
+  expect(await sectionNames(navigation)).toEqual(userSectionNames)
+  return navigation
+}
+
+async function expectTouchTargets(page, root = page.locator('body')) {
+  const tooSmall = await root.locator('button:not(:disabled),a[href],select:not(:disabled),input:not([type="hidden"]):not(.sr-only):not(:disabled)')
+    .evaluateAll((elements) => elements.flatMap((element) => {
+      const target = ['checkbox', 'radio'].includes(element.getAttribute('type'))
+        ? element.closest('label') ?? element
+        : element
+      const rect = target.getBoundingClientRect()
+      const style = getComputedStyle(target)
+      if (!rect.width || !rect.height || style.visibility === 'hidden' || style.display === 'none') return []
+      return rect.width + 0.01 < 44 || rect.height + 0.01 < 44
+        ? [{ tag: target.tagName, label: element.getAttribute('aria-label') || target.textContent?.trim(), width: rect.width, height: rect.height }]
+        : []
+    }))
+  expect(tooSmall).toEqual([])
+}
+
 for (const viewport of mobileViewports) {
-  test(`play mode stays usable at the ${viewport.name} mobile viewport`, async ({ page }) => {
+  test(`tracker stays usable at the ${viewport.name} mobile viewport`, async ({ page }) => {
     await page.setViewportSize(viewport)
     await page.goto('/?audio=disabled')
 
     const dashboard = page.locator('.dashboard')
     const canvas = page.locator('#picotracker-canvas')
-    const settings = page.getByRole('button', { name: 'Settings', exact: true })
     const controls = page.locator('[data-action]')
+    const trigger = menuTrigger(page)
 
     await expect(dashboard).toHaveAttribute('data-developer-mode', 'false')
+    await expect(dashboard).toHaveAttribute('data-layout', 'compact')
     await expect(canvas).toHaveAttribute('data-frame-content', 'rendered', { timeout: 20_000 })
     await expect(controls).toHaveCount(8)
-    await expect(settings).toHaveCount(1)
-    const settingsBox = await settings.boundingBox()
-    expect(settingsBox).not.toBeNull()
-    expect(settingsBox.width).toBeGreaterThanOrEqual(44)
-    expect(settingsBox.height).toBeGreaterThanOrEqual(44)
+
+    const triggerBox = await trigger.boundingBox()
+    expect(triggerBox).not.toBeNull()
+    expect(triggerBox.width).toBeGreaterThanOrEqual(44)
+    expect(triggerBox.height).toBeGreaterThanOrEqual(44)
 
     const canvasBox = await canvas.boundingBox()
     expect(canvasBox).not.toBeNull()
-    expect(canvasBox.width).toBe(240)
-    expect(canvasBox.height).toBe(240)
+    expect(canvasBox.width).toBeGreaterThanOrEqual(240)
+    expect(canvasBox.height).toBe(canvasBox.width)
     expect(canvasBox.x).toBeGreaterThanOrEqual(0)
     expect(canvasBox.y).toBeGreaterThanOrEqual(0)
     expect(canvasBox.x + canvasBox.width).toBeLessThanOrEqual(viewport.width)
@@ -85,122 +137,210 @@ for (const viewport of mobileViewports) {
     await down.dispatchEvent('pointerup', { pointerId: 901, pointerType: 'touch' })
     await expect(down).toHaveAttribute('aria-pressed', 'false')
 
-    await settings.click()
-    const dialog = page.getByRole('dialog', { name: 'Settings' })
-    await expect(dialog).toBeVisible()
-    const closeBox = await dialog.getByRole('button', { name: 'Close settings' }).boundingBox()
-    expect(closeBox).not.toBeNull()
-    expect(closeBox.width).toBeGreaterThanOrEqual(44)
-    expect(closeBox.height).toBeGreaterThanOrEqual(44)
-    await expect(dialog.getByRole('button', { name: 'Developer mode' })).toHaveCount(1)
-    await dialog.getByRole('button', { name: 'Developer mode' }).click()
+    const menu = await openMenu(page)
+    const workspaceNavigation = await expectUserSections(menu)
+    await expect(menu.getByRole('navigation', { name: 'Developer sections' })).toHaveCount(0)
+    await expect(menu.getByRole('button', { name: 'Developer tools' })).toHaveAttribute('aria-pressed', 'false')
 
-    await expect(dashboard).toHaveAttribute('data-developer-mode', 'true')
-    await expect(page.getByRole('button', { name: 'Developer mode' })).toBeFocused()
-    const navigation = page.getByRole('navigation', { name: 'Workbench sections' })
-    await expect(navigation).toBeVisible()
-    const developerToggle = page.getByRole('button', { name: 'Developer mode' })
-    const developerToggleBox = await developerToggle.boundingBox()
-    expect(developerToggleBox).not.toBeNull()
-    expect(developerToggleBox.height).toBeGreaterThanOrEqual(44)
-    const developerSettings = page.getByRole('button', { name: 'Settings', exact: true })
-    await expect(developerSettings).toHaveCount(1)
-    if (viewport.height < 400) {
-      expect(await navigation.evaluate((element) => getComputedStyle(element).overflowY)).toBe('auto')
-      const about = navigation.getByRole('button', { name: 'About', exact: true })
-      await about.scrollIntoViewIfNeeded()
-      await expect(about).toBeInViewport()
-      await about.click()
-      await expect(page.getByRole('heading', { name: 'About', exact: true })).toBeVisible()
+    for (const button of await workspaceNavigation.getByRole('button').all()) {
+      await button.scrollIntoViewIfNeeded()
+      const box = await button.boundingBox()
+      expect(box).not.toBeNull()
+      expect(box.width).toBeGreaterThanOrEqual(44)
+      expect(box.height).toBeGreaterThanOrEqual(44)
     }
-    await developerSettings.click()
-    await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible()
 
-    await page.getByRole('button', { name: 'Developer mode' }).click()
-    await expect(dashboard).toHaveAttribute('data-developer-mode', 'false')
-    await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeFocused()
-    await expect.poll(() => page.locator('.operator-device').evaluate(
-      (element) => element.style.getPropertyValue('--device-scale'),
-    )).toBe('1')
-    await expect.poll(() => page.locator('.device-scene').evaluate(
-      (element) => ({ left: element.scrollLeft, top: element.scrollTop }),
-    )).toEqual({ left: 0, top: 0 })
-    const compactCanvasBox = await canvas.boundingBox()
-    expect(compactCanvasBox).not.toBeNull()
-    expect(compactCanvasBox.x).toBeGreaterThanOrEqual(0)
-    expect(compactCanvasBox.y).toBeGreaterThanOrEqual(0)
-    expect(compactCanvasBox.x + compactCanvasBox.width).toBeLessThanOrEqual(viewport.width)
-    expect(compactCanvasBox.y + compactCanvasBox.height).toBeLessThanOrEqual(viewport.height)
+    await menu.getByRole('button', { name: 'Close menu' }).click()
+    await expect(menu).toHaveCount(0)
+    await expect(trigger).toBeFocused()
   })
 }
 
-test('play settings is a global native modal and restores its trigger', async ({ page }) => {
+test('ordinary mobile users can enter every workspace section without developer tools', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/?audio=disabled')
 
-  const settings = page.getByRole('button', { name: 'Settings', exact: true })
-  await settings.click()
+  const dashboard = page.locator('.dashboard')
+  const trigger = menuTrigger(page)
+  await expect(dashboard).toHaveAttribute('data-developer-mode', 'false')
 
-  const dialog = page.getByRole('dialog', { name: 'Settings' })
-  const close = dialog.getByRole('button', { name: 'Close settings' })
-  const developer = dialog.getByRole('button', { name: 'Developer mode' })
-  await expect(dialog).toBeVisible()
-  await expect(page.locator('.settings-sheet:modal')).toHaveCount(1)
-  await expect(close).toBeFocused()
+  for (const section of userSections) {
+    const menu = await openMenu(page)
+    const navigation = await expectUserSections(menu)
+    await expect(menu.getByRole('navigation', { name: 'Developer sections' })).toHaveCount(0)
+    await navigation.getByRole('button', { name: section.menuName, exact: true }).click()
 
-  // Native modal inertness must reject focus attempts from the background.
-  await settings.evaluate((element) => element.focus())
+    await expect(menu).toHaveCount(0)
+    await expect(trigger).toBeFocused()
+    await expect(page.locator('.current-section')).toHaveText(section.title)
+    if (section.menuName === 'Tracker') {
+      await expect(page.locator('#picotracker-canvas')).toBeVisible()
+    } else {
+      await expect(page.getByRole('heading', { name: section.title, exact: true })).toBeVisible()
+    }
+  }
+})
+
+for (const viewport of [{ width: 390, height: 844 }, { width: 844, height: 390 }]) {
+  test(`ordinary controls keep 44px hit targets at ${viewport.width}x${viewport.height}`, async ({ page }) => {
+    await page.setViewportSize(viewport)
+    await page.goto('/?audio=disabled')
+    await expect(page.locator('#picotracker-canvas')).toHaveAttribute('data-frame-content', 'rendered', { timeout: 20_000 })
+
+    for (const section of userSections) {
+      const menu = await openMenu(page)
+      await expectTouchTargets(page, menu)
+      await menu.getByRole('navigation', { name: 'Mobile workspace sections' })
+        .getByRole('button', { name: section.menuName, exact: true }).click()
+      await expectTouchTargets(page)
+    }
+  })
+}
+
+test('developer tools only add Logs and Trace to the mobile menu', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/?audio=disabled')
+
+  const dashboard = page.locator('.dashboard')
+  let menu = await openMenu(page)
+  const developerToggle = menu.getByRole('button', { name: 'Developer tools' })
+  const userNavigation = await expectUserSections(menu)
+
+  await expect(menu.getByRole('navigation', { name: 'Developer sections' })).toHaveCount(0)
+  await developerToggle.click()
+  await expect(developerToggle).toHaveAttribute('aria-pressed', 'true')
+  await expect(dashboard).toHaveAttribute('data-developer-mode', 'true')
+  expect(await sectionNames(userNavigation)).toEqual(userSectionNames)
+
+  const developerNavigation = menu.getByRole('navigation', { name: 'Developer sections' })
+  await expect(developerNavigation.getByRole('button')).toHaveCount(developerSectionNames.length)
+  expect(await sectionNames(developerNavigation)).toEqual(developerSectionNames)
+
+  await developerNavigation.getByRole('button', { name: 'Logs', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Logs', exact: true })).toBeVisible()
+  await expectTouchTargets(page)
+
+  menu = await openMenu(page)
+  await menu.getByRole('navigation', { name: 'Developer sections' })
+    .getByRole('button', { name: 'Trace', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Performance Trace', exact: true })).toBeVisible()
+  await expectTouchTargets(page)
+
+  menu = await openMenu(page)
+  await menu.getByRole('button', { name: 'Developer tools' }).click()
+  await expect(dashboard).toHaveAttribute('data-developer-mode', 'false')
+  await expect(menu.getByRole('navigation', { name: 'Developer sections' })).toHaveCount(0)
+  await menu.getByRole('button', { name: 'Close menu' }).click()
+  await expect(page.locator('.current-section')).toHaveText('Tracker')
+  await expect(page.locator('#picotracker-canvas')).toBeVisible()
+})
+
+test('mobile menu traps focus and restores the trigger after every close path', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/?audio=disabled')
+
+  const trigger = menuTrigger(page)
+  const canvas = page.locator('#picotracker-canvas')
+  await expect(canvas).toHaveAttribute('data-frame-content', 'rendered', { timeout: 20_000 })
+  let menu = await openMenu(page)
+  const close = menu.getByRole('button', { name: 'Close menu' })
+  const developerToggle = menu.getByRole('button', { name: 'Developer tools' })
+
+  const generationBeforeMenuKey = await canvas.getAttribute('data-action-generation')
+  await page.keyboard.press('KeyW')
+  await expect(canvas).toHaveAttribute('data-action-generation', generationBeforeMenuKey)
+
+  // A modal menu keeps background controls out of the focus order.
+  await trigger.evaluate((element) => element.focus())
   await expect(close).toBeFocused()
 
   await page.keyboard.press('Shift+Tab')
-  await expect(developer).toBeFocused()
+  await expect(developerToggle).toBeFocused()
   await page.keyboard.press('Tab')
   await expect(close).toBeFocused()
 
   await page.mouse.click(2, 2)
-  await expect(dialog).toHaveCount(0)
-  await expect(settings).toBeFocused()
+  await expect(menu).toHaveCount(0)
+  await expect(trigger).toBeFocused()
 
-  await settings.click()
+  menu = await openMenu(page)
   await page.keyboard.press('Escape')
-  await expect(dialog).toHaveCount(0)
-  await expect(settings).toBeFocused()
+  await expect(menu).toHaveCount(0)
+  await expect(trigger).toBeFocused()
+
+  menu = await openMenu(page)
+  await menu.getByRole('button', { name: 'Close menu' }).click()
+  await expect(menu).toHaveCount(0)
+  await expect(trigger).toBeFocused()
 })
 
-test('automatic mode follows live viewport changes and clears a departing settings sheet', async ({ page }) => {
-  await page.setViewportSize({ width: 1024, height: 768 })
-  await page.goto('/?audio=disabled')
-
+test('resizing and rotating only change layout, never the developer preference', async ({ page }) => {
   const dashboard = page.locator('.dashboard')
-  const workspace = page.locator('.workspace')
-  await expect(dashboard).toHaveAttribute('data-developer-mode', 'true')
-  await page.getByRole('button', { name: 'Settings', exact: true }).focus()
 
-  await page.setViewportSize({ width: 320, height: 568 })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/?audio=disabled')
+  await expect(dashboard).toHaveAttribute('data-layout', 'compact')
   await expect(dashboard).toHaveAttribute('data-developer-mode', 'false')
-  await expect(page.getByRole('button', { name: 'Settings', exact: true })).toBeFocused()
 
-  await page.getByRole('button', { name: 'Settings', exact: true }).click()
-  await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible()
-  await expect(workspace).toHaveAttribute('inert', '')
+  // Rotating between two compact layouts keeps an open modal menu coherent:
+  // it remains visible, focused, and the workspace remains inert.
+  let menu = await openMenu(page)
+  await page.setViewportSize({ width: 844, height: 390 })
+  await expect(menu).toBeVisible()
+  await expect(page.locator('.workspace')).toHaveAttribute('inert', '')
+  await expect(menu.getByRole('button', { name: 'Close menu' })).toBeFocused()
+  await menu.getByRole('button', { name: 'Close menu' }).click()
 
   await page.setViewportSize({ width: 1024, height: 768 })
+  await expect(dashboard).toHaveAttribute('data-layout', 'desktop')
+  await expect(dashboard).toHaveAttribute('data-developer-mode', 'false')
+  const desktopNavigation = page.getByRole('navigation', { name: 'Main navigation' })
+  expect(await sectionNames(desktopNavigation)).toEqual(userSectionNames)
+
+  await page.setViewportSize({ width: 844, height: 390 })
+  await expect(dashboard).toHaveAttribute('data-layout', 'compact')
+  await expect(dashboard).toHaveAttribute('data-developer-mode', 'false')
+
+  menu = await openMenu(page)
+  await menu.getByRole('button', { name: 'Developer tools' }).click()
   await expect(dashboard).toHaveAttribute('data-developer-mode', 'true')
-  await expect(page.getByRole('button', { name: 'Developer mode' })).toBeFocused()
-  await expect(page.getByRole('dialog', { name: 'Settings' })).toHaveCount(0)
-  await expect(workspace).not.toHaveAttribute('inert', '')
+  await menu.getByRole('button', { name: 'Close menu' }).click()
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(dashboard).toHaveAttribute('data-layout', 'compact')
+  await expect(dashboard).toHaveAttribute('data-developer-mode', 'true')
+  menu = await openMenu(page)
+  expect(await sectionNames(menu.getByRole('navigation', { name: 'Mobile workspace sections' })))
+    .toEqual(userSectionNames)
+  expect(await sectionNames(menu.getByRole('navigation', { name: 'Developer sections' })))
+    .toEqual(developerSectionNames)
+  await menu.getByRole('button', { name: 'Close menu' }).click()
+
+  await page.setViewportSize({ width: 1024, height: 768 })
+  await expect(dashboard).toHaveAttribute('data-layout', 'desktop')
+  await expect(dashboard).toHaveAttribute('data-developer-mode', 'true')
+  expect(await sectionNames(page.getByRole('navigation', { name: 'Main navigation' })))
+    .toEqual(['Tracker', 'Files', 'MIDI', 'Logs', 'Trace', 'Settings', 'About'])
+
+  await page.reload()
+  await expect(dashboard).toHaveAttribute('data-developer-mode', 'true')
 })
 
 test('forced developer mode preserves an explicit disabled preference', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 568 })
+  await page.goto('/?audio=disabled')
+  await page.evaluate(() => localStorage.setItem(
+    'picotracker.wasm.settings.v4',
+    JSON.stringify({ developerMode: false }),
+  ))
   await page.goto('/?audio=disabled&dev=1')
 
   const dashboard = page.locator('.dashboard')
-  const toggle = page.getByRole('button', { name: 'Developer mode' })
+  const menu = await openMenu(page)
+  const toggle = menu.getByRole('button', { name: 'Developer tools' })
   await expect(dashboard).toHaveAttribute('data-developer-mode', 'true')
-  await toggle.click()
-  await expect(dashboard).toHaveAttribute('data-developer-mode', 'true')
-  await expect(toggle).toBeFocused()
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+  await expect(toggle).toBeDisabled()
   await expect.poll(() => page.evaluate(() => JSON.parse(
     localStorage.getItem('picotracker.wasm.settings.v4'),
   ).developerMode)).toBe(false)
@@ -221,7 +361,7 @@ test('short-screen runtime recovery remains fully visible and restarts in place'
   await expect(recovery).toBeVisible({ timeout: 20_000 })
   await expect(retry).toBeFocused()
   await expect(simulator).toHaveAttribute('inert', '')
-  await expect(page.getByRole('region', { name: 'Operator simulator' })).toHaveCount(0)
+  await expect(page.getByRole('region', { name: 'NullPerator player' })).toHaveCount(0)
   await canvas.evaluate((element) => element.focus())
   await expect(retry).toBeFocused()
   await expect.poll(() => workspace.evaluate((element) => element.scrollTop)).toBe(0)

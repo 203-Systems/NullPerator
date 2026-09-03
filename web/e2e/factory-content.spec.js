@@ -211,7 +211,7 @@ test('PicoTracker 2.0 bt9 MIDI project loads from another project without a samp
     playerRunning: false,
   })
 
-  await page.getByRole('button', { name: 'Device', exact: true }).click()
+  await page.getByRole('button', { name: 'Tracker', exact: true }).click()
   await chord(page, 'x', 'w')
   await tap(page, 'd')
   await tap(page, 'k')
@@ -279,7 +279,7 @@ test('real oneCycAc project imports, trims, plays, and survives reload plus runt
     playerRunning: false,
   })
 
-  await page.getByRole('button', { name: 'Device', exact: true }).click()
+  await page.getByRole('button', { name: 'Tracker', exact: true }).click()
   const audioDiagnostics = page.locator('.audio-diagnostics')
   if (workletMode) {
     await page.getByRole('dialog', { name: 'Enable sound' }).getByRole('button', { name: 'Enable sound' }).click()

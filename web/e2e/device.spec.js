@@ -28,29 +28,50 @@ test('stops the application thread before restarting the tracker canvas', async 
   await expect(page.locator('#picotracker-canvas')).toHaveAttribute('data-frame-content', 'rendered')
 })
 
-test('tool tray restart returns focus to its invoking control', async ({ page }) => {
-  await page.goto('/?audio=disabled&dev=1')
+test('settings restart preserves files and returns focus to its invoking control', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('picotracker.wasm.settings.v4', JSON.stringify({
+      version: 4,
+      lowLatencyAudio: false,
+      developerMode: false,
+    }))
+  })
+  await page.goto('/?audio=disabled')
   const ready = page.locator('[data-runtime-state="ready"]')
-  const reset = page.locator('.tool-tray .reset')
   await expect(ready).toBeVisible()
 
-  await reset.click()
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible()
+  await expect(page.getByText('Restart the audio engine and interface without deleting your projects or files.')).toBeVisible()
+
+  const restart = page.getByRole('button', { name: 'Restart NullPerator', exact: true })
+  await restart.click()
   await ready.waitFor({ state: 'hidden', timeout: 10_000 })
   await expect(ready).toBeVisible({ timeout: 15_000 })
-  await expect(reset).toBeFocused()
+  await expect(restart).toBeFocused()
 })
 
-test('developer tool toggles expose state and regain focus after panel close', async ({ page }) => {
-  await page.goto('/?audio=disabled&dev=1')
+test('user tools stay available while developer tools add only diagnostics', async ({ page }) => {
+  await page.goto('/?audio=disabled')
   await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible()
 
-  const toggle = page.getByRole('button', { name: 'Toggle Files tool' })
-  await expect(toggle).toHaveAttribute('aria-pressed', 'false')
-  await toggle.click()
-  await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+  const dashboard = page.locator('.dashboard')
+  const navigation = page.getByRole('navigation', { name: 'Main navigation' })
+  await expect(dashboard).toHaveAttribute('data-developer-mode', 'false')
+  for (const section of ['Files', 'MIDI', 'Settings', 'About']) {
+    await expect(navigation.getByRole('button', { name: section, exact: true })).toBeVisible()
+  }
+  await expect(navigation.getByRole('button', { name: 'Logs', exact: true })).toHaveCount(0)
+  await expect(navigation.getByRole('button', { name: 'Trace', exact: true })).toHaveCount(0)
 
-  await page.getByRole('button', { name: 'Close Files tool' }).click()
-  await expect(page.getByRole('region', { name: 'Files tool panel' })).toHaveCount(0)
-  await expect(toggle).toHaveAttribute('aria-pressed', 'false')
-  await expect(toggle).toBeFocused()
+  await navigation.getByRole('button', { name: 'Settings', exact: true }).click()
+  const settingsHeading = page.getByRole('heading', { name: 'Settings', exact: true })
+  const developerToggle = page.getByRole('button', { name: 'Developer tools', exact: true })
+  await expect(settingsHeading).toBeVisible()
+  await developerToggle.click()
+
+  await expect(dashboard).toHaveAttribute('data-developer-mode', 'true')
+  await expect(settingsHeading).toBeVisible()
+  await expect(navigation.getByRole('button', { name: 'Logs', exact: true })).toBeVisible()
+  await expect(navigation.getByRole('button', { name: 'Trace', exact: true })).toBeVisible()
 })

@@ -39,6 +39,7 @@ test('one-shot WASM load failure is visible and retry boots without clearing set
 
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
   await expect(page.getByLabel('Device scale')).toHaveValue('2')
+  await page.getByRole('button', { name: 'Developer tools', exact: true }).click()
   await expect(page.getByLabel('Target buffer')).toHaveValue('2048')
   await expect(page.getByRole('slider', { name: 'Output volume' })).toHaveValue('70')
   await page.reload()
@@ -49,6 +50,7 @@ test('one-shot WASM load failure is visible and retry boots without clearing set
 
 test('one-shot IDBFS save failure keeps export available and retry persists exact bytes', async ({ page }) => {
   test.setTimeout(75_000)
+  await page.setViewportSize({ width: 800, height: 720 })
   await page.goto('/?storage-test=1')
   await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible({ timeout: 20_000 })
 
@@ -64,19 +66,20 @@ test('one-shot IDBFS save failure keeps export available and retry persists exac
     }
   }, { path: persistenceMarkerPath, bytes: persistenceMarkerBytes })
   expect(failure).toBe('Injected IDBFS quota failure')
+  await expect(page.getByText('Saving failed', { exact: true })).toBeVisible()
 
   await page.getByRole('button', { name: 'Files', exact: true }).click()
   const persistence = page.locator('.files-panel .file-sync[data-storage-state="failed"]')
   await expect(persistence).toBeVisible()
   await expect(persistence).toHaveAttribute('data-storage-dirty', 'true')
-  await expect(persistence).toContainText('Persistence failed: Injected IDBFS quota failure')
+  await expect(persistence).toContainText('Saving failed: Injected IDBFS quota failure')
 
   const exportButton = page.getByRole('button', { name: 'Export ZIP' })
   await expect(exportButton).toBeEnabled()
   const exported = page.waitForEvent('download')
   await exportButton.click()
   const download = await exported
-  expect(download.suggestedFilename()).toBe('picotracker-data.zip')
+  expect(download.suggestedFilename()).toBe('nullperator-backup.zip')
   const downloadPath = await download.path()
   expect(downloadPath).not.toBeNull()
   const archive = unzipSync(new Uint8Array(await readFile(downloadPath)))

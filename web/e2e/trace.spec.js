@@ -13,7 +13,7 @@ test('native UI2 input dispatch remains visible in trace summaries', async ({ pa
   await page.getByRole('button', { name: 'Start capture' }).click()
   await expect(panel).toHaveAttribute('data-trace-state', 'capturing')
 
-  await page.getByRole('button', { name: 'Device', exact: true }).click()
+  await page.getByRole('button', { name: 'Tracker', exact: true }).click()
   await canvas.focus()
   await page.keyboard.press('s')
   await expect.poll(async () => Number(await canvas.getAttribute('data-action-generation')))
@@ -27,7 +27,7 @@ test('native UI2 input dispatch remains visible in trace summaries', async ({ pa
 })
 
 test('captures live native scopes, benchmarks deterministically, and exports Chrome Trace JSON', async ({ page }) => {
-  await page.goto('/')
+  await page.goto('/?dev=1')
   await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible({ timeout: 20_000 })
   await page.getByRole('button', { name: 'Trace', exact: true }).click()
   const panel = page.locator('[data-trace-state]')
@@ -51,7 +51,7 @@ test('captures live native scopes, benchmarks deterministically, and exports Chr
   // is hidden. Keep the capture alive in the runtime store, visit the visible
   // Device, and hold across an application frame so both native transitions
   // are observed before returning to Trace.
-  await page.getByRole('button', { name: 'Device', exact: true }).click()
+  await page.getByRole('button', { name: 'Tracker', exact: true }).click()
   await page.locator('#picotracker-canvas').focus()
   // Move down from the initial first row so the accepted press deterministically
   // dirties the C++ UI and produces a committed frame.

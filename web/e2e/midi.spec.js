@@ -80,8 +80,34 @@ async function installMidiHarness(page, initialPermission = 'granted') {
 async function openMidiPanel(page) {
   await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible({ timeout: 20_000 })
   await page.getByRole('button', { name: 'MIDI', exact: true }).click()
-  return page.getByRole('region', { name: 'Web MIDI' })
+  return page.getByRole('region', { name: 'MIDI' })
 }
+
+test('MIDI routing is available normally and drop metrics require developer tools', async ({ page }) => {
+  await installMidiHarness(page)
+  await page.goto('/?audio=disabled&midi-test=1')
+
+  const dashboard = page.locator('.dashboard')
+  const panel = await openMidiPanel(page)
+  await expect(dashboard).toHaveAttribute('data-developer-mode', 'false')
+  await expect(panel).toBeVisible()
+  await expect(panel.locator('.phase-badge')).toHaveText('Not connected')
+  await expect(panel.getByText('idle', { exact: true })).toHaveCount(0)
+  await expect(panel.locator('[aria-label="MIDI diagnostics"]')).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Connect MIDI' }).click()
+  await expect(panel).toHaveAttribute('data-midi-state', 'ready')
+  await expect(panel.locator('[aria-label="MIDI diagnostics"]')).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await page.getByRole('button', { name: 'Developer tools', exact: true }).click()
+  await expect(dashboard).toHaveAttribute('data-developer-mode', 'true')
+  await page.getByRole('button', { name: 'MIDI', exact: true }).click()
+
+  const developerPanel = page.getByRole('region', { name: 'MIDI' })
+  await expect(developerPanel.locator('[aria-label="MIDI diagnostics"]')).toBeVisible()
+  await expect(developerPanel.getByText('Dropped input bytes', { exact: true })).toBeVisible()
+})
 
 test('Web MIDI crosses the WASM input/output queues and survives stable-id reconnects', async ({ page }) => {
   await installMidiHarness(page)
@@ -91,12 +117,13 @@ test('Web MIDI crosses the WASM input/output queues and survives stable-id recon
   await expect.poll(() => page.evaluate(() => globalThis.__midiTest.requestCalls())).toEqual([])
   await expect.poll(() => page.evaluate(() => typeof globalThis.__picoTrackerMidiTest?.snapshot)).toBe('function')
 
-  await page.getByRole('button', { name: 'Enable Web MIDI' }).click()
+  await page.getByRole('button', { name: 'Connect MIDI' }).click()
   await expect(panel).toHaveAttribute('data-midi-state', 'ready')
   await expect.poll(() => page.evaluate(() => globalThis.__midiTest.requestCalls())).toEqual([{ sysex: false }])
   await page.getByLabel('Input').selectOption('in-stable')
   await page.getByLabel('Output').selectOption('out-stable')
-  await expect(page.getByText('Connected', { exact: true })).toHaveCount(2)
+  await expect(panel.locator('label small').filter({ hasText: 'Connected' })).toHaveCount(2)
+  await expect.poll(() => page.evaluate(() => globalThis.__midiTest.state().inputHandlerAttached)).toBe(true)
 
   const beforeInput = await page.evaluate(() => globalThis.__picoTrackerMidiTest.snapshot())
   expect(await page.evaluate(() => globalThis.__midiTest.injectInput([0xB0, 7, 99], 1234.5))).toBe(true)
@@ -139,7 +166,7 @@ test('Web MIDI crosses the WASM input/output queues and survives stable-id recon
   expect(await page.evaluate(() => globalThis.__midiTest.sends().length)).toBe(2)
 
   await page.evaluate(() => globalThis.__midiTest.reconnectPorts())
-  await expect(page.getByText('Connected', { exact: true })).toHaveCount(2)
+  await expect(panel.locator('label small').filter({ hasText: 'Connected' })).toHaveCount(2)
   await expect.poll(() => page.evaluate(() => globalThis.__midiTest.state().inputHandlerAttached)).toBe(true)
   const beforeReconnectInput = await page.evaluate(() => globalThis.__picoTrackerMidiTest.snapshot())
   expect(await page.evaluate(() => globalThis.__midiTest.injectInput([0xB0, 10, 55], 2345.75))).toBe(true)
@@ -170,13 +197,13 @@ test('Web MIDI requests permission only on click, reports denial, and can retry'
   await expect(panel).toHaveAttribute('data-midi-state', 'idle')
   await expect.poll(() => page.evaluate(() => globalThis.__midiTest.requestCalls())).toEqual([])
 
-  await page.getByRole('button', { name: 'Enable Web MIDI' }).click()
+  await page.getByRole('button', { name: 'Connect MIDI' }).click()
   await expect(panel).toHaveAttribute('data-midi-state', 'denied')
-  await expect(panel.getByRole('status')).toContainText('MIDI permission denied by test')
+  await expect(panel.getByRole('status')).toContainText('MIDI access was not granted')
   await expect.poll(() => page.evaluate(() => globalThis.__midiTest.requestCalls())).toEqual([{ sysex: false }])
 
   await page.evaluate(() => globalThis.__midiTest.setPermission('granted'))
-  await page.getByRole('button', { name: 'Retry Web MIDI access' }).click()
+  await page.getByRole('button', { name: 'Try MIDI again' }).click()
   await expect(panel).toHaveAttribute('data-midi-state', 'ready')
   await expect.poll(() => page.evaluate(() => globalThis.__midiTest.requestCalls())).toEqual([
     { sysex: false },
@@ -186,9 +213,9 @@ test('Web MIDI requests permission only on click, reports denial, and can retry'
 
 test('Web MIDI trace correlates input processing and output browser drain', async ({ page }) => {
   await installMidiHarness(page)
-  await page.goto('/?midi-test=1')
+  await page.goto('/?midi-test=1&dev=1')
   const panel = await openMidiPanel(page)
-  await page.getByRole('button', { name: 'Enable Web MIDI' }).click()
+  await page.getByRole('button', { name: 'Connect MIDI' }).click()
   await expect(panel).toHaveAttribute('data-midi-state', 'ready')
   await page.getByLabel('Input').selectOption('in-stable')
   await page.getByLabel('Output').selectOption('out-stable')

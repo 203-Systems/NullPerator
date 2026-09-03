@@ -26,7 +26,7 @@ test('AudioWorklet is the default and presents a user-facing sound gate', async 
   } catch (error) {
     const snapshot = await page.evaluate(() => ({
       text: document.body.innerText,
-      runtime: document.querySelector('.runtime-state')?.getAttribute('data-runtime-state'),
+      runtime: document.querySelector('.dashboard')?.getAttribute('data-runtime-state'),
     })).catch(() => ({}))
     throw new Error(`${error.message}\nBrowser diagnostics: ${browserDiagnostics.join(' | ')}\nSnapshot: ${JSON.stringify(snapshot)}`)
   }
