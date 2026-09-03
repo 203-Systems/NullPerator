@@ -1,54 +1,45 @@
-# PicoTracker
+<p align="center">
+  <img src="ios/NullPeratorIOS/Resources/Brand/NP-Icon.svg" width="144" alt="NullPerator logo">
+</p>
 
-PicoTracker is an eight-track music tracker with a compact, controller-driven
-workflow. This repository contains three supported products:
+<h1 align="center">NullPerator</h1>
 
-- **Node firmware** for the ESP32-S3 hardware target.
-- **WASM workbench** for running the same C++ engine and UI2 in a browser.
-- **NullPerator for iOS**, which runs the C++ engine natively behind the shared
-  Svelte presentation on iPhone and iPad.
+<p align="center">
+  An eight-track music tracker for NullPerator hardware, iPhone, iPad, and the web.
+</p>
 
-All three products use the 240×240 UI2 renderer. The retired hardware targets and
-their legacy character UI are not part of this repository.
+NullPerator combines a compact, controller-driven workflow with a shared C++
+tracker engine. Compose songs from patterns, chains, phrases, and tables; work
+with samples or synthesized instruments; and move compatible projects between
+the supported targets.
+
+NullPerator builds on the open-source picoTracker project and is developed by
+203 Systems.
 
 ## Features
 
-- 8 song tracks
-- 256 chains, 128 phrases, and 32 tables
+- Eight song tracks with 256 chains, 128 phrases, and 32 tables
 - Sample, MIDI, SID, OPAL, and Macro instruments
-- 44.1 kHz stereo engine
-- Project autosave, browser-based project storage, sample import, and render
-- Fixed-capacity UI and application state suitable for embedded use
+- 44.1 kHz stereo audio engine
+- Fast editing through physical controllers or on-screen controls
+- Project autosave, sample import, and offline local storage
+- Shared 240×240 UI2 tracker interface across hardware, iOS, and the web
 
-## Node firmware
+## Supported targets
 
-Node uses ESP-IDF and targets ESP32-S3. See [README_NODE.MD](README_NODE.MD) for
-build, flash, and monitor commands.
+| Target | Runtime | Platform integration |
+| --- | --- | --- |
+| NullPerator for iOS | Native C++ core with a bundled Svelte presentation | Core Audio recording and playback, CoreMIDI, Bluetooth MIDI, GameController, background audio, and Files |
+| NullPerator hardware (Node firmware) | Native C++ firmware | ESP32-S3 hardware, display, controls, audio, MIDI, and storage |
+| WASM workbench | C++ core compiled to WebAssembly | Browser storage, host-folder synchronization, Web MIDI, logs, and tracing |
 
-## WASM workbench
+All targets share the application model, project format, audio engine, and UI2
+renderer. Platform adapters provide audio, MIDI, input, display, and filesystem
+services without changing tracker behavior.
 
-The static browser workbench includes persistent files, optional host-folder
-synchronization, Web MIDI, logs, and performance tracing.
+## Build NullPerator for iOS
 
-- [Build](docs/wasm/BUILD.md)
-- [Deploy](docs/wasm/DEPLOY.md)
-- [Storage](docs/wasm/STORAGE.md)
-- [Tracing](docs/wasm/TRACING.md)
-- [Testing](docs/wasm/TESTING.md)
-
-Quick start:
-
-```bash
-tools/build-wasm.sh Release
-cd web
-pnpm install --frozen-lockfile
-pnpm dev
-```
-
-## NullPerator for iOS
-
-The iOS application uses native C++ audio, MIDI, recording, persistence, and
-framebuffer rendering. It does not ship the WASM runtime or browser filesystem.
+Requirements: Xcode, an iOS signing team for physical devices, and pnpm.
 
 ```bash
 cd web
@@ -58,9 +49,40 @@ ios/scripts/package-web.sh
 open ios/NullPeratorIOS.xcodeproj
 ```
 
-See the [iOS build and architecture guide](ios/README.md).
+Select the `NullPeratorIOS` scheme, choose an iPhone, iPad, or simulator, and
+run the app. The Xcode build phase compiles and links the native C++ core.
 
-## Host tests
+See the [iOS build and architecture guide](ios/README.md) for runtime details.
+
+## Run the WASM workbench
+
+Requirements: the pinned Emscripten toolchain, Node.js, and pnpm.
+
+```bash
+cd web
+pnpm install --frozen-lockfile
+cd ..
+tools/build-wasm.sh Release
+cd web
+pnpm dev
+```
+
+The development server prints the local URL after startup. See the
+[WASM build guide](docs/wasm/BUILD.md) for toolchain setup and production
+packaging.
+
+## Build the Node firmware
+
+Node targets ESP32-S3 and builds with ESP-IDF:
+
+```bash
+idf.py --project-dir sources -B sources/build/node -DNode=true build
+```
+
+See the [Node build guide](README_NODE.MD) for configuration, flashing,
+monitoring, and troubleshooting.
+
+## Run host tests
 
 ```bash
 cmake -S tests -B build-host -DCMAKE_BUILD_TYPE=Release
@@ -68,7 +90,42 @@ cmake --build build-host --parallel
 ctest --test-dir build-host --output-on-failure
 ```
 
+Shared changes should also be validated on every affected product target.
+
+## Repository layout
+
+| Path | Purpose |
+| --- | --- |
+| `sources/` | Shared C++ tracker engine, UI2, services, and platform adapters |
+| `ios/` | Swift and Objective-C++ iOS host, native bridge, resources, and packaging scripts |
+| `web/` | Shared Svelte presentation and the WASM workbench |
+| `tests/` | Host-side C++ tests |
+| `tools/` | Build, verification, asset, and firmware acceptance utilities |
+| `docs/` | Development, release, App Store, privacy, and WASM guides |
+
+## Documentation
+
+- [Developer guide](docs/DEV.md)
+- [Release process](docs/RELEASES.md)
+- [WASM storage](docs/wasm/STORAGE.md)
+- [WASM testing](docs/wasm/TESTING.md)
+- [WASM deployment](docs/wasm/DEPLOY.md)
+- [Privacy policy](docs/NullPeratorPrivacyPolicy.md)
+- [App Store submission checklist](docs/AppStoreSubmission.md)
+
+## Hardware
+
+Learn more about the physical NullPerator at
+[203 Systems](https://203.io/products/operator-deposit).
+
+## Contributing
+
+Read the [developer guide](docs/DEV.md) and
+[contribution guidelines](docs/CONTRIBUTING.md) before opening a pull request.
+
 ## License
 
-PicoTracker is BSD-3-Clause. Bundled third-party components retain their own
-licenses; see [LICENSE](LICENSE).
+This project is distributed under the BSD 3-Clause License. See
+[LICENSE](LICENSE) for the picoTracker copyright history and the licenses of
+bundled third-party components. Web distribution notices are maintained in
+[`web/public/THIRD_PARTY_NOTICES.md`](web/public/THIRD_PARTY_NOTICES.md).
