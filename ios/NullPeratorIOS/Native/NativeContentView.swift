@@ -116,9 +116,9 @@ final class NativeHybridAppModel: ObservableObject {
         let session = AVAudioSession.sharedInstance()
         do {
             try session.setCategory(
-                .playback,
+                .playAndRecord,
                 mode: .default,
-                options: [.allowAirPlay]
+                options: [.defaultToSpeaker, .allowAirPlay, .allowBluetoothHFP]
             )
             try session.setPreferredSampleRate(44_100)
             try session.setActive(true)

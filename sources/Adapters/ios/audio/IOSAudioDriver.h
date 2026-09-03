@@ -5,7 +5,10 @@
 #include "Services/Audio/AudioDriver.h"
 
 #include <AudioToolbox/AudioToolbox.h>
+#include <array>
 #include <atomic>
+#include <cstdint>
+#include <span>
 
 class IOSAudioDriver final : public AudioDriver {
 public:
@@ -27,15 +30,40 @@ public:
 
   void PumpProducer() noexcept;
 
+  [[nodiscard]] bool InputAvailable() const noexcept;
+  void SetInputMonitoring(bool enabled) noexcept;
+  [[nodiscard]] bool IsInputMonitoring() const noexcept;
+  [[nodiscard]] bool BeginInputCapture(
+      std::span<std::int16_t> destination) noexcept;
+  void EndInputCapture() noexcept;
+  [[nodiscard]] bool IsInputCapturing() const noexcept;
+  [[nodiscard]] std::size_t CapturedInputFrames() const noexcept;
+  [[nodiscard]] std::uint16_t InputPeak() const noexcept;
+
 private:
-  static OSStatus Render(void *context, AudioUnitRenderActionFlags *,
-                         const AudioTimeStamp *, UInt32, UInt32 frames,
+  static OSStatus Render(void *context, AudioUnitRenderActionFlags *flags,
+                         const AudioTimeStamp *timestamp, UInt32,
+                         UInt32 frames,
                          AudioBufferList *buffers);
-  OSStatus Render(UInt32 frames, AudioBufferList *buffers) noexcept;
+  OSStatus Render(AudioUnitRenderActionFlags *flags,
+                  const AudioTimeStamp *timestamp, UInt32 frames,
+                  AudioBufferList *buffers) noexcept;
+  void PullInput(AudioUnitRenderActionFlags *flags,
+                 const AudioTimeStamp *timestamp, UInt32 frames) noexcept;
 
   PcmRingBuffer<RingCapacityFrames> ring_;
   AudioComponentInstance unit_ = nullptr;
   std::atomic<bool> started_{false};
   std::atomic<bool> active_{false};
   std::atomic<std::uint64_t> consumedFrames_{0U};
+  std::array<float, 4096> inputScratch_{};
+  std::array<std::int16_t, 4096> inputPcmScratch_{};
+  std::atomic<bool> inputAvailable_{false};
+  std::atomic<bool> inputMonitoring_{false};
+  std::atomic<bool> inputCapturing_{false};
+  std::atomic<bool> inputCaptureWriting_{false};
+  std::atomic<std::int16_t *> inputDestination_{nullptr};
+  std::size_t inputCapacityFrames_ = 0U;
+  std::atomic<std::size_t> inputCapturedFrames_{0U};
+  std::atomic<std::uint16_t> inputPeak_{0U};
 };

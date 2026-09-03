@@ -5,7 +5,9 @@
 #include <TargetConditionals.h>
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <span>
+#include <thread>
 
 IOSAudioDriver::IOSAudioDriver(AudioSettings &settings) : AudioDriver(settings) {}
 
@@ -26,6 +28,14 @@ bool IOSAudioDriver::InitDriver() {
   if (component == nullptr ||
       AudioComponentInstanceNew(component, &unit_) != noErr) {
     unit_ = nullptr;
+    return false;
+  }
+
+  UInt32 enabled = 1U;
+  if (AudioUnitSetProperty(unit_, kAudioOutputUnitProperty_EnableIO,
+                           kAudioUnitScope_Input, 1, &enabled,
+                           sizeof(enabled)) != noErr) {
+    CloseDriver();
     return false;
   }
 
@@ -51,17 +61,30 @@ bool IOSAudioDriver::InitDriver() {
   format.mBytesPerPacket = sizeof(float);
   if (AudioUnitSetProperty(unit_, kAudioUnitProperty_StreamFormat,
                            kAudioUnitScope_Input, 0, &format,
-                           sizeof(format)) != noErr ||
+                           sizeof(format)) != noErr) {
+    CloseDriver();
+    return false;
+  }
+
+  AudioStreamBasicDescription inputFormat = format;
+  inputFormat.mChannelsPerFrame = 1;
+  if (AudioUnitSetProperty(unit_, kAudioUnitProperty_StreamFormat,
+                           kAudioUnitScope_Output, 1, &inputFormat,
+                           sizeof(inputFormat)) != noErr ||
       AudioUnitInitialize(unit_) != noErr) {
     CloseDriver();
     return false;
   }
+  inputAvailable_.store(true, std::memory_order_release);
   return true;
 #endif
 }
 
 void IOSAudioDriver::CloseDriver() {
   StopDriver();
+  inputAvailable_.store(false, std::memory_order_release);
+  EndInputCapture();
+  inputMonitoring_.store(false, std::memory_order_release);
   if (unit_ == nullptr) return;
   AudioUnitUninitialize(unit_);
   AudioComponentInstanceDispose(unit_);
@@ -131,14 +154,64 @@ void IOSAudioDriver::PumpProducer() noexcept {
   }
 }
 
-OSStatus IOSAudioDriver::Render(void *context, AudioUnitRenderActionFlags *,
-                                const AudioTimeStamp *, UInt32, UInt32 frames,
-                                AudioBufferList *buffers) {
-  return static_cast<IOSAudioDriver *>(context)->Render(frames, buffers);
+bool IOSAudioDriver::InputAvailable() const noexcept {
+  return inputAvailable_.load(std::memory_order_acquire);
 }
 
-OSStatus IOSAudioDriver::Render(UInt32 frames,
+void IOSAudioDriver::SetInputMonitoring(bool enabled) noexcept {
+  inputMonitoring_.store(enabled && InputAvailable(),
+                         std::memory_order_release);
+  if (!enabled && !inputCapturing_.load(std::memory_order_acquire))
+    inputPeak_.store(0U, std::memory_order_release);
+}
+
+bool IOSAudioDriver::IsInputMonitoring() const noexcept {
+  return inputMonitoring_.load(std::memory_order_acquire);
+}
+
+bool IOSAudioDriver::BeginInputCapture(
+    std::span<std::int16_t> destination) noexcept {
+  if (!InputAvailable() || destination.empty() ||
+      inputCapturing_.load(std::memory_order_acquire))
+    return false;
+  inputCapacityFrames_ = destination.size();
+  inputCapturedFrames_.store(0U, std::memory_order_release);
+  inputDestination_.store(destination.data(), std::memory_order_release);
+  inputCapturing_.store(true, std::memory_order_release);
+  return true;
+}
+
+void IOSAudioDriver::EndInputCapture() noexcept {
+  inputCapturing_.store(false, std::memory_order_release);
+  while (inputCaptureWriting_.load(std::memory_order_acquire))
+    std::this_thread::yield();
+}
+
+bool IOSAudioDriver::IsInputCapturing() const noexcept {
+  return inputCapturing_.load(std::memory_order_acquire);
+}
+
+std::size_t IOSAudioDriver::CapturedInputFrames() const noexcept {
+  return inputCapturedFrames_.load(std::memory_order_acquire);
+}
+
+std::uint16_t IOSAudioDriver::InputPeak() const noexcept {
+  return inputPeak_.load(std::memory_order_acquire);
+}
+
+OSStatus IOSAudioDriver::Render(void *context,
+                                AudioUnitRenderActionFlags *flags,
+                                const AudioTimeStamp *timestamp, UInt32,
+                                UInt32 frames,
+                                AudioBufferList *buffers) {
+  return static_cast<IOSAudioDriver *>(context)->Render(
+      flags, timestamp, frames, buffers);
+}
+
+OSStatus IOSAudioDriver::Render(AudioUnitRenderActionFlags *flags,
+                                const AudioTimeStamp *timestamp, UInt32 frames,
                                 AudioBufferList *buffers) noexcept {
+  PullInput(flags, timestamp, frames);
   if (buffers == nullptr || buffers->mNumberBuffers < 2 ||
       buffers->mBuffers[0].mData == nullptr ||
       buffers->mBuffers[1].mData == nullptr) return noErr;
@@ -159,4 +232,66 @@ OSStatus IOSAudioDriver::Render(UInt32 frames,
   }
   consumedFrames_.fetch_add(frames, std::memory_order_relaxed);
   return noErr;
+}
+
+void IOSAudioDriver::PullInput(AudioUnitRenderActionFlags *flags,
+                               const AudioTimeStamp *timestamp,
+                               UInt32 frames) noexcept {
+#if TARGET_OS_SIMULATOR
+  (void)flags;
+  (void)timestamp;
+  (void)frames;
+#else
+  const bool monitoring = inputMonitoring_.load(std::memory_order_acquire);
+  const bool capturing = inputCapturing_.load(std::memory_order_acquire);
+  if ((!monitoring && !capturing) || unit_ == nullptr || timestamp == nullptr ||
+      frames == 0U || frames > inputScratch_.size()) {
+    if (!monitoring && !capturing)
+      inputPeak_.store(0U, std::memory_order_release);
+    return;
+  }
+
+  AudioBufferList input{};
+  input.mNumberBuffers = 1U;
+  input.mBuffers[0].mNumberChannels = 1U;
+  input.mBuffers[0].mDataByteSize = frames * sizeof(float);
+  input.mBuffers[0].mData = inputScratch_.data();
+  if (AudioUnitRender(unit_, flags, timestamp, 1U, frames, &input) != noErr) {
+    inputPeak_.store(0U, std::memory_order_release);
+    return;
+  }
+
+  std::uint16_t peak = 0U;
+  for (UInt32 index = 0U; index < frames; ++index) {
+    const float clamped = std::clamp(inputScratch_[index], -1.0F, 1.0F);
+    const auto sample = static_cast<std::int16_t>(
+        std::lrint(clamped * (clamped < 0.0F ? 32768.0F : 32767.0F)));
+    inputPcmScratch_[index] = sample;
+    const std::uint16_t magnitude = static_cast<std::uint16_t>(
+        sample == INT16_MIN ? INT16_MAX : std::abs(sample));
+    peak = std::max(peak, magnitude);
+  }
+  inputPeak_.store(peak, std::memory_order_release);
+
+  if (!capturing)
+    return;
+  inputCaptureWriting_.store(true, std::memory_order_release);
+  if (!inputCapturing_.load(std::memory_order_acquire)) {
+    inputCaptureWriting_.store(false, std::memory_order_release);
+    return;
+  }
+  std::int16_t *destination =
+      inputDestination_.load(std::memory_order_acquire);
+  const std::size_t offset =
+      inputCapturedFrames_.load(std::memory_order_relaxed);
+  const std::size_t count =
+      std::min<std::size_t>(frames, inputCapacityFrames_ - offset);
+  if (destination != nullptr) {
+    std::copy_n(inputPcmScratch_.data(), count, destination + offset);
+  }
+  inputCapturedFrames_.store(offset + count, std::memory_order_release);
+  if (offset + count >= inputCapacityFrames_)
+    inputCapturing_.store(false, std::memory_order_release);
+  inputCaptureWriting_.store(false, std::memory_order_release);
+#endif
 }

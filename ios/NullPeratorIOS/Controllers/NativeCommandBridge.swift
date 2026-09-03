@@ -307,9 +307,9 @@ final class NativeCommandBridge: NSObject, WKScriptMessageHandlerWithReply {
             do {
                 let session = AVAudioSession.sharedInstance()
                 try session.setCategory(
-                    .playback,
+                    .playAndRecord,
                     mode: .default,
-                    options: [.allowAirPlay]
+                    options: [.defaultToSpeaker, .allowAirPlay, .allowBluetoothHFP]
                 )
                 try session.setActive(true)
                 replyHandler(["ok": true], nil)

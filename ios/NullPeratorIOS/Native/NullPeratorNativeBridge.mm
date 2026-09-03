@@ -1,8 +1,9 @@
 #import "NullPeratorNativeBridge.h"
+#import <AVFAudio/AVFAudio.h>
 
 #include "Adapters/ios/gui/IOSUiPresenter.h"
 #include "Adapters/ios/runtime/IOSNativeRuntime.h"
-#include "Application/Model/ProjectVersion.h"
+#include "ProductVersion.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -16,6 +17,17 @@ NSString *Base64(const std::uint8_t *bytes, std::size_t size) {
   return [data base64EncodedStringWithOptions:0];
 }
 } // namespace
+
+extern "C" void NullPeratorIOSRequestRecordPermission() {
+  dispatch_async(dispatch_get_main_queue(), ^{
+    AVAudioApplication *application = AVAudioApplication.sharedInstance;
+    if (application.recordPermission ==
+        AVAudioApplicationRecordPermissionUndetermined) {
+      [AVAudioApplication
+          requestRecordPermissionWithCompletionHandler:^(BOOL) {}];
+    }
+  });
+}
 
 @implementation NullPeratorNativeBridge {
   std::unique_ptr<IOSNativeRuntime> _runtime;
@@ -66,7 +78,7 @@ NSString *Base64(const std::uint8_t *bytes, std::size_t size) {
 - (BOOL)isInitialized { return _initialized; }
 
 - (NSString *)nullPeratorVersion {
-  return [NSString stringWithUTF8String:PROJECT_NUMBER];
+  return [NSString stringWithUTF8String:nullperator_product::Version];
 }
 
 - (NSString *)buildHash {

@@ -35,6 +35,9 @@ Android can reuse the same versioned frame-packet contract through JNI.
 - A native serial timer advances the core and fills audio buffers independently
   of WKWebView animation frames, including during declared background audio.
 - CoreAudio/RemoteIO consumes a lock-free buffer filled by the C++ mixer.
+- RemoteIO captures the current system-selected iOS input directly into the
+  native recording adapter. The recording screen therefore does not expose an
+  input picker on iOS; WAV persistence runs off the realtime audio thread.
 - CoreMIDI supplies selected input and drains selected output through the same
   bounded C++ MIDI graph used by the firmware.
 - The C++ filesystem adapter uses POSIX paths rooted in the app's Documents
@@ -60,6 +63,6 @@ Android can reuse the same versioned frame-packet contract through JNI.
 Steps 1–5 and native playback are implemented. The host now boots the complete
 `Ui2TrackerApplication`, restores projects directly from Documents through
 POSIX, renders the production UI2 framebuffer, and feeds RemoteIO from the C++
-mixer. CoreMIDI routes through the native firmware MIDI service; microphone
-recording remains platform-adapter work. The Svelte layout and native bridge
-boundary do not need to change for it.
+mixer. CoreMIDI routes through the native firmware MIDI service, and recording
+uses the active iOS input route through RemoteIO. The Svelte layout and native
+bridge boundary remain shared with future mobile hosts.

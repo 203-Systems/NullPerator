@@ -314,7 +314,7 @@ void Ui2TrackerApplication::Shutdown() {
   if (configSave_.Dirty())
     (void)FlushConfig();
   StopSamplePreview();
-  if (IsRecordingActive())
+  if (IsRecordingActive() || IsSavingRecording())
     StopRecording();
   StopMonitoring();
   if (sampleEditorTransaction_.Active())

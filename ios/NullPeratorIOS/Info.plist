@@ -17,6 +17,8 @@
     <key>LSSupportsOpeningDocumentsInPlace</key><true/>
     <key>NSBluetoothAlwaysUsageDescription</key>
     <string>NullPerator uses Bluetooth MIDI to connect controllers and instruments.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>NullPerator uses the current iOS audio input to record samples.</string>
     <key>UIApplicationSceneManifest</key>
     <dict><key>UIApplicationSupportsMultipleScenes</key><false/></dict>
     <key>UILaunchStoryboardName</key><string>LaunchScreen</string>

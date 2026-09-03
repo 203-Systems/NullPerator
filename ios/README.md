@@ -28,6 +28,8 @@ architecture before linking the application. The bundle identifier is
   browser filesystem synchronization layer.
 - CoreMIDI, GameController, the device battery and Files app integration are
   supplied by native platform adapters.
+- Recording uses the current system-selected iOS input route through RemoteIO;
+  iOS does not show the firmware input-source selector.
 - iPhone and iPad portrait and landscape orientations are enabled.
 
 See [NATIVE_ARCHITECTURE.md](NATIVE_ARCHITECTURE.md) for the component boundary.
