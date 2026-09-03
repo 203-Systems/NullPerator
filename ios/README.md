@@ -20,7 +20,28 @@ The release version is owned by `sources/ProductVersion.h`. The native-core
 build phase derives the iOS `CFBundleShortVersionString` from that value, so the
 C++ UI, native settings bridge and signed app bundle cannot drift apart.
 
-## Runtime integration
+## Runtime architecture
+
+```text
+Svelte UI in WKWebView
+  - responsive layout, controls and settings
+  - sends semantic TrackerAction events
+  - paints the 240×240 indexed framebuffer
+                 |
+        native message bridge
+                 |
+C++ NullPerator core
+  - Ui2TrackerApplication and UI2 renderer
+  - player, project model and persistence
+  - platform-neutral service contracts
+                 |
+             iOS adapters
+```
+
+The tracker screen crosses the bridge as palette-indexed dirty regions. The
+first update contains the complete frame; later updates normally contain only
+changed 8×8 tile runs. Svelte expands those indices into its canvas, leaving
+screen layout and modal presentation in the shared WebUI.
 
 - SwiftUI owns application lifecycle and hosts the bundled Svelte presentation
   through a private `nullperator://app` URL scheme.
@@ -35,5 +56,3 @@ C++ UI, native settings bridge and signed app bundle cannot drift apart.
 - Recording uses the current system-selected iOS input route through RemoteIO;
   iOS does not show the firmware input-source selector.
 - iPhone and iPad portrait and landscape orientations are enabled.
-
-See [NATIVE_ARCHITECTURE.md](NATIVE_ARCHITECTURE.md) for the component boundary.

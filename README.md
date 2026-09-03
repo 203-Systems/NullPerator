@@ -58,8 +58,7 @@ ios/scripts/package-web.sh
 open ios/NullPeratorIOS.xcodeproj
 ```
 
-See the [iOS build guide](ios/README.md) and
-[native architecture](ios/NATIVE_ARCHITECTURE.md).
+See the [iOS build and architecture guide](ios/README.md).
 
 ## Host tests
 
