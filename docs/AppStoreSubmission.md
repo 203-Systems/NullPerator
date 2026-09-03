@@ -1,6 +1,6 @@
 # NullPerator App Store submission draft
 
-Last updated: 2026-08-30
+Last updated: 2026-09-03
 
 This file is a working submission sheet. Copy the approved values into App Store Connect before TestFlight or App Review submission.
 
@@ -8,7 +8,7 @@ This file is a working submission sheet. Copy the approved values into App Store
 
 - App name: `NullPerator`
 - Bundle ID: `io.203systems.nullperator`
-- Version: `1.0`
+- Version: `0.1`
 - Build: `1`
 - Primary category: Music
 - Secondary category: Utilities (optional)
@@ -29,7 +29,7 @@ This file is a working submission sheet. Copy the approved values into App Store
 
 `NullPerator brings the focused tracker workflow to iPhone and iPad.`
 
-`Compose patterns, arrange songs, and play them back through a compact interface designed around the NullPerator hardware. Use the on-screen controls or connect a compatible game controller. Route MIDI, keep projects in the Files app, and continue working without an account.`
+`Compose patterns, arrange songs, record samples, and play them back through a compact interface designed around the NullPerator hardware. Use the on-screen controls or connect a compatible game controller. Route MIDI, keep projects in the Files app, and continue working without an account.`
 
 `Features:`
 
@@ -37,9 +37,11 @@ This file is a working submission sheet. Copy the approved values into App Store
 
 `• Touch controls optimized for portrait and landscape layouts`
 
-`• Compatible game controller input with configurable routing`
+`• Compatible game controller input`
 
 `• MIDI routing, including supported Bluetooth MIDI devices`
+
+`• Sample recording through the current iOS audio input`
 
 `• Local project and sample storage through the Files app`
 
@@ -72,7 +74,7 @@ Re-audit these answers whenever analytics, crash reporting, cloud sync, accounts
 
 ## Review notes (English draft)
 
-`NullPerator is a self-contained music tracker. Its tracker engine, audio, MIDI, persistence, and framebuffer renderer run as bundled native C++; its bundled Svelte presentation does not download or execute remote app code. Native iOS integrations provide audio playback, Files access, game-controller input, MIDI/Bluetooth MIDI routing, device battery display, and orientation-aware layouts.`
+`NullPerator is a self-contained music tracker. Its tracker engine, audio, MIDI, persistence, and framebuffer renderer run as bundled native C++; its bundled Svelte presentation does not download or execute remote app code. Native iOS integrations provide audio playback and recording, Files access, game-controller input, MIDI/Bluetooth MIDI routing, device battery display, and orientation-aware layouts.`
 
 `No account or network connection is required. Projects can be created and loaded from the app's local Documents directory through the in-app browser or the iOS Files app.`
 

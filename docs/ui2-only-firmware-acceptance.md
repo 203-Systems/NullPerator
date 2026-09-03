@@ -1,17 +1,18 @@
 # UI2-only firmware acceptance
 
-The ESP32-S3 `Node` build is currently a hybrid: UI2 owns supported LCD frames,
-while the legacy Views and character renderer remain compiled as a reversible
-fallback. `PICOTRACKER_UI2_DEFAULT=ON` therefore does **not** satisfy this
-contract.
+The ESP32-S3 `Node` product is UI2-only. This acceptance gate verifies that
+retired character UI sources, archives, objects, and symbols have not leaked
+back into a firmware artifact. It inspects the compile database, link map, and
+final ELF instead of relying on a build flag or linker garbage collection.
 
-This acceptance gate is deliberately opt-in until a separate UI2-only product
-configuration exists. It does not change any product flag.
+The gate is attached to the Node build as the explicit
+`ui2_only_firmware_acceptance` target. It is not part of `ALL`, so release
+automation must request it after building the firmware.
 
 ## Complete check
 
 Always start from a clean ESP-IDF build so stale objects cannot produce a false
-result. From the repository root, the future UI2-only CI job should run:
+result. From the repository root, run:
 
 ```sh
 python3 tools/verify_ui2_only_firmware.py \
@@ -39,20 +40,22 @@ pico_tracker_add_ui2_only_acceptance_check(
   ELF "$<TARGET_FILE:picoTracker.elf>")
 ```
 
-The helper target is not part of `ALL`; the UI2-only CI job must request it
-explicitly after the dedicated product target exists.
+The helper target is not part of `ALL`; CI and release validation must request
+it explicitly.
 
 ## Forbidden contract
 
-The compile database must not contain:
+The compile database must not contain the following retired paths. Some no
+longer exist in the repository and intentionally remain listed as regression
+guards:
 
 - `sources/Application/Views/**/*.cpp`, including legacy View, Field and modal
   implementations;
 - `sources/UIFramework/**/*.cpp`;
 - the mixed `sources/Application/AppWindow.cpp`;
 - the legacy Node `gui/GUIWindowImp.cpp`;
-- the mixed Node `display/display.c` that currently contains both character
-  rendering and the RGB565 panel function.
+- the retired mixed Node `display/display.c` character renderer and RGB565
+  transport.
 
 The link map must not contain:
 

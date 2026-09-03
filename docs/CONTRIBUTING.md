@@ -1,7 +1,7 @@
 
 # Contributing to picoTracker
 
-TL:DR: Join us on [Discord](https://discord.gg/FNnXvmk4Pu), be [courteous](docs/CODE_OF_CONDUCT.md), follow the steps below to set up a development environment to build and contribute code.
+TL;DR: Join us on [Discord](https://discord.gg/FNnXvmk4Pu), be [courteous](CODE_OF_CONDUCT.md), and follow the steps below to set up a development environment and contribute code.
 
 ## Welcome
 
@@ -12,27 +12,28 @@ We communicate primarily over GitHub and [Discord](https://discord.gg/FNnXvmk4Pu
 
 ## Developing for picoTracker
 
-If you would prefer to write code, you may wish to start with our [list of good first issues](https://github.com/democloid/picotracker/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22). 
+If you would prefer to write code, you may wish to start with our [list of good first issues](https://github.com/203Null/picoTracker/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22).
 
-See the [Developer Guide](./DEV.md) for instructions on how to setup your development enviroment and get started building and debugging the picoTracker firmware.
+See the [Developer Guide](./DEV.md) for instructions on how to set up your development environment and get started building and debugging picoTracker.
 
 Here are some guidelines for when you are ready to contribute code:
 
 * Always discuss what you plan to work on in the related issue before submitting a PR!
 * Issues where we would like contributions have the **help wanted** or **good first issue** labels attached to them
-* If a issue doesn't already exist, please create one first
+* If an issue doesn't already exist, please create one first
 * Run the host and Web tests for shared changes. For Node-specific changes,
-  include the ESP32-S3 build or device validation performed.
+  include the ESP32-S3 build or device validation performed. For iOS changes,
+  include an iOS build and the relevant native-layout or real-device checks.
 * Run through the minimal manual "smoke test" plan (see below)
 * Please use the clang linter and resist the urge to make *only* cosmetic/code style changes
-* Once you are ready submit your PR Or even if you just want to get some initial feedback submit a "Draft PR"
+* Once you are ready, submit your PR. If you want early feedback, submit it as a draft PR.
 
 Please note that sometimes a PR won't be accepted for a number of different reasons, please don't take it personally, it's just that not all contributions will meet the goals of the projects author and maintainers. The best thing to do is to start discussion *first* in a related issue to see if what you want to contribute will fit with the goals of the project before you start coding it.
 
 
 ## Quality Assurance
 
-One of the most useful tasks is finding and filing bug reports. Testing beta releases, looking for regressions, creating test cases can really improve the quality of the product alot. 
+One of the most useful tasks is finding and filing bug reports. Testing beta releases, looking for regressions, and creating test cases can greatly improve the quality of the product.
 
 If this interests you, you can jump in and submit bug reports without needing anyone's permission!
 

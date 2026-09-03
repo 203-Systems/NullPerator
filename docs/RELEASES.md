@@ -1,21 +1,81 @@
-## How to make a new release 
+# Release process
 
-We create a new release branch for each new stable release version, eg. `2.1-release`, `v2.2-release`, etc. 
-All releases are built by CI from this branch and tags for each patch version release (`2.1.1`, `2.1.2` etc) are applied to commits on this branch.
+NullPerator shares one product version across the Node firmware, WASM
+workbench, and iOS application. Release each target from a tested commit on
+`nullperator-main`; do not change the project-file schema merely to publish a
+new product version.
 
-While all releases are built on CI using GitHub Actions on the release branch, eg. `2.2-release` branch, some manual steps are still required to create a new release:
+## Version sources
 
-1. Temporarily disable the GH ruleset that protects release branches to allow pushing the new release branch to GH repo
-1. Push the new release branch and then re-enable the protection ruleset in GH repo settings
-1. Update the build number (`PROJECT_NUMBER` define) in `sources/Application/Model/Project.h`
-1. Update the branch name in `.github/workflows/ghpages-hosting-merge.yml`
-1. Create a PR to merge into the current stable release branch and have it merged
-1. Wait for the build to finish and then download the artifacts, note they will be zip files containing the actual firmware files
-1. [Draft a new release on GitHub](https://github.com/xiphonics/picoTracker/releases/new)
-1. When you do "Choose a tag", make sure you select to "create a tag on publish" with the name of the release, eg. `v2.0.0`
-1. Title the release with the version number, eg. `v2.0.0`
-1. Click the "Generate release notes" button
-1. Edit the release notes if required for a description of the changes in this release
-1. Publish the release
-1. Notify users in the Discord channel #announcements of the new release
+- `sources/ProductVersion.h` owns the user-visible product version.
+- `sources/Application/Model/ProjectVersion.h` owns the persisted project
+  format and compatibility policy. Change it only when the file format changes.
+- The iOS build derives `CFBundleShortVersionString` from
+  `sources/ProductVersion.h`.
+- The iOS `CFBundleVersion` is an App Store build number. Increment it for every
+  upload of the same product version.
 
+## Prepare the release
+
+1. Update `sources/ProductVersion.h` to the approved version.
+2. Update release-facing store copy when behavior, permissions, or privacy
+   answers changed.
+3. Build and test every affected target.
+4. Confirm the repository is clean and tag the exact tested commit.
+
+## Required validation
+
+### Shared host tests
+
+```bash
+cmake -S tests -B build-host -DCMAKE_BUILD_TYPE=Release
+cmake --build build-host --parallel
+ctest --test-dir build-host --output-on-failure
+```
+
+### WASM workbench
+
+```bash
+tools/build-wasm.sh Release
+cd web
+pnpm install --frozen-lockfile
+pnpm test --run
+pnpm exec playwright test --workers=1
+pnpm build
+pnpm verify:dist
+```
+
+### NullPerator for iOS
+
+```bash
+cd web
+pnpm install --frozen-lockfile
+cd ..
+ios/scripts/package-web.sh
+xcodebuild \
+  -project ios/NullPeratorIOS.xcodeproj \
+  -scheme NullPeratorIOS \
+  -configuration Release \
+  -destination 'generic/platform=iOS' \
+  build
+```
+
+Archive with the distribution team/profile, upload the build to TestFlight,
+and complete the smoke test in `docs/AppStoreSubmission.md` on a real iPhone and
+iPad before App Review.
+
+### Node firmware
+
+Build with the supported ESP-IDF environment and validate on hardware:
+
+```bash
+idf.py --project-dir sources -B sources/build/node -DNode=true build
+```
+
+## Publish
+
+1. Merge the tested release commit into `nullperator-main`.
+2. Create an annotated `v<version>` tag on that commit.
+3. Push the branch and tag to the product repository.
+4. Publish the approved artifacts and release notes for each affected target.
+5. Record any target-specific validation that remains manual.

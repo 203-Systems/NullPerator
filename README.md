@@ -1,12 +1,14 @@
 # PicoTracker
 
 PicoTracker is an eight-track music tracker with a compact, controller-driven
-workflow. This repository contains two supported products:
+workflow. This repository contains three supported products:
 
 - **Node firmware** for the ESP32-S3 hardware target.
 - **WASM workbench** for running the same C++ engine and UI2 in a browser.
+- **NullPerator for iOS**, which runs the C++ engine natively behind the shared
+  Svelte presentation on iPhone and iPad.
 
-Both products use the 240×240 UI2 renderer. The retired hardware targets and
+All three products use the 240×240 UI2 renderer. The retired hardware targets and
 their legacy character UI are not part of this repository.
 
 ## Features
@@ -39,16 +41,32 @@ Quick start:
 ```bash
 tools/build-wasm.sh Release
 cd web
-npm install
-npm run dev
+pnpm install --frozen-lockfile
+pnpm dev
 ```
+
+## NullPerator for iOS
+
+The iOS application uses native C++ audio, MIDI, recording, persistence, and
+framebuffer rendering. It does not ship the WASM runtime or browser filesystem.
+
+```bash
+cd web
+pnpm install --frozen-lockfile
+cd ..
+ios/scripts/package-web.sh
+open ios/NullPeratorIOS.xcodeproj
+```
+
+See the [iOS build guide](ios/README.md) and
+[native architecture](ios/NATIVE_ARCHITECTURE.md).
 
 ## Host tests
 
 ```bash
 cmake -S tests -B build-host -DCMAKE_BUILD_TYPE=Release
 cmake --build build-host --parallel
-./build-host/picoTracker_tests
+ctest --test-dir build-host --output-on-failure
 ```
 
 ## License
