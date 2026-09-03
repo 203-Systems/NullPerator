@@ -60,3 +60,5 @@ artifacts/native-layout-screenshots/
 # Python tooling caches
 __pycache__/
 *.py[cod]
+.vercel
+.env*
