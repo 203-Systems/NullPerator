@@ -1,6 +1,7 @@
 <script>
   import { onDestroy, onMount, tick } from 'svelte'
   import VirtualControls from './VirtualControls.svelte'
+  import { controllerStore } from '../stores/controller.js'
   import { createInputStore } from '../stores/input.js'
 
   export let runtime
@@ -8,6 +9,7 @@
   export let settings = null
   export let compact = false
   export let nativeHostActive = false
+  export let active = true
 
   let panel
   let scene
@@ -22,7 +24,10 @@
   let displayScale = nativeHostActive ? '1.5' : (settings?.snapshot?.().displayScale ?? 'fit')
   let fitScale = 1.4
   let hideControlsWithGamepad = settings?.snapshot?.().hideControlsWithGamepad ?? false
+  let showVirtualControls = nativeHostActive || settings?.snapshot?.().showVirtualControls !== false
   let controllerConnected = false
+  let shouldShowControls = true
+  let wakeControllerInput = () => {}
   let detachSettings = () => {}
   const scaleFor = (value, compactMode, availableScale) => compactMode ? 1 : (value === 'fit' ? availableScale : Number(value) || 1)
   const input = createInputStore({
@@ -43,7 +48,9 @@
     // Ignore the transient zero-size ResizeObserver sample from `hidden` so
     // returning to the tracker never flashes at the minimum fit scale.
     if (innerWidth <= 0 || innerHeight <= 0) return
-    const next = Math.max(.75, Math.min(1.4, innerWidth / 320, innerHeight / 496))
+    const naturalWidth = shouldShowControls ? 320 : 264
+    const naturalHeight = shouldShowControls ? 484 : 264
+    const next = Math.max(.75, Math.min(1.4, innerWidth / naturalWidth, innerHeight / naturalHeight))
     fitScale = Math.floor(next * 1000) / 1000
   }
   async function resetModeScroll(compactMode, target) {
@@ -102,6 +109,7 @@
   }
 
   function isTrackerActive(event) {
+    if (!active) return false
     if (runtime.state !== 'ready') return false
     if (audioBlocked) return false
     if (!panel || panel.getClientRects().length === 0) return false
@@ -109,13 +117,13 @@
     // prevents focus and pointer input, but our window-level keyboard mapping
     // must explicitly honor it as well.
     if (panel.closest('[inert]')) return false
-    const active = document.activeElement
-    if (!active) return true
-    const tag = active.tagName
-    if (active.isContentEditable || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return false
+    const focusedElement = document.activeElement
+    if (!focusedElement) return true
+    const tag = focusedElement.tagName
+    if (focusedElement.isContentEditable || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return false
     // Enter/Space on a focused virtual switch already produces its native
     // button click; do not dispatch the globally mapped action a second time.
-    if ((event?.code === 'Enter' || event?.code === 'Space') && active.closest?.('.operator-controls')) return false
+    if ((event?.code === 'Enter' || event?.code === 'Space') && focusedElement.closest?.('.operator-controls')) return false
     return true
   }
   function refreshActionState() {
@@ -135,36 +143,6 @@
   function applyNativeBattery(state = globalThis.__nullPeratorNativeBattery) {
     if (!nativeHostActive || !state || !runtime.battery) return
     runtime.battery.setState(state)
-  }
-  function attachRawGamepadFaceButtons() {
-    if (!nativeHostActive || typeof navigator.getGamepads !== 'function') return () => {}
-    const bindings = [
-      { index: 0, action: 'enter' },
-      { index: 1, action: 'option' },
-    ]
-    const held = new Map(bindings.map(({ index }) => [index, false]))
-    let frame = 0
-    let attached = true
-    const poll = () => {
-      if (!attached) return
-      const pads = Array.from(navigator.getGamepads() ?? []).filter(Boolean)
-      for (const { index, action } of bindings) {
-        const pressed = document.visibilityState === 'visible'
-          && pads.some((pad) => pad.connected !== false && Boolean(pad.buttons?.[index]?.pressed))
-        if (pressed === held.get(index)) continue
-        held.set(index, pressed)
-        const source = `gamepad:b${index}`
-        if (pressed) input.press(action, source)
-        else input.release(action, source)
-      }
-      frame = requestAnimationFrame(poll)
-    }
-    frame = requestAnimationFrame(poll)
-    return () => {
-      attached = false
-      cancelAnimationFrame(frame)
-      for (const { index, action } of bindings) input.release(action, `gamepad:b${index}`)
-    }
   }
   function attachNativeFramePump() {
     if (!nativeHostActive) return () => {}
@@ -233,8 +211,12 @@
   }
 
   $: audioBlocked = !nativeHostActive && (audio.state === 'locked' || audio.state === 'suspended')
+  $: shouldShowControls = nativeHostActive
+    ? !(hideControlsWithGamepad && controllerConnected)
+    : showVirtualControls
   $: deviceScale = scaleFor(displayScale, compact, fitScale)
   $: if (runtime.state !== 'ready' || audioBlocked) { input.releaseAll(); actionMask = 0; actionGeneration = 0; lastAction = -1 }
+  $: if (active && runtime.state === 'ready' && !audioBlocked) wakeControllerInput()
   $: synchronizeAudioPrompt(audioBlocked, unlockDialog, unlockButton)
   $: resetModeScroll(compact, scene)
   $: if (nativeHostActive && runtime.battery) applyNativeBattery()
@@ -246,12 +228,14 @@
     detachSettings = settings?.subscribe?.((next) => {
       displayScale = nativeHostActive ? '1.5' : next.displayScale
       hideControlsWithGamepad = Boolean(next.hideControlsWithGamepad)
+      showVirtualControls = nativeHostActive || next.showVirtualControls !== false
     }) ?? (() => {})
-    controllerConnected = Boolean(globalThis.__nullPeratorControllerState?.connected)
-    const controllerChanged = (event) => { controllerConnected = Boolean(event.detail?.connected) }
-    globalThis.addEventListener('nullperator-controller-change', controllerChanged)
+    const detachControllerState = controllerStore.subscribe((next) => {
+      controllerConnected = next.connected
+    })
     const detach = input.attach({ isActive: isTrackerActive })
-    const detachRawGamepad = attachRawGamepadFaceButtons()
+    const detachControllerInput = controllerStore.attachInput(input, { isActive: isTrackerActive, nativeHostActive })
+    wakeControllerInput = detachControllerInput.wake ?? (() => {})
     const detachNativeFrames = attachNativeFramePump()
     const timer = diagnosticsEnabled() ? window.setInterval(refreshActionState, 16) : null
     if (timer !== null) refreshActionState()
@@ -268,10 +252,10 @@
     }) : null
     if (nativeBridge) globalThis.__nullPeratorHost = nativeBridge
     return () => {
+      wakeControllerInput = () => {}
       if (nativeBridge && globalThis.__nullPeratorHost === nativeBridge) delete globalThis.__nullPeratorHost
-      globalThis.removeEventListener('nullperator-controller-change', controllerChanged)
       if (timer !== null) window.clearInterval(timer)
-      resizeObserver?.disconnect(); detachNativeFrames(); detachRawGamepad(); detach(); detachSettings()
+      resizeObserver?.disconnect(); detachNativeFrames(); detachControllerInput(); detachControllerState(); detach(); detachSettings()
     }
   })
   onDestroy(() => {
@@ -290,7 +274,7 @@
   onfocusout={(event) => { if (!panel?.contains(event.relatedTarget)) input.releaseAll() }}>
   <h1 class="sr-only">NullPerator Player</h1>
   <div class="device-scene" bind:this={scene}>
-    <div class="operator-device" inert={audioBlocked} data-display-scale={displayScale} style={`--device-scale:${deviceScale}`}>
+    <div class="operator-device" class:controls-hidden={!shouldShowControls && !nativeHostActive} inert={audioBlocked} data-display-scale={displayScale} style={`--device-scale:${deviceScale}`}>
       <div class="operator-screen-housing">
         <div class="screen-bezel">
           <canvas id="canvas" aria-hidden="true" tabindex="-1"></canvas>
@@ -301,7 +285,7 @@
           <div class="screen-glass" aria-hidden="true"></div>
         </div>
       </div>
-      {#if !(nativeHostActive && hideControlsWithGamepad && controllerConnected)}
+      {#if shouldShowControls}
         <VirtualControls {input} {heldActions} disabled={runtime.state !== 'ready'} compact={nativeHostActive ? false : compact} {nativeHostActive} />
       {/if}
     </div>
@@ -314,14 +298,6 @@
       <button bind:this={unlockButton} type="button" onclick={unlockAudio}>Enable sound</button>
     </dialog>{/if}
   </div>
-
-  {#if !compact}<footer class="keyboard-helper" aria-label="Keyboard shortcuts">
-    <div><span class="key-cluster"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>Move</span></div>
-    <div><kbd>J</kbd><span>Option</span></div>
-    <div><kbd>K</kbd><span>Enter</span></div>
-    <div><kbd>C</kbd><span>Play</span></div>
-    <div><kbd>X</kbd><span>Shift</span></div>
-  </footer>{/if}
 </div>
 
 <style>
@@ -352,12 +328,8 @@
   .audio-unlock p:not(.eyebrow) { margin:7px 0 13px; color:var(--muted); font-size:11px; line-height:1.45; }
   .audio-unlock button { width:100%; min-height:44px; padding:0 12px; border:1px solid var(--accent-border); border-radius:var(--radius-control); color:var(--text-accent); background:var(--accent-fill); font-weight:700; cursor:pointer; }
   .audio-unlock button:hover { border-color:rgba(76,201,240,.72); background:rgba(76,201,240,.18); }
-  .keyboard-helper { display:flex; min-height:52px; align-items:center; justify-content:center; gap:24px; padding:7px 16px; border-top:1px solid var(--border); background:var(--panel); color:var(--muted); overflow:auto; flex-shrink:0; }
-  .keyboard-helper>div { display:flex; align-items:center; gap:7px; white-space:nowrap; font-size:.7rem; }
-  .key-cluster { display:flex; align-items:center; gap:3px; }
-  kbd { display:grid; min-width:22px; height:22px; padding:0 4px; place-items:center; border:1px solid var(--border-strong); border-radius:var(--radius-tight); color:var(--text); background:var(--bg-2); font:600 10px/1 var(--mono); }
-  @media(max-height:760px){ .device-scene{align-items:flex-start}.keyboard-helper{gap:14px;padding-inline:10px} }
-  @media(max-width:720px){ .device-scene{padding:12px}.device-input-host:not(.compact) .operator-device{zoom:.86!important}.keyboard-helper{justify-content:flex-start}.keyboard-helper>div>span:last-child{display:none} }
+  @media(max-height:760px){ .device-scene{align-items:flex-start} }
+  @media(max-width:720px){ .device-scene{padding:12px}.device-input-host:not(.compact) .operator-device{zoom:.86!important} }
   @media(max-width:360px){
     .compact .device-scene{padding-inline:0}
     .device-input-host:not(.compact) .operator-device{zoom:.72!important}
@@ -372,16 +344,19 @@
     .compact .device-scene{padding:6px 12px}
     .compact .operator-device{display:grid;width:544px;height:264px;grid-template-columns:264px 280px;align-items:center}
     .compact :global(.operator-controls){margin:0}
+    .compact .operator-device.controls-hidden{display:block;width:264px;height:auto}
   }
   @media(orientation:landscape) and (max-height:539px) and (max-width:567px){
     .compact .device-scene{padding:6px 0}
     .compact .operator-device{width:480px;height:240px;grid-template-columns:240px 240px}
     .compact .screen-bezel{width:240px;height:240px;padding:0;border:0}
     .compact .screen-glass{inset:0}
+    .compact .operator-device.controls-hidden{width:240px}
   }
   @media(min-height:540px){
     .compact .operator-device{height:min(720px,calc(100dvh - 72px - env(safe-area-inset-bottom)))}
     .compact :global(.operator-controls){position:absolute;left:0;bottom:0;margin:0}
+    .compact .operator-device.controls-hidden{height:auto}
   }
   @media(min-height:540px) and (orientation:portrait){
     .compact.native-host .operator-device{height:100%;min-height:0}

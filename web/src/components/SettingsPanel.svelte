@@ -1,6 +1,8 @@
 <script>
-  import { onDestroy } from 'svelte'
+  import { onDestroy, onMount } from 'svelte'
+  import { GameConsole, Maximize, Minimize, TouchInteraction } from 'carbon-icons-svelte'
   import { version as packageVersion } from '../../package.json'
+  import { controllerStore } from '../stores/controller.js'
   import { AUDIO_BUFFER_OPTIONS, DISPLAY_SCALE_OPTIONS } from '../stores/settings.js'
   import { TRACE_CATEGORIES } from '../trace/registry.js'
   import ToggleSwitch from './ToggleSwitch.svelte'
@@ -20,9 +22,13 @@
   let audioSnapshot = { metrics: null }
   let detachAudio = () => {}
   let feedback = ''
+  let controller = controllerStore.snapshot()
+  let fullscreenActive = false
+  let fullscreenSupported = false
   const productVersion = packageVersion.replace(/\.0$/, '')
   const metadataValue = (candidate) => candidate ?? 'unavailable'
   const unsubscribe = settings.subscribe((next) => { snapshot = next })
+  const detachController = controllerStore.subscribe((next) => { controller = next })
   const categories = Object.entries(TRACE_CATEGORIES).map(([bit, name]) => ({ bit: Number(bit), name }))
   const update = (patch) => { settings.update(patch); feedback = 'Settings saved locally.' }
   const updateAudio = (patch) => {
@@ -42,7 +48,31 @@
     detachAudio = audio?.subscribe?.((next) => (audioSnapshot = next)) ?? (() => {})
   }
   const micros = (value) => `${Number(value ?? 0).toLocaleString()} µs`
-  onDestroy(() => { unsubscribe(); detachAudio() })
+  const fullscreenTarget = () => document.querySelector('.dashboard') ?? document.documentElement
+  async function toggleFullscreen() {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen()
+      else await fullscreenTarget().requestFullscreen()
+    } catch {
+      feedback = 'Fullscreen could not be opened in this browser.'
+    }
+  }
+  $: controllerName = controller.names[0] ?? 'Game controller'
+  $: controllerStatus = controller.connected
+    ? `Connected · ${controllerName}${controller.count > 1 ? ` +${controller.count - 1}` : ''}`
+    : (controller.supported ? 'Not connected' : 'Unavailable')
+  onMount(() => {
+    const synchronizeFullscreen = () => {
+      fullscreenActive = Boolean(document.fullscreenElement)
+      fullscreenSupported = document.fullscreenEnabled !== false
+        && typeof fullscreenTarget()?.requestFullscreen === 'function'
+        && typeof document.exitFullscreen === 'function'
+    }
+    document.addEventListener('fullscreenchange', synchronizeFullscreen)
+    synchronizeFullscreen()
+    return () => document.removeEventListener('fullscreenchange', synchronizeFullscreen)
+  })
+  onDestroy(() => { unsubscribe(); detachAudio(); detachController() })
 </script>
 
 <section class="settings-panel" aria-labelledby="settings-heading">
@@ -55,6 +85,27 @@
       <label>Device scale<select value={snapshot.displayScale} onchange={(event) => update({ displayScale: event.currentTarget.value })}>
         {#each DISPLAY_SCALE_OPTIONS as scale}<option value={scale}>{scale === 'fit' ? 'Fit workspace' : `${scale}×`}</option>{/each}
       </select></label>
+    </fieldset>
+    <fieldset><legend>Player</legend>
+      <div class="player-list">
+        <div class="player-row controller-row">
+          <GameConsole size={20}/>
+          <span class="row-copy"><strong>Controller</strong><small>{controller.connected ? (controller.usable ? 'Ready for tracker input' : 'Standard mapping unavailable') : 'Connect over USB or Bluetooth, then press a button'}</small></span>
+          <span class:connected={controller.connected} class:limited={controller.connected && !controller.usable}
+            class="controller-state" title={controllerStatus} aria-live="polite"><i></i><span>{controllerStatus}</span></span>
+        </div>
+        <div class="player-row">
+          <TouchInteraction size={20}/>
+          <span class="row-copy"><strong>Virtual controls</strong><small>Show controls next to the tracker</small></span>
+          <ToggleSwitch checked={snapshot.showVirtualControls} label="Show virtual controls"
+            onChange={(showVirtualControls) => update({ showVirtualControls })}/>
+        </div>
+        <button type="button" class="player-row fullscreen-row" disabled={!fullscreenSupported}
+          aria-label={fullscreenActive ? 'Exit fullscreen' : 'Enter fullscreen'} onclick={toggleFullscreen}>
+          {#if fullscreenActive}<Minimize size={20}/>{:else}<Maximize size={20}/>{/if}
+          <span class="row-copy"><strong>{fullscreenActive ? 'Exit fullscreen' : (fullscreenSupported ? 'Enter fullscreen' : 'Fullscreen unavailable')}</strong><small>Use the entire display for NullPerator</small></span>
+        </button>
+      </div>
     </fieldset>
     <fieldset><legend>Audio</legend>
       <label>Output volume <output>{snapshot.outputVolume}%</output><input aria-label="Output volume" type="range" min="0" max="100" value={snapshot.outputVolume} oninput={(event) => updateAudio({ outputVolume: Number(event.currentTarget.value) })} /></label>
@@ -114,6 +165,24 @@
   button:not(:disabled) { cursor: pointer; }
   output { color:var(--text-accent); font:500 .73rem/1 var(--mono); }
   .field-note { margin:0 0 12px; color:var(--muted); font-size:.73rem; line-height:1.5; }
+  .player-list { margin:-5px 0; }
+  .player-row { display:grid; min-width:0; min-height:52px; grid-template-columns:20px minmax(0,1fr) auto; align-items:center; gap:10px; color:var(--muted); }
+  .player-row + .player-row { border-top:1px solid var(--border); }
+  .player-row :global(svg) { color:var(--muted-solid); }
+  .row-copy { display:grid; min-width:0; gap:2px; }
+  .row-copy strong { color:var(--text); font-size:.8rem; font-weight:600; }
+  .row-copy small { overflow:hidden; color:var(--muted); font-size:.67rem; line-height:1.35; text-overflow:ellipsis; white-space:nowrap; }
+  .controller-state { display:flex; min-width:0; max-width:190px; align-items:center; gap:6px; color:var(--muted); font:500 .67rem/1 var(--mono); }
+  .controller-state i { width:7px; height:7px; flex:0 0 auto; border-radius:50%; background:var(--disabled); }
+  .controller-state>span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .controller-state.connected { color:var(--success-text); }
+  .controller-state.connected i { background:var(--success-dot); }
+  .controller-state.limited { color:var(--warning); }
+  .controller-state.limited i { background:var(--warning); }
+  button.player-row { width:100%; min-height:52px; padding:0; border:0; border-radius:0; text-align:left; background:transparent; }
+  button.player-row:not(:disabled):hover { color:var(--text); background:var(--surface-subtle); }
+  button.player-row:disabled { opacity:.58; }
+  .fullscreen-row .row-copy { grid-column:2/4; }
   .developer-setting { display:flex; min-height:48px; align-items:center; justify-content:space-between; gap:16px; }
   .developer-setting>span { display:grid; gap:5px; }
   .developer-setting strong { color:var(--text); font-size:.8rem; }

@@ -86,8 +86,7 @@
 </div>
 
 <style>
-  .operator-controls { position:relative; width:100%; height:220px; margin-top:12px; overflow:visible; touch-action:none; user-select:none; }
-  .operator-controls::before { content:'+'; position:absolute; left:50%; top:0; display:grid; width:22px; height:12px; translate:-50% 0; place-items:center; border:1px solid var(--border-strong); color:var(--muted); font:8px/1 var(--mono); pointer-events:none; }
+  .operator-controls { position:relative; width:100%; height:208px; margin-top:12px; overflow:visible; touch-action:none; user-select:none; }
   button { position:absolute; width:48px; height:48px; padding:0; border:1px solid var(--border-strong); border-radius:var(--radius-control); color:var(--text); background:var(--bg-2); cursor:pointer; touch-action:none; transition:color 120ms,border-color 120ms,background 120ms,transform 80ms; }
   button:hover:not(:disabled) { border-color:var(--accent-border); background:var(--accent-soft); }
   button:disabled { cursor:not-allowed; opacity:.45; }
@@ -100,9 +99,9 @@
   em { position:absolute; left:50%; bottom:8px; translate:-50% 0; color:var(--muted); font:500 7px/1 var(--mono); letter-spacing:.07em; font-style:normal; }
   .d-pad .switch,.d-pad kbd,.face kbd,.face em { rotate:-45deg; }
   .face .switch { display:none; }
-  .d-pad { position:absolute; left:23px; top:32px; width:142px; height:126px; }
+  .d-pad { position:absolute; left:23px; top:20px; width:142px; height:126px; }
   .d-pad .up{left:47px;top:0}.d-pad .left{left:8px;top:39px}.d-pad .down{left:47px;top:78px}.d-pad .right{left:86px;top:39px}
-  .face-buttons { position:absolute; right:12px; top:40px; width:126px; height:126px; }
+  .face-buttons { position:absolute; right:12px; top:28px; width:126px; height:126px; }
   .face.enter{left:67px;top:0}.face.option{left:28px;top:39px}
   .bottom-buttons { position:absolute; left:107px; bottom:0; width:106px; height:48px; }
   .bottom-buttons .switch { display:none; }
@@ -110,7 +109,6 @@
   .bottom-buttons button:first-child{left:0}.bottom-buttons button:last-child{right:0}
   .operator-controls.compact kbd { display:none; }
   .operator-controls.compact { height:166px; margin-top:10px; }
-  .operator-controls.compact::before { display:none; }
   .compact button,.compact .d-pad button,.compact .face { width:52px; height:52px; border-radius:14px; transform:none; }
   .compact button:active,.compact button.pressed,.compact .d-pad button:active,.compact .d-pad button.pressed,.compact .face:active,.compact .face.pressed { transform:translateY(1px); }
   .compact .d-pad { left:0; top:4px; width:174px; height:156px; }
@@ -149,7 +147,6 @@
     padding:0 18px;
     overflow:hidden;
   }
-  .operator-controls.native-host::before { display:none; }
   .operator-controls.native-host button { appearance:none; -webkit-appearance:none; -webkit-tap-highlight-color:transparent; -webkit-touch-callout:none; outline:none; }
   .operator-controls.native-host .d-pad {
     position:relative; inset:auto; grid-column:1; grid-row:1; align-self:start; justify-self:center;

@@ -78,6 +78,91 @@ test('user tools stay available while developer tools add only diagnostics', asy
   await expect(navigation.getByRole('button', { name: 'Trace', exact: true })).toBeVisible()
 })
 
+test('player settings control the virtual controls and browser fullscreen', async ({ page }) => {
+  await page.addInitScript(() => {
+    let fullscreenElement = null
+    Object.defineProperty(document, 'fullscreenElement', {
+      configurable: true,
+      get: () => fullscreenElement,
+    })
+    Object.defineProperty(document, 'exitFullscreen', {
+      configurable: true,
+      value: async () => {
+        fullscreenElement = null
+        document.dispatchEvent(new Event('fullscreenchange'))
+      },
+    })
+    Object.defineProperty(HTMLElement.prototype, 'requestFullscreen', {
+      configurable: true,
+      value: async function requestFullscreen() {
+        fullscreenElement = this
+        document.dispatchEvent(new Event('fullscreenchange'))
+      },
+    })
+  })
+  await page.goto('/?audio=disabled')
+  await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible()
+  const navigation = page.getByRole('navigation', { name: 'Main navigation' })
+  await navigation.getByRole('button', { name: 'Settings', exact: true }).click()
+
+  const virtualControls = page.getByRole('button', { name: 'Show virtual controls' })
+  await expect(virtualControls).toHaveAttribute('aria-pressed', 'true')
+  await virtualControls.click()
+  await expect(virtualControls).toHaveAttribute('aria-pressed', 'false')
+
+  const enterFullscreen = page.getByRole('button', { name: 'Enter fullscreen' })
+  await enterFullscreen.click()
+  const exitFullscreen = page.getByRole('button', { name: 'Exit fullscreen' })
+  await expect(exitFullscreen).toBeVisible()
+  await exitFullscreen.click()
+  await expect(enterFullscreen).toBeVisible()
+
+  await navigation.getByRole('button', { name: 'Tracker', exact: true }).click()
+  await expect(page.locator('[aria-label="NullPerator virtual controls"]')).toHaveCount(0)
+  await expect(page.locator('.keyboard-helper')).toHaveCount(0)
+  await page.reload()
+  await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible()
+  await expect(page.locator('[aria-label="NullPerator virtual controls"]')).toHaveCount(0)
+})
+
+test('settings reports a connected standard game controller', async ({ page }) => {
+  await page.addInitScript(() => {
+    let gamepads = []
+    Object.defineProperty(navigator, 'getGamepads', {
+      configurable: true,
+      value: () => gamepads,
+    })
+    globalThis.__connectTestController = () => {
+      gamepads = [{
+        index: 0,
+        id: 'NullPerator Test Pad',
+        connected: true,
+        mapping: 'standard',
+        axes: [0, 0],
+        buttons: Array.from({ length: 16 }, () => ({ pressed: false, value: 0 })),
+      }]
+      globalThis.dispatchEvent(new Event('gamepadconnected'))
+    }
+    globalThis.__setTestControllerButton = (index, pressed) => {
+      gamepads[0].buttons[index] = { pressed, value: pressed ? 1 : 0 }
+    }
+  })
+  await page.goto('/?audio=disabled&inputDiagnostics=1')
+  await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible()
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await expect(page.getByText('Not connected', { exact: true })).toBeVisible()
+
+  await page.evaluate(() => globalThis.__connectTestController())
+  await expect(page.getByText('Connected · NullPerator Test Pad', { exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Tracker', exact: true }).click()
+  const canvas = page.locator('#picotracker-canvas')
+  await page.evaluate(() => globalThis.__setTestControllerButton(0, true))
+  await expect(canvas).toHaveAttribute('data-action-mask', String(1 << 6))
+  await page.evaluate(() => globalThis.__setTestControllerButton(0, false))
+  await expect(canvas).toHaveAttribute('data-action-mask', '0')
+})
+
 test('short desktop pins Settings while keyboard navigation scrolls the main destinations', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('picotracker.wasm.settings.v4', JSON.stringify({

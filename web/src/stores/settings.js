@@ -20,6 +20,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   outputVolume: 100,
   traceMask: TRACE_ALL_MASK,
   lowLatencyAudio: true,
+  showVirtualControls: true,
   // Developer tools are an explicit, additive preference. Viewport changes
   // only affect layout and must never change which capabilities a user sees.
   developerMode: false,
@@ -43,6 +44,9 @@ export function migrateSettings(candidate) {
     lowLatencyAudio: source.version >= 3
       ? Boolean(source.lowLatencyAudio)
       : DEFAULT_SETTINGS.lowLatencyAudio,
+    showVirtualControls: typeof source.showVirtualControls === 'boolean'
+      ? source.showVirtualControls
+      : DEFAULT_SETTINGS.showVirtualControls,
     developerMode: source.version >= SETTINGS_VERSION && typeof source.developerMode === 'boolean'
       ? source.developerMode
       : DEFAULT_SETTINGS.developerMode,

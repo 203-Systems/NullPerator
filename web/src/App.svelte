@@ -139,7 +139,7 @@
       <ErrorBoundary label={`${activeSection} panel`}>
         <section class="device-stage" aria-label="NullPerator player" hidden={activeSection!=='Device'}
           inert={runtime.state === 'failed' || runtime.state === 'stopping'}>
-          {#key canvasGeneration}<DevicePanel {runtime} {audio} settings={nativeHostActive ? nativeAppSettingsStore : settingsStore} compact={compactLayout} {nativeHostActive}/>{/key}
+          {#key canvasGeneration}<DevicePanel {runtime} {audio} settings={nativeHostActive ? nativeAppSettingsStore : settingsStore} compact={compactLayout} {nativeHostActive} active={activeSection === 'Device' && !mobileMenuOpen}/>{/key}
         </section>
         {#if activeSection==='Files'}<div class="page-panel"><FilesPanel files={runtime.files} storage={runtime.storage} hostFolder={runtime.hostFolder} disabled={runtime.state!=='ready'}/></div>
         {:else if activeSection==='MIDI'}<div class="page-panel"><MidiPanel midi={runtime.midi} disabled={runtime.state!=='ready'} {developerMode}/></div>

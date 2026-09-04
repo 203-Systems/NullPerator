@@ -1,12 +1,12 @@
 <script>
-  import { Dashboard, DataBase, Music, Activity, Settings, Terminal } from 'carbon-icons-svelte'
+  import { Dashboard, DataBase, Music, Activity, Settings as SettingsGear, Terminal } from 'carbon-icons-svelte'
   import { sectionLabel } from '../navigation.js'
 
   export let sections = []
   export let active = ''
   export let onSelect = () => {}
 
-  const iconMap = { Device: Dashboard, Files: DataBase, MIDI: Music, Logs: Terminal, Trace: Activity, Settings }
+  const iconMap = { Device: Dashboard, Files: DataBase, MIDI: Music, Logs: Terminal, Trace: Activity, Settings: SettingsGear }
 </script>
 
 <nav class="left-nav" aria-label="Main navigation">
@@ -27,7 +27,7 @@
       <button type="button" class:nav-active={active === 'Settings'} aria-label={sectionLabel('Settings')}
         aria-current={active === 'Settings' ? 'page' : undefined} title={sectionLabel('Settings')}
         onclick={() => onSelect('Settings')}>
-        <Settings size={20} /><span class="nav-label">{sectionLabel('Settings')}</span>
+        <SettingsGear size={20} /><span class="nav-label">{sectionLabel('Settings')}</span>
       </button>
     </div>
   {/if}

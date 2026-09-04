@@ -7,7 +7,7 @@
     DataBase,
     Menu,
     Music,
-    Settings,
+    Settings as SettingsGear,
     Terminal,
   } from 'carbon-icons-svelte'
 
@@ -26,7 +26,7 @@
     Device: Dashboard,
     Files: DataBase,
     MIDI: Music,
-    Settings,
+    Settings: SettingsGear,
     Logs: Terminal,
     Trace: Activity,
   }
@@ -165,7 +165,7 @@
       <nav class="utility" aria-label="Mobile application sections">
         <button type="button" class:active={active === 'Settings'} aria-current={active === 'Settings' ? 'page' : undefined}
           aria-label={sectionLabel('Settings')} title={sectionLabel('Settings')} onclick={() => choose('Settings')}>
-          <Settings size={20}/>
+          <SettingsGear size={20}/>
           <span><strong>{sectionLabel('Settings')}</strong><small>{descriptions.Settings}</small></span>
         </button>
       </nav>
