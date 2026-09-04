@@ -99,6 +99,7 @@
   em { position:absolute; left:50%; bottom:8px; translate:-50% 0; color:var(--muted); font:500 7px/1 var(--mono); letter-spacing:.07em; font-style:normal; }
   .d-pad .switch,.d-pad kbd,.face kbd,.face em { rotate:-45deg; }
   .face .switch { display:none; }
+  .operator-controls:not(.compact):not(.native-host) { height:var(--device-controls-height,176px); }
   .d-pad { position:absolute; left:23px; top:20px; width:142px; height:126px; }
   .d-pad .up{left:47px;top:0}.d-pad .left{left:8px;top:39px}.d-pad .down{left:47px;top:78px}.d-pad .right{left:86px;top:39px}
   .face-buttons { position:absolute; right:12px; top:28px; width:126px; height:126px; }
@@ -107,6 +108,9 @@
   .bottom-buttons .switch { display:none; }
   .bottom-buttons button:active,.bottom-buttons button.pressed { transform:translateY(1px); border-color:var(--accent); background:var(--panel); box-shadow:inset 0 0 0 1px var(--accent-fill-strong); }
   .bottom-buttons button:first-child{left:0}.bottom-buttons button:last-child{right:0}
+  .operator-controls:not(.compact):not(.native-host) .d-pad { left:16px; top:14px; }
+  .operator-controls:not(.compact):not(.native-host) .face-buttons { right:16px; top:14px; }
+  .operator-controls:not(.compact):not(.native-host) .bottom-buttons { left:auto; right:18px; top:122px; bottom:auto; }
   .operator-controls.compact kbd { display:none; }
   .operator-controls.compact { height:166px; margin-top:10px; }
   .compact button,.compact .d-pad button,.compact .face { width:52px; height:52px; border-radius:14px; transform:none; }

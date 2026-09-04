@@ -163,6 +163,29 @@ test('settings reports a connected standard game controller', async ({ page }) =
   await expect(canvas).toHaveAttribute('data-action-mask', '0')
 })
 
+test('tracker chooses the layout that keeps the display and controls largest', async ({ page }) => {
+  await page.setViewportSize({ width: 1000, height: 658 })
+  await page.goto('/?audio=disabled')
+  await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible()
+  const player = page.locator('.device-input-host')
+  const screen = page.locator('.screen-bezel')
+  const controls = page.locator('.operator-controls')
+
+  await expect(player).toHaveClass(/wide-controls/)
+  const wideScreen = await screen.boundingBox()
+  const wideControls = await controls.boundingBox()
+  expect(wideScreen).not.toBeNull()
+  expect(wideControls).not.toBeNull()
+  expect(wideControls.x).toBeGreaterThan(wideScreen.x + wideScreen.width)
+  expect(Math.abs((wideControls.y + wideControls.height / 2) - (wideScreen.y + wideScreen.height / 2))).toBeLessThan(2)
+
+  await page.setViewportSize({ width: 820, height: 1000 })
+  await expect(player).not.toHaveClass(/wide-controls/)
+  const tallScreen = await screen.boundingBox()
+  const tallControls = await controls.boundingBox()
+  expect(tallControls.y).toBeGreaterThan(tallScreen.y + tallScreen.height)
+})
+
 test('short desktop pins Settings while keyboard navigation scrolls the main destinations', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('picotracker.wasm.settings.v4', JSON.stringify({
