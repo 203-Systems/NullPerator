@@ -3,6 +3,7 @@ export const UTILITY_SECTIONS = Object.freeze(['Settings'])
 export const USER_SECTIONS = Object.freeze([...PRIMARY_SECTIONS, ...UTILITY_SECTIONS])
 export const DEVELOPER_SECTIONS = Object.freeze(['Logs', 'Trace'])
 export const SECTION_LABELS = Object.freeze({ Device: 'Tracker' })
+export const WIKI_URL = 'https://np-wiki.203.io/'
 
 export function sectionLabel(section) {
   return SECTION_LABELS[section] ?? section

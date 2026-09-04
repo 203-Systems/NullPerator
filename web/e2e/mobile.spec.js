@@ -44,6 +44,13 @@ async function expectUserSections(menu) {
   const applicationNavigation = menu.getByRole('navigation', { name: 'Mobile application sections' })
   await expect(applicationNavigation.getByRole('button')).toHaveCount(1)
   expect(await sectionNames(applicationNavigation)).toEqual(['Settings'])
+  const wiki = applicationNavigation.getByRole('link', { name: 'Wiki', exact: true })
+  await expect(wiki).toHaveAttribute('href', 'https://np-wiki.203.io/')
+  await expect(wiki).toHaveAttribute('target', '_blank')
+  await expect(wiki).toHaveAttribute('rel', 'noopener noreferrer')
+  expect(await applicationNavigation.locator(':scope > a, :scope > button').evaluateAll((items) =>
+    items.map((item) => item.getAttribute('aria-label')),
+  )).toEqual(['Wiki', 'Settings'])
 }
 
 async function expectTouchTargets(page, root = page.locator('body')) {

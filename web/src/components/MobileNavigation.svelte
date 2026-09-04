@@ -2,6 +2,7 @@
   import { onDestroy, tick } from 'svelte'
   import {
     Activity,
+    Book,
     Close,
     Dashboard,
     DataBase,
@@ -11,7 +12,7 @@
     Terminal,
   } from 'carbon-icons-svelte'
 
-  import { DEVELOPER_SECTIONS, PRIMARY_SECTIONS, sectionLabel } from '../navigation.js'
+  import { DEVELOPER_SECTIONS, PRIMARY_SECTIONS, sectionLabel, WIKI_URL } from '../navigation.js'
   import ToggleSwitch from './ToggleSwitch.svelte'
 
   export let sections = []
@@ -162,6 +163,10 @@
 
       <p class="group-label application-label">Application</p>
       <nav class="utility" aria-label="Mobile application sections">
+        <a href={WIKI_URL} target="_blank" rel="noopener noreferrer" aria-label="Wiki" title="Wiki" onclick={closeMenu}>
+          <Book size={20}/>
+          <span><strong>Wiki</strong><small>Guides and reference</small></span>
+        </a>
         <button type="button" class:active={active === 'Settings'} aria-current={active === 'Settings' ? 'page' : undefined}
           aria-label={sectionLabel('Settings')} title={sectionLabel('Settings')} onclick={() => choose('Settings')}>
           <SettingsGear size={20}/>
@@ -188,10 +193,10 @@
   .sheet-surface header p,.group-label { margin:0 0 4px; color:var(--accent); font:600 .67rem/1 var(--mono); letter-spacing:.14em; text-transform:uppercase; }
   .sheet-surface h2 { margin:0; font-size:18px; }
   .sheet-surface nav { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; }
-  .sheet-surface nav>button { display:grid; min-height:62px; grid-template-columns:24px minmax(0,1fr); align-items:center; gap:9px; padding:10px; border:1px solid var(--border); border-radius:var(--radius-control); text-align:left; background:var(--surface-subtle); transition:color 120ms,border-color 120ms,background 120ms; }
-  .sheet-surface nav>button:hover,.sheet-surface nav>button:focus-visible { border-color:var(--accent-border); background:var(--accent-soft); }
+  .sheet-surface nav>button,.sheet-surface nav>a { display:grid; min-height:62px; grid-template-columns:24px minmax(0,1fr); align-items:center; gap:9px; padding:10px; border:1px solid var(--border); border-radius:var(--radius-control); color:var(--text); text-align:left; text-decoration:none; background:var(--surface-subtle); transition:color 120ms,border-color 120ms,background 120ms; }
+  .sheet-surface nav>button:hover,.sheet-surface nav>button:focus-visible,.sheet-surface nav>a:hover,.sheet-surface nav>a:focus-visible { border-color:var(--accent-border); background:var(--accent-soft); }
   .sheet-surface nav>button.active { color:var(--accent); border-color:var(--accent-border); background:var(--accent-soft); }
-  nav button>span,.developer-row>span { display:grid; min-width:0; gap:3px; }
+  nav button>span,nav a>span,.developer-row>span { display:grid; min-width:0; gap:3px; }
   nav strong,.developer-row strong { font-size:.8rem; }
   nav small,.developer-row small { overflow:hidden; color:var(--muted); font-size:.72rem; line-height:1.35; text-overflow:ellipsis; }
   .developer-row { display:flex; min-height:62px; align-items:center; justify-content:space-between; gap:14px; margin-top:14px; padding:10px 12px; border-top:1px solid var(--border); border-bottom:1px solid var(--border); }

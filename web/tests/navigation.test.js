@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   DEVELOPER_SECTIONS,
   USER_SECTIONS,
+  WIKI_URL,
   isDeveloperSection,
   sectionLabel,
   visibleSections,
@@ -23,5 +24,9 @@ describe('workbench navigation', () => {
   it('keeps internal route IDs out of user-facing navigation labels', () => {
     expect(sectionLabel('Device')).toBe('Tracker')
     expect(sectionLabel('Files')).toBe('Files')
+  })
+
+  it('uses the public NullPerator wiki URL', () => {
+    expect(WIKI_URL).toBe('https://np-wiki.203.io/')
   })
 })

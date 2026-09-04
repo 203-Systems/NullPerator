@@ -61,6 +61,10 @@ test('user tools stay available while developer tools add only diagnostics', asy
   for (const section of ['Files', 'MIDI', 'Settings']) {
     await expect(navigation.getByRole('button', { name: section, exact: true })).toBeVisible()
   }
+  const wiki = navigation.getByRole('link', { name: 'Wiki', exact: true })
+  await expect(wiki).toHaveAttribute('href', 'https://np-wiki.203.io/')
+  await expect(wiki).toHaveAttribute('target', '_blank')
+  await expect(wiki).toHaveAttribute('rel', 'noopener noreferrer')
   await expect(navigation.getByRole('button', { name: 'Logs', exact: true })).toHaveCount(0)
   await expect(navigation.getByRole('button', { name: 'Trace', exact: true })).toHaveCount(0)
 
@@ -205,7 +209,7 @@ test('short desktop pins Settings while keyboard navigation scrolls the main des
 
   const tracker = navigation.getByRole('button', { name: 'Tracker', exact: true })
   await tracker.focus()
-  for (const section of ['Files', 'MIDI', 'Logs', 'Trace', 'Settings']) {
+  for (const section of ['Files', 'MIDI', 'Logs', 'Trace']) {
     await page.keyboard.press('Tab')
     const destination = navigation.getByRole('button', { name: section, exact: true })
     await expect(destination).toBeFocused()
@@ -219,4 +223,9 @@ test('short desktop pins Settings while keyboard navigation scrolls the main des
       expect(destinationBox.y + destinationBox.height).toBeLessThanOrEqual(groupBox.y + groupBox.height)
     }
   }
+  const wiki = navigation.getByRole('link', { name: 'Wiki', exact: true })
+  await page.keyboard.press('Tab')
+  await expect(wiki).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(settings).toBeFocused()
 })
