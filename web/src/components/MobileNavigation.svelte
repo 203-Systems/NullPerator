@@ -129,7 +129,6 @@
         <button bind:this={closeButton} type="button" class="close" aria-label="Close menu" onclick={closeMenu}><Close size={19}/></button>
       </header>
 
-      <p class="group-label">Workspace</p>
       <nav aria-label="Mobile workspace sections">
         {#each PRIMARY_SECTIONS as section}
           {@const Icon = icons[section]}

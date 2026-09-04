@@ -12,7 +12,6 @@
 <nav class="left-nav" aria-label="Main navigation">
   <div class="nav-group">
     {#each sections.filter((section) => section !== 'Settings') as section}
-      {#if section === 'Device'}<span class="group-label">Workspace</span>{/if}
       {#if section === 'Logs'}<span class="group-label developer-label">Developer</span>{/if}
       {@const Icon = iconMap[section] ?? Dashboard}
       <button type="button" class:nav-active={active === section} aria-label={sectionLabel(section)}
@@ -39,7 +38,6 @@
   .nav-group::-webkit-scrollbar { display:none; }
   .settings-group { flex:0 0 auto; margin-top:auto; padding-top:8px; border-top:1px solid var(--border); }
   .group-label { margin:8px 18px 5px; color:var(--muted); opacity:.65; font:600 9px/1 var(--mono); letter-spacing:.12em; text-transform:uppercase; }
-  .group-label:first-child { margin-top:4px; }
   .developer-label { margin-top:15px; padding-top:13px; border-top:1px solid var(--border); }
   button { display:flex; align-items:center; gap:10px; width:100%; min-height:46px; padding:10px 12px 10px 18px; overflow:hidden; border:0; border-left:2px solid transparent; color:var(--muted); background:none; font-size:.82rem; font-weight:500; white-space:nowrap; cursor:pointer; transition:color 120ms,background 120ms,border-color 120ms; }
   button:hover { color:var(--text); background:rgba(255,255,255,.03); }
