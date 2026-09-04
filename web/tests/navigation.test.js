@@ -11,11 +11,11 @@ import {
 describe('workbench navigation', () => {
   it('keeps every user tool available without developer tools', () => {
     expect(visibleSections(false)).toEqual(USER_SECTIONS)
-    expect(visibleSections(false)).toEqual(['Device', 'Files', 'MIDI', 'Settings', 'About'])
+    expect(visibleSections(false)).toEqual(['Device', 'Files', 'MIDI', 'Settings'])
   })
 
   it('only adds diagnostics when developer tools are enabled', () => {
-    expect(visibleSections(true)).toEqual(['Device', 'Files', 'MIDI', ...DEVELOPER_SECTIONS, 'Settings', 'About'])
+    expect(visibleSections(true)).toEqual(['Device', 'Files', 'MIDI', ...DEVELOPER_SECTIONS, 'Settings'])
     expect(DEVELOPER_SECTIONS.every(isDeveloperSection)).toBe(true)
     expect(USER_SECTIONS.some(isDeveloperSection)).toBe(false)
   })

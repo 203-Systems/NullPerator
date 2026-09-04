@@ -6,7 +6,6 @@ const userSections = [
   ['Files', 'Files'],
   ['MIDI', 'MIDI'],
   ['Settings', 'Settings'],
-  ['About', 'About'],
 ]
 
 const developerSections = [
@@ -15,7 +14,7 @@ const developerSections = [
 ]
 
 const userNavigation = userSections.map(([section]) => section)
-const developerNavigation = ['Tracker', 'Files', 'MIDI', 'Logs', 'Trace', 'Settings', 'About']
+const developerNavigation = ['Tracker', 'Files', 'MIDI', 'Logs', 'Trace', 'Settings']
 
 async function expectNavigation(page, expected) {
   const buttons = page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button')
@@ -68,6 +67,11 @@ test('verified static bundle exposes the complete isolated workbench and persist
     await navigation.getByRole('button', { name: section, exact: true }).click()
     await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible()
   }
+  await expect(page.getByRole('link', { name: 'GitHub repository', exact: true }))
+    .toHaveAttribute('href', 'https://github.com/203-Systems/NullPerator')
+  await expect(page.getByRole('link', { name: 'Third-party notices', exact: true }))
+    .toHaveAttribute('href', '/THIRD_PARTY_NOTICES.md')
+  await expect(page.getByText('0.1', { exact: true })).toBeVisible()
 
   const settingsButton = navigation.getByRole('button', { name: 'Settings', exact: true })
   await settingsButton.click()
@@ -79,6 +83,7 @@ test('verified static bundle exposes the complete isolated workbench and persist
   await expect(page.getByText('Ready', { exact: true })).toBeVisible()
   await expect(settingsButton).toHaveAttribute('aria-current', 'page')
   await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible()
+  await expect(page.locator('[aria-label="Developer build details"]')).toBeVisible()
   await expectNavigation(page, developerNavigation)
 
   for (const [section, heading] of developerSections) {

@@ -5,14 +5,13 @@
     Close,
     Dashboard,
     DataBase,
-    Information,
     Menu,
     Music,
     Settings,
     Terminal,
   } from 'carbon-icons-svelte'
 
-  import { DEVELOPER_SECTIONS, USER_SECTIONS, sectionLabel } from '../navigation.js'
+  import { DEVELOPER_SECTIONS, PRIMARY_SECTIONS, sectionLabel } from '../navigation.js'
   import ToggleSwitch from './ToggleSwitch.svelte'
 
   export let sections = []
@@ -28,7 +27,6 @@
     Files: DataBase,
     MIDI: Music,
     Settings,
-    About: Information,
     Logs: Terminal,
     Trace: Activity,
   }
@@ -36,8 +34,7 @@
     Device: 'Play and edit the tracker',
     Files: 'Projects, samples and backups',
     MIDI: 'Connect input and output devices',
-    Settings: 'Display and audio preferences',
-    About: 'Version, privacy and licenses',
+    Settings: 'Preferences, version and source',
     Logs: 'Runtime messages',
     Trace: 'Performance capture',
   }
@@ -134,7 +131,7 @@
 
       <p class="group-label">Workspace</p>
       <nav aria-label="Mobile workspace sections">
-        {#each USER_SECTIONS as section}
+        {#each PRIMARY_SECTIONS as section}
           {@const Icon = icons[section]}
           <button type="button" class:active={active === section} aria-current={active === section ? 'page' : undefined}
             aria-label={sectionLabel(section)} title={sectionLabel(section)} onclick={() => choose(section)}>
@@ -163,6 +160,15 @@
           {/each}
         </nav>
       {/if}
+
+      <p class="group-label application-label">Application</p>
+      <nav class="utility" aria-label="Mobile application sections">
+        <button type="button" class:active={active === 'Settings'} aria-current={active === 'Settings' ? 'page' : undefined}
+          aria-label={sectionLabel('Settings')} title={sectionLabel('Settings')} onclick={() => choose('Settings')}>
+          <Settings size={20}/>
+          <span><strong>{sectionLabel('Settings')}</strong><small>{descriptions.Settings}</small></span>
+        </button>
+      </nav>
     </div>
   </dialog>
 {/if}
@@ -192,6 +198,8 @@
   .developer-row { display:flex; min-height:62px; align-items:center; justify-content:space-between; gap:14px; margin-top:14px; padding:10px 12px; border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
   .diagnostics-label { margin-top:14px; }
   .sheet-surface nav.diagnostics { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .application-label { margin-top:14px; }
+  .sheet-surface nav.utility { grid-template-columns:1fr; }
   @media(max-width:359px){
     .brand span { display:none; }
     .sheet-surface nav { grid-template-columns:1fr; }

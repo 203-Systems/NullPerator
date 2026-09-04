@@ -6,7 +6,6 @@
   import LeftNav from './components/LeftNav.svelte'
   import ErrorBoundary from './components/ErrorBoundary.svelte'
   import SettingsPanel from './components/SettingsPanel.svelte'
-  import AboutPanel from './components/AboutPanel.svelte'
   import FilesPanel from './components/FilesPanel.svelte'
   import MidiPanel from './components/MidiPanel.svelte'
   import LogsPanel from './components/LogsPanel.svelte'
@@ -146,8 +145,7 @@
         {:else if activeSection==='MIDI'}<div class="page-panel"><MidiPanel midi={runtime.midi} disabled={runtime.state!=='ready'} {developerMode}/></div>
         {:else if developerMode && activeSection==='Logs'}<div class="page-panel"><LogsPanel logs={runtime.logs}/></div>
         {:else if developerMode && activeSection==='Trace'}<div class="page-panel"><TracePanel trace={runtime.trace}/></div>
-        {:else if activeSection==='Settings'}<div class="page-panel"><SettingsPanel settings={settingsStore} trace={runtime.trace} audio={runtime.audio} runtimeState={runtime.state} {developerMode} developerModeLocked={forceDeveloperMode} onDeveloperModeChange={setDeveloperMode} onRestart={()=>applySettingsRestart().catch(()=>{})}/></div>
-        {:else if activeSection==='About'}<div class="page-panel"><AboutPanel buildMetadata={runtime.buildMetadata} {developerMode}/></div>{/if}
+        {:else if activeSection==='Settings'}<div class="page-panel"><SettingsPanel settings={settingsStore} trace={runtime.trace} audio={runtime.audio} runtimeState={runtime.state} buildMetadata={runtime.buildMetadata} {developerMode} developerModeLocked={forceDeveloperMode} onDeveloperModeChange={setDeveloperMode} onRestart={()=>applySettingsRestart().catch(()=>{})}/></div>{/if}
       </ErrorBoundary>
     </main>
     <div class="audio-diagnostics" hidden aria-hidden="true" data-audio-capability={audio.capability?(audio.capability.available?'available':'unavailable'):'unknown'} data-audio-capability-reason={audio.capability?.reason??''} data-audio-worklet-callbacks={audio.metrics?.callbackCount??0} data-audio-underruns={audio.metrics?.underrunFrames??0} data-audio-setup-phase={audio.metrics?.setupPhase??0} data-audio-unlock-main-thread={audio.metrics?.unlockOnBrowserMainThread??0} data-audio-render-micros={audio.metrics?.renderMicros??0} data-audio-callback-micros={audio.metrics?.callbackMicros??0} data-audio-callback-max-micros={audio.metrics?.callbackMaxMicros??0} data-audio-processing-deadline-micros={audio.metrics?.callbackDeadlineMicros??0} data-audio-processing-deadline-misses={audio.metrics?.callbackDeadlineMisses??0}></div>

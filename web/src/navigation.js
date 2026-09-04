@@ -1,5 +1,5 @@
 export const PRIMARY_SECTIONS = Object.freeze(['Device', 'Files', 'MIDI'])
-export const UTILITY_SECTIONS = Object.freeze(['Settings', 'About'])
+export const UTILITY_SECTIONS = Object.freeze(['Settings'])
 export const USER_SECTIONS = Object.freeze([...PRIMARY_SECTIONS, ...UTILITY_SECTIONS])
 export const DEVELOPER_SECTIONS = Object.freeze(['Logs', 'Trace'])
 export const SECTION_LABELS = Object.freeze({ Device: 'Tracker' })

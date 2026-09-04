@@ -14,10 +14,10 @@ const userSections = [
   { menuName: 'Files', title: 'Files' },
   { menuName: 'MIDI', title: 'MIDI' },
   { menuName: 'Settings', title: 'Settings' },
-  { menuName: 'About', title: 'About' },
 ]
 
 const userSectionNames = userSections.map(({ menuName }) => menuName)
+const primarySectionNames = userSectionNames.filter((section) => section !== 'Settings')
 const developerSectionNames = ['Logs', 'Trace']
 
 const menuTrigger = (page) => page.getByRole('button', { name: 'Open menu' })
@@ -38,10 +38,12 @@ async function sectionNames(navigation) {
 }
 
 async function expectUserSections(menu) {
-  const navigation = menu.getByRole('navigation', { name: 'Mobile workspace sections' })
-  await expect(navigation.getByRole('button')).toHaveCount(userSectionNames.length)
-  expect(await sectionNames(navigation)).toEqual(userSectionNames)
-  return navigation
+  const workspaceNavigation = menu.getByRole('navigation', { name: 'Mobile workspace sections' })
+  await expect(workspaceNavigation.getByRole('button')).toHaveCount(primarySectionNames.length)
+  expect(await sectionNames(workspaceNavigation)).toEqual(primarySectionNames)
+  const applicationNavigation = menu.getByRole('navigation', { name: 'Mobile application sections' })
+  await expect(applicationNavigation.getByRole('button')).toHaveCount(1)
+  expect(await sectionNames(applicationNavigation)).toEqual(['Settings'])
 }
 
 async function expectTouchTargets(page, root = page.locator('body')) {
@@ -138,11 +140,12 @@ for (const viewport of mobileViewports) {
     await expect(down).toHaveAttribute('aria-pressed', 'false')
 
     const menu = await openMenu(page)
-    const workspaceNavigation = await expectUserSections(menu)
+    await expectUserSections(menu)
     await expect(menu.getByRole('navigation', { name: 'Developer sections' })).toHaveCount(0)
     await expect(menu.getByRole('button', { name: 'Developer tools' })).toHaveAttribute('aria-pressed', 'false')
 
-    for (const button of await workspaceNavigation.getByRole('button').all()) {
+    for (const section of userSections) {
+      const button = menu.getByRole('button', { name: section.menuName, exact: true })
       await button.scrollIntoViewIfNeeded()
       const box = await button.boundingBox()
       expect(box).not.toBeNull()
@@ -166,9 +169,9 @@ test('ordinary mobile users can enter every workspace section without developer 
 
   for (const section of userSections) {
     const menu = await openMenu(page)
-    const navigation = await expectUserSections(menu)
+    await expectUserSections(menu)
     await expect(menu.getByRole('navigation', { name: 'Developer sections' })).toHaveCount(0)
-    await navigation.getByRole('button', { name: section.menuName, exact: true }).click()
+    await menu.getByRole('button', { name: section.menuName, exact: true }).click()
 
     await expect(menu).toHaveCount(0)
     await expect(trigger).toBeFocused()
@@ -190,8 +193,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 844, height: 390 }
     for (const section of userSections) {
       const menu = await openMenu(page)
       await expectTouchTargets(page, menu)
-      await menu.getByRole('navigation', { name: 'Mobile workspace sections' })
-        .getByRole('button', { name: section.menuName, exact: true }).click()
+      await menu.getByRole('button', { name: section.menuName, exact: true }).click()
       await expectTouchTargets(page)
     }
   })
@@ -204,13 +206,13 @@ test('developer tools only add Logs and Trace to the mobile menu', async ({ page
   const dashboard = page.locator('.dashboard')
   let menu = await openMenu(page)
   const developerToggle = menu.getByRole('button', { name: 'Developer tools' })
-  const userNavigation = await expectUserSections(menu)
+  await expectUserSections(menu)
 
   await expect(menu.getByRole('navigation', { name: 'Developer sections' })).toHaveCount(0)
   await developerToggle.click()
   await expect(developerToggle).toHaveAttribute('aria-pressed', 'true')
   await expect(dashboard).toHaveAttribute('data-developer-mode', 'true')
-  expect(await sectionNames(userNavigation)).toEqual(userSectionNames)
+  await expectUserSections(menu)
 
   const developerNavigation = menu.getByRole('navigation', { name: 'Developer sections' })
   await expect(developerNavigation.getByRole('button')).toHaveCount(developerSectionNames.length)
@@ -245,6 +247,7 @@ test('mobile menu traps focus and restores the trigger after every close path', 
   let menu = await openMenu(page)
   const close = menu.getByRole('button', { name: 'Close menu' })
   const developerToggle = menu.getByRole('button', { name: 'Developer tools' })
+  const lastMenuAction = menu.getByRole('button', { name: 'Settings', exact: true })
 
   const generationBeforeMenuKey = await canvas.getAttribute('data-action-generation')
   await page.keyboard.press('KeyW')
@@ -255,7 +258,7 @@ test('mobile menu traps focus and restores the trigger after every close path', 
   await expect(close).toBeFocused()
 
   await page.keyboard.press('Shift+Tab')
-  await expect(developerToggle).toBeFocused()
+  await expect(lastMenuAction).toBeFocused()
   await page.keyboard.press('Tab')
   await expect(close).toBeFocused()
 
@@ -311,16 +314,18 @@ test('resizing and rotating only change layout, never the developer preference',
   await expect(dashboard).toHaveAttribute('data-developer-mode', 'true')
   menu = await openMenu(page)
   expect(await sectionNames(menu.getByRole('navigation', { name: 'Mobile workspace sections' })))
-    .toEqual(userSectionNames)
+    .toEqual(primarySectionNames)
   expect(await sectionNames(menu.getByRole('navigation', { name: 'Developer sections' })))
     .toEqual(developerSectionNames)
+  expect(await sectionNames(menu.getByRole('navigation', { name: 'Mobile application sections' })))
+    .toEqual(['Settings'])
   await menu.getByRole('button', { name: 'Close menu' }).click()
 
   await page.setViewportSize({ width: 1024, height: 768 })
   await expect(dashboard).toHaveAttribute('data-layout', 'desktop')
   await expect(dashboard).toHaveAttribute('data-developer-mode', 'true')
   expect(await sectionNames(page.getByRole('navigation', { name: 'Main navigation' })))
-    .toEqual(['Tracker', 'Files', 'MIDI', 'Logs', 'Trace', 'Settings', 'About'])
+    .toEqual(['Tracker', 'Files', 'MIDI', 'Logs', 'Trace', 'Settings'])
 
   await page.reload()
   await expect(dashboard).toHaveAttribute('data-developer-mode', 'true')
