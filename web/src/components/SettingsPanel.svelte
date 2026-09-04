@@ -2,6 +2,7 @@
   import { onDestroy } from 'svelte'
   import { AUDIO_BUFFER_OPTIONS, DISPLAY_SCALE_OPTIONS } from '../stores/settings.js'
   import { TRACE_CATEGORIES } from '../trace/registry.js'
+  import ToggleSwitch from './ToggleSwitch.svelte'
 
   export let settings
   export let trace = null
@@ -58,9 +59,8 @@
     <fieldset class="developer-switch-field"><legend>Advanced</legend>
       <div class="developer-setting">
         <span><strong>Developer tools</strong><small>{developerModeLocked ? 'Enabled by this diagnostic URL.' : 'Add runtime logs, performance trace and detailed engine settings.'}</small></span>
-        <button type="button" class="toggle" class:on={developerMode} data-developer-toggle
-          aria-label="Developer tools" aria-pressed={developerMode} disabled={developerModeLocked}
-          onclick={() => onDeveloperModeChange(!developerMode)}><span></span></button>
+        <ToggleSwitch checked={developerMode} disabled={developerModeLocked} label="Developer tools"
+          developerToggle onChange={onDeveloperModeChange} />
       </div>
     </fieldset>
     <fieldset><legend>Troubleshooting</legend>
@@ -89,23 +89,18 @@
 </section>
 
 <style>
-  .settings-panel { width: min(100%, 1000px); margin: 0 auto; } .settings-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
-  fieldset { min-width: 0; padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); } legend { padding: 0 5px; font-size: 12px; font-weight: 700; }
-  label { display: grid; gap: 6px; margin-bottom: 12px; color: var(--muted); font-size: 11px; } select,input,button { min-width: 0; min-height:44px; padding: 8px; border: 1px solid var(--border); border-radius: 7px; color: #e7e7ea; background: var(--surface-raised); }
+  .settings-panel { width: min(100%, 1000px); margin: 0 auto; } .settings-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+  fieldset { min-width: 0; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--surface); } legend { padding: 0 5px; font-size: .8rem; font-weight: 700; }
+  label { display: grid; gap: 6px; margin-bottom: 12px; color: var(--muted); font-size: .73rem; } select,input:not([type='checkbox']):not([type='range']),button { min-width: 0; min-height:var(--control-height); padding: 0 9px; border: 1px solid var(--border); border-radius: var(--radius-control); color: var(--text); background: var(--bg-2); }
   button:not(:disabled) { cursor: pointer; }
-  .field-note { margin:0 0 12px; color:var(--muted); font-size:11px; line-height:1.5; }
+  output { color:var(--text-accent); font:500 .73rem/1 var(--mono); }
+  .field-note { margin:0 0 12px; color:var(--muted); font-size:.73rem; line-height:1.5; }
   .developer-setting { display:flex; min-height:48px; align-items:center; justify-content:space-between; gap:16px; }
   .developer-setting>span { display:grid; gap:5px; }
-  .developer-setting strong { color:var(--text); font-size:12px; }
-  .developer-setting small { color:var(--muted); font-size:10px; line-height:1.4; }
-  .toggle { position:relative; width:44px; height:44px; flex:0 0 auto; padding:0; border:0; border-radius:10px; background:transparent; }
-  .toggle::before { content:""; position:absolute; inset:10px 1px; border:1px solid var(--border); border-radius:999px; background:#090a0c; }
-  .toggle span { position:absolute; left:5px; top:14px; width:16px; height:16px; border-radius:50%; background:#737984; transition:translate .16s ease,background .16s ease; }
-  .toggle.on::before { border-color:rgba(76,201,240,.45); }
-  .toggle.on span { translate:18px 0; background:var(--accent); }
-  .toggle:disabled { cursor:not-allowed; opacity:.65; }
+  .developer-setting strong { color:var(--text); font-size:.8rem; }
+  .developer-setting small { color:var(--muted); font-size:.7rem; line-height:1.4; }
   .check { display: flex; min-height:44px; align-items: center; gap: 7px; text-transform: capitalize; } .check input { min-width: auto; min-height:auto; } .checks { display: grid; grid-template-columns: repeat(2,1fr); }
-  .audio-metrics { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; margin:2px 0 12px; } .audio-metrics div { min-width:0; padding:8px; border:1px solid var(--border); border-radius:6px; background:rgba(255,255,255,.025); } .audio-metrics dt { color:var(--muted); font-size:10px; } .audio-metrics dd { margin:4px 0 0; font:11px ui-monospace,monospace; overflow-wrap:anywhere; }
-  .settings-actions { display: flex; align-items: center; gap: 12px; margin-top: 14px; } .settings-actions p { margin: 0; color: var(--muted); font-size: 11px; }
+  .audio-metrics { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; margin:2px 0 12px; } .audio-metrics div { min-width:0; padding:8px; border:1px solid var(--border); border-radius:var(--radius-control); background:var(--surface-subtle); } .audio-metrics dt { color:var(--muted); font-size:.67rem; } .audio-metrics dd { margin:4px 0 0; font:.73rem var(--mono); overflow-wrap:anywhere; }
+  .settings-actions { display: flex; align-items: center; gap: 12px; margin-top: 14px; } .settings-actions p { margin: 0; color: var(--muted); font-size: .73rem; }
   @media (max-width: 760px) { .settings-grid { grid-template-columns: 1fr; } }
 </style>

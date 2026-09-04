@@ -34,6 +34,18 @@ Copyright (c) 2016-2026 Svelte contributors. Distributed under the MIT License.
 Carbon Icons Svelte 13.8.0 packages IBM Carbon icons as Svelte components and
 is distributed under the Apache License 2.0.
 
+## Space Grotesk and IBM Plex Mono
+
+The Web interface bundles Space Grotesk and IBM Plex Mono through Fontsource.
+
+Space Grotesk: Copyright 2020 The Space Grotesk Project Authors
+(https://github.com/floriankarsten/space-grotesk)
+
+IBM Plex Mono: Copyright 2017 IBM Corp. All rights reserved.
+
+Both font families are distributed under the SIL Open Font License 1.1. The
+complete license text is available at [licenses/OFL-1.1.txt](licenses/OFL-1.1.txt).
+
 ## Vite
 
 Copyright (c) 2019-present Evan You and Vite contributors. Distributed under

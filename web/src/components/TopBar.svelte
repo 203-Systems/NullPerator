@@ -54,11 +54,11 @@
   .top-bar-logo { display:block; width:59px; height:24px; object-fit:contain; }
   .top-bar-title { font-weight:600; font-size:.96rem; letter-spacing:.03em; white-space:nowrap; }
   .top-status { gap:7px; color:var(--muted); font-size:.78rem; white-space:nowrap; }
-  .status-dot { width:8px; height:8px; flex-shrink:0; border-radius:50%; background:#f7c266; box-shadow:0 0 6px rgba(247,194,102,.4); }
-  [data-status-state='ready'] .status-dot,[data-storage-state='ready'] .status-dot,[data-midi-state='ready'] .status-dot,[data-audio-state='running'] .status-dot { background:#3dd68c; box-shadow:0 0 6px rgba(61,214,140,.5); }
-  [data-storage-dirty='true'] .status-dot { background:#f7c266; box-shadow:0 0 6px rgba(247,194,102,.4); }
-  [data-audio-state='disabled'] .status-dot { background:#737984; box-shadow:none; }
-  [data-status-state='failed'] .status-dot,[data-storage-state='failed'] .status-dot,[data-midi-state='failed'] .status-dot,[data-midi-state='denied'] .status-dot,[data-audio-state='failed'] .status-dot { background:#ff6b6b; box-shadow:0 0 6px rgba(255,107,107,.5); }
-  .developer-badge { padding:5px 7px; border:1px solid rgba(76,201,240,.28); border-radius:5px; color:var(--accent); background:var(--accent-soft); font:600 9px/1 var(--mono); letter-spacing:.06em; white-space:nowrap; }
+  .status-dot { width:8px; height:8px; flex-shrink:0; border-radius:50%; background:var(--warning); box-shadow:0 0 6px rgba(247,194,102,.4); }
+  [data-status-state='ready'] .status-dot,[data-storage-state='ready'] .status-dot,[data-midi-state='ready'] .status-dot,[data-audio-state='running'] .status-dot { background:var(--success-dot); box-shadow:0 0 6px rgba(61,214,140,.5); }
+  [data-storage-dirty='true'] .status-dot { background:var(--warning); box-shadow:0 0 6px rgba(247,194,102,.4); }
+  [data-audio-state='disabled'] .status-dot { background:var(--disabled); box-shadow:none; }
+  [data-status-state='failed'] .status-dot,[data-storage-state='failed'] .status-dot,[data-midi-state='failed'] .status-dot,[data-midi-state='denied'] .status-dot,[data-audio-state='failed'] .status-dot { background:var(--danger); box-shadow:0 0 6px rgba(255,107,107,.5); }
+  .developer-badge { padding:5px 7px; border:1px solid var(--accent-border-soft); border-radius:var(--radius-tight); color:var(--accent); background:var(--accent-soft); font:600 9px/1 var(--mono); letter-spacing:.06em; white-space:nowrap; }
   @media(max-width:1000px){ .developer-detail { display:none; } }
 </style>

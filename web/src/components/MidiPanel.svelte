@@ -106,18 +106,18 @@
 
 <style>
   .midi-panel { width: min(100%, 960px); margin: 0 auto; }
-  .midi-card { padding: 22px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+  .midi-card { padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--surface); }
   .midi-card > p { color: var(--muted); }
-  .diagnostic-detail { color: var(--muted); font: 11px/1.5 ui-monospace, monospace; }
-  button, select { min-width:44px; min-height:44px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 7px; color: #e7e7ea; background: var(--surface-raised); }
+  .diagnostic-detail { color: var(--muted); font: .73rem/1.5 var(--mono); }
+  button, select { min-width:44px; min-height:var(--control-height); padding: 0 9px; border: 1px solid var(--border); border-radius: var(--radius-control); color: var(--text); background: var(--bg-2); }
   button:not(:disabled), select:not(:disabled) { cursor: pointer; }
-  .midi-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
-  label { display: grid; gap: 7px; color: var(--muted); font-size: 12px; }
+  .midi-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  label { display: grid; gap: 7px; color: var(--muted); font-size: .8rem; }
   small { min-height: 1.4em; color: var(--muted); }
   .midi-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 22px 0 0; }
-  .midi-metrics div { padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: rgba(255,255,255,.02); }
-  dt { color: var(--muted); font-size: 11px; }
-  dd { margin: 5px 0 0; font: 600 14px/1 ui-monospace, monospace; }
-  .midi-error { margin-top: 16px; color: #f28a8a !important; }
+  .midi-metrics div { padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface-subtle); }
+  dt { color: var(--muted); font-size: .73rem; }
+  dd { margin: 5px 0 0; font: 600 .93rem/1 var(--mono); }
+  .midi-error { margin-top: 16px; color: var(--danger-text) !important; }
   @media (max-width: 680px) { .midi-grid, .midi-metrics { grid-template-columns: 1fr; } }
 </style>

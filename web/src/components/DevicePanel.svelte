@@ -326,7 +326,7 @@
 
 <style>
   .device-input-host { display:flex; flex-direction:column; width:100%; height:100%; min-height:0; overflow:hidden; }
-  .device-scene { position:relative; display:flex; flex:1; min-height:0; align-items:safe center; justify-content:safe center; overflow:auto; padding:24px; background:#0e0f12; }
+  .device-scene { position:relative; display:flex; flex:1; min-height:0; align-items:safe center; justify-content:safe center; overflow:auto; padding:24px; background:var(--bg-1); }
   .compact .device-scene { overflow:hidden; padding:clamp(6px,2vw,14px); background:var(--bg-0); }
   .native-host .device-scene { align-items:flex-start; overflow:hidden; padding:max(38px,calc(env(safe-area-inset-top) + 28px)) 0 max(8px,env(safe-area-inset-bottom)); background:#000; }
   /* Preserve the former fixed "Large" iOS geometry. The native shell owns
@@ -346,15 +346,16 @@
   .screen-glass { position:absolute; inset:11px; pointer-events:none; }
   .audio-gate { position:fixed; inset:0; box-sizing:border-box; width:min(300px,calc(100% - 32px)); height:max-content; max-height:calc(100dvh - 32px); margin:auto; overflow:auto; }
   .audio-gate::backdrop { background:rgba(8,9,12,.72); }
-  .audio-unlock { padding:16px; border:1px solid #454a54; border-radius:8px; color:var(--text); background:rgba(18,20,25,.98); box-shadow:0 18px 50px rgba(0,0,0,.48); }
+  .audio-unlock { padding:16px; border:1px solid var(--border-strong); border-radius:var(--radius-overlay); color:var(--text); background:var(--panel); box-shadow:0 18px 48px rgba(0,0,0,.45); }
   .audio-unlock .eyebrow { margin:0 0 5px; color:var(--accent); font:600 9px/1 var(--mono); letter-spacing:.14em; text-transform:uppercase; }
   .audio-unlock h2 { margin:0; font-size:15px; }
   .audio-unlock p:not(.eyebrow) { margin:7px 0 13px; color:var(--muted); font-size:11px; line-height:1.45; }
-  .audio-unlock button { width:100%; padding:8px 12px; border:1px solid rgba(76,201,240,.55); border-radius:5px; color:#071015; background:var(--accent); font-weight:700; cursor:pointer; }
-  .keyboard-helper { display:flex; min-height:52px; align-items:center; justify-content:center; gap:24px; padding:7px 16px; border-top:1px solid var(--border); background:transparent; color:var(--muted); overflow:auto; flex-shrink:0; }
+  .audio-unlock button { width:100%; min-height:44px; padding:0 12px; border:1px solid var(--accent-border); border-radius:var(--radius-control); color:var(--text-accent); background:var(--accent-fill); font-weight:700; cursor:pointer; }
+  .audio-unlock button:hover { border-color:rgba(76,201,240,.72); background:rgba(76,201,240,.18); }
+  .keyboard-helper { display:flex; min-height:52px; align-items:center; justify-content:center; gap:24px; padding:7px 16px; border-top:1px solid var(--border); background:var(--panel); color:var(--muted); overflow:auto; flex-shrink:0; }
   .keyboard-helper>div { display:flex; align-items:center; gap:7px; white-space:nowrap; font-size:.7rem; }
   .key-cluster { display:flex; align-items:center; gap:3px; }
-  kbd { display:grid; min-width:22px; height:22px; padding:0 4px; place-items:center; border:1px solid rgba(255,255,255,.17); border-bottom-color:rgba(255,255,255,.3); border-radius:4px; color:#e7e9ec; background:linear-gradient(#292b31,#191a1e); box-shadow:0 2px 0 #070708; font:600 10px/1 var(--mono); }
+  kbd { display:grid; min-width:22px; height:22px; padding:0 4px; place-items:center; border:1px solid var(--border-strong); border-radius:var(--radius-tight); color:var(--text); background:var(--bg-2); font:600 10px/1 var(--mono); }
   @media(max-height:760px){ .device-scene{align-items:flex-start}.keyboard-helper{gap:14px;padding-inline:10px} }
   @media(max-width:720px){ .device-scene{padding:12px}.device-input-host:not(.compact) .operator-device{zoom:.86!important}.keyboard-helper{justify-content:flex-start}.keyboard-helper>div>span:last-child{display:none} }
   @media(max-width:360px){

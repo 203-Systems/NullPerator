@@ -67,16 +67,16 @@
   .logs-panel { width: min(100%, 1180px); margin: 0 auto; }
   .log-toolbar { display: grid; grid-template-columns: repeat(3, minmax(110px, .5fr)) minmax(220px, 1.5fr); gap: 10px; }
   label { display: grid; gap: 5px; color: var(--muted); font-size: 11px; }
-  select, input, button { min-width:44px; min-height:44px; border: 1px solid var(--border); border-radius: 7px; padding: 8px 10px; color: #e7e7ea; background: var(--surface-raised); }
+  select, input, button { min-width:44px; min-height:var(--control-height); border: 1px solid var(--border); border-radius: var(--radius-control); padding: 0 9px; color: var(--text); background: var(--bg-2); }
   button { cursor: pointer; }
   .log-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 12px 0; color: var(--muted); font-size: 11px; }
-  .dropped { color: #f28a8a; }
+  .dropped { color: var(--danger-text); }
   .feedback { color: var(--muted); font-size: 12px; }
-  .log-list { max-height: calc(100vh - 310px); min-height: 260px; overflow: auto; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 9px; background: #0c0d10; list-style: none; }
-  li { display: grid; grid-template-columns: 92px 48px 100px 90px minmax(0, 1fr); gap: 8px; padding: 7px 10px; border-bottom: 1px solid rgba(255,255,255,.045); font: 11px/1.35 ui-monospace, monospace; }
+  .log-list { max-height: calc(100vh - 310px); min-height: 260px; overflow: auto; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--console); list-style: none; }
+  li { display: grid; grid-template-columns: 92px 48px 100px 90px minmax(0, 1fr); gap: 8px; padding: 7px 10px; border-bottom: 1px solid var(--border); font: .73rem/1.35 var(--mono); }
   li>* { min-width:0; }
   time, .thread { color: var(--muted); } .severity, .category { overflow:hidden; text-overflow:ellipsis; text-transform:uppercase; white-space:nowrap; } .thread { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .message { overflow-wrap: anywhere; white-space: pre-wrap; }
-  .log-error .severity, .log-error .message { color: #f28a8a; } .empty { display: block; color: var(--muted); padding: 18px; }
+  .log-error .severity, .log-error .message { color: var(--danger-text); } .empty { display: block; color: var(--muted); padding: 18px; }
   @media (max-width: 820px) { .log-toolbar { grid-template-columns: 1fr 1fr; } li { grid-template-columns: 76px 44px 78px minmax(0,1fr); } .thread { display: none; } }
   @media (max-width: 520px) {
     .log-toolbar { grid-template-columns:1fr; }

@@ -34,11 +34,11 @@
 
 <style>
   .about-panel { width: min(100%, 960px); margin: 0 auto; }
-  .about-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(240px,1fr)); gap: 14px; }
-  article { padding: 18px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+  .about-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(240px,1fr)); gap: 12px; }
+  article { padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--surface); }
   .build-details { grid-column: 1/-1; } h2 { font-size: 13px; } p, dt { color: var(--muted); font-size: 12px; line-height: 1.6; }
   a { display:inline-flex; min-width:44px; min-height:44px; align-items:center; color:var(--accent); font-size:12px; text-underline-offset:3px; }
   dl { margin: 0; } dl div { display: grid; grid-template-columns: 90px 1fr; padding: 8px 0; border-bottom: 1px solid var(--border); }
-  dd { margin: 0; font: 11px ui-monospace,monospace; overflow-wrap: anywhere; }
+  dd { margin: 0; font: 11px var(--mono); overflow-wrap: anywhere; }
   @media (max-width: 700px) { .about-grid { grid-template-columns: 1fr; } .build-details { grid-column: auto; } }
 </style>
