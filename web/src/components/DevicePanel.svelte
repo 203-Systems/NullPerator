@@ -28,7 +28,6 @@
   let showVirtualControls = nativeHostActive || settings?.snapshot?.().showVirtualControls !== false
   let controllerConnected = false
   let shouldShowControls = true
-  let wideControls = false
   let wakeControllerInput = () => {}
   let detachSettings = () => {}
   const scaleFor = (value, compactMode, availableScale) => compactMode ? 1 : (value === 'fit' ? availableScale : Number(value) || 1)
@@ -43,10 +42,7 @@
   function focusCanvas() { panel?.querySelector('canvas[data-tracker-display]')?.focus({ preventScroll: true }) }
   function updateFitScale() {
     if (!scene) return
-    if (compact || nativeHostActive) {
-      wideControls = false
-      return
-    }
+    if (compact || nativeHostActive) return
     const style = getComputedStyle(scene)
     const innerWidth = scene.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)
     const innerHeight = scene.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom)
@@ -63,16 +59,8 @@
     const controlsHeight = controls?.offsetHeight || 0
     const deviceStyle = device ? getComputedStyle(device) : null
     const stackGap = parseFloat(deviceStyle?.getPropertyValue('--device-stack-gap')) || 12
-    const wideGap = parseFloat(deviceStyle?.getPropertyValue('--device-wide-gap')) || 16
-    const verticalWidth = Math.max(screenWidth, controlsWidth)
-    const verticalHeight = screenHeight + (controls ? stackGap + controlsHeight : 0)
-    const wideWidth = screenWidth + wideGap + controlsWidth
-    const wideHeight = Math.max(screenHeight, controlsHeight)
-    const verticalScale = Math.min(1.4, innerWidth / verticalWidth, innerHeight / verticalHeight)
-    const wideScale = controls ? Math.min(1.4, innerWidth / wideWidth, innerHeight / wideHeight) : 0
-    wideControls = Boolean(controls && wideScale >= verticalScale)
-    const naturalWidth = wideControls ? wideWidth : verticalWidth
-    const naturalHeight = wideControls ? wideHeight : verticalHeight
+    const naturalWidth = Math.max(screenWidth, controlsWidth)
+    const naturalHeight = screenHeight + (controls ? stackGap + controlsHeight : 0)
     const next = Math.max(.75, Math.min(1.4, innerWidth / naturalWidth, innerHeight / naturalHeight))
     fitScale = Math.floor(next * 1000) / 1000
   }
@@ -299,7 +287,7 @@
   })
 </script>
 
-<div class="device-input-host" class:compact class:native-host={nativeHostActive} class:wide-controls={wideControls} bind:this={panel}
+<div class="device-input-host" class:compact class:native-host={nativeHostActive} bind:this={panel}
   role={nativeHostActive ? 'application' : undefined} aria-label={nativeHostActive ? 'NullPerator' : undefined}
   onfocusout={(event) => { if (!panel?.contains(event.relatedTarget)) input.releaseAll() }}>
   <h1 class="sr-only">NullPerator Player</h1>
@@ -331,7 +319,7 @@
 </div>
 
 <style>
-  .device-input-host { --device-screen-edge:264px; --device-controls-width:320px; --device-controls-height:176px; --device-stack-gap:12px; --device-wide-gap:16px; display:flex; flex-direction:column; width:100%; height:100%; min-height:0; overflow:hidden; }
+  .device-input-host { --device-screen-edge:264px; --device-controls-width:320px; --device-controls-height:176px; --device-stack-gap:12px; display:flex; flex-direction:column; width:100%; height:100%; min-height:0; overflow:hidden; }
   .device-scene { position:relative; display:flex; flex:1; min-height:0; align-items:safe center; justify-content:safe center; overflow:auto; padding:24px; background:var(--bg-1); }
   .compact .device-scene { overflow:hidden; padding:clamp(6px,2vw,14px); background:var(--bg-0); }
   .native-host .device-scene { align-items:flex-start; overflow:hidden; padding:max(38px,calc(env(safe-area-inset-top) + 28px)) 0 max(8px,env(safe-area-inset-bottom)); background:#000; }
@@ -359,18 +347,6 @@
   .audio-unlock button { width:100%; min-height:44px; padding:0 12px; border:1px solid var(--accent-border); border-radius:var(--radius-control); color:var(--text-accent); background:var(--accent-fill); font-weight:700; cursor:pointer; }
   .audio-unlock button:hover { border-color:rgba(76,201,240,.72); background:rgba(76,201,240,.18); }
   @media(max-height:760px){ .device-scene{align-items:flex-start} }
-  .device-input-host.wide-controls .device-scene { align-items:safe center; }
-  .device-input-host.wide-controls .operator-device {
-    display:grid;
-    width:calc(var(--device-screen-edge) + var(--device-wide-gap) + var(--device-controls-width));
-    height:var(--device-screen-edge);
-    grid-template-columns:var(--device-screen-edge) var(--device-controls-width);
-    grid-template-rows:var(--device-screen-edge);
-    column-gap:var(--device-wide-gap);
-    align-items:center;
-  }
-  .device-input-host.wide-controls .operator-screen-housing { grid-column:1; grid-row:1; }
-  .device-input-host.wide-controls :global(.operator-controls) { grid-column:2; grid-row:1; margin:0; }
   @media(max-width:720px){ .device-scene{padding:12px}.device-input-host:not(.compact) .operator-device{zoom:.86!important} }
   @media(max-width:360px){
     .compact .device-scene{padding-inline:0}
