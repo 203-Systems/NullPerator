@@ -23,11 +23,15 @@ struct renderParams {
 
   void *sampleBuffer_; // wavdata
   int channelCount_;
+  int sampleFrames_; // Bound every read, including interpolation at an
+                     // endpoint.
 
   int krateCount_; // K-rate counter
-  float position_; // Position in the sample stream
-  int rendFirst_;  // position of the first sample (can be either start or loop
-                   // depending on the mode)
+  // Persistent Q15 cursor. Float loses sub-frame pitch phase on long samples.
+  // Render splits this into 32-bit frame/fraction locals outside the hot loop.
+  std::int64_t positionPhase_;
+  int rendFirst_; // position of the first sample (can be either start or loop
+                  // depending on the mode)
   int rendLoopStart_; // Loop start position
   int rendLoopEnd_;   // Loop end position
 

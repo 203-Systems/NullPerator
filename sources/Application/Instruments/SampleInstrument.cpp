@@ -12,8 +12,8 @@
 #include "Application/Model/Table.h"
 #include "Application/Persistency/PersistencyAttribute.h"
 #include "Application/Player/SyncMaster.h"
-#include "Foundation/Types/Fixed.h"
 #include "CommandList.h"
+#include "Foundation/Types/Fixed.h"
 #include "SamplePool.h"
 #include "SampleVariable.h"
 #include "Services/Audio/Audio.h"
@@ -26,6 +26,7 @@
 #include <array>
 #include <climits>
 #include <cstdint>
+#include <limits>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,6 +34,7 @@
 
 #include "SampleInstrumentDatas.h"
 #include "SampleInstrumentParameterLimits.h"
+#include "SamplePlaybackPosition.h"
 
 namespace {
 void activateUpdater(renderParams &params, I_SRPUpdater &updater) {
@@ -49,7 +51,7 @@ void activateUpdater(renderParams &params, I_SRPUpdater &updater) {
 void renderMonoUnityPitch(short *input, fixed *output, int frameCount,
                           fixed volume, fixed panLeft, fixed panRight) {
   for (int frame = 0; frame < frameCount; ++frame) {
-    fixed sample = fp_mul_coef(i2fp(*input++), volume);
+    fixed sample = *input++ * volume;
     *output++ = fp_mul_coef(sample, panLeft);
     *output++ = fp_mul_coef(sample, panRight);
   }
@@ -58,10 +60,91 @@ void renderMonoUnityPitch(short *input, fixed *output, int frameCount,
 void renderStereoUnityPitch(short *input, fixed *output, int frameCount,
                             fixed volume, fixed panLeft, fixed panRight) {
   for (int frame = 0; frame < frameCount; ++frame) {
-    fixed left = fp_mul_coef(i2fp(*input++), volume);
-    fixed right = fp_mul_coef(i2fp(*input++), volume);
+    fixed left = *input++ * volume;
+    fixed right = *input++ * volume;
     *output++ = fp_mul_coef(left, panLeft);
     *output++ = fp_mul_coef(right, panRight);
+  }
+}
+
+template <int Channels, bool Linear, bool Filtered = false>
+void renderSampleSpan(const short *wav, fixed *output, int frames,
+                      int &position, fixed &fraction, fixed speed, fixed volume,
+                      fixed panLeft, fixed panRight, filter_t *filter = nullptr,
+                      bool filterBoost = false) {
+  int sourcePosition = position;
+  fixed sourceFraction = fraction;
+  fixed height[Channels]{}, velocityState[Channels]{}, delay[Channels]{};
+  if constexpr (Filtered) {
+    for (int channel = 0; channel < Channels; ++channel) {
+      height[channel] = filter->height[channel];
+      velocityState[channel] = filter->speed[channel];
+      delay[channel] = filter->hipdelay[channel];
+    }
+  }
+  const int step = fp2i(speed);
+  const unsigned fractionalStep = static_cast<unsigned>(speed) & (FP_ONE - 1);
+  const fixed mix = Filtered ? filter->mix : 0;
+  const fixed frequency = Filtered ? filter->freq : 0;
+  const fixed resonance = Filtered ? filter->reso : 0;
+  const fixed dirt = Filtered ? filter->dirt : 0;
+  auto filterSample = [&](fixed sample, int channel) {
+    if constexpr (Filtered) {
+      const fixed lpin = fp_mul_coef(sample, FP_ONE - mix);
+      const fixed hpin = -fp_mul_coef(sample, mix);
+      const fixed difference = lpin - height[channel];
+      fixed velocity = velocityState[channel];
+      if (filterBoost) {
+        constexpr fixed limit = FP_ONE - FP_ONE / 3;
+        if (velocity < -FP_ONE)
+          velocity = -limit;
+        else if (velocity > FP_ONE)
+          velocity = limit;
+        velocity = fp_mul(velocity, dirt);
+      }
+      velocity =
+          fp_mul_coef(velocity, resonance) + fp_mul_coef(difference, frequency);
+      velocityState[channel] = velocity;
+      height[channel] += velocity;
+      height[channel] += delay[channel] - hpin;
+      delay[channel] = hpin;
+      return height[channel];
+    } else {
+      return sample;
+    }
+  };
+  for (int frame = 0; frame < frames; ++frame) {
+    const short *input = wav + sourcePosition * Channels;
+    auto interpolate = [&](int channel) {
+      if constexpr (Linear) {
+        // PCM16 * Q15 fits in 32 bits and is exactly the same result as
+        // converting to Q15 first and applying two fixed-point products.
+        return input[channel] * (FP_ONE - sourceFraction) +
+               input[channel + Channels] * sourceFraction;
+      } else {
+        return i2fp(
+            input[channel + (sourceFraction > FP_ONE / 2 ? Channels : 0)]);
+      }
+    };
+    const fixed left = filterSample(fp_mul_coef(interpolate(0), volume), 0);
+    fixed right = left;
+    if constexpr (Channels == 2)
+      right = filterSample(fp_mul_coef(interpolate(1), volume), 1);
+    *output++ = fp_mul_coef(left, panLeft);
+    *output++ = fp_mul_coef(right, panRight);
+    const unsigned phase =
+        static_cast<unsigned>(sourceFraction) + fractionalStep;
+    sourcePosition += step + static_cast<int>(phase >> FIXED_SHIFT);
+    sourceFraction = static_cast<fixed>(phase & (FP_ONE - 1));
+  }
+  position = sourcePosition;
+  fraction = sourceFraction;
+  if constexpr (Filtered) {
+    for (int channel = 0; channel < Channels; ++channel) {
+      filter->height[channel] = height[channel];
+      filter->speed[channel] = velocityState[channel];
+      filter->hipdelay[channel] = delay[channel];
+    }
   }
 }
 
@@ -70,7 +153,8 @@ bool parseSliceParameterName(const char *name, std::size_t &index) {
     return false;
   std::uint32_t parsed = 0U;
   if (!ParsePersistedUnsignedIntegerAttribute(
-          name + 2, static_cast<std::uint32_t>(SampleInstrument::MaxSlices - 1U),
+          name + 2,
+          static_cast<std::uint32_t>(SampleInstrument::MaxSlices - 1U),
           parsed)) {
     return false;
   }
@@ -463,6 +547,8 @@ void SampleInstrument::OnStart() { tableState_.Reset(); };
 
 bool SampleInstrument::Start(int channel, unsigned char midinote,
                              bool cleanstart) {
+  if (!IsSampleRenderChannel(channel, SONG_CHANNEL_COUNT))
+    return false;
   const uint32_t channelBit = SampleChannelBit(channel);
   activeChannels_ &= ~channelBit;
 
@@ -495,6 +581,9 @@ bool SampleInstrument::Start(int channel, unsigned char midinote,
   };
   rp->channelCount_ = source_->GetChannelCount(rp->midiNote_);
   int sampleSize = source_->GetSize(rp->midiNote_);
+  if (sampleSize <= 0 || (rp->channelCount_ != 1 && rp->channelCount_ != 2))
+    return false;
+  rp->sampleFrames_ = sampleSize;
   uint32_t sampleSizeU = sampleSize > 0 ? static_cast<uint32_t>(sampleSize) : 0;
 
   int rootNote =
@@ -546,6 +635,8 @@ bool SampleInstrument::Start(int channel, unsigned char midinote,
   if (sliceActive) {
     loopmode = SILM_ONESHOT;
   }
+  rp->rendLoopStart_ = std::clamp(rp->rendLoopStart_, 0, sampleSize - 1);
+  rp->rendLoopEnd_ = std::clamp(rp->rendLoopEnd_, 0, sampleSize);
   rp->loopModeValue_ = static_cast<int>(loopmode);
 
   /*	 if (loopmode==SILM_OSCFINE) {
@@ -567,10 +658,10 @@ bool SampleInstrument::Start(int channel, unsigned char midinote,
     // if instrument sampled below 44.1Khz, should
     // travel slower in sample
 
-    rp->rendFirst_ = start_.GetInt();
-    rp->position_ = float(rp->rendFirst_);
+    rp->rendFirst_ = std::clamp(start_.GetInt(), 0, sampleSize - 1);
+    rp->positionPhase_ = std::int64_t(rp->rendFirst_) * FP_ONE;
     rp->baseSpeed_ = fl2fp(source_->GetSampleRate(rp->midiNote_) / driverRate);
-    rp->reverse_ = (rp->rendLoopEnd_ < rp->position_);
+    rp->reverse_ = (rp->rendLoopEnd_ < start_.GetInt());
 
     break;
 
@@ -592,7 +683,7 @@ bool SampleInstrument::Start(int channel, unsigned char midinote,
       rp->baseSpeed_ = fl2fp((freq * length) / driverRate);
       rp->rendFirst_ = rp->rendLoopStart_;
       if (cleanstart) {
-        rp->position_ = float(rp->rendFirst_);
+        rp->positionPhase_ = std::int64_t(rp->rendFirst_) * FP_ONE;
       }
       break;
     }
@@ -608,7 +699,7 @@ bool SampleInstrument::Start(int channel, unsigned char midinote,
     rp->baseSpeed_ = fl2fp(length / float(sampleCount));
     rp->rendFirst_ = rp->rendLoopStart_;
     if (cleanstart) {
-      rp->position_ = float(rp->rendFirst_);
+      rp->positionPhase_ = std::int64_t(rp->rendFirst_) * FP_ONE;
     }
     break;
   }
@@ -621,7 +712,7 @@ bool SampleInstrument::Start(int channel, unsigned char midinote,
     rp->rendLoopStart_ = static_cast<int>(sliceStart);
     rp->rendLoopEnd_ = static_cast<int>(sliceEnd);
     rp->rendFirst_ = static_cast<int>(sliceStart);
-    rp->position_ = float(sliceStart);
+    rp->positionPhase_ = std::int64_t(sliceStart) * FP_ONE;
     rp->reverse_ = false;
   }
 
@@ -689,6 +780,8 @@ bool SampleInstrument::Start(int channel, unsigned char midinote,
 }
 
 void SampleInstrument::Stop(int channel) {
+  if (!IsSampleRenderChannel(channel, SONG_CHANNEL_COUNT))
+    return;
   renderParams *rp = renderParams_ + channel;
   rp->finished_ = true; // Mark this channel as finished
   activeChannels_ &= ~SampleChannelBit(channel);
@@ -719,6 +812,9 @@ void SampleInstrument::doKRateUpdate(int channel) {
 
 bool SampleInstrument::Render(int channel, fixed *buffer, int size,
                               bool updateTick) {
+  if (!IsSampleRenderChannel(channel, SONG_CHANNEL_COUNT) ||
+      buffer == nullptr || size <= 0)
+    return false;
 
   bool somethingToMix = false;
 
@@ -784,9 +880,9 @@ bool SampleInstrument::Render(int channel, fixed *buffer, int size,
           int ticks = rp->retrigOffset_ - rp->retrigLoop_;
           long offset =
               long(ticks * SyncMaster::GetInstance()->GetTickSampleCount());
-          rp->position_ += offset * fp2fl(rp->speed_);
-          if (rp->position_ < 0) {
-            rp->position_ = 0;
+          rp->positionPhase_ += std::int64_t(offset) * rp->speed_;
+          if (rp->positionPhase_ < 0) {
+            rp->positionPhase_ = 0;
           };
           rp->retrigCount_ = rp->retrigLoop_;
         }
@@ -825,8 +921,6 @@ bool SampleInstrument::Render(int channel, fixed *buffer, int size,
 
     // Get sound characteristics
 
-    char *wavbuf = (char *)rp->sampleBuffer_;
-
     int channelCount = rp->channelCount_;
 
     int count = size; // number of samples to treat
@@ -837,12 +931,11 @@ bool SampleInstrument::Render(int channel, fixed *buffer, int size,
 
     fixed volscale = fl2fp(0.003921568627450980392156862745098f);
     fixed volfactor = fp_mul(rp->volume_, volscale);
-    int pan = std::clamp(fp2i(rp->pan_),
-                         SampleInstrumentParameterLimits::PanMinimum,
-                         SampleInstrumentParameterLimits::PanMaximum);
+    int pan =
+        std::clamp(fp2i(rp->pan_), SampleInstrumentParameterLimits::PanMinimum,
+                   SampleInstrumentParameterLimits::PanMaximum);
     fixed fixedpanl = panlaw[pan];
-    fixed fixedpanr =
-        panlaw[SampleInstrumentParameterLimits::PanMaximum - pan];
+    fixed fixedpanr = panlaw[SampleInstrumentParameterLimits::PanMaximum - pan];
 
     // filter constants
 
@@ -851,29 +944,22 @@ bool SampleInstrument::Render(int channel, fixed *buffer, int size,
 
     // Get pan multiplicators, and take volume into account
 
-    int n = int(rp->position_);
-    short *input = (short *)(wavbuf + 2 * channelCount *
-                                          n); // input is the current
-                                              // sample to the left of position
-
-    fixed fpPos = fl2fp(rp->position_ - n); // fpPos is current pos from input
-    fixed fpSpeed = rp->speed_;             // speed in fixed
-    if (rp->reverse_) {
-      fpSpeed = -rp->speed_;
-    }
-
-    fixed s1, s2, t2, eta, inveta;
-    s2 = 0;
-    t2 = 0;
-
-    short *loopPosition =
-        (short *)(wavbuf + rp->rendLoopStart_ * 2 * channelCount);
-    short *lastSample =
-        (short *)(wavbuf + (rp->rendLoopEnd_ - 1) * 2 * channelCount);
-
-    if (/*(loopMode==SILM_OSCFINE)||*/ (rp->reverse_)) {
-      lastSample = (short *)(wavbuf + rp->rendLoopEnd_ * 2 * channelCount);
-    }
+    // Keep an integer cursor until it has been resolved against the loop and
+    // source bounds. Forming a pointer first is already undefined for large
+    // pitch/retrigger overshoots, even before dereferencing it.
+    // Leave enough integer headroom for one maximum Q15 speed advance.
+    const auto phase = std::clamp<std::int64_t>(
+        rp->positionPhase_,
+        std::int64_t(std::numeric_limits<int>::min() + 65536) * FP_ONE,
+        std::int64_t(std::numeric_limits<int>::max() - 65536) * FP_ONE);
+    int n = static_cast<int>(phase >> FIXED_SHIFT);
+    fixed fpPos = static_cast<fixed>(phase & (FP_ONE - 1));
+    fixed fpSpeed = rp->reverse_ ? -rp->speed_ : rp->speed_;
+    short *wav = static_cast<short *>(rp->sampleBuffer_);
+    const int sampleFrames = rp->sampleFrames_;
+    const int loopStart = std::clamp(rp->rendLoopStart_, 0, sampleFrames - 1);
+    const int loopEnd = std::clamp(rp->rendLoopEnd_, 0, sampleFrames);
+    fixed s1, s2 = 0, t2 = 0, eta, inveta;
 
     fixed zerofive = fl2fp(0.5f);
 
@@ -895,144 +981,150 @@ bool SampleInstrument::Render(int channel, fixed *buffer, int size,
     fixed *fltDelayPtr = 0;
     fixed *fltHeightPtr = 0;
 
-    short *dsBasePtr = ((short *)wavbuf) + rp->rendFirst_ * channelCount;
+    const int dsBase = std::clamp(rp->rendFirst_, 0, sampleFrames - 1);
+    const bool simple = !hasUpdaters && rp->crush_ == 16 &&
+                        rp->drive_ == 0xFF && rp->downsample_ == 0;
+    const bool crushing = rp->crush_ != 16 || rp->drive_ != 0xFF;
 
-    bool fastUnityOneShot = !hasUpdaters && !filtering && !rp->retrig_ &&
-                            loopMode == SILM_ONESHOT && !rpReverse &&
-                            rp->crush_ == 16 && rp->drive_ == 0xFF &&
-                            rp->downsample_ == 0 && fpSpeed == FP_ONE &&
-                            fpPos == 0 &&
-                            (channelCount == 1 || channelCount == 2);
-    if (fastUnityOneShot && input < lastSample) {
-      int framesAvailable = static_cast<int>(lastSample - input) / channelCount;
-      int fastFrames = std::min(count, framesAvailable);
-      if (fastFrames > 0) {
-        if (channelCount == 1) {
-          renderMonoUnityPitch(input, result, fastFrames, volfactor, fixedpanl,
-                               fixedpanr);
-        } else {
-          renderStereoUnityPitch(input, result, fastFrames, volfactor,
-                                 fixedpanl, fixedpanr);
+    int framesUntilBoundary = 0;
+    while (count > 0) {
+      if (framesUntilBoundary == 0) {
+        if (loopMode == SILM_LOOP_PINGPONG) {
+          const int low = std::min(loopStart, loopEnd);
+          const int high = loopStart < loopEnd ? loopEnd - 1 : loopStart;
+          // Preserve a forward intro before loopStart. Once moving backward,
+          // both endpoints participate in reflection.
+          if ((!rpReverse && n >= high) || (rpReverse && n <= low)) {
+            ReflectSamplePosition(n, fpPos, rpReverse, low, high);
+            fpSpeed = rpReverse ? -rp->speed_ : rp->speed_;
+          }
+        } else if (loopMode != SILM_ONESHOT) {
+          if (!rpReverse && n >= loopEnd) {
+            const int length = loopEnd - loopStart;
+            n = length > 0 ? loopStart + (n - loopEnd) % length : loopStart;
+            rpReverse = loopStart >= loopEnd;
+            fpSpeed = rpReverse ? -rp->speed_ : rp->speed_;
+          } else if (rpReverse && n < loopEnd) {
+            const int length = loopStart - loopEnd + 1;
+            n = length > 0 ? loopStart - (loopEnd - 1 - n) % length : loopStart;
+            rpReverse = loopStart >= loopEnd;
+            fpSpeed = rpReverse ? -rp->speed_ : rp->speed_;
+          }
+        } else if ((!rpReverse && n >= loopEnd) || (rpReverse && n < loopEnd)) {
+          *rpFinished = true;
         }
-        input += fastFrames * channelCount;
+
+        if (n < 0 || n >= sampleFrames)
+          *rpFinished = true;
+        if (*rpFinished)
+          break;
+
+        framesUntilBoundary = 1;
+        if (!hasUpdaters) {
+          if (fpSpeed == 0) {
+            framesUntilBoundary = count;
+          } else {
+            const int low = loopMode == SILM_LOOP_PINGPONG
+                                ? std::min(loopStart, loopEnd)
+                                : loopEnd;
+            const int high =
+                loopMode == SILM_LOOP_PINGPONG
+                    ? (loopStart < loopEnd ? loopEnd - 1 : loopStart)
+                    : loopEnd;
+            const std::int64_t distance =
+                fpSpeed > 0
+                    ? std::int64_t(std::min(high, sampleFrames) - n) * FP_ONE -
+                          fpPos
+                    : std::int64_t(n - std::max(low, 0)) * FP_ONE + fpPos;
+            const std::int64_t step =
+                fpSpeed > 0 ? fpSpeed : -std::int64_t(fpSpeed);
+            if (distance > 0) {
+              framesUntilBoundary =
+                  std::int64_t(count) * step <= distance
+                      ? count
+                      : static_cast<int>((distance + step - 1) / step);
+            }
+          }
+        }
+      }
+
+      // Resolve boundaries once per contiguous span. Common sample playback
+      // avoids the effect/filter/channel/mode branches in the general loop.
+      const int safeEnd = loopEnd - 1;
+      if (simple && !rpReverse && loopMode != SILM_LOOP_PINGPONG &&
+          n < safeEnd && fpSpeed >= 0) {
+        int fastFrames = count;
+        if (!filtering && fpSpeed == FP_ONE && fpPos == 0) {
+          fastFrames = std::min(count, safeEnd - n);
+          short *input = wav + n * channelCount;
+          if (channelCount == 1)
+            renderMonoUnityPitch(input, result, fastFrames, volfactor,
+                                 fixedpanl, fixedpanr);
+          else
+            renderStereoUnityPitch(input, result, fastFrames, volfactor,
+                                   fixedpanl, fixedpanr);
+          n += fastFrames;
+        } else {
+          if (fpSpeed > 0) {
+            const std::int64_t distance =
+                std::int64_t(safeEnd - n) * FP_ONE - fpPos;
+            // Most spans end at the output buffer, avoiding a wide divide on
+            // Xtensa. Only the last span before a sample boundary divides.
+            if (std::int64_t(count) * fpSpeed > distance)
+              fastFrames = static_cast<int>((distance + fpSpeed - 1) / fpSpeed);
+          }
+          if (channelCount == 1) {
+            if (filtering && interpol == 0)
+              renderSampleSpan<1, true, true>(wav, result, fastFrames, n, fpPos,
+                                              fpSpeed, volfactor, fixedpanl,
+                                              fixedpanr, flt, filterBoost);
+            else if (filtering)
+              renderSampleSpan<1, false, true>(
+                  wav, result, fastFrames, n, fpPos, fpSpeed, volfactor,
+                  fixedpanl, fixedpanr, flt, filterBoost);
+            else if (interpol == 0)
+              renderSampleSpan<1, true>(wav, result, fastFrames, n, fpPos,
+                                        fpSpeed, volfactor, fixedpanl,
+                                        fixedpanr);
+            else
+              renderSampleSpan<1, false>(wav, result, fastFrames, n, fpPos,
+                                         fpSpeed, volfactor, fixedpanl,
+                                         fixedpanr);
+          } else {
+            if (filtering && interpol == 0)
+              renderSampleSpan<2, true, true>(wav, result, fastFrames, n, fpPos,
+                                              fpSpeed, volfactor, fixedpanl,
+                                              fixedpanr, flt, filterBoost);
+            else if (filtering)
+              renderSampleSpan<2, false, true>(
+                  wav, result, fastFrames, n, fpPos, fpSpeed, volfactor,
+                  fixedpanl, fixedpanr, flt, filterBoost);
+            else if (interpol == 0)
+              renderSampleSpan<2, true>(wav, result, fastFrames, n, fpPos,
+                                        fpSpeed, volfactor, fixedpanl,
+                                        fixedpanr);
+            else
+              renderSampleSpan<2, false>(wav, result, fastFrames, n, fpPos,
+                                         fpSpeed, volfactor, fixedpanl,
+                                         fixedpanr);
+          }
+        }
         result += fastFrames * 2;
         count -= fastFrames;
+        framesUntilBoundary = 0;
+        continue;
       }
-    }
 
-    while (count > 0) {
-
-      // look where we are, if we need to
-
-      if (!rpReverse) {
-        if (input >= lastSample /*-((loopMode==SILM_OSCFINE)?1:0)*/) {
-          switch (loopMode) {
-          case SILM_ONESHOT:
-            *rpFinished = true;
-            break;
-          case SILM_LOOP:
-          case SILM_OSC:
-          case SILM_LOOPSYNC:
-            input = loopPosition;
-            rpReverse = (loopPosition > lastSample);
-            if (rpReverse) {
-              fpSpeed = -rp->speed_;
-            } else {
-              fpSpeed = rp->speed_;
-            }
-            break;
-          case SILM_LOOP_PINGPONG:
-            if ((loopPosition > lastSample)) {
-              if (input <= lastSample || input >= loopPosition) {
-                rpReverse = !rpReverse;
-                fpSpeed = -fpSpeed;
-              }
-            } else {
-              if (input >= lastSample || input <= loopPosition) {
-                rpReverse = !rpReverse;
-                fpSpeed = -fpSpeed;
-              }
-            }
-            break;
-            /*						case
-               SILM_OSCFINE:
-                                                            {
-                                                                    int
-               offset=(input-lastSample)/channelCount ;
-                                                                    rpReverse=(loopPosition>lastSample)
-               ; if (rpReverse) { fpSpeed=-rp->speed_ ;
-                                                                            input=loopPosition-offset
-               ; } else { fpSpeed=rp->speed_ ; input=loopPosition+offset ;
-                                                                    }
-                                                                    break ;
-                                                            }*/
-          case SILM_LAST:
-            NAssert(0);
-            break;
-          };
-        }
-      } else {
-        if (input < lastSample) {
-          switch (loopMode) {
-          case SILM_ONESHOT:
-            *rpFinished = true;
-            break;
-          case SILM_LOOP:
-          case SILM_OSC:
-          case SILM_LOOPSYNC:
-            input = loopPosition;
-            rpReverse = (loopPosition > lastSample);
-            if (rpReverse) {
-              fpSpeed = -rp->speed_;
-            } else {
-              fpSpeed = rp->speed_;
-            }
-            break;
-          case SILM_LOOP_PINGPONG:
-            if ((loopPosition > lastSample)) {
-              if (input <= lastSample || input >= loopPosition) {
-                rpReverse = !rpReverse;
-                fpSpeed = -fpSpeed;
-              }
-            } else {
-              if (input >= lastSample || input <= loopPosition) {
-                rpReverse = !rpReverse;
-                fpSpeed = -fpSpeed;
-              }
-            }
-            break;
-            /*						case
-               SILM_OSCFINE:
-                                                            {
-                                                                    int
-               offset=(lastSample-input)/channelCount ;
-                                                                    rpReverse=(loopPosition>lastSample)
-               ; if (rpReverse) { fpSpeed=-rp->speed_ ;
-                                                                            input=loopPosition-offset
-               ; } else { fpSpeed=rp->speed_ ; input=loopPosition+offset ;
-                                                                    }
-                                                                    break ;
-                                                            }*/
-          case SILM_LAST:
-            NAssert(0);
-            break;
-          };
-        }
-      };
-
-      if (*rpFinished) {
-        count = -1;
-      } else {
-
+      {
         // See if time to process k-rate change
 
         if (hasUpdaters && rpKrateCount-- == 0) {
-          rpKrateCount = KRATE_SAMPLE_COUNT;
+          rpKrateCount = KRATE_SAMPLE_COUNT - 1;
 
           doKRateUpdate(channel);
           struct RUParams rup;
-          rup.cutOffset_ = rup.resOffset_ = rup.volumeOffset_ =
-              rup.panOffset_ = rup.fbMixOffset_ = rup.fbTunOffset_ = 0;
+          rup.cutOffset_ = rup.resOffset_ = rup.volumeOffset_ = rup.panOffset_ =
+              rup.fbMixOffset_ = rup.fbTunOffset_ = 0;
           rup.speedOffset_ = FP_ONE;
 
           for (auto it = rp->activeUpdaters_.begin();
@@ -1052,14 +1144,16 @@ bool SampleInstrument::Render(int channel, fixed *buffer, int size,
           set_filter(channel, FLT_LOWPASS, rp->cutoff_, rp->reso_, filterMix,
                      bassyFilter);
           filtering = (rp->cutoff_ < i2fp(1)) || (rp->reso_ > i2fp(0));
+          fltParm1 = flt->freq;
+          fltParm2 = flt->reso;
+          fltDirt = flt->dirt;
 
           volfactor = fp_mul(rp->volume_, volscale);
           pan = std::clamp(fp2i(rp->pan_),
                            SampleInstrumentParameterLimits::PanMinimum,
                            SampleInstrumentParameterLimits::PanMaximum);
           fixedpanl = panlaw[pan];
-          fixedpanr =
-              panlaw[SampleInstrumentParameterLimits::PanMaximum - pan];
+          fixedpanr = panlaw[SampleInstrumentParameterLimits::PanMaximum - pan];
 
           if (rpReverse) {
             fpSpeed = -rp->speed_;
@@ -1071,25 +1165,31 @@ bool SampleInstrument::Render(int channel, fixed *buffer, int size,
         // get input sample to interpolate from
         // s= left channel
         // t= right channel
-        short *i1 = input;
+        int readFrame = n;
         if (dsMask != 0xFFFFFFFF) {
           if (useDirtyDownsampling_) {
-            i1 = (short *)(((uintptr_t)input) & dsMask);
+            // Legacy downsampling aligns absolute addresses. Clamp the result
+            // before dereferencing; alignment may otherwise precede the WAV.
+            const uintptr_t aligned =
+                reinterpret_cast<uintptr_t>(wav + n * channelCount) &
+                (static_cast<uintptr_t>(dsMask) | ~uintptr_t{0xFFFFFFFF});
+            const uintptr_t base = reinterpret_cast<uintptr_t>(wav);
+            readFrame =
+                aligned < base
+                    ? 0
+                    : static_cast<int>((aligned - base) / (2 * channelCount));
           } else {
-            // prevent input ever being lower mem address then dsBasePtr (sample
-            // start point) this can occur eg. if doing reverse playback and
-            // using RTG cmds
-            if (input < dsBasePtr) {
-              i1 = dsBasePtr;
-            } else {
-              unsigned int distance =
-                  (unsigned int)(input - dsBasePtr) / channelCount;
-              i1 = dsBasePtr + (distance & dsMask) * channelCount;
-            }
+            readFrame = n < dsBase ? dsBase : dsBase + ((n - dsBase) & dsMask);
           }
         }
-
-        short *i2 = i1 + channelCount;
+        readFrame = std::clamp(readFrame, 0, sampleFrames - 1);
+        short *i1 = wav + readFrame * channelCount;
+        // Hold the terminal frame for interpolation; never read another slice
+        // or a guard sample beyond the allocation.
+        int nextFrame = std::min(readFrame + 1, sampleFrames - 1);
+        if (!rpReverse && loopEnd > 0 && readFrame < loopEnd)
+          nextFrame = std::min(nextFrame, loopEnd - 1);
+        short *i2 = wav + nextFrame * channelCount;
 
         if (filtering) {
           fltSpeedPtr = fltSpeed;
@@ -1099,8 +1199,9 @@ bool SampleInstrument::Render(int channel, fixed *buffer, int size,
 
         for (int i = 0; i < channelCount; i++) {
           t2 = s2; // move L to R if necessary
-          s1 = i2fp(*i1++);
-          s2 = i2fp(*i2++);
+          const int pcm1 = *i1++;
+          const int pcm2 = *i2++;
+          s1 = i2fp(pcm1);
 
           switch (interpol) {
 
@@ -1111,29 +1212,20 @@ bool SampleInstrument::Render(int channel, fixed *buffer, int size,
 
             // interpolate
 
-            s1 = fp_mul_coef(s1, inveta);
-            s2 = fp_mul_coef(s2, eta);
-
-            // Compute interpolated sample
-
-            s1 += s2;
+            s1 = pcm1 * inveta + pcm2 * eta;
             break;
 
           case 1: // Nearest neighbor
 
             if (fpPos > zerofive) {
-              s1 = s2;
+              s1 = i2fp(pcm2);
             };
             break;
           }
 
           // crush predrive
 
-          s2 = fp_mul_coef(s1, fpcrushvol);
-
-          // store result, applying crush
-
-          s2 = (s2 & mask);
+          s2 = crushing ? (fp_mul_coef(s1, fpcrushvol) & mask) : s1;
 
           // apply volume
 
@@ -1159,9 +1251,9 @@ bool SampleInstrument::Render(int channel, fixed *buffer, int size,
               *fltSpeedPtr = fp_mul(*fltSpeedPtr, fltDirt);
             }
 
-            *fltSpeedPtr = fp_mul_coef(
-                *fltSpeedPtr, fltParm2); // mul by res, it's some kind
-                                         // of inertia.
+            *fltSpeedPtr =
+                fp_mul_coef(*fltSpeedPtr, fltParm2); // mul by res, it's some
+                                                     // kind of inertia.
             /*HOG:5*/ *fltSpeedPtr = fp_add(
                 *fltSpeedPtr,
                 fp_mul_coef(difr, fltParm1)); // mul by cutoff, less cutoff = no
@@ -1180,6 +1272,9 @@ bool SampleInstrument::Render(int channel, fixed *buffer, int size,
 
         if (channelCount == 1) {
           t2 = s2;
+        } else {
+          // The loop leaves the last (right) channel in s2 and left in t2.
+          std::swap(s2, t2);
         }
 
         // introduce panning & vol - store result
@@ -1193,11 +1288,14 @@ bool SampleInstrument::Render(int channel, fixed *buffer, int size,
         // Computes new pos for next input sample
         // fpPos is always relative to 'input' pointer
 
-        fpPos = fp_add(fpPos, fpSpeed);
-        int delta = fp2i(fpPos);
-        input += channelCount * delta;
-        fpPos = fp_sub(fpPos, i2fp(delta));
+        // Split before adding to keep even the largest positive Q15 speed
+        // from overflowing when the fractional cursor is added.
+        const unsigned phase = static_cast<unsigned>(fpPos) +
+                               (static_cast<unsigned>(fpSpeed) & (FP_ONE - 1));
+        n += fp2i(fpSpeed) + static_cast<int>(phase >> FIXED_SHIFT);
+        fpPos = static_cast<fixed>(phase & (FP_ONE - 1));
         count--;
+        --framesUntilBoundary;
       }
     }
     // Update 'reverse' mode if changed
@@ -1205,8 +1303,8 @@ bool SampleInstrument::Render(int channel, fixed *buffer, int size,
     rp->reverse_ = rpReverse;
 
     // Update final sample position
-    rp->position_ =
-        (((char *)input) - wavbuf) / (2 * channelCount) + fp2fl(fpPos);
+    rp->positionPhase_ = std::int64_t(n) * FP_ONE + fpPos;
+    rp->krateCount_ = rpKrateCount;
 
     if (*rpFinished) {
       activeChannels_ &= ~SampleChannelBit(channel);
@@ -1320,6 +1418,8 @@ void SampleInstrument::Update(Observable &o, I_ObservableData *d) {
 };
 
 void SampleInstrument::ProcessCommand(int channel, FourCC cc, ushort value) {
+  if (!IsSampleRenderChannel(channel, SONG_CHANNEL_COUNT))
+    return;
 
   renderParams *rp = renderParams_ + channel;
   if (!source_)
@@ -1346,21 +1446,18 @@ void SampleInstrument::ProcessCommand(int channel, FourCC cc, ushort value) {
     if (!source_)
       return;
     int wavSize = source_->GetSize(rp->midiNote_);
-    float chkSize = wavSize / 256.0f;
-    int absShft = value >> 8;
-    if (absShft != 0) {
-      rp->position_ = chkSize * absShft;
-    };
-    int relSfht = value & 0xFF;
-    if (relSfht > 127)
-      relSfht = relSfht - 256;
-    rp->position_ += relSfht * chkSize;
-    while (rp->position_ < 0) {
-      rp->position_ = wavSize + rp->position_;
-    };
-    while (rp->position_ >= wavSize) {
-      rp->position_ -= wavSize;
-    };
+    if (wavSize <= 0)
+      break;
+    const std::int64_t length = std::int64_t(wavSize) * FP_ONE;
+    const std::int64_t chunk = length / 256;
+    const int absolute = value >> 8;
+    if (absolute != 0)
+      rp->positionPhase_ = chunk * absolute;
+    const int relative =
+        (value & 0xFF) > 127 ? (value & 0xFF) - 256 : value & 0xFF;
+    rp->positionPhase_ = (rp->positionPhase_ + relative * chunk) % length;
+    if (rp->positionPhase_ < 0)
+      rp->positionPhase_ += length;
     rp->couldClick_ = SHOULD_KILL_CLICKS;
   } break;
 
@@ -1674,8 +1771,7 @@ void SampleInstrument::RestoreContent(PersistencyDocument *doc) {
   };
 
   const bool childAlreadySelected =
-      doc->r_ == YXML_ELEMSTART &&
-      strcasecmp(doc->ElemName(), "PARAM") == 0;
+      doc->r_ == YXML_ELEMSTART && strcasecmp(doc->ElemName(), "PARAM") == 0;
   if (!childAlreadySelected) {
     bool typeSeen = doc->r_ == YXML_ATTREND;
     bool hasAttr = doc->NextAttribute();
@@ -1703,8 +1799,8 @@ void SampleInstrument::RestoreContent(PersistencyDocument *doc) {
       return;
   }
 
-  bool subelem = childAlreadySelected || doc->r_ == YXML_ELEMSTART ||
-                 doc->FirstChild();
+  bool subelem =
+      childAlreadySelected || doc->r_ == YXML_ELEMSTART || doc->FirstChild();
 
   while (subelem) {
     if (strcasecmp(doc->ElemName(), "PARAM") != 0) {
@@ -1719,16 +1815,16 @@ void SampleInstrument::RestoreContent(PersistencyDocument *doc) {
 
     while (attr) {
       if (!strcasecmp(doc->attrname_, "NAME")) {
-        if (hasName || !CopyPersistedVariableAttribute(
-                           *doc, name.data(), name.size(), false)) {
+        if (hasName || !CopyPersistedVariableAttribute(*doc, name.data(),
+                                                       name.size(), false)) {
           fail();
           return;
         }
         hasName = true;
       }
       if (!strcasecmp(doc->attrname_, "VALUE")) {
-        if (hasValue || !CopyPersistedVariableAttribute(
-                            *doc, value.data(), value.size(), true)) {
+        if (hasValue || !CopyPersistedVariableAttribute(*doc, value.data(),
+                                                        value.size(), true)) {
           fail();
           return;
         }
@@ -1736,8 +1832,7 @@ void SampleInstrument::RestoreContent(PersistencyDocument *doc) {
       }
       attr = doc->NextAttribute();
     }
-    if (doc->HadError() || doc->r_ != YXML_ELEMEND || !hasName ||
-        !hasValue) {
+    if (doc->HadError() || doc->r_ != YXML_ELEMEND || !hasName || !hasValue) {
       fail();
       return;
     }

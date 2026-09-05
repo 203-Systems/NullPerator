@@ -40,6 +40,7 @@ typedef struct {
   fixed freq, reso;
   fixed dirt;
   fixed mix;
+  bool bassyMapping;
 } filter_t;
 
 void set_filter(int channel, filterType_t type, fixed parm1, fixed parm2,

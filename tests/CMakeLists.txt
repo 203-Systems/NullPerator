@@ -30,6 +30,7 @@ add_executable(picoTracker_tests
   node_path_resolver_tests.cpp
   project_defaults_tests.cpp
   sample_pool_loading_tests.cpp
+  sampler_render_tests.cpp
   shared_adapter_contract_tests.cpp
   ui2_browser_legacy_snapshot_tests.cpp
   ui2_dialog_adapter_tests.cpp

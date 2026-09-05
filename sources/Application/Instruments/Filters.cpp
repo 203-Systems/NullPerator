@@ -24,12 +24,11 @@ bool filters_inited = false;
 fixed fp_inv_255;
 
 void init_filters(void) {
-
+  fp_inv_255 = fl2fp(1.0f / 255);
   for (int i = 0; i < 8; i++) { // set sensible default values
     // lowpass filter where everything passes with no resonance
     set_filter(i, FLT_LOWPASS, i2fp(1), i2fp(0), i2fp(0), false);
   }
-  fp_inv_255 = fl2fp(1.0f / 255);
   filters_inited = true;
 }
 
@@ -52,8 +51,9 @@ void set_filter(int channel, filterType_t type, fixed param1, fixed param2,
   flt->dirt = fp_mul(i2fp(100), i2fp(1) - param1) + fp_mul(i2fp(5000), param1);
   flt->mix = fp_mul(i2fp(mix), fp_inv_255);
 
-  if (param1 != flt->parm1) {
+  if (param1 != flt->parm1 || bassyMapping != flt->bassyMapping) {
     flt->parm1 = param1;
+    flt->bassyMapping = bassyMapping;
     // adjust parm to get the most of the parameters, as the fx are more useful
     // with near-limit parameters.
     if (bassyMapping) {
@@ -62,7 +62,7 @@ void set_filter(int channel, filterType_t type, fixed param1, fixed param2,
       static const fixed fpThreeOne = fl2fp(3.1f);
 
       fixed power = fp_add(fpZeroSix, fp_mul(param1, fpThreeOne));
-      fixed frequency = fl2fp(pow(10.0f, fp2fl(power)));
+      fixed frequency = fl2fp(powf(10.0f, fp2fl(power)));
       frequency = fp_mul(frequency, fpFreqDivider);
       flt->freq = frequency;
     } else {
