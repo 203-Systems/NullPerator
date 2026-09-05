@@ -14,6 +14,7 @@
 #include "UI2/Views/Chain/UiChainView.h"
 #include "UI2/Views/Device/UiDeviceView.h"
 #include "UI2/Views/Dialog/UiDialogView.h"
+#include "UI2/Views/Font/UiFontView.h"
 #include "UI2/Views/Groove/UiGrooveView.h"
 #include "UI2/Views/Instrument/UiInstrumentView.h"
 #include "UI2/Views/Mixer/UiMixerView.h"
@@ -24,7 +25,6 @@
 #include "UI2/Views/Song/UiSongView.h"
 #include "UI2/Views/Table/UiTableView.h"
 #include "UI2/Views/Theme/UiThemeView.h"
-#include "UI2/Views/Font/UiFontView.h"
 
 #include <array>
 #include <cstdint>
@@ -218,6 +218,16 @@ private:
   [[nodiscard]] UiBuildStatus ApplyDialog();
   void RenderDialogDelta();
   void CommitDialog();
+  template <typename Frame>
+  PresentResult PresentAndCommit(Frame &previous, const Frame &current) {
+    const PresentResult result = engine_.PresentDirty();
+    if (result == PresentResult::Presented) {
+      previous = current;
+      previousValid_ = true;
+      CommitDialog();
+    }
+    return result;
+  }
   [[nodiscard]] PresentResult PresentSong(IUiApplicationStateSource &source,
                                           std::uint32_t nowMs);
   [[nodiscard]] PresentResult PresentChain(IUiApplicationStateSource &source,

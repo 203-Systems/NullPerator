@@ -14,22 +14,22 @@
 // TinyXML's embedded adapter intentionally remaps stdio names. Keep all host
 // standard-library headers above the production persistence headers.
 #include "Adapters/wasm/filesystem/WasmFileSystem.h"
-#include "Application/Persistency/InstrumentFileValidator.h"
-#include "Application/Instruments/SampleInstrumentParameterLimits.h"
 #include "Application/Instruments/InstrumentBankRestorePolicy.h"
-#include "Application/Persistency/PersistencyAttribute.h"
-#include "Application/Persistency/PersistencyDocument.h"
-#include "Application/Persistency/PersistencyService.h"
-#include "Application/Persistency/Persistent.h"
-#include "Application/Session/TrackerProjectLoadPolicy.h"
+#include "Application/Instruments/SampleInstrumentParameterLimits.h"
 #include "Application/Model/Groove.h"
 #include "Application/Model/Phrase.h"
 #include "Application/Model/ProjectParameterRestore.h"
 #include "Application/Model/ProjectVersion.h"
 #include "Application/Model/Song.h"
 #include "Application/Model/Table.h"
-#include "Application/Utils/HexBuffers.h"
+#include "Application/Persistency/InstrumentFileValidator.h"
+#include "Application/Persistency/PersistencyAttribute.h"
+#include "Application/Persistency/PersistencyDocument.h"
+#include "Application/Persistency/PersistencyService.h"
+#include "Application/Persistency/Persistent.h"
+#include "Application/Session/TrackerProjectLoadPolicy.h"
 #include "Application/Utils/HelpLegend.h"
+#include "Application/Utils/HexBuffers.h"
 
 struct PersistencyServiceTestPeer {
   static PersistencyResult SaveStaging(PersistencyService &service) {
@@ -53,8 +53,8 @@ struct PersistencyServiceTestPeer {
   }
 
   static PersistencyResult LoadJournalBackup(PersistencyService &service,
-                                              const char *projectName,
-                                              bool autosave) {
+                                             const char *projectName,
+                                             bool autosave) {
     return service.LoadProjectJournalBackup_(
         projectName, autosave,
         std::strcmp(projectName, UNNAMED_PROJECT_NAME) == 0);
@@ -83,10 +83,9 @@ struct PersistencyServiceTestPeer {
     return service.ReadPreviousProjectName_(projectName);
   }
 
-  static bool BeginStagingReplacement(PersistencyService &service,
-                                      bool &hadPrevious,
-                                      const char *previousProjectName =
-                                          UNNAMED_PROJECT_NAME) {
+  static bool BeginStagingReplacement(
+      PersistencyService &service, bool &hadPrevious,
+      const char *previousProjectName = UNNAMED_PROJECT_NAME) {
     return service.BeginStagingProjectReplacement_(previousProjectName,
                                                    hadPrevious);
   }
@@ -101,13 +100,12 @@ struct PersistencyServiceTestPeer {
     return service.RollbackStagingProjectReplacement_(hadPrevious);
   }
 
-  static bool FinalizeCommittedStagingReplacement(
-      PersistencyService &service) {
+  static bool FinalizeCommittedStagingReplacement(PersistencyService &service) {
     return service.FinalizeCommittedStagingProjectReplacement_();
   }
 
-  static bool RollbackCommittedStagingReplacement(
-      PersistencyService &service, char *previousProjectName) {
+  static bool RollbackCommittedStagingReplacement(PersistencyService &service,
+                                                  char *previousProjectName) {
     return service.RollbackCommittedStagingProjectReplacement_(
         previousProjectName);
   }
@@ -161,8 +159,7 @@ public:
     auto file = filesystem_.Open((std::string("/") + name).c_str(), "w");
     REQUIRE(static_cast<bool>(file));
     tinyxml2::XMLPrinter printer(file.get());
-    saveHexBuffer(&printer, "COMMAND1", commands,
-                  static_cast<unsigned>(count));
+    saveHexBuffer(&printer, "COMMAND1", commands, static_cast<unsigned>(count));
     REQUIRE(file->Sync());
   }
 
@@ -204,8 +201,7 @@ protected:
   bool Close() override {
     bool closed = true;
     if (delegate_) {
-      I_File *raw =
-          AcquireLegacyFileHandle_DO_NOT_USE(std::move(delegate_));
+      I_File *raw = AcquireLegacyFileHandle_DO_NOT_USE(std::move(delegate_));
       closed = CloseFile_DO_NOT_USE(raw);
     }
     return closed && !failClose_;
@@ -244,10 +240,8 @@ public:
     FileHandle file = delegate_.Open(name, mode);
     if (!file)
       return file;
-    const bool failSync =
-        failSyncCount_ != 0U && failSyncPath_ == name;
-    const bool failClose =
-        failCloseCount_ != 0U && failClosePath_ == name;
+    const bool failSync = failSyncCount_ != 0U && failSyncPath_ == name;
+    const bool failClose = failCloseCount_ != 0U && failClosePath_ == name;
     if (failSync)
       --failSyncCount_;
     if (failClose)
@@ -354,8 +348,7 @@ PersistencyService &TestPersistencyService() {
 
 class GenericRestoreInstrument final : public I_Instrument {
 public:
-  inline static constexpr const char *SidWaves[3] = {"--------", "TRI",
-                                                      "SAW"};
+  inline static constexpr const char *SidWaves[3] = {"--------", "TRI", "SAW"};
   inline static constexpr const char *OpalAlgorithms[2] = {"1*2", "1+2"};
 
   explicit GenericRestoreInstrument(InstrumentType type)
@@ -367,7 +360,7 @@ public:
         opalFeedback_(FourCC::OPALInstrumentFeedback, 4),
         midiChannel_(FourCC::MidiInstrumentChannel, 7),
         table_(type == IT_MIDI ? FourCC::MidiInstrumentTable
-                              : FourCC::SIDInstrumentTable,
+                               : FourCC::SIDInstrumentTable,
                VAR_OFF) {
     variables_.push_back(&sidOsc_);
     variables_.push_back(&sidWave_);
@@ -413,8 +406,7 @@ private:
   Variable table_;
 };
 
-void LoadCommandElement(const char *file, FourCC *commands,
-                        std::size_t count) {
+void LoadCommandElement(const char *file, FourCC *commands, std::size_t count) {
   PersistencyDocument document;
   REQUIRE(document.Load(file));
   REQUIRE(document.FirstChild());
@@ -490,8 +482,7 @@ bool StageProjectParameters(const char *file, ProjectRestoreTargets &targets,
 
 std::string EncodeCommandXml(const char *element,
                              std::span<const FourCC> commands,
-                             std::size_t stride,
-                             std::size_t encodedBytes) {
+                             std::size_t stride, std::size_t encodedBytes) {
   std::string xml = std::string("<") + element + ">";
   const std::size_t fullSize = commands.size() * stride;
   encodedBytes = std::min(encodedBytes, fullSize);
@@ -501,10 +492,9 @@ std::string EncodeCommandXml(const char *element,
     for (std::size_t byte = offset; byte < end; ++byte) {
       const std::size_t command = byte / stride;
       const std::size_t wordByte = byte % stride;
-      AppendHexByte(xml, wordByte == 0U
-                             ? static_cast<std::uint8_t>(
-                                   commands[command].get_value())
-                             : 0U);
+      AppendHexByte(xml, wordByte == 0U ? static_cast<std::uint8_t>(
+                                              commands[command].get_value())
+                                        : 0U);
     }
     xml += "</DATA>";
   }
@@ -516,8 +506,7 @@ std::string EncodeCommandXml(const char *element,
 
 TEST_CASE("Song COMMAND restore decodes canonical packed FX values") {
   FourCCXmlFixture fixture;
-  fixture.Write("song.xml",
-                "<COMMAND1><DATA>1E193A</DATA></COMMAND1>");
+  fixture.Write("song.xml", "<COMMAND1><DATA>1E193A</DATA></COMMAND1>");
   std::array<FourCC, 3> commands{};
   LoadCommandElement("/song.xml", commands.data(), commands.size());
 
@@ -529,10 +518,9 @@ TEST_CASE("Song COMMAND restore decodes canonical packed FX values") {
 }
 
 TEST_CASE("FourCC save writes canonical packed bytes without platform stride") {
-  std::array<FourCC, 3> source{
-      FourCC::InstrumentCommandKill,
-      FourCC::InstrumentCommandFilterResonance,
-      FourCC::InstrumentCommandTable};
+  std::array<FourCC, 3> source{FourCC::InstrumentCommandKill,
+                               FourCC::InstrumentCommandFilterResonance,
+                               FourCC::InstrumentCommandTable};
   FourCCXmlFixture fixture;
   fixture.WriteCommands("roundtrip.xml", source.data(), source.size());
   const std::string xml = fixture.Read("roundtrip.xml");
@@ -560,8 +548,7 @@ TEST_CASE("Table CMD restore migrates legacy Web LE32 FX values") {
 
 TEST_CASE("legacy LE16 command buffers remain readable") {
   FourCCXmlFixture fixture;
-  fixture.Write("le16.xml",
-                "<COMMAND1><DATA>1E0019003A00</DATA></COMMAND1>");
+  fixture.Write("le16.xml", "<COMMAND1><DATA>1E0019003A00</DATA></COMMAND1>");
   std::array<FourCC, 3> commands{};
   LoadCommandElement("/le16.xml", commands.data(), commands.size());
 
@@ -574,10 +561,8 @@ TEST_CASE("maximum Song command arrays restore canonical and legacy LE32") {
   constexpr std::size_t commandCount = PHRASE_COUNT * STEPS_PER_PHRASE;
   std::array<FourCC, commandCount> source{};
   constexpr FourCC::enum_type pattern[] = {
-      FourCC::InstrumentCommandArpeggiator,
-      FourCC::InstrumentCommandKill,
-      FourCC::InstrumentCommandFilterResonance,
-      FourCC::InstrumentCommandTable,
+      FourCC::InstrumentCommandArpeggiator, FourCC::InstrumentCommandKill,
+      FourCC::InstrumentCommandFilterResonance, FourCC::InstrumentCommandTable,
       FourCC::InstrumentCommandNone};
   for (std::size_t index = 0; index < source.size(); ++index)
     source[index] = pattern[index % std::size(pattern)];
@@ -599,9 +584,8 @@ TEST_CASE("maximum Song command arrays restore canonical and legacy LE32") {
 TEST_CASE("truncated and invalid legacy commands become empty commands") {
   FourCCXmlFixture fixture;
   // The third LE32 word is truncated after its low 16 bits.
-  fixture.Write(
-      "truncated.xml",
-      "<COMMAND1><DATA>1E000000190000003A00</DATA></COMMAND1>");
+  fixture.Write("truncated.xml",
+                "<COMMAND1><DATA>1E000000190000003A00</DATA></COMMAND1>");
   std::array<FourCC, 3> truncated{};
   LoadCommandElement("/truncated.xml", truncated.data(), truncated.size());
   CHECK(truncated[0] == FourCC::InstrumentCommandKill);
@@ -610,9 +594,8 @@ TEST_CASE("truncated and invalid legacy commands become empty commands") {
 
   // A non-zero LE32 high byte and an unknown command ID are independently
   // rejected, while the following valid word is still recovered.
-  fixture.Write(
-      "invalid.xml",
-      "<COMMAND1><DATA>1E000100FE0000003A000000</DATA></COMMAND1>");
+  fixture.Write("invalid.xml",
+                "<COMMAND1><DATA>1E000100FE0000003A000000</DATA></COMMAND1>");
   std::array<FourCC, 3> invalid{};
   LoadCommandElement("/invalid.xml", invalid.data(), invalid.size());
   CHECK(invalid[0] == FourCC::InstrumentCommandNone);
@@ -630,7 +613,8 @@ TEST_CASE("truncated and invalid legacy commands become empty commands") {
   CHECK(canonical[3] == FourCC::InstrumentCommandNone);
 }
 
-TEST_CASE("FourCC XML RLE length is capped to the destination migration bound") {
+TEST_CASE(
+    "FourCC XML RLE length is capped to the destination migration bound") {
   FourCCXmlFixture fixture;
   fixture.Write(
       "bounded.xml",
@@ -665,7 +649,7 @@ TEST_CASE("FourCC command restore rejects malformed RLE and hex payloads") {
     CAPTURE(name);
     fixture.Write(name, xml);
     std::array<FourCC, 2> commands{FourCC::InstrumentCommandKill,
-                                  FourCC::InstrumentCommandKill};
+                                   FourCC::InstrumentCommandKill};
     CHECK_FALSE(TryLoadCommandElement((std::string("/") + name).c_str(),
                                       commands.data(), commands.size()));
   }
@@ -676,8 +660,7 @@ TEST_CASE("byte buffer restore respects its explicit destination capacity") {
   fixture.Write(
       "bytes.xml",
       "<PARAM><DATA>0102</DATA><DATA VALUE=\"3\" LENGTH=\"2\"/></PARAM>");
-  std::array<unsigned char, 6> bytes{0xAA, 0xAA, 0xAA,
-                                     0xAA, 0xA5, 0x5A};
+  std::array<unsigned char, 6> bytes{0xAA, 0xAA, 0xAA, 0xAA, 0xA5, 0x5A};
   CHECK(LoadByteElement("/bytes.xml", bytes.data(), 4U));
   const std::array<unsigned char, 6> expected{1, 2, 3, 3, 0xA5, 0x5A};
   CHECK(bytes == expected);
@@ -706,8 +689,7 @@ TEST_CASE("byte buffer restore rejects invalid and oversized RLE lengths") {
   fixture.Write("cumulative-overflow.xml",
                 "<PARAM><DATA VALUE=\"1\" LENGTH=\"3\"/>"
                 "<DATA VALUE=\"2\" LENGTH=\"2\"/></PARAM>");
-  CHECK_FALSE(
-      LoadByteElement("/cumulative-overflow.xml", bytes.data(), 4U));
+  CHECK_FALSE(LoadByteElement("/cumulative-overflow.xml", bytes.data(), 4U));
 
   fixture.Write("invalid-value.xml",
                 "<PARAM><DATA VALUE=\"256\" LENGTH=\"1\"/></PARAM>");
@@ -724,19 +706,17 @@ TEST_CASE("byte buffer restore rejects odd and non-hex text") {
   fixture.Write("nonhex.xml", "<PARAM><DATA>00G1</DATA></PARAM>");
   CHECK_FALSE(LoadByteElement("/nonhex.xml", bytes.data(), bytes.size()));
 
-  fixture.Write("text-overflow.xml",
-                "<PARAM><DATA>0001020304</DATA></PARAM>");
+  fixture.Write("text-overflow.xml", "<PARAM><DATA>0001020304</DATA></PARAM>");
   CHECK_FALSE(
       LoadByteElement("/text-overflow.xml", bytes.data(), bytes.size()));
 }
 
 TEST_CASE("Project PARAMETER restore stages a complete payload before commit") {
   FourCCXmlFixture fixture;
-  fixture.Write("project.xml",
-                "<PROJECT VERSION=\"2.3\">"
-                "<PARAMETER NAME=\"tempo\" VALUE=\"180\"/>"
-                "<PARAMETER NAME=\"preview\" VALUE=\"70\"/>"
-                "</PROJECT>");
+  fixture.Write("project.xml", "<PROJECT VERSION=\"2.3\">"
+                               "<PARAMETER NAME=\"tempo\" VALUE=\"180\"/>"
+                               "<PARAMETER NAME=\"preview\" VALUE=\"70\"/>"
+                               "</PROJECT>");
   ProjectRestoreTargets targets;
   ProjectParameterRestorePacket packet{};
   bool hadError = true;
@@ -785,18 +765,15 @@ TEST_CASE("Project PARAMETER restore rejects malformed attributes atomically") {
   const std::string longAttribute(MAX_VARIABLE_STRING_LENGTH + 1U, 'X');
   const std::string parserOverflow(64U, 'Y');
   const std::array<std::pair<const char *, std::string>, 7> cases{{
-      {"missing-name.xml",
-       "<PROJECT><PARAMETER NAME=\"tempo\" VALUE=\"180\"/>"
-       "<PARAMETER VALUE=\"200\"/></PROJECT>"},
-      {"missing-value.xml",
-       "<PROJECT><PARAMETER NAME=\"tempo\"/></PROJECT>"},
+      {"missing-name.xml", "<PROJECT><PARAMETER NAME=\"tempo\" VALUE=\"180\"/>"
+                           "<PARAMETER VALUE=\"200\"/></PROJECT>"},
+      {"missing-value.xml", "<PROJECT><PARAMETER NAME=\"tempo\"/></PROJECT>"},
       {"long-name.xml", "<PROJECT><PARAMETER NAME=\"" + longAttribute +
                             "\" VALUE=\"180\"/></PROJECT>"},
       {"long-value.xml", "<PROJECT><PARAMETER NAME=\"tempo\" VALUE=\"" +
                              longAttribute + "\"/></PROJECT>"},
-      {"attribute-overflow.xml",
-       "<PROJECT><PARAMETER NAME=\"tempo\" VALUE=\"" + parserOverflow +
-           "\"/></PROJECT>"},
+      {"attribute-overflow.xml", "<PROJECT><PARAMETER NAME=\"tempo\" VALUE=\"" +
+                                     parserOverflow + "\"/></PROJECT>"},
       {"unterminated-attribute.xml",
        "<PROJECT><PARAMETER NAME=\"tempo\" VALUE=\"180"},
       {"unterminated-project.xml",
@@ -843,8 +820,8 @@ TEST_CASE("Project PARAMETER semantic validation rejects unsafe values") {
     fixture.Write(name, xml);
     ProjectRestoreTargets targets;
     ProjectParameterRestorePacket packet{};
-    REQUIRE(StageProjectParameters((std::string("/") + name).c_str(),
-                                   targets, packet));
+    REQUIRE(StageProjectParameters((std::string("/") + name).c_str(), targets,
+                                   packet));
     CHECK_FALSE(ValidateProjectParameterRestorePacket(packet, 60, 400));
     CHECK(targets.tempo.GetInt() == 138);
     CHECK(targets.preview.GetInt() == 60);
@@ -864,8 +841,8 @@ TEST_CASE("Project PARAMETER semantic validation preserves canonical choices") {
                 "<PARAMETER NAME=\"wrap\" VALUE=\"true\"/></PROJECT>");
   ProjectRestoreTargets targets;
   ProjectParameterRestorePacket packet{};
-  REQUIRE(StageProjectParameters("/project-semantic-valid.xml", targets,
-                                 packet));
+  REQUIRE(
+      StageProjectParameters("/project-semantic-valid.xml", targets, packet));
   CHECK(ValidateProjectParameterRestorePacket(packet, 60, 400));
 }
 
@@ -893,10 +870,10 @@ TEST_CASE("Song and Groove semantic restore rejects unsafe indexes and rolls "
                               unsigned value) {
     CAPTURE(project);
     CAPTURE(field);
-    const std::string xml =
-        std::string("<PICOTRACKER><SONG><") + field +
-        "><DATA VALUE=\"" + std::to_string(value) +
-        "\" LENGTH=\"1\"/></" + field + "></SONG></PICOTRACKER>";
+    const std::string xml = std::string("<PICOTRACKER><SONG><") + field +
+                            "><DATA VALUE=\"" + std::to_string(value) +
+                            "\" LENGTH=\"1\"/></" + field +
+                            "></SONG></PICOTRACKER>";
     fixture.Write((std::string("projects/") + project + "/lgptsav.dat").c_str(),
                   xml.c_str());
     CHECK(service.Load(project) == PERSIST_LOAD_FAILED);
@@ -994,14 +971,12 @@ TEST_CASE("project persistence rejects unsafe and reserved user names") {
   CHECK(PersistencyService::IsValidProjectName("DEMO"));
   CHECK(PersistencyService::IsValidProjectName(".hidden"));
   CHECK(PersistencyService::IsInternalProjectName(UNNAMED_PROJECT_NAME));
-  CHECK(PersistencyService::IsInternalProjectName(
-      STAGING_BACKUP_PROJECT_NAME));
+  CHECK(PersistencyService::IsInternalProjectName(STAGING_BACKUP_PROJECT_NAME));
   CHECK(PersistencyService::IsInternalProjectName(
       ".picotracker-saveas-stage.DEMO"));
   CHECK(PersistencyService::IsInternalProjectName(
       ".picotracker-saveas-backup.DEMO"));
-  CHECK_FALSE(
-      PersistencyService::IsInternalProjectName(".saveas-stage.X"));
+  CHECK_FALSE(PersistencyService::IsInternalProjectName(".saveas-stage.X"));
   CHECK_FALSE(PersistencyService::IsValidProjectName(nullptr));
   CHECK_FALSE(PersistencyService::IsValidProjectName(""));
   CHECK_FALSE(PersistencyService::IsValidProjectName("."));
@@ -1010,8 +985,7 @@ TEST_CASE("project persistence rejects unsafe and reserved user names") {
   CHECK_FALSE(PersistencyService::IsValidProjectName("A\\B"));
   CHECK_FALSE(PersistencyService::IsValidProjectName(UNNAMED_PROJECT_NAME));
   CHECK(PersistencyService::IsValidProjectName(".saveas-stage.X"));
-  CHECK_FALSE(
-      PersistencyService::IsValidProjectName("12345678901234567"));
+  CHECK_FALSE(PersistencyService::IsValidProjectName("12345678901234567"));
 
   CHECK(service.Save(UNNAMED_PROJECT_NAME, "SOURCE", true) == PERSIST_ERROR);
   CHECK(service.SaveProjectState(UNNAMED_PROJECT_NAME) == PERSIST_ERROR);
@@ -1051,10 +1025,8 @@ TEST_CASE("Save As directory scan failure preserves the existing target") {
   CHECK(service.Save("TARGET", "SOURCE", true) == PERSIST_ERROR);
   CHECK(fixture.Read("projects/TARGET/samples/kick.wav") == "old-kick");
   CHECK(fixture.Read("projects/TARGET/lgptsav.dat") == "<PICOTRACKER/>");
-  CHECK_FALSE(
-      fixture.Exists("projects/.picotracker-saveas-stage.TARGET"));
-  CHECK_FALSE(
-      fixture.Exists("projects/.picotracker-saveas-backup.TARGET"));
+  CHECK_FALSE(fixture.Exists("projects/.picotracker-saveas-stage.TARGET"));
+  CHECK_FALSE(fixture.Exists("projects/.picotracker-saveas-backup.TARGET"));
 }
 
 TEST_CASE("Save As may copy from the internal untitled staging project") {
@@ -1079,10 +1051,8 @@ TEST_CASE("Save As overwrite atomically replaces the complete sample set") {
   CHECK(fixture.Read("projects/TARGET/samples/kick.wav") == "new-kick");
   CHECK_FALSE(fixture.Exists("projects/TARGET/samples/stale.wav"));
   CHECK(fixture.Exists("projects/TARGET/lgptsav.dat"));
-  CHECK_FALSE(
-      fixture.Exists("projects/.picotracker-saveas-stage.TARGET"));
-  CHECK_FALSE(
-      fixture.Exists("projects/.picotracker-saveas-backup.TARGET"));
+  CHECK_FALSE(fixture.Exists("projects/.picotracker-saveas-stage.TARGET"));
+  CHECK_FALSE(fixture.Exists("projects/.picotracker-saveas-backup.TARGET"));
 }
 
 TEST_CASE("Save As install failure restores the original target") {
@@ -1098,10 +1068,8 @@ TEST_CASE("Save As install failure restores the original target") {
   CHECK(service.Save("TARGET", "SOURCE", true) == PERSIST_ERROR);
   CHECK(fixture.Read("projects/TARGET/samples/kick.wav") == "old-kick");
   CHECK(fixture.Read("projects/TARGET/lgptsav.dat") == "<PICOTRACKER/>");
-  CHECK_FALSE(
-      fixture.Exists("projects/.picotracker-saveas-stage.TARGET"));
-  CHECK_FALSE(
-      fixture.Exists("projects/.picotracker-saveas-backup.TARGET"));
+  CHECK_FALSE(fixture.Exists("projects/.picotracker-saveas-stage.TARGET"));
+  CHECK_FALSE(fixture.Exists("projects/.picotracker-saveas-backup.TARGET"));
 }
 
 TEST_CASE("Save As boot recovery rolls back an uninstalled stage") {
@@ -1119,10 +1087,8 @@ TEST_CASE("Save As boot recovery rolls back an uninstalled stage") {
 
   CHECK(service.LoadCurrentProjectName(project) == PERSIST_LOAD_FAILED);
   CHECK(fixture.Read("projects/TARGET/samples/kick.wav") == "old");
-  CHECK_FALSE(
-      fixture.Exists("projects/.picotracker-saveas-stage.TARGET"));
-  CHECK_FALSE(
-      fixture.Exists("projects/.picotracker-saveas-backup.TARGET"));
+  CHECK_FALSE(fixture.Exists("projects/.picotracker-saveas-stage.TARGET"));
+  CHECK_FALSE(fixture.Exists("projects/.picotracker-saveas-backup.TARGET"));
 }
 
 TEST_CASE("Save As boot recovery prefers backup over a corrupt new target") {
@@ -1140,8 +1106,7 @@ TEST_CASE("Save As boot recovery prefers backup over a corrupt new target") {
   CHECK(service.LoadCurrentProjectName(project) == PERSIST_LOADED);
   CHECK(std::string(project) == "TARGET");
   CHECK(fixture.Read("projects/TARGET/samples/kick.wav") == "old");
-  CHECK_FALSE(
-      fixture.Exists("projects/.picotracker-saveas-backup.TARGET"));
+  CHECK_FALSE(fixture.Exists("projects/.picotracker-saveas-backup.TARGET"));
 }
 
 TEST_CASE("internal untitled save path preserves the public name boundary") {
@@ -1151,20 +1116,20 @@ TEST_CASE("internal untitled save path preserves the public name boundary") {
 
   CHECK(service.Save(UNNAMED_PROJECT_NAME, "", false) == PERSIST_ERROR);
   CHECK(PersistencyServiceTestPeer::SaveStaging(service) == PERSIST_SAVED);
-  CHECK(PersistencyServiceTestPeer::SaveStagingState(service) ==
-        PERSIST_SAVED);
+  CHECK(PersistencyServiceTestPeer::SaveStagingState(service) == PERSIST_SAVED);
   CHECK(fixture.Exists("projects/.untitled/lgptsav.dat"));
   CHECK(fixture.Read(".current") == UNNAMED_PROJECT_NAME);
 }
 
-TEST_CASE("untitled boot recovery rolls back a complete pre-commit replacement") {
+TEST_CASE(
+    "untitled boot recovery rolls back a complete pre-commit replacement") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
   fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER/>");
   fixture.Write("projects/.untitled/samples/identity.wav", "old-session");
   bool hadPrevious = false;
-  REQUIRE(PersistencyServiceTestPeer::BeginStagingReplacement(
-      service, hadPrevious));
+  REQUIRE(PersistencyServiceTestPeer::BeginStagingReplacement(service,
+                                                              hadPrevious));
   REQUIRE(hadPrevious);
   fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER/>");
   fixture.Write("projects/.untitled/samples/identity.wav", "new-session");
@@ -1180,7 +1145,8 @@ TEST_CASE("untitled boot recovery rolls back a complete pre-commit replacement")
   CHECK_FALSE(fixture.Exists(&STAGING_TRANSACTION_COMMIT_FILE[1]));
 }
 
-TEST_CASE("named project is restored when untitled phase loses power with old staging") {
+TEST_CASE("named project is restored when untitled phase loses power with old "
+          "staging") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
   fixture.Write("projects/A/lgptsav.dat", "<PICOTRACKER/>");
@@ -1193,9 +1159,8 @@ TEST_CASE("named project is restored when untitled phase loses power with old st
   REQUIRE(hadPrevious);
   fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER/>");
   fixture.Write("projects/.untitled/samples/identity.wav", "new-candidate");
-  REQUIRE(PersistencyServiceTestPeer::SaveStagingTransactionState(service,
-                                                                  "A") ==
-          PERSIST_SAVED);
+  REQUIRE(PersistencyServiceTestPeer::SaveStagingTransactionState(
+              service, "A") == PERSIST_SAVED);
   CHECK(fixture.Read(".current") == UNNAMED_PROJECT_NAME);
   CHECK(fixture.Read(".current.bak") == "A");
 
@@ -1221,9 +1186,8 @@ TEST_CASE("named project is restored when empty untitled phase loses power") {
   REQUIRE_FALSE(hadPrevious);
   fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER/>");
   fixture.Write("projects/.untitled/samples/identity.wav", "new-candidate");
-  REQUIRE(PersistencyServiceTestPeer::SaveStagingTransactionState(service,
-                                                                  "A") ==
-          PERSIST_SAVED);
+  REQUIRE(PersistencyServiceTestPeer::SaveStagingTransactionState(
+              service, "A") == PERSIST_SAVED);
   CHECK(fixture.Read(".current") == UNNAMED_PROJECT_NAME);
   CHECK(fixture.Read(".current.bak") == "A");
 
@@ -1237,7 +1201,8 @@ TEST_CASE("named project is restored when empty untitled phase loses power") {
   CHECK_FALSE(fixture.Exists(&STAGING_TRANSACTION_PENDING_FILE[1]));
 }
 
-TEST_CASE("empty-stage rollback keeps pending until candidate deletion succeeds") {
+TEST_CASE(
+    "empty-stage rollback keeps pending until candidate deletion succeeds") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
   fixture.Write("projects/A/lgptsav.dat", "<PICOTRACKER/>");
@@ -1248,9 +1213,8 @@ TEST_CASE("empty-stage rollback keeps pending until candidate deletion succeeds"
   REQUIRE_FALSE(hadPrevious);
   fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER/>");
   fixture.Write("projects/.untitled/samples/identity.wav", "candidate");
-  REQUIRE(PersistencyServiceTestPeer::SaveStagingTransactionState(service,
-                                                                  "A") ==
-          PERSIST_SAVED);
+  REQUIRE(PersistencyServiceTestPeer::SaveStagingTransactionState(
+              service, "A") == PERSIST_SAVED);
   FaultInjectFileSystem failingFileSystem(fixture.Root());
   FileSystem::Install(&failingFileSystem);
   failingFileSystem.FailNextDelete("identity.wav");
@@ -1269,12 +1233,13 @@ TEST_CASE("empty-stage rollback keeps pending until candidate deletion succeeds"
   CHECK_FALSE(fixture.Exists(&STAGING_TRANSACTION_PENDING_FILE[1]));
 }
 
-TEST_CASE("first untitled marker failure rolls back the only uncommitted candidate") {
+TEST_CASE(
+    "first untitled marker failure rolls back the only uncommitted candidate") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
   bool hadPrevious = true;
-  REQUIRE(PersistencyServiceTestPeer::BeginStagingReplacement(
-      service, hadPrevious, ""));
+  REQUIRE(PersistencyServiceTestPeer::BeginStagingReplacement(service,
+                                                              hadPrevious, ""));
   REQUIRE_FALSE(hadPrevious);
   fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER/>");
   fixture.Write("projects/.untitled/samples/identity.wav", "candidate");
@@ -1282,11 +1247,10 @@ TEST_CASE("first untitled marker failure rolls back the only uncommitted candida
   FaultInjectFileSystem failingFileSystem(fixture.Root());
   FileSystem::Install(&failingFileSystem);
   failingFileSystem.FailNextSync("/.current.tmp");
-  REQUIRE(PersistencyServiceTestPeer::SaveStagingTransactionState(service,
-                                                                  "") ==
-          PERSIST_ERROR);
-  REQUIRE(PersistencyServiceTestPeer::RollbackStagingReplacement(
-      service, hadPrevious));
+  REQUIRE(PersistencyServiceTestPeer::SaveStagingTransactionState(
+              service, "") == PERSIST_ERROR);
+  REQUIRE(PersistencyServiceTestPeer::RollbackStagingReplacement(service,
+                                                                 hadPrevious));
 
   CHECK_FALSE(fixture.Exists("projects/.untitled"));
   CHECK_FALSE(fixture.Exists(".current"));
@@ -1306,15 +1270,14 @@ TEST_CASE("committed untitled survives pending marker cleanup failure") {
       service, hadPrevious, "A"));
   fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER/>");
   fixture.Write("projects/.untitled/samples/identity.wav", "new-committed");
-  REQUIRE(PersistencyServiceTestPeer::SaveStagingTransactionState(service,
-                                                                  "A") ==
-          PERSIST_SAVED);
+  REQUIRE(PersistencyServiceTestPeer::SaveStagingTransactionState(
+              service, "A") == PERSIST_SAVED);
   FaultInjectFileSystem failingFileSystem(fixture.Root());
   FileSystem::Install(&failingFileSystem);
   failingFileSystem.FailNextDelete(STAGING_TRANSACTION_PENDING_FILE);
 
-  REQUIRE(PersistencyServiceTestPeer::CommitStagingReplacement(
-      service, hadPrevious));
+  REQUIRE(PersistencyServiceTestPeer::CommitStagingReplacement(service,
+                                                               hadPrevious));
   CHECK(fixture.Exists(&STAGING_TRANSACTION_PENDING_FILE[1]));
   CHECK(fixture.Exists(&STAGING_TRANSACTION_COMMIT_FILE[1]));
   CHECK_FALSE(fixture.Exists("projects/.untitled.session-backup"));
@@ -1325,30 +1288,30 @@ TEST_CASE("committed untitled survives pending marker cleanup failure") {
   CHECK(fixture.Read("projects/.untitled/samples/identity.wav") ==
         "new-committed");
   REQUIRE(PersistencyServiceTestPeer::LoadStaging(service) == PERSIST_LOADED);
-  REQUIRE(PersistencyServiceTestPeer::FinalizeCommittedStagingReplacement(
-      service));
+  REQUIRE(
+      PersistencyServiceTestPeer::FinalizeCommittedStagingReplacement(service));
   CHECK_FALSE(fixture.Exists(&STAGING_TRANSACTION_PENDING_FILE[1]));
   CHECK_FALSE(fixture.Exists(&STAGING_TRANSACTION_COMMIT_FILE[1]));
 }
 
-TEST_CASE("untitled boot recovery keeps a committed replacement before cleanup") {
+TEST_CASE(
+    "untitled boot recovery keeps a committed replacement before cleanup") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
   fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER/>");
   fixture.Write("projects/.untitled/samples/identity.wav", "old-session");
   bool hadPrevious = false;
-  REQUIRE(PersistencyServiceTestPeer::BeginStagingReplacement(
-      service, hadPrevious));
+  REQUIRE(PersistencyServiceTestPeer::BeginStagingReplacement(service,
+                                                              hadPrevious));
   REQUIRE(hadPrevious);
   fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER/>");
   fixture.Write("projects/.untitled/samples/identity.wav", "new-session");
   // Force cleanup to be deferred after the durable COMMITTED phase.
   FaultInjectFileSystem failingFileSystem(fixture.Root());
   FileSystem::Install(&failingFileSystem);
-  failingFileSystem.FailNextDelete(
-      "identity.wav");
-  REQUIRE(PersistencyServiceTestPeer::CommitStagingReplacement(
-      service, hadPrevious));
+  failingFileSystem.FailNextDelete("identity.wav");
+  REQUIRE(PersistencyServiceTestPeer::CommitStagingReplacement(service,
+                                                               hadPrevious));
   REQUIRE(fixture.Exists(&STAGING_TRANSACTION_COMMIT_FILE[1]));
 
   char project[MAX_PROJECT_NAME_LENGTH + 1U]{};
@@ -1357,14 +1320,15 @@ TEST_CASE("untitled boot recovery keeps a committed replacement before cleanup")
   CHECK(fixture.Read("projects/.untitled/samples/identity.wav") ==
         "new-session");
   REQUIRE(PersistencyServiceTestPeer::LoadStaging(service) == PERSIST_LOADED);
-  REQUIRE(PersistencyServiceTestPeer::FinalizeCommittedStagingReplacement(
-      service));
+  REQUIRE(
+      PersistencyServiceTestPeer::FinalizeCommittedStagingReplacement(service));
   CHECK_FALSE(fixture.Exists("projects/.untitled.session-backup"));
   CHECK_FALSE(fixture.Exists(&STAGING_TRANSACTION_PENDING_FILE[1]));
   CHECK_FALSE(fixture.Exists(&STAGING_TRANSACTION_COMMIT_FILE[1]));
 }
 
-TEST_CASE("corrupt committed untitled restores named pointer before directory rollback") {
+TEST_CASE("corrupt committed untitled restores named pointer before directory "
+          "rollback") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
   fixture.Write("projects/A/lgptsav.dat", "<PICOTRACKER/>");
@@ -1377,9 +1341,8 @@ TEST_CASE("corrupt committed untitled restores named pointer before directory ro
   REQUIRE(hadPrevious);
   fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER>");
   fixture.Write("projects/.untitled/samples/identity.wav", "corrupt-new");
-  REQUIRE(PersistencyServiceTestPeer::SaveStagingTransactionState(service,
-                                                                  "A") ==
-          PERSIST_SAVED);
+  REQUIRE(PersistencyServiceTestPeer::SaveStagingTransactionState(
+              service, "A") == PERSIST_SAVED);
   // Simulate power loss after the durable phase marker was installed but
   // before the previous untitled directory could be cleaned up.
   fixture.Write(&STAGING_TRANSACTION_COMMIT_FILE[1], "COMMITTED");
@@ -1418,9 +1381,8 @@ TEST_CASE("corrupt committed empty-stage untitled returns to named project") {
       service, hadPrevious, "A"));
   REQUIRE_FALSE(hadPrevious);
   fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER>");
-  REQUIRE(PersistencyServiceTestPeer::SaveStagingTransactionState(service,
-                                                                  "A") ==
-          PERSIST_SAVED);
+  REQUIRE(PersistencyServiceTestPeer::SaveStagingTransactionState(
+              service, "A") == PERSIST_SAVED);
   fixture.Write(&STAGING_TRANSACTION_COMMIT_FILE[1], "COMMITTED");
 
   char project[MAX_PROJECT_NAME_LENGTH + 1U]{};
@@ -1432,17 +1394,17 @@ TEST_CASE("corrupt committed empty-stage untitled returns to named project") {
   CHECK_FALSE(fixture.Exists(&STAGING_TRANSACTION_COMMIT_FILE[1]));
 }
 
-TEST_CASE("corrupt first-boot committed untitled returns to fresh-create state") {
+TEST_CASE(
+    "corrupt first-boot committed untitled returns to fresh-create state") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
   bool hadPrevious = true;
-  REQUIRE(PersistencyServiceTestPeer::BeginStagingReplacement(
-      service, hadPrevious, ""));
+  REQUIRE(PersistencyServiceTestPeer::BeginStagingReplacement(service,
+                                                              hadPrevious, ""));
   REQUIRE_FALSE(hadPrevious);
   fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER>");
-  REQUIRE(PersistencyServiceTestPeer::SaveStagingTransactionState(service,
-                                                                  "") ==
-          PERSIST_SAVED);
+  REQUIRE(PersistencyServiceTestPeer::SaveStagingTransactionState(
+              service, "") == PERSIST_SAVED);
   fixture.Write(&STAGING_TRANSACTION_COMMIT_FILE[1], "COMMITTED");
 
   char project[MAX_PROJECT_NAME_LENGTH + 1U]{};
@@ -1455,7 +1417,8 @@ TEST_CASE("corrupt first-boot committed untitled returns to fresh-create state")
   CHECK_FALSE(fixture.Exists(&STAGING_TRANSACTION_COMMIT_FILE[1]));
 }
 
-TEST_CASE("semantic-invalid committed untitled keeps rollback until Session rejects it") {
+TEST_CASE("semantic-invalid committed untitled keeps rollback until Session "
+          "rejects it") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
   TransactionByteState state;
@@ -1471,9 +1434,8 @@ TEST_CASE("semantic-invalid committed untitled keeps rollback until Session reje
                 "<PICOTRACKER><TRANSACTION-STATE><VALUE>"
                 "<DATA VALUE=\"7\" LENGTH=\"2\"/>"
                 "</VALUE></TRANSACTION-STATE></PICOTRACKER>");
-  REQUIRE(PersistencyServiceTestPeer::SaveStagingTransactionState(service,
-                                                                  "A") ==
-          PERSIST_SAVED);
+  REQUIRE(PersistencyServiceTestPeer::SaveStagingTransactionState(
+              service, "A") == PERSIST_SAVED);
   fixture.Write(&STAGING_TRANSACTION_COMMIT_FILE[1], "COMMITTED");
 
   char project[MAX_PROJECT_NAME_LENGTH + 1U]{};
@@ -1496,7 +1458,8 @@ TEST_CASE("semantic-invalid committed untitled keeps rollback until Session reje
   CHECK_FALSE(fixture.Exists(&STAGING_TRANSACTION_COMMIT_FILE[1]));
 }
 
-TEST_CASE("semantic-good recovered untitled finalizes backups only after load") {
+TEST_CASE(
+    "semantic-good recovered untitled finalizes backups only after load") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
   TransactionByteState state;
@@ -1511,9 +1474,8 @@ TEST_CASE("semantic-good recovered untitled finalizes backups only after load") 
                 "<PICOTRACKER><TRANSACTION-STATE><VALUE>"
                 "<DATA>2A</DATA>"
                 "</VALUE></TRANSACTION-STATE></PICOTRACKER>");
-  REQUIRE(PersistencyServiceTestPeer::SaveStagingTransactionState(service,
-                                                                  "A") ==
-          PERSIST_SAVED);
+  REQUIRE(PersistencyServiceTestPeer::SaveStagingTransactionState(
+              service, "A") == PERSIST_SAVED);
   fixture.Write(&STAGING_TRANSACTION_COMMIT_FILE[1], "COMMITTED");
 
   char project[MAX_PROJECT_NAME_LENGTH + 1U]{};
@@ -1523,22 +1485,23 @@ TEST_CASE("semantic-good recovered untitled finalizes backups only after load") 
   state.value = 0U;
   REQUIRE(PersistencyServiceTestPeer::LoadStaging(service) == PERSIST_LOADED);
   CHECK(state.value == 0x2AU);
-  REQUIRE(PersistencyServiceTestPeer::FinalizeCommittedStagingReplacement(
-      service));
+  REQUIRE(
+      PersistencyServiceTestPeer::FinalizeCommittedStagingReplacement(service));
   CHECK_FALSE(fixture.Exists("projects/.untitled.session-backup"));
   CHECK_FALSE(fixture.Exists(".current.bak"));
   CHECK_FALSE(fixture.Exists(&STAGING_TRANSACTION_PENDING_FILE[1]));
   CHECK_FALSE(fixture.Exists(&STAGING_TRANSACTION_COMMIT_FILE[1]));
 }
 
-TEST_CASE("forced untitled purge removes an interrupted replacement completely") {
+TEST_CASE(
+    "forced untitled purge removes an interrupted replacement completely") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
   fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER/>");
   fixture.Write("projects/.untitled/samples/identity.wav", "old-session");
   bool hadPrevious = false;
-  REQUIRE(PersistencyServiceTestPeer::BeginStagingReplacement(
-      service, hadPrevious));
+  REQUIRE(PersistencyServiceTestPeer::BeginStagingReplacement(service,
+                                                              hadPrevious));
   REQUIRE(hadPrevious);
   fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER/>");
   fixture.Write("projects/.untitled/samples/identity.wav", "new-session");
@@ -1564,14 +1527,15 @@ TEST_CASE("forced untitled purge removes an interrupted replacement completely")
   CHECK_FALSE(fixture.Exists("projects/.untitled"));
 }
 
-TEST_CASE("interrupted forced untitled purge resumes instead of restoring backup") {
+TEST_CASE(
+    "interrupted forced untitled purge resumes instead of restoring backup") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
   fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER/>");
   fixture.Write("projects/.untitled/samples/identity.wav", "old-session");
   bool hadPrevious = false;
-  REQUIRE(PersistencyServiceTestPeer::BeginStagingReplacement(
-      service, hadPrevious));
+  REQUIRE(PersistencyServiceTestPeer::BeginStagingReplacement(service,
+                                                              hadPrevious));
   REQUIRE(hadPrevious);
   fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER/>");
   fixture.Write("projects/.untitled/samples/identity.wav", "new-session");
@@ -1609,7 +1573,8 @@ TEST_CASE("invalid current marker reaches missing untitled first-boot create") {
   CHECK(fixture.Exists("projects/.untitled/lgptsav.dat"));
 }
 
-TEST_CASE("missing current marker preserves an existing valid untitled project") {
+TEST_CASE(
+    "missing current marker preserves an existing valid untitled project") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
   fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER/>");
@@ -1652,7 +1617,8 @@ TEST_CASE("legacy project resembling old transaction prefix survives boot") {
   CHECK(fixture.Exists("projects/.saveas-stage.X/lgptsav.dat"));
 }
 
-TEST_CASE("semantic autosave failure requires reset before explicit base load") {
+TEST_CASE(
+    "semantic autosave failure requires reset before explicit base load") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
   TransactionByteState state;
@@ -1701,15 +1667,16 @@ TEST_CASE("semantic-invalid base destination retains and can promote backup") {
   REQUIRE(PersistencyServiceTestPeer::LoadJournalBackup(
               service, "PROJECT", false) == PERSIST_LOADED);
   CHECK(state.value == 0x2AU);
-  REQUIRE(PersistencyServiceTestPeer::PromoteJournalBackup(
-      service, "PROJECT", false));
+  REQUIRE(PersistencyServiceTestPeer::PromoteJournalBackup(service, "PROJECT",
+                                                           false));
   CHECK_FALSE(fixture.Exists("projects/PROJECT/lgptsav.bak"));
   state.value = 0U;
   REQUIRE(service.Load("PROJECT") == PERSIST_LOADED);
   CHECK(state.value == 0x2AU);
 }
 
-TEST_CASE("semantic autosave backup remains available until explicit finalize") {
+TEST_CASE(
+    "semantic autosave backup remains available until explicit finalize") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
   TransactionByteState state;
@@ -1730,8 +1697,8 @@ TEST_CASE("semantic autosave backup remains available until explicit finalize") 
   REQUIRE(service.Load("PROJECT") == PERSIST_LOADED);
   CHECK(state.value == 0x33U);
   CHECK(fixture.Exists("projects/PROJECT/autosave.bak"));
-  REQUIRE(PersistencyServiceTestPeer::FinalizeJournal(service, "PROJECT",
-                                                       true));
+  REQUIRE(
+      PersistencyServiceTestPeer::FinalizeJournal(service, "PROJECT", true));
   CHECK_FALSE(fixture.Exists("projects/PROJECT/autosave.bak"));
 }
 
@@ -1807,8 +1774,8 @@ TEST_CASE("autosave clear keeps destination when stale backup cleanup fails") {
   state.value = 0U;
   REQUIRE(service.Load("PROJECT") == PERSIST_LOADED);
   CHECK(state.value == 0x2AU);
-  REQUIRE(PersistencyServiceTestPeer::FinalizeJournal(service, "PROJECT",
-                                                       true));
+  REQUIRE(
+      PersistencyServiceTestPeer::FinalizeJournal(service, "PROJECT", true));
   CHECK_FALSE(fixture.Exists("projects/PROJECT/autosave.bak"));
 }
 
@@ -1977,7 +1944,8 @@ TEST_CASE("semantic current failure retains and exposes previous marker") {
   CHECK_FALSE(fixture.Exists(".current.bak"));
 }
 
-TEST_CASE("semantic fallback never deletes its only good marker before promote") {
+TEST_CASE(
+    "semantic fallback never deletes its only good marker before promote") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
   fixture.Write("projects/BAD/lgptsav.dat", "<PICOTRACKER/>");
@@ -2122,8 +2090,8 @@ TEST_CASE("Sample instrument persisted integer ranges match audio contracts") {
     CHECK_FALSE(ParsePersistedIntegerAttribute(
         std::to_string(static_cast<long long>(maximum) + 1LL).c_str(), minimum,
         maximum, parsed));
-    CHECK_FALSE(ParsePersistedIntegerAttribute("1e2", minimum, maximum,
-                                                parsed));
+    CHECK_FALSE(
+        ParsePersistedIntegerAttribute("1e2", minimum, maximum, parsed));
   }
 }
 
@@ -2201,17 +2169,17 @@ TEST_CASE("Instrument payload validation rejects truncated and empty files") {
   CHECK_FALSE(ValidateInstrumentFilePayload("/mixed-envelope.pti"));
 }
 
-TEST_CASE("Instrument type detection bounds the envelope and preserves legacy versions") {
+TEST_CASE("Instrument type detection bounds the envelope and preserves legacy "
+          "versions") {
   FourCCXmlFixture fixture;
   fixture.MakeDirectory("instruments");
   PersistencyService &service = TestPersistencyService();
   const std::string legacyVersion(60U, 'V');
-  fixture.Write(
-      "instruments/legacy.pti",
-      ("<INSTRUMENT VERSION=\"" + legacyVersion +
-       "\" TYPE=\"midi\"><PARAM NAME=\"channel\" VALUE=\"7\"/>"
-       "</INSTRUMENT>")
-          .c_str());
+  fixture.Write("instruments/legacy.pti",
+                ("<INSTRUMENT VERSION=\"" + legacyVersion +
+                 "\" TYPE=\"midi\"><PARAM NAME=\"channel\" VALUE=\"7\"/>"
+                 "</INSTRUMENT>")
+                    .c_str());
   fixture.Write("instruments/duplicate.pti",
                 "<INSTRUMENT TYPE=\"MIDI\" TYPE=\"SAMPLE\">"
                 "<PARAM NAME=\"channel\" VALUE=\"7\"/></INSTRUMENT>");
@@ -2245,30 +2213,30 @@ TEST_CASE("Instrument journal recovery restores the last committed export") {
   CHECK(service.DetectInstrumentType("lead.pti") == IT_MIDI);
 }
 
-TEST_CASE("Instrument service exports a validated pti and preserves overwrite contract") {
+TEST_CASE("Instrument service exports a validated pti and preserves overwrite "
+          "contract") {
   FourCCXmlFixture fixture;
   fixture.MakeDirectory("instruments");
   PersistencyService &service = TestPersistencyService();
   GenericRestoreInstrument source(IT_MIDI);
   source.SetMidiChannel(15);
 
-  CHECK(service.ExportInstrument(&source,
-                                 etl::string<MAX_INSTRUMENT_NAME_LENGTH>(
-                                     "lead"),
-                                 false) == PERSIST_SAVED);
+  CHECK(service.ExportInstrument(
+            &source, etl::string<MAX_INSTRUMENT_NAME_LENGTH>("lead"), false) ==
+        PERSIST_SAVED);
   CHECK(fixture.Exists("instruments/lead.pti"));
   CHECK(service.DetectInstrumentType("lead.pti") == IT_MIDI);
-  CHECK(service.ExportInstrument(&source,
-                                 etl::string<MAX_INSTRUMENT_NAME_LENGTH>(
-                                     "lead"),
-                                 false) == PERSIST_EXISTS);
+  CHECK(service.ExportInstrument(
+            &source, etl::string<MAX_INSTRUMENT_NAME_LENGTH>("lead"), false) ==
+        PERSIST_EXISTS);
 
   GenericRestoreInstrument restored(IT_MIDI);
   REQUIRE(service.ImportInstrument(&restored, "lead.pti") == PERSIST_LOADED);
   CHECK(restored.MidiChannel() == 15);
 }
 
-TEST_CASE("Generic SID pti restore rejects unsafe values without partial mutation") {
+TEST_CASE(
+    "Generic SID pti restore rejects unsafe values without partial mutation") {
   FourCCXmlFixture fixture;
   fixture.MakeDirectory("instruments");
   fixture.Write("instruments/unsafe-osc.pti",
@@ -2307,9 +2275,8 @@ TEST_CASE("Generic OPAL project restore stages values and rejects truncation") {
                 "<PARAM NAME=\"FEEDBACK\" VALUE=\"7\"/>"
                 "<PARAM NAME=\"ALGORITHM\" VALUE=\"UNKNOWN\"/>"
                 "</INSTRUMENT>");
-  fixture.Write("truncated-opal.xml",
-                "<INSTRUMENT TYPE=\"OPAL\">"
-                "<PARAM NAME=\"FEEDBACK\" VALUE=\"7\"/>");
+  fixture.Write("truncated-opal.xml", "<INSTRUMENT TYPE=\"OPAL\">"
+                                      "<PARAM NAME=\"FEEDBACK\" VALUE=\"7\"/>");
   GenericRestoreInstrument instrument(IT_OPAL);
 
   for (const char *path : {"/unsafe-opal.xml", "/truncated-opal.xml"}) {
@@ -2323,7 +2290,8 @@ TEST_CASE("Generic OPAL project restore stages values and rejects truncation") {
   }
 }
 
-TEST_CASE("Generic MIDI restore enforces channel bounds and commits valid input") {
+TEST_CASE(
+    "Generic MIDI restore enforces channel bounds and commits valid input") {
   FourCCXmlFixture fixture;
   fixture.MakeDirectory("instruments");
   fixture.Write("instruments/bad-midi.pti",
@@ -2344,17 +2312,41 @@ TEST_CASE("Generic MIDI restore enforces channel bounds and commits valid input"
   CHECK(instrument.MidiChannel() == 15);
 }
 
+TEST_CASE(
+    "XML documents retain independent parser state when reads interleave") {
+  FourCCXmlFixture fixture;
+  fixture.Write("outer.xml", "<OUTER><VALUE ID=\"outer\"/></OUTER>");
+  fixture.Write("inner.xml", "<INNER><VALUE ID=\"inner\"/></INNER>");
+  PersistencyDocument outer;
+  REQUIRE(outer.Load("/outer.xml"));
+  REQUIRE(outer.FirstChild());
+  {
+    PersistencyDocument inner;
+    REQUIRE(inner.Load("/inner.xml"));
+    REQUIRE(inner.FirstChild());
+    CHECK(std::strcmp(inner.ElemName(), "INNER") == 0);
+    CHECK(std::strcmp(outer.ElemName(), "OUTER") == 0);
+    REQUIRE(inner.FirstChild());
+    REQUIRE(inner.NextAttribute());
+    CHECK(std::strcmp(inner.attrval_, "inner") == 0);
+    CHECK(inner.Finish());
+  }
+  REQUIRE(outer.FirstChild());
+  REQUIRE(outer.NextAttribute());
+  CHECK(std::strcmp(outer.attrval_, "outer") == 0);
+  CHECK(outer.Finish());
+}
+
 TEST_CASE("Compact instrument siblings preserve each first parameter") {
   FourCCXmlFixture fixture;
-  fixture.Write("compact-bank.xml",
-                "<INSTRUMENTBANK>"
-                "<INSTRUMENT ID=\"00\" TYPE=\"MIDI\">"
-                "<PARAM NAME=\"channel\" VALUE=\"15\"/>"
-                "</INSTRUMENT>"
-                "<INSTRUMENT ID=\"01\" TYPE=\"SID\">"
-                "<PARAM NAME=\"OSCNUM\" VALUE=\"2\"/>"
-                "</INSTRUMENT>"
-                "</INSTRUMENTBANK>");
+  fixture.Write("compact-bank.xml", "<INSTRUMENTBANK>"
+                                    "<INSTRUMENT ID=\"00\" TYPE=\"MIDI\">"
+                                    "<PARAM NAME=\"channel\" VALUE=\"15\"/>"
+                                    "</INSTRUMENT>"
+                                    "<INSTRUMENT ID=\"01\" TYPE=\"SID\">"
+                                    "<PARAM NAME=\"OSCNUM\" VALUE=\"2\"/>"
+                                    "</INSTRUMENT>"
+                                    "</INSTRUMENTBANK>");
   PersistencyDocument document;
   REQUIRE(document.Load("/compact-bank.xml"));
   REQUIRE(document.FirstChild());
@@ -2392,7 +2384,8 @@ TEST_CASE("Compact instrument siblings preserve each first parameter") {
   CHECK(document.Finish());
 }
 
-TEST_CASE("Instrument bank restore policy rejects malformed and duplicate slots") {
+TEST_CASE(
+    "Instrument bank restore policy rejects malformed and duplicate slots") {
   std::uint8_t slot = 0U;
   InstrumentType type = IT_NONE;
   CHECK(DecodeInstrumentBankSlotId("00", slot));
@@ -2426,8 +2419,7 @@ TEST_CASE("Instrument bank restore policy rejects fixed-pool exhaustion") {
   InstrumentBankRestorePolicy samplePolicy;
   for (std::uint8_t index = 0U; index < MAX_SAMPLEINSTRUMENT_COUNT; ++index)
     CHECK(samplePolicy.Reserve(index, IT_SAMPLE));
-  CHECK_FALSE(
-      samplePolicy.Reserve(MAX_SAMPLEINSTRUMENT_COUNT, IT_SAMPLE));
+  CHECK_FALSE(samplePolicy.Reserve(MAX_SAMPLEINSTRUMENT_COUNT, IT_SAMPLE));
   CHECK(samplePolicy.Reserve(MAX_SAMPLEINSTRUMENT_COUNT, IT_MIDI));
 
   InstrumentBankRestorePolicy policy;

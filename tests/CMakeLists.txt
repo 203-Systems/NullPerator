@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.13)
 project(picoTrackerHostTests C CXX)
 
 enable_testing()
+include("${CMAKE_CURRENT_LIST_DIR}/../cmake/CoreSourceGroups.cmake")
 
 option(PICOTRACKER_ENABLE_UI2_GOLDEN_TESTS
   "Register UI2 golden snapshot tests (requires Node.js)" OFF)
@@ -78,7 +79,7 @@ add_executable(picoTracker_tests
   ../sources/Application/Utils/HexBuffers.cpp
   ../sources/Application/Utils/char.cpp
   ../sources/Application/Persistency/PersistencyDocument.cpp
-  ../sources/Application/Persistency/PersistencyService.cpp
+  ${PICOTRACKER_PERSISTENCY_SERVICE_SOURCES}
   ../sources/Application/Persistency/Persistent.cpp
   ../sources/Application/Persistency/InstrumentFileValidator.cpp
   ../sources/Application/Model/Table.cpp
@@ -494,7 +495,7 @@ add_executable(theme_transaction_tests
   test_main.cpp
   nanoprintf_test.cpp
   theme_transaction_tests.cpp
-  ../sources/Application/Model/Config.cpp
+  ${PICOTRACKER_CONFIG_SOURCES}
   ../sources/Application/Persistency/PersistencyDocument.cpp
   ../sources/Foundation/Observable.cpp
   ../sources/Foundation/Variables/Variable.cpp

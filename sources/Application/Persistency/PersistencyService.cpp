@@ -21,114 +21,8 @@
 #include <cstdio>
 #include <cstring>
 
-#define PROJECT_STATE_FILE "/.current"
-#define PROJECT_STATE_TEMP_FILE "/.current.tmp"
-#define PROJECT_STATE_BACKUP_FILE "/.current.bak"
-#define PROJECT_STATE_BACKUP_TEMP_FILE "/.current.bak.tmp"
-#define LOAD_ROLLBACK_FILE PROJECTS_DIR "/.load-rollback.dat"
-#define STAGING_PROJECT_PATH PROJECTS_DIR "/" UNNAMED_PROJECT_NAME
-#define STAGING_BACKUP_PATH PROJECTS_DIR "/" STAGING_BACKUP_PROJECT_NAME
-#define MAX_DELETE_DEPTH 3
-
-namespace {
-
-template <size_t Capacity>
-bool BuildSaveAsTransactionName(char (&destination)[Capacity],
-                                const char *prefix, const char *projectName) {
-  const size_t prefixLength = std::strlen(prefix);
-  const size_t projectLength = std::strlen(projectName);
-  if (prefixLength + projectLength + 1U > Capacity)
-    return false;
-  std::memcpy(destination, prefix, prefixLength);
-  std::memcpy(destination + prefixLength, projectName, projectLength + 1U);
-  return true;
-}
-
-template <size_t Capacity>
-bool BuildProjectPath(char (&destination)[Capacity], const char *projectName) {
-  const int length = std::snprintf(destination, Capacity, "%s/%s",
-                                   PROJECTS_DIR, projectName);
-  return length > 0 && static_cast<size_t>(length) < Capacity;
-}
-
-template <size_t Capacity>
-bool BuildProjectFilePath(char (&destination)[Capacity],
-                          const char *projectName, const char *filename) {
-  const int length = std::snprintf(destination, Capacity, "%s/%s/%s",
-                                   PROJECTS_DIR, projectName, filename);
-  return length > 0 && static_cast<size_t>(length) < Capacity;
-}
-
-const char *SaveAsTransactionTarget(const char *name) {
-  const size_t stagePrefixLength = std::strlen(SAVE_AS_STAGE_PREFIX);
-  if (std::strncmp(name, SAVE_AS_STAGE_PREFIX, stagePrefixLength) == 0)
-    return name + stagePrefixLength;
-  const size_t backupPrefixLength = std::strlen(SAVE_AS_BACKUP_PREFIX);
-  if (std::strncmp(name, SAVE_AS_BACKUP_PREFIX, backupPrefixLength) == 0)
-    return name + backupPrefixLength;
-  return nullptr;
-}
-
-constexpr const char *STAGING_COMMIT_CONTENTS = "COMMITTED";
-constexpr const char *STAGING_PURGE_CONTENTS = "PURGE";
-
-bool IsSafeInstrumentFilename(const char *name) {
-  if (name == nullptr)
-    return false;
-  const size_t length = std::strlen(name);
-  return length > std::strlen(INSTRUMENT_FILE_EXTENSION) &&
-         length <= MAX_INSTRUMENT_FILENAME_LENGTH &&
-         std::strchr(name, '/') == nullptr &&
-         std::strchr(name, '\\') == nullptr &&
-         strcasecmp(name + length - std::strlen(INSTRUMENT_FILE_EXTENSION),
-                    INSTRUMENT_FILE_EXTENSION) == 0;
-}
-
-bool ReadInstrumentEnvelope(const char *name, InstrumentType &type,
-                            char *version, size_t versionCapacity) {
-  type = IT_NONE;
-  if (version != nullptr && versionCapacity != 0U)
-    version[0] = '\0';
-  if (!IsSafeInstrumentFilename(name))
-    return false;
-
-  PersistencyDocument doc;
-  if (!doc.Load(name) || !doc.FirstChild() ||
-      std::strcmp(doc.ElemName(), "INSTRUMENT") != 0) {
-    return false;
-  }
-
-  bool hasType = false;
-  bool hasVersion = false;
-  bool attribute = doc.NextAttribute();
-  while (attribute) {
-    if (strcasecmp(doc.attrname_, "TYPE") == 0) {
-      if (hasType)
-        return false;
-      hasType = true;
-      for (int index = IT_NONE; index < IT_LAST; ++index) {
-        if (strcasecmp(doc.attrval_, InstrumentTypeNames[index]) == 0) {
-          type = static_cast<InstrumentType>(index);
-          break;
-        }
-      }
-    } else if (strcasecmp(doc.attrname_, "VERSION") == 0) {
-      if (hasVersion)
-        return false;
-      hasVersion = true;
-      if (version != nullptr && versionCapacity != 0U) {
-        const size_t length = std::strlen(doc.attrval_);
-        if (length >= versionCapacity)
-          return false;
-        std::memcpy(version, doc.attrval_, length + 1U);
-      }
-    }
-    attribute = doc.NextAttribute();
-  }
-  return !doc.HadError() && hasType && type > IT_NONE && type < IT_LAST;
-}
-
-} // namespace
+#include "PersistencyPaths.h"
+using namespace PersistencyPaths;
 
 PersistencyService::PersistencyService()
     : Service(FourCC::ServicePersistency) {};
@@ -162,8 +56,7 @@ bool PersistencyService::IsSafeProjectName_(const char *projectName,
     return false;
   }
   if (IsInternalProjectName(projectName))
-    return allowStaging &&
-           std::strcmp(projectName, UNNAMED_PROJECT_NAME) == 0;
+    return allowStaging && std::strcmp(projectName, UNNAMED_PROJECT_NAME) == 0;
   return true;
 }
 
@@ -188,8 +81,7 @@ bool PersistencyService::PurgeUnnamedProject() {
     }
   } else if (!WriteStagingTransactionMarker_(
                  STAGING_TRANSACTION_PURGE_FILE,
-                 STAGING_TRANSACTION_PURGE_TEMP_FILE,
-                 STAGING_PURGE_CONTENTS)) {
+                 STAGING_TRANSACTION_PURGE_TEMP_FILE, STAGING_PURGE_CONTENTS)) {
     Trace::Error("PERSISTENCYSERVICE: Could not persist untitled purge");
     return false;
   }
@@ -204,8 +96,7 @@ bool PersistencyService::DeleteProject_(const char *projectName,
                                         bool allowStaging) {
   const bool internalTransaction =
       allowStaging && IsInternalProjectName(projectName);
-  if (!internalTransaction &&
-      !IsSafeProjectName_(projectName, allowStaging)) {
+  if (!internalTransaction && !IsSafeProjectName_(projectName, allowStaging)) {
     Trace::Error("PERSISTENCYSERVICE: Unsafe project name rejected");
     return false;
   }
@@ -241,568 +132,6 @@ bool PersistencyService::DeleteProject_(const char *projectName,
     return false;
   }
 
-  return true;
-}
-
-bool PersistencyService::RecoverStagingProjectReplacement_() {
-  FileSystem *fs = FileSystem::GetInstance();
-  if (fs->exists(STAGING_TRANSACTION_PURGE_FILE)) {
-    if (!HasStagingTransactionMarker_(STAGING_TRANSACTION_PURGE_FILE,
-                                      STAGING_PURGE_CONTENTS)) {
-      Trace::Error("PERSISTENCYSERVICE: Invalid untitled purge marker");
-      return false;
-    }
-    return CompleteStagingProjectPurge_();
-  }
-  // A temp without the installed marker precedes every destructive purge
-  // step, so it is safe to discard and resume ordinary replacement recovery.
-  if (fs->exists(STAGING_TRANSACTION_PURGE_TEMP_FILE) &&
-      !fs->DeleteFile(STAGING_TRANSACTION_PURGE_TEMP_FILE)) {
-    Trace::Error("PERSISTENCYSERVICE: Could not clear stale purge temp");
-    return false;
-  }
-
-  bool pendingHadPrevious = false;
-  char previousProjectName[MAX_PROJECT_NAME_LENGTH + 1U]{};
-  const bool pendingExists = fs->exists(STAGING_TRANSACTION_PENDING_FILE);
-  const bool pendingValid =
-      pendingExists && ReadStagingPendingMarker_(pendingHadPrevious,
-                                                 previousProjectName);
-  if (pendingExists && !pendingValid) {
-    Trace::Error("PERSISTENCYSERVICE: Invalid untitled pending marker");
-    return false;
-  }
-  const bool commitExists = fs->exists(STAGING_TRANSACTION_COMMIT_FILE);
-  const bool committed = HasStagingTransactionMarker_(
-      STAGING_TRANSACTION_COMMIT_FILE, STAGING_COMMIT_CONTENTS);
-  if (commitExists && !committed) {
-    Trace::Error("PERSISTENCYSERVICE: Invalid untitled commit marker");
-    return false;
-  }
-
-  bool stagingExists = fs->exists(STAGING_PROJECT_PATH);
-  bool backupExists = fs->exists(STAGING_BACKUP_PATH);
-
-  if (committed) {
-    // COMMITTED is authoritative only while the replacement itself remains
-    // structurally complete. If it disappeared/corrupted, the previous
-    // directory and pointer are still safer than silently booting a partial
-    // candidate.
-    if (!stagingExists ||
-        Validate_(UNNAMED_PROJECT_NAME, true) != PERSIST_LOADED) {
-      char ignoredPrevious[MAX_PROJECT_NAME_LENGTH + 1U]{};
-      return RollbackCommittedStagingProjectReplacement_(ignoredPrevious);
-    }
-    // Structural validity is only preflight. Keep the old untitled directory,
-    // previous current-project marker and COMMITTED record until Session has
-    // completed semantic restore. It then calls the explicit finalizer below.
-    return true;
-  }
-
-  if (pendingValid) {
-    if (pendingHadPrevious) {
-      if (backupExists) {
-        if (stagingExists && !DeleteProject_(UNNAMED_PROJECT_NAME, true))
-          return false;
-        if (!fs->MoveFile(STAGING_BACKUP_PATH, STAGING_PROJECT_PATH)) {
-          Trace::Error("PERSISTENCYSERVICE: Could not roll back untitled");
-          return false;
-        }
-      } else if (!stagingExists) {
-        Trace::Error("PERSISTENCYSERVICE: Previous untitled copy is missing");
-        return false;
-      }
-    } else {
-      // No staging directory existed at Begin. Any `.untitled` visible now is
-      // the uncommitted candidate and must not become committed merely because
-      // its XML happens to parse.
-      if (backupExists) {
-        Trace::Error("PERSISTENCYSERVICE: Unexpected empty-stage backup");
-        return false;
-      }
-      if (stagingExists && !DeleteProject_(UNNAMED_PROJECT_NAME, true))
-        return false;
-    }
-
-    // Restore the previous project pointer before deleting PENDING. The
-    // marker itself is the durable retry record if this FAT-safe rewrite is
-    // interrupted.
-    if (previousProjectName[0] != '\0') {
-      if (SaveProjectState_(
-              previousProjectName,
-              std::strcmp(previousProjectName, UNNAMED_PROJECT_NAME) == 0) !=
-          PERSIST_SAVED) {
-        return false;
-      }
-    } else {
-      constexpr const char *stateFiles[] = {
-          PROJECT_STATE_FILE, PROJECT_STATE_TEMP_FILE,
-          PROJECT_STATE_BACKUP_FILE, PROJECT_STATE_BACKUP_TEMP_FILE,
-      };
-      for (const char *path : stateFiles) {
-        if (fs->exists(path) && !fs->DeleteFile(path))
-          return false;
-      }
-    }
-    return ClearStagingTransactionMarkers_();
-  }
-
-  if (!backupExists) {
-    // No active transaction. Clear only stale temp/phase files.
-    return ClearStagingTransactionMarkers_();
-  }
-
-  if (!stagingExists) {
-    if (!fs->MoveFile(STAGING_BACKUP_PATH, STAGING_PROJECT_PATH)) {
-      Trace::Error("PERSISTENCYSERVICE: Could not recover untitled backup");
-      return false;
-    }
-    return ClearStagingTransactionMarkers_();
-  }
-
-  // Legacy transaction state without a phase marker: prefer the previous
-  // directory, but do not guess a previous named-project pointer.
-  if (!DeleteProject_(UNNAMED_PROJECT_NAME, true) ||
-      !fs->MoveFile(STAGING_BACKUP_PATH, STAGING_PROJECT_PATH)) {
-    Trace::Error("PERSISTENCYSERVICE: Could not roll back untitled project");
-    return false;
-  }
-  return ClearStagingTransactionMarkers_();
-}
-
-bool PersistencyService::RecoverSaveAsTransactions_() {
-  FileSystem *fs = FileSystem::GetInstance();
-  if (!fs->exists(PROJECTS_DIR))
-    return true;
-  if (!fs->chdir(PROJECTS_DIR))
-    return false;
-
-  // Handle one journal directory per pass because deleting a directory may
-  // invalidate platform file indices. The number of passes is bounded by the
-  // fixed-capacity directory listing.
-  for (size_t pass = 0; pass < MAX_FILE_INDEX_SIZE; ++pass) {
-    fileIndexes_.clear();
-    if (!fs->listChecked(&fileIndexes_, "", true, true)) {
-      Trace::Error("PERSISTENCYSERVICE: Save As recovery scan failed");
-      return false;
-    }
-    if (fileIndexes_.full()) {
-      Trace::Error("PERSISTENCYSERVICE: Project transaction list truncated");
-      return false;
-    }
-
-    char transactionName[PFILENAME_SIZE]{};
-    const char *target = nullptr;
-    for (const int index : fileIndexes_) {
-      if (fs->getFileType(index) != PFT_DIR)
-        continue;
-      transactionName[0] = '\0';
-      fs->getFileName(index, transactionName, sizeof(transactionName));
-      transactionName[sizeof(transactionName) - 1U] = '\0';
-      target = SaveAsTransactionTarget(transactionName);
-      if (target != nullptr)
-        break;
-    }
-    if (target == nullptr)
-      return true;
-
-    char targetCopy[MAX_PROJECT_NAME_LENGTH + 1U]{};
-    if (!IsValidProjectName(target)) {
-      Trace::Error("PERSISTENCYSERVICE: Invalid Save As journal name");
-      if (!DeleteProject_(transactionName, true))
-        return false;
-      continue;
-    }
-    std::strcpy(targetCopy, target);
-
-    char stageName[sizeof(SAVE_AS_STAGE_PREFIX) + MAX_PROJECT_NAME_LENGTH]{};
-    char backupName[sizeof(SAVE_AS_BACKUP_PREFIX) + MAX_PROJECT_NAME_LENGTH]{};
-    char targetPath[sizeof(PROJECTS_DIR) + MAX_PROJECT_NAME_LENGTH + 1U]{};
-    char stagePath[sizeof(PROJECTS_DIR) + sizeof(stageName) + 1U]{};
-    char backupPath[sizeof(PROJECTS_DIR) + sizeof(backupName) + 1U]{};
-    if (!BuildSaveAsTransactionName(stageName, SAVE_AS_STAGE_PREFIX,
-                                    targetCopy) ||
-        !BuildSaveAsTransactionName(backupName, SAVE_AS_BACKUP_PREFIX,
-                                    targetCopy) ||
-        !BuildProjectPath(targetPath, targetCopy) ||
-        !BuildProjectPath(stagePath, stageName) ||
-        !BuildProjectPath(backupPath, backupName)) {
-      return false;
-    }
-
-    const bool targetExists = fs->exists(targetPath);
-    const bool stageExists = fs->exists(stagePath);
-    const bool backupExists = fs->exists(backupPath);
-    if (backupExists) {
-      if (targetExists) {
-        if (Validate_(targetCopy, false) == PERSIST_LOADED) {
-          // stage->target completed. The validated target is authoritative.
-          if (stageExists && !DeleteProject_(stageName, true))
-            Trace::Error("PERSISTENCYSERVICE: Stale Save As stage remains");
-          if (!DeleteProject_(backupName, true)) {
-            // Do not block boot or delete the new target merely because
-            // cleanup cannot finish. The browser hides this reserved journal.
-            Trace::Error(
-                "PERSISTENCYSERVICE: Save As backup cleanup deferred");
-            return true;
-          }
-        } else {
-          // A target that cannot be parsed did not commit safely. Prefer the
-          // pre-transaction backup rather than discarding the last good copy.
-          if (stageExists && !DeleteProject_(stageName, true))
-            Trace::Error("PERSISTENCYSERVICE: Stale Save As stage remains");
-          if (!DeleteProject_(targetCopy, false) ||
-              !fs->MoveFile(backupPath, targetPath)) {
-            Trace::Error(
-                "PERSISTENCYSERVICE: Could not roll back corrupt Save As");
-            return false;
-          }
-        }
-      } else {
-        // target->backup completed but stage->target did not. Roll back the
-        // old target; an uncommitted stage is never promoted at boot.
-        if (stageExists && !DeleteProject_(stageName, true))
-          Trace::Error("PERSISTENCYSERVICE: Save As stage cleanup deferred");
-        if (!fs->MoveFile(backupPath, targetPath)) {
-          Trace::Error("PERSISTENCYSERVICE: Could not restore Save As backup");
-          return false;
-        }
-      }
-    } else if (stageExists) {
-      // A lone stage may be only partly copied. Never expose or promote it.
-      if (!DeleteProject_(stageName, true)) {
-        Trace::Error("PERSISTENCYSERVICE: Save As stage cleanup deferred");
-        return true;
-      }
-    }
-  }
-
-  Trace::Error("PERSISTENCYSERVICE: Too many project transactions");
-  return false;
-}
-
-bool PersistencyService::RecoverInternalProjectTransactions_() {
-  return RecoverStagingProjectReplacement_() &&
-         RecoverSaveAsTransactions_();
-}
-
-bool PersistencyService::BeginStagingProjectReplacement_(
-    const char *previousProjectName, bool &hadPrevious) {
-  FileSystem *fs = FileSystem::GetInstance();
-  hadPrevious = false;
-
-  if (previousProjectName == nullptr ||
-      (previousProjectName[0] != '\0' &&
-       !IsSafeProjectName_(
-           previousProjectName,
-           std::strcmp(previousProjectName, UNNAMED_PROJECT_NAME) == 0))) {
-    return false;
-  }
-
-  if (!RecoverStagingProjectReplacement_())
-    return false;
-
-  const bool stagingExists = fs->exists(STAGING_PROJECT_PATH);
-  const bool backupExists = fs->exists(STAGING_BACKUP_PATH);
-  if (stagingExists && backupExists) {
-    Trace::Error("PERSISTENCYSERVICE: Ambiguous untitled backup state");
-    return false;
-  }
-  if (backupExists) {
-    Trace::Error("PERSISTENCYSERVICE: Untitled backup recovery incomplete");
-    return false;
-  }
-  hadPrevious = stagingExists;
-
-  // Record the transaction before moving the old directory.  If power fails
-  // before the rename, recovery sees a valid staging directory and no backup
-  // and preserves it.  If it fails after the rename, backup presence makes
-  // the uncommitted rollback unambiguous.
-  char pending[sizeof("PENDING:1:") + MAX_PROJECT_NAME_LENGTH]{};
-  const int pendingLength =
-      std::snprintf(pending, sizeof(pending), "PENDING:%c:%s",
-                    hadPrevious ? '1' : '0', previousProjectName);
-  if (pendingLength <= 0 ||
-      static_cast<size_t>(pendingLength) >= sizeof(pending)) {
-    return false;
-  }
-  if (!WriteStagingTransactionMarker_(
-          STAGING_TRANSACTION_PENDING_FILE,
-          STAGING_TRANSACTION_PENDING_TEMP_FILE, pending)) {
-    Trace::Error("PERSISTENCYSERVICE: Could not persist untitled pending state");
-    return false;
-  }
-
-  if (!stagingExists)
-    return true;
-
-  if (!fs->MoveFile(STAGING_PROJECT_PATH, STAGING_BACKUP_PATH)) {
-    Trace::Error("PERSISTENCYSERVICE: Could not stage untitled directory");
-    if (!ClearStagingTransactionMarkers_())
-      Trace::Error("PERSISTENCYSERVICE: Could not clear untitled pending state");
-    return false;
-  }
-  hadPrevious = true;
-  return true;
-}
-
-bool PersistencyService::CommitStagingProjectReplacement_(bool hadPrevious) {
-  FileSystem *fs = FileSystem::GetInstance();
-  const bool commitExists = fs->exists(STAGING_TRANSACTION_COMMIT_FILE);
-  const bool alreadyCommitted =
-      commitExists && HasStagingTransactionMarker_(
-                          STAGING_TRANSACTION_COMMIT_FILE,
-                          STAGING_COMMIT_CONTENTS);
-  if (commitExists && !alreadyCommitted) {
-    Trace::Error("PERSISTENCYSERVICE: Invalid untitled commit marker");
-    return false;
-  }
-  if (!alreadyCommitted && hadPrevious && !fs->exists(STAGING_BACKUP_PATH)) {
-    Trace::Error("PERSISTENCYSERVICE: Untitled transaction backup missing");
-    return false;
-  }
-
-  // This marker, written only after SaveProjectState_ succeeds, is the
-  // durable phase transition.  Recovery must never infer commit merely from
-  // a parseable replacement directory because old and new are both named
-  // `.untitled` in `.current`.
-  if (!alreadyCommitted &&
-      !WriteStagingTransactionMarker_(
-          STAGING_TRANSACTION_COMMIT_FILE,
-          STAGING_TRANSACTION_COMMIT_TEMP_FILE, STAGING_COMMIT_CONTENTS)) {
-    Trace::Error("PERSISTENCYSERVICE: Could not persist untitled commit state");
-    return false;
-  }
-
-  if (fs->exists(STAGING_BACKUP_PATH) &&
-      !DeleteProject_(STAGING_BACKUP_PROJECT_NAME, true)) {
-    // COMMITTED remains durable, so cleanup can safely resume at next boot.
-    Trace::Error("PERSISTENCYSERVICE: Untitled backup cleanup deferred");
-    return true;
-  }
-  if ((fs->exists(PROJECT_STATE_BACKUP_FILE) &&
-       !fs->DeleteFile(PROJECT_STATE_BACKUP_FILE)) ||
-      (fs->exists(PROJECT_STATE_BACKUP_TEMP_FILE) &&
-       !fs->DeleteFile(PROJECT_STATE_BACKUP_TEMP_FILE))) {
-    // Keep COMMITTED until the retained previous project pointer is cleaned.
-    Trace::Error("PERSISTENCYSERVICE: Project marker cleanup deferred");
-    return true;
-  }
-  if (!ClearStagingTransactionMarkers_()) {
-    // With no backup left, stale markers are harmless and recovery will clear
-    // them without changing the committed replacement.
-    Trace::Error("PERSISTENCYSERVICE: Untitled marker cleanup deferred");
-  }
-  return true;
-}
-
-bool PersistencyService::HasCommittedStagingProjectReplacement_() {
-  FileSystem *fs = FileSystem::GetInstance();
-  return fs->exists(STAGING_TRANSACTION_COMMIT_FILE) &&
-         HasStagingTransactionMarker_(STAGING_TRANSACTION_COMMIT_FILE,
-                                      STAGING_COMMIT_CONTENTS);
-}
-
-bool PersistencyService::FinalizeCommittedStagingProjectReplacement_() {
-  FileSystem *fs = FileSystem::GetInstance();
-  if (!fs->exists(STAGING_TRANSACTION_COMMIT_FILE))
-    return true;
-  if (!HasCommittedStagingProjectReplacement_())
-    return false;
-
-  bool hadPrevious = fs->exists(STAGING_BACKUP_PATH);
-  if (fs->exists(STAGING_TRANSACTION_PENDING_FILE)) {
-    char previousProjectName[MAX_PROJECT_NAME_LENGTH + 1U]{};
-    if (!ReadStagingPendingMarker_(hadPrevious, previousProjectName))
-      return false;
-  }
-  return CommitStagingProjectReplacement_(hadPrevious);
-}
-
-bool PersistencyService::RollbackCommittedStagingProjectReplacement_(
-    char *previousProjectName) {
-  if (previousProjectName == nullptr)
-    return false;
-  previousProjectName[0] = '\0';
-
-  FileSystem *fs = FileSystem::GetInstance();
-  if (!HasCommittedStagingProjectReplacement_() ||
-      !fs->exists(STAGING_TRANSACTION_PENDING_FILE)) {
-    return false;
-  }
-  bool hadPrevious = false;
-  if (!ReadStagingPendingMarker_(hadPrevious, previousProjectName))
-    return false;
-
-  // Restore the previous current-project pointer before changing either
-  // untitled directory. PENDING + COMMITTED remain the durable retry record
-  // if this marker write or any later directory operation loses power.
-  if (previousProjectName[0] != '\0' &&
-      SaveProjectState_(
-          previousProjectName,
-          std::strcmp(previousProjectName, UNNAMED_PROJECT_NAME) == 0) !=
-          PERSIST_SAVED) {
-    return false;
-  }
-
-  if (fs->exists(STAGING_PROJECT_PATH) &&
-      !DeleteProject_(UNNAMED_PROJECT_NAME, true)) {
-    return false;
-  }
-  const bool backupExists = fs->exists(STAGING_BACKUP_PATH);
-  if (hadPrevious) {
-    if (!backupExists ||
-        !fs->MoveFile(STAGING_BACKUP_PATH, STAGING_PROJECT_PATH)) {
-      Trace::Error("PERSISTENCYSERVICE: Committed untitled is unrecoverable");
-      return false;
-    }
-  } else if (backupExists) {
-    Trace::Error(
-        "PERSISTENCYSERVICE: Unexpected committed empty-stage backup");
-    return false;
-  }
-
-  if (previousProjectName[0] == '\0') {
-    constexpr const char *stateFiles[] = {
-        PROJECT_STATE_FILE, PROJECT_STATE_TEMP_FILE,
-        PROJECT_STATE_BACKUP_FILE, PROJECT_STATE_BACKUP_TEMP_FILE,
-    };
-    for (const char *path : stateFiles) {
-      if (fs->exists(path) && !fs->DeleteFile(path))
-        return false;
-    }
-  }
-  return ClearStagingTransactionMarkers_();
-}
-
-bool PersistencyService::RollbackStagingProjectReplacement_(bool hadPrevious) {
-  FileSystem *fs = FileSystem::GetInstance();
-  (void)hadPrevious;
-  // Never destructively roll back while a durable COMMITTED marker remains.
-  // Otherwise keep PENDING until the shared recovery state machine has both
-  // restored/deleted the staging directory and rewritten previous `.current`.
-  // This makes a power loss at every rollback step retryable.
-  if (fs->exists(STAGING_TRANSACTION_COMMIT_FILE)) {
-    Trace::Error("PERSISTENCYSERVICE: Refusing to roll back committed untitled");
-    return false;
-  }
-  return RecoverStagingProjectReplacement_();
-}
-
-bool PersistencyService::CompleteStagingProjectPurge_() {
-  FileSystem *fs = FileSystem::GetInstance();
-  // The durable PURGE marker remains until both possible copies and every
-  // replacement phase marker are gone. If any delete fails, recovery retries
-  // this idempotent sequence instead of interpreting the backup as a project
-  // that should be restored.
-  if (fs->exists(STAGING_PROJECT_PATH) &&
-      !DeleteProject_(UNNAMED_PROJECT_NAME, true)) {
-    return false;
-  }
-  if (fs->exists(STAGING_BACKUP_PATH) &&
-      !DeleteProject_(STAGING_BACKUP_PROJECT_NAME, true)) {
-    return false;
-  }
-  constexpr const char *stateFiles[] = {
-      PROJECT_STATE_FILE, PROJECT_STATE_TEMP_FILE,
-      PROJECT_STATE_BACKUP_FILE, PROJECT_STATE_BACKUP_TEMP_FILE,
-  };
-  for (const char *path : stateFiles) {
-    if (fs->exists(path) && !fs->DeleteFile(path))
-      return false;
-  }
-  if (!ClearStagingTransactionMarkers_())
-    return false;
-  if (fs->exists(STAGING_TRANSACTION_PURGE_TEMP_FILE) &&
-      !fs->DeleteFile(STAGING_TRANSACTION_PURGE_TEMP_FILE)) {
-    return false;
-  }
-  return !fs->exists(STAGING_TRANSACTION_PURGE_FILE) ||
-         fs->DeleteFile(STAGING_TRANSACTION_PURGE_FILE);
-}
-
-bool PersistencyService::ClearStagingTransactionMarkers_() {
-  FileSystem *fs = FileSystem::GetInstance();
-  constexpr const char *files[] = {
-      STAGING_TRANSACTION_PENDING_FILE,
-      STAGING_TRANSACTION_PENDING_TEMP_FILE,
-      STAGING_TRANSACTION_COMMIT_FILE,
-      STAGING_TRANSACTION_COMMIT_TEMP_FILE,
-  };
-  for (const char *path : files) {
-    if (fs->exists(path) && !fs->DeleteFile(path))
-      return false;
-  }
-  return true;
-}
-
-bool PersistencyService::WriteStagingTransactionMarker_(
-    const char *path, const char *tempPath, const char *contents) {
-  FileSystem *fs = FileSystem::GetInstance();
-  if ((fs->exists(tempPath) && !fs->DeleteFile(tempPath)) || fs->exists(path))
-    return false;
-
-  auto marker = fs->Open(tempPath, "w");
-  if (!marker)
-    return false;
-  const int length = static_cast<int>(std::strlen(contents));
-  const bool synced = marker->Write(contents, 1, length) == length &&
-                      marker->Sync() && marker->Error() == 0;
-  I_File *rawFile = AcquireLegacyFileHandle_DO_NOT_USE(std::move(marker));
-  const bool closed = CloseFile_DO_NOT_USE(rawFile);
-  if (!synced || !closed || !fs->MoveFile(tempPath, path) ||
-      !HasStagingTransactionMarker_(path, contents)) {
-    if (fs->exists(tempPath))
-      fs->DeleteFile(tempPath);
-    if (fs->exists(path))
-      fs->DeleteFile(path);
-    return false;
-  }
-  return true;
-}
-
-bool PersistencyService::HasStagingTransactionMarker_(
-    const char *path, const char *contents) {
-  FileSystem *fs = FileSystem::GetInstance();
-  auto marker = fs->Open(path, "r");
-  if (!marker)
-    return false;
-  char stored[sizeof("PENDING:1:") + MAX_PROJECT_NAME_LENGTH]{};
-  const int length = marker->Read(stored, sizeof(stored) - 1U);
-  const size_t expectedLength = std::strlen(contents);
-  return length == static_cast<int>(expectedLength) &&
-         marker->Error() == 0 &&
-         std::memcmp(stored, contents, expectedLength) == 0;
-}
-
-bool PersistencyService::ReadStagingPendingMarker_(
-    bool &hadPrevious, char *previousProjectName) {
-  if (previousProjectName == nullptr)
-    return false;
-  auto marker = FileSystem::GetInstance()->Open(
-      STAGING_TRANSACTION_PENDING_FILE, "r");
-  if (!marker)
-    return false;
-
-  char stored[sizeof("PENDING:1:") + MAX_PROJECT_NAME_LENGTH]{};
-  const int length = marker->Read(stored, sizeof(stored) - 1U);
-  constexpr size_t prefixLength = sizeof("PENDING:1:") - 1U;
-  if (length < static_cast<int>(prefixLength) || marker->Error() != 0)
-    return false;
-  stored[length] = '\0';
-  if (std::strncmp(stored, "PENDING:", 8U) != 0 ||
-      (stored[8] != '0' && stored[8] != '1') || stored[9] != ':') {
-    return false;
-  }
-
-  const char *previous = stored + prefixLength;
-  if (previous[0] != '\0' &&
-      !IsSafeProjectName_(
-          previous, std::strcmp(previous, UNNAMED_PROJECT_NAME) == 0)) {
-    return false;
-  }
-  hadPrevious = stored[8] == '1';
-  std::strcpy(previousProjectName, previous);
   return true;
 }
 
@@ -925,8 +254,7 @@ PersistencyResult PersistencyService::Save(const char *projectName,
 
 PersistencyResult PersistencyService::Save_(const char *projectName,
                                             const char *oldProjectName,
-                                            bool saveAs,
-                                            bool allowStaging) {
+                                            bool saveAs, bool allowStaging) {
   const bool plainStagingSave =
       allowStaging && !saveAs && projectName != nullptr &&
       std::strcmp(projectName, UNNAMED_PROJECT_NAME) == 0;
@@ -986,8 +314,8 @@ PersistencyService::SaveAsProject_(const char *projectName,
     return PERSIST_ERROR;
   }
 
-  etl::vector<const char *, 3> modelSegments = {
-      PROJECTS_DIR, stageName, PROJECT_DATA_FILE};
+  etl::vector<const char *, 3> modelSegments = {PROJECTS_DIR, stageName,
+                                                PROJECT_DATA_FILE};
   CreatePath(pathBufferA, modelSegments);
   if (SaveProjectFile_(pathBufferA.c_str()) != PERSIST_SAVED ||
       ValidateProjectFile_(pathBufferA.c_str()) != PERSIST_LOADED) {
@@ -1058,14 +386,12 @@ bool PersistencyService::CopyProjectSamples_(const char *sourceProject,
       return false;
     }
 
-    const size_t sourceLength = std::strlen(PROJECTS_DIR) + 1U +
-                                std::strlen(sourceProject) + 1U +
-                                std::strlen(PROJECT_SAMPLES_DIR) + 1U +
-                                std::strlen(filenameBuffer);
-    const size_t targetLength = std::strlen(PROJECTS_DIR) + 1U +
-                                std::strlen(targetProject) + 1U +
-                                std::strlen(PROJECT_SAMPLES_DIR) + 1U +
-                                std::strlen(filenameBuffer);
+    const size_t sourceLength =
+        std::strlen(PROJECTS_DIR) + 1U + std::strlen(sourceProject) + 1U +
+        std::strlen(PROJECT_SAMPLES_DIR) + 1U + std::strlen(filenameBuffer);
+    const size_t targetLength =
+        std::strlen(PROJECTS_DIR) + 1U + std::strlen(targetProject) + 1U +
+        std::strlen(PROJECT_SAMPLES_DIR) + 1U + std::strlen(filenameBuffer);
     if (sourceLength > pathBufferA.capacity() ||
         targetLength > pathBufferB.capacity()) {
       Trace::Error("PERSISTENCYSERVICE: Sample path exceeds fixed capacity");
@@ -1177,7 +503,7 @@ PersistencyResult PersistencyService::SaveProjectFileAtomically_(
   }
 
   const project_file_journal::Paths paths{destinationPath, tempPath,
-                                           backupPath};
+                                          backupPath};
   const bool saved = project_file_journal::SaveAtomically(
       *FileSystem::GetInstance(), paths,
       [this](const char *path) {
@@ -1189,9 +515,11 @@ PersistencyResult PersistencyService::SaveProjectFileAtomically_(
   return saved ? PERSIST_SAVED : PERSIST_ERROR;
 }
 
-bool PersistencyService::RecoverProjectFileJournal_(
-    const char *projectName, const char *filename, const char *tempFilename,
-    const char *backupFilename, bool allowStaging) {
+bool PersistencyService::RecoverProjectFileJournal_(const char *projectName,
+                                                    const char *filename,
+                                                    const char *tempFilename,
+                                                    const char *backupFilename,
+                                                    bool allowStaging) {
   if (!IsSafeProjectName_(projectName, allowStaging))
     return false;
 
@@ -1205,7 +533,7 @@ bool PersistencyService::RecoverProjectFileJournal_(
   }
 
   const project_file_journal::Paths paths{destinationPath, tempPath,
-                                           backupPath};
+                                          backupPath};
   return project_file_journal::Recover(
       *FileSystem::GetInstance(), paths, [this](const char *path) {
         return ValidateProjectFile_(path) == PERSIST_LOADED;
@@ -1214,16 +542,16 @@ bool PersistencyService::RecoverProjectFileJournal_(
 
 bool PersistencyService::RecoverAutosaveJournal_(const char *projectName,
                                                  bool allowStaging) {
-  return RecoverProjectFileJournal_(
-      projectName, AUTO_SAVE_FILENAME, AUTO_SAVE_TEMP_FILENAME,
-      AUTO_SAVE_BACKUP_FILENAME, allowStaging);
+  return RecoverProjectFileJournal_(projectName, AUTO_SAVE_FILENAME,
+                                    AUTO_SAVE_TEMP_FILENAME,
+                                    AUTO_SAVE_BACKUP_FILENAME, allowStaging);
 }
 
 bool PersistencyService::RecoverBaseJournal_(const char *projectName,
                                              bool allowStaging) {
-  return RecoverProjectFileJournal_(
-      projectName, PROJECT_DATA_FILE, PROJECT_DATA_TEMP_FILE,
-      PROJECT_DATA_BACKUP_FILE, allowStaging);
+  return RecoverProjectFileJournal_(projectName, PROJECT_DATA_FILE,
+                                    PROJECT_DATA_TEMP_FILE,
+                                    PROJECT_DATA_BACKUP_FILE, allowStaging);
 }
 
 PersistencyResult PersistencyService::SaveLoadRollback() {
@@ -1332,9 +660,9 @@ PersistencyResult PersistencyService::LoadProjectJournalBackup_(
   if (!IsSafeProjectName_(projectName, allowStaging))
     return PERSIST_LOAD_FAILED;
   char backupPath[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
-  if (!BuildProjectFilePath(
-          backupPath, projectName,
-          autosave ? AUTO_SAVE_BACKUP_FILENAME : PROJECT_DATA_BACKUP_FILE)) {
+  if (!BuildProjectFilePath(backupPath, projectName,
+                            autosave ? AUTO_SAVE_BACKUP_FILENAME
+                                     : PROJECT_DATA_BACKUP_FILE)) {
     return PERSIST_LOAD_FAILED;
   }
   FileSystem *fs = FileSystem::GetInstance();
@@ -1345,26 +673,27 @@ PersistencyResult PersistencyService::LoadProjectJournalBackup_(
   return LoadProjectFile_(backupPath);
 }
 
-bool PersistencyService::PromoteProjectJournalBackup_(
-    const char *projectName, bool autosave, bool allowStaging) {
+bool PersistencyService::PromoteProjectJournalBackup_(const char *projectName,
+                                                      bool autosave,
+                                                      bool allowStaging) {
   if (!IsSafeProjectName_(projectName, allowStaging))
     return false;
   char destinationPath[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
   char tempPath[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
   char backupPath[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
-  if (!BuildProjectFilePath(
-          destinationPath, projectName,
-          autosave ? AUTO_SAVE_FILENAME : PROJECT_DATA_FILE) ||
-      !BuildProjectFilePath(
-          tempPath, projectName,
-          autosave ? AUTO_SAVE_TEMP_FILENAME : PROJECT_DATA_TEMP_FILE) ||
-      !BuildProjectFilePath(
-          backupPath, projectName,
-          autosave ? AUTO_SAVE_BACKUP_FILENAME : PROJECT_DATA_BACKUP_FILE)) {
+  if (!BuildProjectFilePath(destinationPath, projectName,
+                            autosave ? AUTO_SAVE_FILENAME
+                                     : PROJECT_DATA_FILE) ||
+      !BuildProjectFilePath(tempPath, projectName,
+                            autosave ? AUTO_SAVE_TEMP_FILENAME
+                                     : PROJECT_DATA_TEMP_FILE) ||
+      !BuildProjectFilePath(backupPath, projectName,
+                            autosave ? AUTO_SAVE_BACKUP_FILENAME
+                                     : PROJECT_DATA_BACKUP_FILE)) {
     return false;
   }
   const project_file_journal::Paths paths{destinationPath, tempPath,
-                                           backupPath};
+                                          backupPath};
   return project_file_journal::PromoteBackup(
       *FileSystem::GetInstance(), paths, [this](const char *path) {
         return ValidateProjectFile_(path) == PERSIST_LOADED;
@@ -1379,24 +708,23 @@ bool PersistencyService::FinalizeProjectJournal_(const char *projectName,
   char destinationPath[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
   char tempPath[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
   char backupPath[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
-  if (!BuildProjectFilePath(
-          destinationPath, projectName,
-          autosave ? AUTO_SAVE_FILENAME : PROJECT_DATA_FILE) ||
-      !BuildProjectFilePath(
-          tempPath, projectName,
-          autosave ? AUTO_SAVE_TEMP_FILENAME : PROJECT_DATA_TEMP_FILE) ||
-      !BuildProjectFilePath(
-          backupPath, projectName,
-          autosave ? AUTO_SAVE_BACKUP_FILENAME : PROJECT_DATA_BACKUP_FILE)) {
+  if (!BuildProjectFilePath(destinationPath, projectName,
+                            autosave ? AUTO_SAVE_FILENAME
+                                     : PROJECT_DATA_FILE) ||
+      !BuildProjectFilePath(tempPath, projectName,
+                            autosave ? AUTO_SAVE_TEMP_FILENAME
+                                     : PROJECT_DATA_TEMP_FILE) ||
+      !BuildProjectFilePath(backupPath, projectName,
+                            autosave ? AUTO_SAVE_BACKUP_FILENAME
+                                     : PROJECT_DATA_BACKUP_FILE)) {
     return false;
   }
   const project_file_journal::Paths paths{destinationPath, tempPath,
-                                           backupPath};
+                                          backupPath};
   return project_file_journal::Finalize(*FileSystem::GetInstance(), paths);
 }
 
-PersistencyResult
-PersistencyService::ValidateProjectFile_(const char *path) {
+PersistencyResult PersistencyService::ValidateProjectFile_(const char *path) {
   PersistencyDocument doc;
   if (!doc.Load(path))
     return PERSIST_LOAD_FAILED;
@@ -1464,11 +792,9 @@ PersistencyService::LoadCurrentProjectName(char *projectName) {
     // the normal backup fallback below restores the old pointer.
     const bool tempExists = fs->exists(PROJECT_STATE_TEMP_FILE);
     const bool backupExists = fs->exists(PROJECT_STATE_BACKUP_FILE);
-    const char *recoverySource = tempExists
-                                     ? PROJECT_STATE_TEMP_FILE
-                                     : backupExists
-                                           ? PROJECT_STATE_BACKUP_FILE
-                                           : nullptr;
+    const char *recoverySource = tempExists     ? PROJECT_STATE_TEMP_FILE
+                                 : backupExists ? PROJECT_STATE_BACKUP_FILE
+                                                : nullptr;
     if (recoverySource == nullptr)
       return selectExistingUntitled() ? PERSIST_LOADED : PERSIST_LOAD_FAILED;
     bool recovered = fs->MoveFile(recoverySource, PROJECT_STATE_FILE);
@@ -1569,8 +895,7 @@ bool PersistencyService::ReadPreviousProjectName_(char *projectName) {
 
   char stored[MAX_PROJECT_NAME_LENGTH + 2U]{};
   const int length = backup->Read(stored, sizeof(stored) - 1U);
-  if (length <= 0 || length > MAX_PROJECT_NAME_LENGTH ||
-      backup->Error() != 0) {
+  if (length <= 0 || length > MAX_PROJECT_NAME_LENGTH || backup->Error() != 0) {
     return false;
   }
   stored[length] = '\0';
@@ -1588,11 +913,9 @@ PersistencyService::SaveProjectState(const char *projectName) {
   return SaveProjectState_(projectName, false);
 }
 
-PersistencyResult
-PersistencyService::SaveProjectState_(const char *projectName,
-                                      bool allowStaging,
-                                      bool retainPreviousBackup,
-                                      const char *previousProjectName) {
+PersistencyResult PersistencyService::SaveProjectState_(
+    const char *projectName, bool allowStaging, bool retainPreviousBackup,
+    const char *previousProjectName) {
   if (!IsSafeProjectName_(projectName, allowStaging))
     return PERSIST_ERROR;
 
@@ -1605,13 +928,12 @@ PersistencyService::SaveProjectState_(const char *projectName,
     const int expectedLength = static_cast<int>(std::strlen(text));
     const int storedLength = marker->Read(stored, sizeof(stored) - 1U);
     return storedLength == expectedLength && marker->Error() == 0 &&
-           std::memcmp(stored, text,
-                       static_cast<size_t>(expectedLength)) == 0;
+           std::memcmp(stored, text, static_cast<size_t>(expectedLength)) == 0;
   };
 
-  const bool preservePrevious =
-      retainPreviousBackup && previousProjectName != nullptr &&
-      previousProjectName[0] != '\0';
+  const bool preservePrevious = retainPreviousBackup &&
+                                previousProjectName != nullptr &&
+                                previousProjectName[0] != '\0';
   if (preservePrevious &&
       !IsSafeProjectName_(
           previousProjectName,
@@ -1625,8 +947,7 @@ PersistencyService::SaveProjectState_(const char *projectName,
   }
   if (preservePrevious) {
     if (fs->exists(PROJECT_STATE_BACKUP_FILE)) {
-      if (!markerMatchesText(PROJECT_STATE_BACKUP_FILE,
-                             previousProjectName)) {
+      if (!markerMatchesText(PROJECT_STATE_BACKUP_FILE, previousProjectName)) {
         Trace::Error("PERSISTENCYSERVICE: Conflicting retained state backup");
         return PERSIST_ERROR;
       }
@@ -1640,14 +961,12 @@ PersistencyService::SaveProjectState_(const char *projectName,
           backup->Write(previousProjectName, 1, previousLength) ==
               previousLength &&
           backup->Sync() && backup->Error() == 0;
-      I_File *rawBackup =
-          AcquireLegacyFileHandle_DO_NOT_USE(std::move(backup));
+      I_File *rawBackup = AcquireLegacyFileHandle_DO_NOT_USE(std::move(backup));
       const bool backupClosed = CloseFile_DO_NOT_USE(rawBackup);
       if (!backupSynced || !backupClosed ||
           !fs->MoveFile(PROJECT_STATE_BACKUP_TEMP_FILE,
                         PROJECT_STATE_BACKUP_FILE) ||
-          !markerMatchesText(PROJECT_STATE_BACKUP_FILE,
-                             previousProjectName)) {
+          !markerMatchesText(PROJECT_STATE_BACKUP_FILE, previousProjectName)) {
         if (fs->exists(PROJECT_STATE_BACKUP_TEMP_FILE))
           fs->DeleteFile(PROJECT_STATE_BACKUP_TEMP_FILE);
         return PERSIST_ERROR;
@@ -1710,8 +1029,7 @@ PersistencyService::SaveProjectState_(const char *projectName,
       // previous pointer is removed, so every power-loss point remains
       // bootable.
       const bool tempRemoved = fs->DeleteFile(PROJECT_STATE_TEMP_FILE);
-      const bool backupRemoved =
-          fs->DeleteFile(PROJECT_STATE_BACKUP_FILE);
+      const bool backupRemoved = fs->DeleteFile(PROJECT_STATE_BACKUP_FILE);
       return tempRemoved && backupRemoved ? PERSIST_SAVED : PERSIST_ERROR;
     }
     if (markerMatchesText(PROJECT_STATE_BACKUP_FILE, projectName)) {
@@ -1785,258 +1103,13 @@ bool PersistencyService::ClearAutosave_(const char *projectName,
   char destinationPath[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
   char tempPath[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
   char backupPath[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
-  if (!BuildProjectFilePath(destinationPath, projectName,
-                            AUTO_SAVE_FILENAME) ||
-      !BuildProjectFilePath(tempPath, projectName,
-                            AUTO_SAVE_TEMP_FILENAME) ||
+  if (!BuildProjectFilePath(destinationPath, projectName, AUTO_SAVE_FILENAME) ||
+      !BuildProjectFilePath(tempPath, projectName, AUTO_SAVE_TEMP_FILENAME) ||
       !BuildProjectFilePath(backupPath, projectName,
                             AUTO_SAVE_BACKUP_FILENAME)) {
     return false;
   }
   const project_file_journal::Paths paths{destinationPath, tempPath,
-                                           backupPath};
+                                          backupPath};
   return project_file_journal::Discard(*FileSystem::GetInstance(), paths);
-}
-
-PersistencyResult PersistencyService::ExportInstrument(
-    I_Instrument *instrument, etl::string<MAX_INSTRUMENT_NAME_LENGTH> name,
-    bool overwrite) {
-  FileSystem *fs = FileSystem::GetInstance();
-  if (fs == nullptr || instrument == nullptr)
-    return PERSIST_ERROR;
-
-  char destination[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
-  char temporary[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
-  char backup[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
-  if (!BuildInstrumentExportSiblingPaths(destination, temporary, backup,
-                                         INSTRUMENTS_DIR, name.c_str())) {
-    Trace::Error("PERSISTENCYSERVICE: Unsafe instrument export name");
-    return PERSIST_ERROR;
-  }
-
-  const InstrumentExportTransactionResult result =
-      ExportInstrumentFileAtomically(
-          *fs, destination, temporary, backup, overwrite,
-          [&](const char *path) {
-            auto fp = fs->Open(path, "w");
-            if (!fp) {
-              Trace::Error(
-                  "PERSISTENCYSERVICE: Could not open instrument temp: %s",
-                  path);
-              return false;
-            }
-            {
-              tinyxml2::XMLPrinter printer(fp.get());
-              instrument->Save(&printer);
-            }
-            const bool synced = fp->Sync() && fp->Error() == 0;
-            I_File *rawFile =
-                AcquireLegacyFileHandle_DO_NOT_USE(std::move(fp));
-            const bool closed = CloseFile_DO_NOT_USE(rawFile);
-            if (!synced || !closed) {
-              Trace::Error(
-                  "PERSISTENCYSERVICE: Failed to flush instrument temp: %s",
-                  path);
-            }
-            return synced && closed;
-          },
-          [](const char *path) { return ValidateInstrumentFilePayload(path); });
-  switch (result) {
-  case InstrumentExportTransactionResult::Saved:
-    return PERSIST_SAVED;
-  case InstrumentExportTransactionResult::Exists:
-    return PERSIST_EXISTS;
-  case InstrumentExportTransactionResult::Error:
-    return PERSIST_ERROR;
-  }
-  return PERSIST_ERROR;
-}
-
-bool PersistencyService::RecoverInstrumentExports() {
-  FileSystem *fs = FileSystem::GetInstance();
-  if (fs == nullptr || !fs->chdir(INSTRUMENTS_DIR))
-    return false;
-
-  const auto hasSuffix = [](const char *filename, const char *suffix,
-                            size_t &stemLength) {
-    if (filename == nullptr || suffix == nullptr)
-      return false;
-    const size_t length = std::strlen(filename);
-    const size_t suffixLength = std::strlen(suffix);
-    if (length <= suffixLength ||
-        strcasecmp(filename + length - suffixLength, suffix) != 0) {
-      return false;
-    }
-    stemLength = length - suffixLength;
-    return stemLength <= MAX_INSTRUMENT_NAME_LENGTH && filename[0] != '.';
-  };
-
-  etl::vector<int, MAX_FILE_INDEX_SIZE> journals;
-  if (!fs->listChecked(&journals, ".bak", false))
-    return false;
-  for (const int index : journals) {
-    if (fs->getFileType(index) == PFT_DIR)
-      continue;
-    char filename[PFILENAME_SIZE]{};
-    fs->getFileName(index, filename, sizeof(filename));
-    size_t stemLength = 0U;
-    if (!hasSuffix(filename, ".bak", stemLength))
-      continue;
-    char stem[MAX_INSTRUMENT_NAME_LENGTH + 1U]{};
-    std::memcpy(stem, filename, stemLength);
-    char destination[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
-    char temporary[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
-    char backup[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
-    if (!BuildInstrumentExportSiblingPaths(destination, temporary, backup,
-                                           INSTRUMENTS_DIR, stem)) {
-      return false;
-    }
-    const int actualBackupLength = std::snprintf(
-        backup, sizeof(backup), "%s/%s", INSTRUMENTS_DIR, filename);
-    if (actualBackupLength <= 0 ||
-        static_cast<size_t>(actualBackupLength) >= sizeof(backup) ||
-        !RecoverInstrumentExportFile(
-            *fs, destination, temporary, backup,
-            [](const char *path) {
-              return ValidateInstrumentFilePayload(path);
-            })) {
-      return false;
-    }
-  }
-
-  // A .tmp without a sibling backup was never committed. It is safe to drop
-  // after backup recovery and prevents interrupted first-time exports from
-  // accumulating indefinitely.
-  journals.clear();
-  if (!fs->listChecked(&journals, ".tmp", false))
-    return false;
-  for (const int index : journals) {
-    if (fs->getFileType(index) == PFT_DIR)
-      continue;
-    char filename[PFILENAME_SIZE]{};
-    fs->getFileName(index, filename, sizeof(filename));
-    size_t stemLength = 0U;
-    if (!hasSuffix(filename, ".tmp", stemLength))
-      continue;
-    char path[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
-    const int pathLength =
-        std::snprintf(path, sizeof(path), "%s/%s", INSTRUMENTS_DIR, filename);
-    if (pathLength <= 0 || static_cast<size_t>(pathLength) >= sizeof(path) ||
-        (fs->exists(path) && !fs->DeleteFile(path))) {
-      return false;
-    }
-  }
-  return true;
-}
-
-bool RecoverInstrumentExportJournals() {
-  PersistencyService *persistence = PersistencyService::GetInstance();
-  return persistence != nullptr && persistence->RecoverInstrumentExports();
-}
-
-InstrumentType PersistencyService::DetectInstrumentType(const char *name) {
-  FileSystem *fs = FileSystem::GetInstance();
-
-  if (fs == nullptr || !fs->chdir(INSTRUMENTS_DIR)) {
-    Trace::Error(
-        "PERSISTENCYSERVICE: Could not change to instruments directory");
-    return IT_NONE;
-  }
-
-  InstrumentType importedType = IT_NONE;
-  if (!ReadInstrumentEnvelope(name, importedType, nullptr, 0U)) {
-    Trace::Error("PERSISTENCYSERVICE: Invalid instrument envelope: %s",
-                 name == nullptr ? "<null>" : name);
-    return IT_NONE;
-  }
-  return importedType;
-}
-
-PersistencyResult PersistencyService::ImportInstrument(I_Instrument *instrument,
-                                                       const char *name) {
-  FileSystem *fs = FileSystem::GetInstance();
-
-  if (fs == nullptr || !fs->chdir(INSTRUMENTS_DIR)) {
-    Trace::Error(
-        "PERSISTENCYSERVICE: Could not change to instruments directory");
-    return PERSIST_ERROR;
-  }
-
-  InstrumentType importedType = IT_NONE;
-  char versionInfo[64]{};
-  if (!ReadInstrumentEnvelope(name, importedType, versionInfo,
-                              sizeof(versionInfo))) {
-    Trace::Error("PERSISTENCYSERVICE: Invalid instrument envelope: %s",
-                 name == nullptr ? "<null>" : name);
-    return PERSIST_ERROR;
-  }
-
-  // Log the complete version info if available
-  if (versionInfo[0] != '\0') {
-    Trace::Log("PERSISTENCYSERVICE",
-               "Instrument created with firmware version: %s",
-               versionInfo);
-  }
-
-  if (instrument == nullptr || importedType == IT_NONE ||
-      importedType != instrument->GetType()) {
-    Trace::Error("PERSISTENCYSERVICE",
-                 "Instrument import type mismatch (target:%d file:%d)",
-                 instrument == nullptr ? IT_NONE : instrument->GetType(),
-                 importedType);
-    return PERSIST_ERROR;
-  }
-
-  if (!ValidateInstrumentFilePayload(name)) {
-    Trace::Error("PERSISTENCYSERVICE",
-                 "Incomplete instrument payload in file: %s", name);
-    return PERSIST_ERROR;
-  }
-
-  // Reload from the root because both type detection and structural
-  // validation consume the forward-only parser.
-  PersistencyDocument doc;
-  if (!doc.Load(name) || !doc.FirstChild() ||
-      std::strcmp(doc.ElemName(), "INSTRUMENT") != 0)
-    return PERSIST_ERROR;
-
-  // Restore the instrument content
-  if (!instrument->Restore(&doc) || !doc.Finish()) {
-    Trace::Error(
-        "PERSISTENCYSERVICE: Failed to restore instrument from file: %s", name);
-    return PERSIST_ERROR;
-  }
-
-  // Extract instrument name from filename (minus .pti extension)
-  etl::string<MAX_INSTRUMENT_NAME_LENGTH> instrumentName;
-  const char *dotPos = strrchr(name, '.');
-  if (dotPos) {
-    // Calculate the length of the name without extension
-    size_t nameLength = dotPos - name;
-    // Copy only up to MAX_INSTRUMENT_NAME_LENGTH characters
-    nameLength =
-        nameLength <= MAX_INSTRUMENT_NAME_LENGTH ? nameLength
-                                                 : MAX_INSTRUMENT_NAME_LENGTH;
-    instrumentName.assign(name, nameLength);
-  } else {
-    // No extension found, use the whole name (up to MAX_INSTRUMENT_NAME_LENGTH)
-    instrumentName.assign(name, strlen(name) <= MAX_INSTRUMENT_NAME_LENGTH
-                                    ? strlen(name)
-                                    : MAX_INSTRUMENT_NAME_LENGTH);
-  }
-
-  // Set the instrument name
-  Variable *nameVar = instrument->FindVariable(FourCC::InstrumentName);
-  if (nameVar) {
-    nameVar->SetString(instrumentName.c_str());
-  }
-
-  // Mark the instrument as changed to trigger UI updates
-  instrument->SetChanged();
-  instrument->NotifyObservers();
-
-  Trace::Log("PERSISTENCYSERVICE", "Successfully imported instrument settings");
-  Trace::Log("PERSISTENCYSERVICE", "Set instrument name to: %s",
-             instrumentName.c_str());
-  return PERSIST_LOADED;
 }

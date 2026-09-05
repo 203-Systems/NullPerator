@@ -12,15 +12,15 @@
 #include "Application/Session/FirmwareLifecyclePlatformAdapter.h"
 #include "Application/Session/FirmwareLifecycleService.h"
 #include "Application/Session/TrackerApplicationSession.h"
-#include "Application/UI2/Controllers/Ui2ControllerPrimitives.h"
 #include "Application/UI2/Controllers/Ui2ClipboardNoticeController.h"
+#include "Application/UI2/Controllers/Ui2ControllerPrimitives.h"
 #include "Application/UI2/Controllers/Ui2DeviceController.h"
 #include "Application/UI2/Controllers/Ui2DeviceLifecycleController.h"
 #include "Application/UI2/Controllers/Ui2FeedbackController.h"
 #include "Application/UI2/Controllers/Ui2FontController.h"
 #include "Application/UI2/Controllers/Ui2GrooveController.h"
-#include "Application/UI2/Controllers/Ui2InstrumentController.h"
 #include "Application/UI2/Controllers/Ui2InstrumentBrowserController.h"
+#include "Application/UI2/Controllers/Ui2InstrumentController.h"
 #include "Application/UI2/Controllers/Ui2InstrumentLifecycleController.h"
 #include "Application/UI2/Controllers/Ui2MixerController.h"
 #include "Application/UI2/Controllers/Ui2ProjectBrowserController.h"
@@ -38,13 +38,13 @@
 #include "Application/UI2/Ui2ConfigSaveState.h"
 #include "Application/UI2/Ui2NativeApplicationStateSource.h"
 #include "Application/UI2/Ui2PersistenceStatus.h"
-#include "Application/UI2/Ui2ProjectRenderBackend.h"
 #include "Application/UI2/Ui2SampleEditorTransaction.h"
-#include "Application/UI2/Ui2SampleWaveformBackend.h"
 #include "Application/UI2/Ui2StatusBridge.h"
 #include "Application/UI2/Ui2TrackerSessionModelPort.h"
 #include "Application/UI2/Workflows/Ui2GrooveWorkflow.h"
+#include "Application/UI2/Workflows/Ui2ProjectSessionWorkflow.h"
 #include "Application/UI2/Workflows/Ui2ProjectWorkflow.h"
+#include "Application/UI2/Workflows/Ui2SampleWorkflow.h"
 
 #include <array>
 #include <type_traits>
@@ -122,7 +122,7 @@ private:
   [[nodiscard]] bool CloseSampleEditor();
   [[nodiscard]] bool RecoverSampleEditorDestination();
   [[nodiscard]] bool ImportSampleToCurrentInstrument(const char *path,
-                                                      const char *&error);
+                                                     const char *&error);
   void HandleSampleSlices(TrackerAction action, bool pressed);
   void HandleSampleSlicesDialog(TrackerAction action, bool pressed);
   void ExecuteSampleSlices(Ui2SampleSlicesCommand command);
@@ -173,14 +173,10 @@ private:
   TrackerApplicationSession session_;
   Ui2TrackerSessionModelPort modelPort_;
   Ui2TrackerCommandExecutor tracker_;
-  Ui2ProjectRenderBackend projectRenderBackend_;
-  Ui2ProjectRenderController projectRender_;
-  Ui2ProjectController project_{};
-  Ui2ProjectBrowserController projectBrowser_{};
+  Ui2ProjectSessionWorkflow projects_;
   Ui2SettingsBrowserController settingsBrowser_{};
   Ui2ClipboardNoticeController clipboardNotice_{};
   Ui2FeedbackController feedback_{};
-  Ui2ProjectLifecycleController projectLifecycle_{};
   Ui2GrooveController groove_{};
   Ui2GrooveClipboard grooveClipboard_{};
   Ui2DeviceController device_{};
@@ -192,14 +188,9 @@ private:
   Ui2InstrumentController instrument_{};
   Ui2InstrumentLifecycleController instrumentLifecycle_{};
   Ui2InstrumentBrowserController instrumentBrowser_{};
-  Ui2SampleBrowserController sampleBrowser_{};
-  Ui2SampleWaveformBackend sampleWaveform_{};
-  Ui2SampleEditorController sampleEditor_{sampleWaveform_};
-  Ui2SampleEditorTransaction sampleEditorTransaction_{};
-  Ui2SampleSlicesController sampleSlices_{sampleWaveform_};
+  Ui2SampleWorkflow samples_;
   Ui2RecordController record_{};
   bool recordSessionPending_ = false;
-  Ui2ControllerInputState projectInput_{};
   FirmwareLifecyclePlatformAdapter firmwarePlatform_{};
   FirmwareLifecycleService firmwareLifecycle_{&firmwarePlatform_};
   FirmwareLifecycleController firmwareController_{};
@@ -212,8 +203,6 @@ private:
   std::array<UiApplicationPage, static_cast<std::size_t>(TrackerAction::Count)>
       pressOwners_{};
   std::array<char, MAX_PROJECT_NAME_LENGTH + 1U> savedProjectName_{};
-  bool projectSaveAsPending_ = false;
-  Ui2DeferredProjectSave deferredProjectSave_{};
   enum class RenameTarget : std::uint8_t {
     None,
     Project,
@@ -223,21 +212,7 @@ private:
   };
   RenameTarget renameTarget_ = RenameTarget::None;
   bool instrumentBrowserActive_ = false;
-  UiApplicationPage sampleReturnPage_ = UiApplicationPage::Instrument;
-  enum class SamplePreviewKind : std::uint8_t {
-    None,
-    EditorStream,
-    SliceNote,
-  };
-  SamplePreviewKind samplePreviewKind_ = SamplePreviewKind::None;
-  std::uint32_t samplePreviewStartedMs_ = 0U;
-  std::uint32_t samplePreviewStart_ = 0U;
-  std::uint32_t samplePreviewEnd_ = 0U;
-  std::uint32_t samplePreviewFrames_ = 0U;
-  std::uint32_t samplePreviewRate_ = 0U;
-  std::uint8_t samplePreviewInstrument_ = 0U;
-  std::uint8_t samplePreviewNote_ = 0U;
-  bool samplePreviewSingleCycle_ = false;
+  using SamplePreviewKind = Ui2SampleWorkflow::PreviewKind;
   std::uint8_t renameInstrumentNumber_ = 0U;
   Ui2ConfigSaveState configSave_{};
   AutoSaveCoordinator autoSave_{};

@@ -1,7 +1,8 @@
+include("${PROJECT_SOURCE_DIR}/../cmake/CoreSourceGroups.cmake")
 add_library(application_persistency
   InstrumentFileValidator.cpp
   Persistent.cpp
-  PersistencyService.cpp
+  ${PICOTRACKER_PERSISTENCY_SERVICE_SOURCES}
   PersistencyDocument.cpp
 )
 

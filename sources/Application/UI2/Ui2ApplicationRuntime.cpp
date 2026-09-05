@@ -27,10 +27,9 @@ void UiApplicationRuntime::ApplyThemeColors(
   std::array<Rgb888, UiPalette::kUserColorCount> unpacked{};
   for (std::size_t index = 0; index < colors.size(); ++index) {
     const std::uint32_t packed = colors[index];
-    unpacked[index] = {
-        static_cast<std::uint8_t>((packed >> 16U) & 0xFFU),
-        static_cast<std::uint8_t>((packed >> 8U) & 0xFFU),
-        static_cast<std::uint8_t>(packed & 0xFFU)};
+    unpacked[index] = {static_cast<std::uint8_t>((packed >> 16U) & 0xFFU),
+                       static_cast<std::uint8_t>((packed >> 8U) & 0xFFU),
+                       static_cast<std::uint8_t>(packed & 0xFFU)};
   }
   engine_.Palette().SetUserColors(unpacked);
   Invalidate();
@@ -356,13 +355,7 @@ UiApplicationRuntime::PresentSong(IUiApplicationStateSource &source,
     RenderDialogDelta();
   }
 
-  const PresentResult result = engine_.PresentDirty();
-  if (result == PresentResult::Presented) {
-    previous = current;
-    previousValid_ = true;
-    CommitDialog();
-  }
-  return result;
+  return PresentAndCommit(previous, current);
 }
 
 UiSongViewData UiApplicationRuntime::ViewDataFor(const SongFrameState &state) {
@@ -520,13 +513,7 @@ UiApplicationRuntime::PresentChain(IUiApplicationStateSource &source,
     }
     RenderDialogDelta();
   }
-  const PresentResult result = engine_.PresentDirty();
-  if (result == PresentResult::Presented) {
-    previous = current;
-    previousValid_ = true;
-    CommitDialog();
-  }
-  return result;
+  return PresentAndCommit(previous, current);
 }
 
 UiPhraseViewData
@@ -693,13 +680,7 @@ UiApplicationRuntime::PresentPhrase(IUiApplicationStateSource &source,
     }
     RenderDialogDelta();
   }
-  const PresentResult result = engine_.PresentDirty();
-  if (result == PresentResult::Presented) {
-    previous = current;
-    previousValid_ = true;
-    CommitDialog();
-  }
-  return result;
+  return PresentAndCommit(previous, current);
 }
 
 UiTableViewData
@@ -857,13 +838,7 @@ UiApplicationRuntime::PresentTable(IUiApplicationStateSource &source,
     }
     RenderDialogDelta();
   }
-  const PresentResult result = engine_.PresentDirty();
-  if (result == PresentResult::Presented) {
-    previous = current;
-    previousValid_ = true;
-    CommitDialog();
-  }
-  return result;
+  return PresentAndCommit(previous, current);
 }
 
 UiInstrumentViewData
@@ -974,8 +949,8 @@ UiApplicationRuntime::PresentInstrument(IUiApplicationStateSource &source,
         previousValid_ && current.scrollOffset != previousScroll;
     if (scrollChanged && cursorTargetValid_) {
       RectI16 rebased = cursors_.Sample(UiCursorRole::Content, nowMs);
-      rebased.y = static_cast<std::int16_t>(
-          rebased.y + current.scrollOffset - previousScroll);
+      rebased.y = static_cast<std::int16_t>(rebased.y + current.scrollOffset -
+                                            previousScroll);
       cursors_.Snap(UiCursorRole::Content, rebased, nowMs);
     }
     if (!cursorTargetValid_) {
@@ -1015,13 +990,7 @@ UiApplicationRuntime::PresentInstrument(IUiApplicationStateSource &source,
     }
     RenderDialogDelta();
   }
-  const PresentResult result = engine_.PresentDirty();
-  if (result == PresentResult::Presented) {
-    previous = current;
-    previousValid_ = true;
-    CommitDialog();
-  }
-  return result;
+  return PresentAndCommit(previous, current);
 }
 
 UiProjectViewData
@@ -1100,13 +1069,7 @@ UiApplicationRuntime::PresentProject(IUiApplicationStateSource &source,
     }
     RenderDialogDelta();
   }
-  const PresentResult result = engine_.PresentDirty();
-  if (result == PresentResult::Presented) {
-    previous = current;
-    previousValid_ = true;
-    CommitDialog();
-  }
-  return result;
+  return PresentAndCommit(previous, current);
 }
 
 UiDeviceViewData
@@ -1205,13 +1168,7 @@ UiApplicationRuntime::PresentDevice(IUiApplicationStateSource &source,
     }
     RenderDialogDelta();
   }
-  const PresentResult result = engine_.PresentDirty();
-  if (result == PresentResult::Presented) {
-    previous = current;
-    previousValid_ = true;
-    CommitDialog();
-  }
-  return result;
+  return PresentAndCommit(previous, current);
 }
 
 UiThemeViewData
@@ -1227,9 +1184,8 @@ UiApplicationRuntime::PresentTheme(IUiApplicationStateSource &source,
   const std::int16_t previousScroll =
       previousValid_ ? previous.view.scrollOffset : 0;
   const UiApplicationActivityState activity = source.CaptureTheme(current);
-  if (current.colorsValid &&
-      (!previousValid_ || !previous.colorsValid ||
-       current.colors != previous.colors)) {
+  if (current.colorsValid && (!previousValid_ || !previous.colorsValid ||
+                              current.colors != previous.colors)) {
     ApplyThemeColors(current.colors);
   }
   current.view.power = CurrentPowerState(source, activity.active);
@@ -1283,13 +1239,7 @@ UiApplicationRuntime::PresentTheme(IUiApplicationStateSource &source,
     }
     RenderDialogDelta();
   }
-  const PresentResult result = engine_.PresentDirty();
-  if (result == PresentResult::Presented) {
-    previous = current;
-    previousValid_ = true;
-    CommitDialog();
-  }
-  return result;
+  return PresentAndCommit(previous, current);
 }
 
 UiFontViewData UiApplicationRuntime::ViewDataFor(const FontFrameState &state) {
@@ -1337,13 +1287,7 @@ UiApplicationRuntime::PresentFont(IUiApplicationStateSource &source,
                               engine_.Surface(), engine_.Palette());
     RenderDialogDelta();
   }
-  const PresentResult result = engine_.PresentDirty();
-  if (result == PresentResult::Presented) {
-    previous = current;
-    previousValid_ = true;
-    CommitDialog();
-  }
-  return result;
+  return PresentAndCommit(previous, current);
 }
 
 UiBrowserViewData
@@ -1411,13 +1355,7 @@ UiApplicationRuntime::PresentBrowser(IUiApplicationStateSource &source,
     }
     RenderDialogDelta();
   }
-  const PresentResult result = engine_.PresentDirty();
-  if (result == PresentResult::Presented) {
-    previous = current;
-    previousValid_ = true;
-    CommitDialog();
-  }
-  return result;
+  return PresentAndCommit(previous, current);
 }
 
 UiGrooveViewData
@@ -1492,13 +1430,7 @@ UiApplicationRuntime::PresentGroove(IUiApplicationStateSource &source,
     }
     RenderDialogDelta();
   }
-  const PresentResult result = engine_.PresentDirty();
-  if (result == PresentResult::Presented) {
-    previous = current;
-    previousValid_ = true;
-    CommitDialog();
-  }
-  return result;
+  return PresentAndCommit(previous, current);
 }
 
 UiMixerViewData
@@ -1546,13 +1478,7 @@ UiApplicationRuntime::PresentMixer(IUiApplicationStateSource &source,
     }
     RenderDialogDelta();
   }
-  const PresentResult result = engine_.PresentDirty();
-  if (result == PresentResult::Presented) {
-    previous = current;
-    previousValid_ = true;
-    CommitDialog();
-  }
-  return result;
+  return PresentAndCommit(previous, current);
 }
 
 UiSampleEditorViewData
@@ -1611,13 +1537,7 @@ UiApplicationRuntime::PresentSampleEditor(IUiApplicationStateSource &source,
     }
     RenderDialogDelta();
   }
-  const PresentResult result = engine_.PresentDirty();
-  if (result == PresentResult::Presented) {
-    previous = current;
-    previousValid_ = true;
-    CommitDialog();
-  }
-  return result;
+  return PresentAndCommit(previous, current);
 }
 
 UiSampleSlicesViewData
@@ -1676,13 +1596,7 @@ UiApplicationRuntime::PresentSampleSlices(IUiApplicationStateSource &source,
     }
     RenderDialogDelta();
   }
-  const PresentResult result = engine_.PresentDirty();
-  if (result == PresentResult::Presented) {
-    previous = current;
-    previousValid_ = true;
-    CommitDialog();
-  }
-  return result;
+  return PresentAndCommit(previous, current);
 }
 
 UiRecordViewData
@@ -1744,13 +1658,7 @@ UiApplicationRuntime::PresentRecord(IUiApplicationStateSource &source,
     }
     RenderDialogDelta();
   }
-  const PresentResult result = engine_.PresentDirty();
-  if (result == PresentResult::Presented) {
-    previous = current;
-    previousValid_ = true;
-    CommitDialog();
-  }
-  return result;
+  return PresentAndCommit(previous, current);
 }
 
 } // namespace ui2

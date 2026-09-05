@@ -17,9 +17,9 @@
 class PersistencyDocument {
 public:
   PersistencyDocument();
-  ~PersistencyDocument(); // Add destructor
+  ~PersistencyDocument();
   bool Load(const char *filename);
-  void Close(); // Add method to explicitly close the file
+  void Close();
 
   // r_ < YXML_OK to signal that the xml parsing had a fatal error
   bool HadError() const { return r_ < YXML_OK; }
@@ -46,8 +46,10 @@ public:
   int version_;
 
 private:
-  inline static char stack_[1024];
-  inline static yxml_t state_[1];
+  // Each open stream owns its parser, including pointers into this stack.
+  // Opening a validation document must not reset another document's cursor.
+  char stack_[1024];
+  yxml_t state_[1];
   FileHandle fp_;
 };
 #endif

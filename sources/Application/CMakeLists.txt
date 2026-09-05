@@ -10,6 +10,7 @@ set(PICOTRACKER_APPLICATION_UI2_SOURCES
   UI2/Ui2SampleWaveformBackend.cpp
   UI2/Ui2StatusBridge.cpp
   UI2/Ui2TrackerApplication.cpp
+  UI2/Ui2TrackerSampleActions.cpp
   UI2/Ui2TrackerSessionModelPort.cpp
 )
 

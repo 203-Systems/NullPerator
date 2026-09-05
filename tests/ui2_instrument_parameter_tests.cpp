@@ -1,13 +1,14 @@
 #include "doctest/doctest.h"
+#include "sample_instrument_test_peer.h"
 
-#include "Application/Instruments/OpalInstrumentParameterEncoding.h"
 #include "Application/Instruments/MacroInstrument.h"
 #include "Application/Instruments/MidiInstrument.h"
 #include "Application/Instruments/OpalInstrument.h"
-#include "Application/Instruments/SampleRenderingParams.h"
+#include "Application/Instruments/OpalInstrumentParameterEncoding.h"
+#include "Application/Instruments/SIDInstrument.h"
 #include "Application/Instruments/SampleInstrument.h"
 #include "Application/Instruments/SamplePool.h"
-#include "Application/Instruments/SIDInstrument.h"
+#include "Application/Instruments/SampleRenderingParams.h"
 #include "Application/UI2/Controllers/Ui2InstrumentLifecycleController.h"
 #include "Application/UI2/Ui2InstrumentParameters.h"
 #include "Application/UI2/Ui2InstrumentTableAllocation.h"
@@ -24,18 +25,9 @@
 struct MacroInstrumentTestPeer {
   static std::size_t GainOffset(MacroInstrument &instrument) {
     const auto *object = reinterpret_cast<const std::byte *>(&instrument);
-    const auto *gain = reinterpret_cast<const std::byte *>(&instrument.gain_lp_);
+    const auto *gain =
+        reinterpret_cast<const std::byte *>(&instrument.gain_lp_);
     return static_cast<std::size_t>(gain - object);
-  }
-};
-
-struct SampleInstrumentTestPeer {
-  static void BindSource(SampleInstrument &instrument, SoundSource &source) {
-    instrument.source_ = &source;
-  }
-
-  static renderParams &Params(int channel) {
-    return SampleInstrument::renderParams_[channel];
   }
 };
 
@@ -65,7 +57,7 @@ void SampleVariable::Update(Observable &observable, I_ObservableData *data) {
 namespace {
 std::array<SoundSource *, MAX_SAMPLES> availableSampleSources{};
 std::size_t availableSampleSourceCount = 0;
-}
+} // namespace
 
 SamplePool::SamplePool() : Observable(&observers_), count_(0) {}
 SamplePool::~SamplePool() = default;
@@ -160,8 +152,7 @@ public:
   }
   float GetLengthInSec() override { return 0.001F; }
 
-  std::array<short, 8> samples{1000, 1000, 1000, 1000,
-                               1000, 1000, 1000, 1000};
+  std::array<short, 8> samples{1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000};
   int sampleCount;
 };
 
@@ -171,7 +162,7 @@ void InstallFakeMidiService() {
   static FakeMidiService service;
   MidiService::Install(&service);
 }
-}
+} // namespace
 
 // This focused host target does not link a platform MidiService. Keep the
 // production factory boundary while recording exactly what MidiInstrument
@@ -206,8 +197,7 @@ void TableSaveState::Reset() {
 namespace {
 
 ui2::Ui2InstrumentLifecycleCommand
-Tap(ui2::Ui2InstrumentLifecycleController &controller,
-    TrackerAction action) {
+Tap(ui2::Ui2InstrumentLifecycleController &controller, TrackerAction action) {
   const auto command = controller.Handle(action, true);
   controller.Handle(action, false);
   return command;
@@ -305,8 +295,8 @@ public:
 
 TEST_CASE("UI2 Instrument booleans use NO and YES labels") {
   constexpr auto descriptor = ui2::detail::Parameter(
-      "AUTOMATION", FourCC::SampleInstrumentTableAutomation, 0, 1, 1, 1,
-      0, 0, ui2::Ui2InstrumentValueFormat::Boolean);
+      "AUTOMATION", FourCC::SampleInstrumentTableAutomation, 0, 1, 1, 1, 0, 0,
+      ui2::Ui2InstrumentValueFormat::Boolean);
   CHECK(Format(descriptor, 0) == "NO");
   CHECK(Format(descriptor, 1) == "YES");
   CHECK(ui2::Ui2AdjustInstrumentParameter(
@@ -335,8 +325,8 @@ TEST_CASE("OPAL depth flags retain the UI tremolo and vibrato bit order") {
 }
 
 TEST_CASE("OPAL gate state is deterministic before the first note") {
-  alignas(OpalInstrument)
-      std::array<std::byte, sizeof(OpalInstrument)> storage{};
+  alignas(OpalInstrument) std::array<std::byte, sizeof(OpalInstrument)>
+      storage{};
   storage.fill(std::byte{0xFF});
   OpalInstrument *instrument =
       std::construct_at(reinterpret_cast<OpalInstrument *>(storage.data()));
@@ -354,11 +344,10 @@ TEST_CASE("OPAL gate state is deterministic before the first note") {
 }
 
 TEST_CASE("SID render is inert before the first note starts") {
-  alignas(SIDInstrument)
-      std::array<std::byte, sizeof(SIDInstrument)> storage{};
+  alignas(SIDInstrument) std::array<std::byte, sizeof(SIDInstrument)> storage{};
   storage.fill(std::byte{0xFF});
-  SIDInstrument *instrument =
-      std::construct_at(reinterpret_cast<SIDInstrument *>(storage.data()), SID1);
+  SIDInstrument *instrument = std::construct_at(
+      reinterpret_cast<SIDInstrument *>(storage.data()), SID1);
   REQUIRE(instrument->Init());
   std::array<fixed, 8> buffer{};
   buffer.fill(123);
@@ -371,8 +360,8 @@ TEST_CASE("SID render is inert before the first note starts") {
 
 TEST_CASE("MIDI playback state is deterministic before the first note") {
   InstallFakeMidiService();
-  alignas(MidiInstrument)
-      std::array<std::byte, sizeof(MidiInstrument)> storage{};
+  alignas(MidiInstrument) std::array<std::byte, sizeof(MidiInstrument)>
+      storage{};
   storage.fill(std::byte{0xFF});
   MidiInstrument *instrument =
       std::construct_at(reinterpret_cast<MidiInstrument *>(storage.data()));
@@ -403,8 +392,8 @@ TEST_CASE("MIDI playback state is deterministic before the first note") {
 
 TEST_CASE("MIDI note zero receives a matching note off") {
   InstallFakeMidiService();
-  alignas(MidiInstrument)
-      std::array<std::byte, sizeof(MidiInstrument)> storage{};
+  alignas(MidiInstrument) std::array<std::byte, sizeof(MidiInstrument)>
+      storage{};
   storage.fill(std::byte{0xFF});
   MidiInstrument *instrument =
       std::construct_at(reinterpret_cast<MidiInstrument *>(storage.data()));
@@ -557,8 +546,7 @@ TEST_CASE("MIDI queue budget retains the full playback stop tail") {
 
   appendStart(MidiMessage::MIDI_CLOCK, MidiMessage::UNUSED_BYTE,
               MidiMessage::UNUSED_BYTE);
-  for (std::size_t note = 0; note < midi_queue_budget::kFullNoteBatch;
-       ++note) {
+  for (std::size_t note = 0; note < midi_queue_budget::kFullNoteBatch; ++note) {
     appendStart(MidiMessage::MIDI_NOTE_ON, static_cast<uint8_t>(note), 0x7FU);
   }
   appendStart(MidiMessage::MIDI_START, MidiMessage::UNUSED_BYTE,
@@ -576,22 +564,20 @@ TEST_CASE("MIDI queue budget retains the full playback stop tail") {
 
   appendStop(MidiMessage::MIDI_CLOCK, MidiMessage::UNUSED_BYTE,
              MidiMessage::UNUSED_BYTE);
-  for (std::size_t track = 0;
-       track < midi_queue_budget::kTrackerChannelCount; ++track) {
+  for (std::size_t track = 0; track < midi_queue_budget::kTrackerChannelCount;
+       ++track) {
     for (std::size_t note = 0; note < midi_queue_budget::kNotesPerTrack;
          ++note) {
-      appendStop(
-          MidiMessage::MIDI_NOTE_OFF,
-          static_cast<uint8_t>(track * midi_queue_budget::kNotesPerTrack +
-                               note),
-          0U);
+      appendStop(MidiMessage::MIDI_NOTE_OFF,
+                 static_cast<uint8_t>(
+                     track * midi_queue_budget::kNotesPerTrack + note),
+                 0U);
     }
   }
   for (std::size_t channel = 0;
        channel < midi_queue_budget::kMidiProtocolChannelCount; ++channel) {
-    appendStop(
-        static_cast<uint8_t>(MidiMessage::MIDI_CONTROL_CHANGE + channel),
-        MidiCC::CC_ALL_NOTES_OFF, 0U);
+    appendStop(static_cast<uint8_t>(MidiMessage::MIDI_CONTROL_CHANGE + channel),
+               MidiCC::CC_ALL_NOTES_OFF, 0U);
   }
   appendStop(MidiMessage::MIDI_STOP, MidiMessage::UNUSED_BYTE,
              MidiMessage::UNUSED_BYTE);
@@ -602,8 +588,7 @@ TEST_CASE("MIDI queue budget retains the full playback stop tail") {
   CHECK(stopQueue[midi_queue_budget::kRealtimeMessages].status_ ==
         MidiMessage::MIDI_NOTE_OFF);
   const std::size_t cleanupStart =
-      midi_queue_budget::kRealtimeMessages +
-      midi_queue_budget::kFullNoteBatch;
+      midi_queue_budget::kRealtimeMessages + midi_queue_budget::kFullNoteBatch;
   CHECK(stopQueue[cleanupStart].data1_ == MidiCC::CC_ALL_NOTES_OFF);
   CHECK(stopQueue.back().status_ == MidiMessage::MIDI_STOP);
 }
@@ -677,7 +662,8 @@ TEST_CASE("MIDI note lengths remain independent across tracker channels") {
   CHECK(capturedMidiMessages[1].data1_ == 64U);
 }
 
-TEST_CASE("MIDI deferred velocities remain independent across tracker channels") {
+TEST_CASE(
+    "MIDI deferred velocities remain independent across tracker channels") {
   InstallFakeMidiService();
   MidiInstrument instrument;
   REQUIRE(instrument.Init());
@@ -726,8 +712,8 @@ TEST_CASE("MIDI retrigger remains independent across tracker channels") {
 }
 
 TEST_CASE("Macro render starts its gain envelope from silence") {
-  alignas(MacroInstrument)
-      std::array<std::byte, sizeof(MacroInstrument)> layoutStorage{};
+  alignas(MacroInstrument) std::array<std::byte, sizeof(MacroInstrument)>
+      layoutStorage{};
   MacroInstrument *layout = std::construct_at(
       reinterpret_cast<MacroInstrument *>(layoutStorage.data()));
   const std::size_t gainOffset = MacroInstrumentTestPeer::GainOffset(*layout);
@@ -735,8 +721,8 @@ TEST_CASE("Macro render starts its gain envelope from silence") {
   REQUIRE(gainOffset + sizeof(std::uint16_t) <= sizeof(MacroInstrument));
 
   // Poison only the gain state so unrelated legacy Braids state stays valid.
-  alignas(MacroInstrument)
-      std::array<std::byte, sizeof(MacroInstrument)> storage{};
+  alignas(MacroInstrument) std::array<std::byte, sizeof(MacroInstrument)>
+      storage{};
   storage[gainOffset] = std::byte{0xFF};
   storage[gainOffset + 1U] = std::byte{0xFF};
   MacroInstrument *instrument =
@@ -814,8 +800,8 @@ TEST_CASE("Sample playback lifecycle refreshes assignment after stop") {
   CHECK(instrument.GetSampleSize() == 4);
 }
 
-TEST_CASE(
-    "Sample playback lifecycle refreshes assignment after one-shot completion") {
+TEST_CASE("Sample playback lifecycle refreshes assignment after one-shot "
+          "completion") {
   FixedMonoSource first(2);
   FixedMonoSource second(4);
   FakeSamplePoolScope pool(first, second);
@@ -852,7 +838,8 @@ TEST_CASE("Sample playback lifecycle retains other active channels") {
   CHECK(instrument.GetSampleSize() == 4);
 }
 
-TEST_CASE("Sample size queries keep the default sentinel outside render state") {
+TEST_CASE(
+    "Sample size queries keep the default sentinel outside render state") {
   CHECK_FALSE(IsSampleRenderChannel(-1, SONG_CHANNEL_COUNT));
   CHECK(IsSampleRenderChannel(0, SONG_CHANNEL_COUNT));
   CHECK(IsSampleRenderChannel(SONG_CHANNEL_COUNT - 1, SONG_CHANNEL_COUNT));
@@ -902,11 +889,9 @@ TEST_CASE("UI2 Instrument descriptors preserve approved field layout") {
   CHECK(sampleStart.subfieldMode == Ui2InstrumentSubfieldMode::HexDigit);
   const auto resolved = Ui2ResolveSamplePositionMaximum(sampleStart, 1234);
   CHECK(resolved.maximum == 1233);
-  const auto sampleLoopStart =
-      Ui2InstrumentFieldParameter(IT_SAMPLE, 15U);
+  const auto sampleLoopStart = Ui2InstrumentFieldParameter(IT_SAMPLE, 15U);
   CHECK(sampleLoopStart.primary == FourCC::SampleInstrumentLoopStart);
-  CHECK(Ui2ResolveSamplePositionMaximum(sampleLoopStart, 1234).maximum ==
-        1233);
+  CHECK(Ui2ResolveSamplePositionMaximum(sampleLoopStart, 1234).maximum == 1233);
   const auto sampleEnd = Ui2InstrumentFieldParameter(IT_SAMPLE, 16U);
   CHECK(sampleEnd.primary == FourCC::SampleInstrumentEnd);
   const auto resolvedEnd = Ui2ResolveSamplePositionMaximum(sampleEnd, 1234);
@@ -955,8 +940,7 @@ TEST_CASE("UI2 Instrument TABLE activation allocates only Sample and MIDI "
 
   TableHolder tables;
   Variable sampleTable(FourCC::SampleInstrumentTable, VAR_OFF);
-  const auto sampleDescriptor =
-      Ui2InstrumentFieldParameter(IT_SAMPLE, 17U);
+  const auto sampleDescriptor = Ui2InstrumentFieldParameter(IT_SAMPLE, 17U);
   REQUIRE(Ui2AllocateInstrumentTable(sampleDescriptor, sampleTable, tables));
   CHECK(sampleTable.GetInt() == 0);
 
@@ -971,8 +955,8 @@ TEST_CASE("UI2 Instrument TABLE activation allocates only Sample and MIDI "
   CHECK(automation.GetInt() == 0);
 
   Variable wrongVariable(FourCC::SampleInstrumentVolume, 0x7F);
-  CHECK_FALSE(Ui2AllocateInstrumentTable(sampleDescriptor, wrongVariable,
-                                         tables));
+  CHECK_FALSE(
+      Ui2AllocateInstrumentTable(sampleDescriptor, wrongVariable, tables));
   CHECK(wrongVariable.GetInt() == 0x7F);
 
   for (int index = 0; index < TABLE_COUNT; ++index)
@@ -983,7 +967,8 @@ TEST_CASE("UI2 Instrument TABLE activation allocates only Sample and MIDI "
   CHECK(sampleTable.GetInt() == 7);
 }
 
-TEST_CASE("UI2 Instrument formatter covers decimal note boolean bitmask and OFF") {
+TEST_CASE(
+    "UI2 Instrument formatter covers decimal note boolean bitmask and OFF") {
   using namespace ui2;
   const auto channel = Ui2InstrumentFieldParameter(IT_MIDI, 0U);
   CHECK(Format(channel, 0) == "01");
@@ -999,7 +984,8 @@ TEST_CASE("UI2 Instrument formatter covers decimal note boolean bitmask and OFF"
         "LP / DF 1E");
 }
 
-TEST_CASE("UI2 Instrument adjustment uses each legacy fine coarse and wrap range") {
+TEST_CASE(
+    "UI2 Instrument adjustment uses each legacy fine coarse and wrap range") {
   using namespace ui2;
   const auto channel = Ui2InstrumentFieldParameter(IT_MIDI, 0U);
   CHECK(Ui2AdjustInstrumentParameter(channel, 0,
@@ -1035,23 +1021,23 @@ TEST_CASE("UI2 Instrument adjustment uses each legacy fine coarse and wrap range
   const auto adsr = Ui2InstrumentOperatorParameter(2U, false);
   CHECK(Ui2AdjustInstrumentParameter(adsr, 0xFFFF,
                                      Ui2InstrumentValueDirection::Up) == 0x0F);
-  CHECK(Ui2AdjustInstrumentParameter(adsr, 0,
-                                     Ui2InstrumentValueDirection::Down) ==
-        0xFFF0);
+  CHECK(Ui2AdjustInstrumentParameter(
+            adsr, 0, Ui2InstrumentValueDirection::Down) == 0xFFF0);
 }
 
-TEST_CASE("UI2 Instrument big-hex and bit subfields preserve legacy semantics") {
+TEST_CASE(
+    "UI2 Instrument big-hex and bit subfields preserve legacy semantics") {
   using namespace ui2;
   const auto adsr = Ui2InstrumentOperatorParameter(2U, false);
   const auto adsrSpec = Ui2InstrumentSubfields(adsr);
   CHECK(adsrSpec.mode == Ui2InstrumentSubfieldMode::HexDigit);
   CHECK(adsrSpec.count == 4U);
-  CHECK(Ui2AdjustInstrumentSubfieldParameter(
-            adsr, 0x1234, adsrSpec.mode, 1U,
-            Ui2InstrumentValueDirection::Up) == 0x1334);
-  CHECK(Ui2AdjustInstrumentSubfieldParameter(
-            adsr, 0xFFFF, adsrSpec.mode, 3U,
-            Ui2InstrumentValueDirection::Up) == 0x0000);
+  CHECK(Ui2AdjustInstrumentSubfieldParameter(adsr, 0x1234, adsrSpec.mode, 1U,
+                                             Ui2InstrumentValueDirection::Up) ==
+        0x1334);
+  CHECK(Ui2AdjustInstrumentSubfieldParameter(adsr, 0xFFFF, adsrSpec.mode, 3U,
+                                             Ui2InstrumentValueDirection::Up) ==
+        0x0000);
 
   const auto flags = Ui2InstrumentOperatorParameter(4U, true);
   const auto flagSpec = Ui2InstrumentSubfields(flags);
@@ -1060,9 +1046,9 @@ TEST_CASE("UI2 Instrument big-hex and bit subfields preserve legacy semantics") 
   CHECK(Ui2AdjustInstrumentSubfieldParameter(
             flags, 0b0010, flagSpec.mode, 0U,
             Ui2InstrumentValueDirection::Down) == 0b1010);
-  CHECK(Ui2AdjustInstrumentSubfieldParameter(
-            flags, 0b0010, flagSpec.mode, 2U,
-            Ui2InstrumentValueDirection::Up) == 0b0000);
+  CHECK(Ui2AdjustInstrumentSubfieldParameter(flags, 0b0010, flagSpec.mode, 2U,
+                                             Ui2InstrumentValueDirection::Up) ==
+        0b0000);
 }
 
 TEST_CASE("UI2 Instrument adjustment legend applies only to approved numeric "
@@ -1082,39 +1068,35 @@ TEST_CASE("UI2 Instrument adjustment legend applies only to approved numeric "
   CHECK(root.note);
   CHECK(root.coarseStep == 12U);
 
-  CHECK_FALSE(Ui2InstrumentAdjustment(
-                  Ui2InstrumentFieldParameter(IT_SAMPLE, 0U))
-                  .visible); // SAMPLE action
-  CHECK_FALSE(Ui2InstrumentAdjustment(
-                  Ui2InstrumentFieldParameter(IT_SAMPLE, 9U))
-                  .visible); // combined FILTER
-  CHECK(Ui2InstrumentAdjustment(
-            Ui2InstrumentFieldParameter(IT_SAMPLE, 10U))
-            .visible); // FILTER TYPE numeric
-  CHECK_FALSE(Ui2InstrumentAdjustment(
-                  Ui2InstrumentFieldParameter(IT_SAMPLE, 11U))
-                  .visible); // FILTER MODE choice
-  CHECK_FALSE(Ui2InstrumentAdjustment(
-                  Ui2InstrumentFieldParameter(IT_SAMPLE, 13U))
-                  .visible); // LOOP choice
-  CHECK_FALSE(Ui2InstrumentAdjustment(
-                  Ui2InstrumentFieldParameter(IT_SAMPLE, 14U))
-                  .visible); // hex digit
-  CHECK_FALSE(Ui2InstrumentAdjustment(
-                  Ui2InstrumentFieldParameter(IT_MIDI, 4U))
-                  .visible); // boolean
-  CHECK_FALSE(Ui2InstrumentAdjustment(
-                  Ui2InstrumentFieldParameter(IT_OPAL, 1U))
-                  .visible); // bit field
   CHECK_FALSE(
-      Ui2InstrumentAdjustment(Ui2InstrumentOperatorParameter(2U, false))
-          .visible); // operator hex digit
-  CHECK(Ui2InstrumentAdjustment(
-            Ui2InstrumentOperatorParameter(0U, false))
+      Ui2InstrumentAdjustment(Ui2InstrumentFieldParameter(IT_SAMPLE, 0U))
+          .visible); // SAMPLE action
+  CHECK_FALSE(
+      Ui2InstrumentAdjustment(Ui2InstrumentFieldParameter(IT_SAMPLE, 9U))
+          .visible); // combined FILTER
+  CHECK(Ui2InstrumentAdjustment(Ui2InstrumentFieldParameter(IT_SAMPLE, 10U))
+            .visible); // FILTER TYPE numeric
+  CHECK_FALSE(
+      Ui2InstrumentAdjustment(Ui2InstrumentFieldParameter(IT_SAMPLE, 11U))
+          .visible); // FILTER MODE choice
+  CHECK_FALSE(
+      Ui2InstrumentAdjustment(Ui2InstrumentFieldParameter(IT_SAMPLE, 13U))
+          .visible); // LOOP choice
+  CHECK_FALSE(
+      Ui2InstrumentAdjustment(Ui2InstrumentFieldParameter(IT_SAMPLE, 14U))
+          .visible); // hex digit
+  CHECK_FALSE(Ui2InstrumentAdjustment(Ui2InstrumentFieldParameter(IT_MIDI, 4U))
+                  .visible); // boolean
+  CHECK_FALSE(Ui2InstrumentAdjustment(Ui2InstrumentFieldParameter(IT_OPAL, 1U))
+                  .visible); // bit field
+  CHECK_FALSE(Ui2InstrumentAdjustment(Ui2InstrumentOperatorParameter(2U, false))
+                  .visible); // operator hex digit
+  CHECK(Ui2InstrumentAdjustment(Ui2InstrumentOperatorParameter(0U, false))
             .visible); // operator numeric
 }
 
-TEST_CASE("UI2 Instrument descriptors cannot write values outside field ranges") {
+TEST_CASE(
+    "UI2 Instrument descriptors cannot write values outside field ranges") {
   using namespace ui2;
   constexpr std::array<InstrumentType, 4> types{IT_SAMPLE, IT_MIDI, IT_SID,
                                                 IT_OPAL};
@@ -1156,18 +1138,19 @@ TEST_CASE("UI2 Instrument descriptors cannot write values outside field ranges")
   }
 }
 
-TEST_CASE("UI2 Instrument type change is blocked while playing and defaults NO") {
+TEST_CASE(
+    "UI2 Instrument type change is blocked while playing and defaults NO") {
   using namespace ui2;
   Ui2InstrumentLifecycleController controller;
-  CHECK_FALSE(controller.RequestTypeChange(IT_MIDI, IT_SAMPLE, true, true)
-                  .HasValue());
+  CHECK_FALSE(
+      controller.RequestTypeChange(IT_MIDI, IT_SAMPLE, true, true).HasValue());
   REQUIRE(controller.Active());
   CHECK(std::string_view(controller.Snapshot().title.data()) ==
         "Not while playing");
   CHECK_FALSE(Tap(controller, TrackerAction::Enter).HasValue());
 
-  CHECK_FALSE(controller.RequestTypeChange(IT_MIDI, IT_SAMPLE, true, false)
-                  .HasValue());
+  CHECK_FALSE(
+      controller.RequestTypeChange(IT_MIDI, IT_SAMPLE, true, false).HasValue());
   const Ui2DialogSnapshot dialog = controller.Snapshot();
   CHECK(std::string_view(dialog.title.data()) == "Change Instrument");
   CHECK(std::string_view(dialog.label.data()) == "Lose settings?");
@@ -1177,7 +1160,8 @@ TEST_CASE("UI2 Instrument type change is blocked while playing and defaults NO")
   CHECK_FALSE(Tap(controller, TrackerAction::Enter).HasValue());
 }
 
-TEST_CASE("UI2 Instrument type change emits only immediate-safe or explicit YES") {
+TEST_CASE(
+    "UI2 Instrument type change emits only immediate-safe or explicit YES") {
   using namespace ui2;
   Ui2InstrumentLifecycleController controller;
   const auto immediate =
@@ -1185,8 +1169,8 @@ TEST_CASE("UI2 Instrument type change emits only immediate-safe or explicit YES"
   REQUIRE(immediate.type == Ui2InstrumentLifecycleCommandType::ApplyType);
   CHECK(immediate.instrumentType == IT_MIDI);
 
-  CHECK_FALSE(controller.RequestTypeChange(IT_OPAL, IT_MIDI, true, false)
-                  .HasValue());
+  CHECK_FALSE(
+      controller.RequestTypeChange(IT_OPAL, IT_MIDI, true, false).HasValue());
   Tap(controller, TrackerAction::Left);
   const auto confirmed = Tap(controller, TrackerAction::Enter);
   REQUIRE(confirmed.type == Ui2InstrumentLifecycleCommandType::ApplyType);
@@ -1255,8 +1239,9 @@ TEST_CASE("UI2 Instrument type confirmation follows modified variables only") {
   second.modified = false;
   pristine.name = "lead";
   CHECK(Ui2InstrumentNeedsTypeChangeConfirmation(&pristine));
-  CHECK_FALSE(Ui2InstrumentNeedsTypeChangeConfirmation<
-              FakeInstrumentModificationState>(nullptr));
+  CHECK_FALSE(
+      Ui2InstrumentNeedsTypeChangeConfirmation<FakeInstrumentModificationState>(
+          nullptr));
 }
 
 TEST_CASE("UI2 Instrument fixed-pool type transaction preserves failures") {
@@ -1287,8 +1272,7 @@ TEST_CASE("UI2 global settings transport accepts only plain PLAY") {
   constexpr std::uint16_t play = TrackerActionBit(TrackerAction::Play);
   CHECK(Ui2IsPlainPlay(TrackerAction::Play, true, play));
   CHECK_FALSE(Ui2IsPlainPlay(TrackerAction::Play, false, 0U));
-  CHECK_FALSE(Ui2IsPlainPlay(
-      TrackerAction::Play, true,
-      play | TrackerActionBit(TrackerAction::Enter)));
+  CHECK_FALSE(Ui2IsPlainPlay(TrackerAction::Play, true,
+                             play | TrackerActionBit(TrackerAction::Enter)));
   CHECK_FALSE(Ui2IsPlainPlay(TrackerAction::Right, true, play));
 }

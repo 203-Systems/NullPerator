@@ -1,6 +1,7 @@
+include("${PROJECT_SOURCE_DIR}/../cmake/CoreSourceGroups.cmake")
 add_library(application_model
   Chain.cpp
-  Config.cpp
+  ${PICOTRACKER_CONFIG_SOURCES}
   Groove.cpp
   Mixer.cpp
   Phrase.cpp
