@@ -1,3 +1,4 @@
+#include "Application/Instruments/WavReadPolicy.h"
 /*
  * SPDX-License-Identifier: BSD-3-Clause
  * Copyright (c) 2026 PicoTracker contributors
@@ -5,7 +6,7 @@
 
 #include "Ui2SampleEditorTransaction.h"
 
-#include "Application/Instruments/WavHeader.h"
+#include "Services/Audio/WavHeader.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -21,8 +22,7 @@ bool Ui2SampleEditorTransaction::CopyPath(
     return false;
   const int written =
       std::snprintf(destination.data(), destination.size(), "%s", source);
-  return written > 0 &&
-         static_cast<std::size_t>(written) < destination.size();
+  return written > 0 && static_cast<std::size_t>(written) < destination.size();
 }
 
 bool Ui2SampleEditorTransaction::BuildPaths(const char *destination) {
@@ -89,9 +89,8 @@ bool Ui2SampleEditorTransaction::Validate(const char *path) const {
 }
 
 bool Ui2SampleEditorTransaction::Recover() {
-  return fileSystem_ != nullptr &&
-         SampleEditorFileJournal::RecoverDestination(*fileSystem_,
-                                                     destination_.data());
+  return fileSystem_ != nullptr && SampleEditorFileJournal::RecoverDestination(
+                                       *fileSystem_, destination_.data());
 }
 
 bool Ui2SampleEditorTransaction::RestoreBackup() {
@@ -140,8 +139,8 @@ Ui2SampleEditorTransactionResult Ui2SampleEditorTransaction::Save() {
                            : Ui2SampleEditorTransactionResult::RecoveryFailed;
   }
   (void)fileSystem_->DeleteFile(backup_.data());
-  const char *const inactive = workingUsesOperation_ ? working_.data()
-                                                     : operation_.data();
+  const char *const inactive =
+      workingUsesOperation_ ? working_.data() : operation_.data();
   if (fileSystem_->exists(inactive))
     (void)fileSystem_->DeleteFile(inactive);
   active_ = false;
@@ -155,8 +154,8 @@ Ui2SampleEditorTransactionResult Ui2SampleEditorTransaction::Discard() {
       return Ui2SampleEditorTransactionResult::DiscardFailed;
   }
   if (fileSystem_ != nullptr) {
-    const char *const inactive = workingUsesOperation_ ? working_.data()
-                                                       : operation_.data();
+    const char *const inactive =
+        workingUsesOperation_ ? working_.data() : operation_.data();
     if (fileSystem_->exists(inactive) && !fileSystem_->DeleteFile(inactive))
       return Ui2SampleEditorTransactionResult::DiscardFailed;
     const char *const edited = WorkingPath();
@@ -207,7 +206,7 @@ bool Ui2SampleEditorTransaction::ReadApplyHeader(const char *path,
   file = fileSystem_->Open(path, "r");
   if (!file)
     return false;
-  auto header = WavHeaderWriter::ReadHeader(file.get());
+  auto header = ReadTrackerWavHeader(file.get());
   if (!header.has_value() || header->numChannels == 0U ||
       header->numChannels > 2U || header->blockAlign == 0U ||
       header->dataChunkSize / header->blockAlign == 0U)
@@ -245,8 +244,8 @@ Ui2SampleEditorTransactionResult Ui2SampleEditorTransaction::FinishApply(
   return result;
 }
 
-Ui2SampleEditorTransactionResult Ui2SampleEditorTransaction::FailApply(
-    Ui2SampleEditorTransactionResult result) {
+Ui2SampleEditorTransactionResult
+Ui2SampleEditorTransaction::FailApply(Ui2SampleEditorTransactionResult result) {
   CloseApplyHandles();
   bool cleaned = true;
   if (stagingTouched_ && fileSystem_ != nullptr &&
@@ -272,16 +271,15 @@ Ui2SampleEditorTransactionResult Ui2SampleEditorTransaction::CancelApply() {
 }
 
 Ui2SampleEditorTransactionResult
-Ui2SampleEditorTransaction::BeginTrim(std::uint32_t start,
-                                      std::uint32_t end) {
+Ui2SampleEditorTransaction::BeginTrim(std::uint32_t start, std::uint32_t end) {
   if (!active_ || fileSystem_ == nullptr || ApplyActive() || end < start)
     return Ui2SampleEditorTransactionResult::MutationFailed;
   ResetApplyState();
   initialHadWorkingCopy_ = hasWorkingCopy_;
   stagingUsesOperation_ = hasWorkingCopy_ && !workingUsesOperation_;
   applyKind_ = ApplyKind::Trim;
-  const char *sourcePath = hasWorkingCopy_ ? WorkingPath()
-                                           : destination_.data();
+  const char *sourcePath =
+      hasWorkingCopy_ ? WorkingPath() : destination_.data();
   if (!ReadApplyHeader(sourcePath, readFile_))
     return FailApply(Ui2SampleEditorTransactionResult::MutationFailed);
 
@@ -303,27 +301,25 @@ Ui2SampleEditorTransaction::BeginTrim(std::uint32_t start,
   return BeginCopy(sourcePath);
 }
 
-Ui2SampleEditorTransactionResult
-Ui2SampleEditorTransaction::BeginNormalize() {
+Ui2SampleEditorTransactionResult Ui2SampleEditorTransaction::BeginNormalize() {
   if (!active_ || fileSystem_ == nullptr || ApplyActive())
     return Ui2SampleEditorTransactionResult::MutationFailed;
   ResetApplyState();
   initialHadWorkingCopy_ = hasWorkingCopy_;
   stagingUsesOperation_ = hasWorkingCopy_ && !workingUsesOperation_;
   applyKind_ = ApplyKind::Normalize;
-  const char *sourcePath = hasWorkingCopy_ ? WorkingPath()
-                                           : destination_.data();
+  const char *sourcePath =
+      hasWorkingCopy_ ? WorkingPath() : destination_.data();
   if (!ReadApplyHeader(sourcePath, readFile_))
     return FailApply(Ui2SampleEditorTransactionResult::MutationFailed);
   const bool supportedPcm =
       applyHeader_.audioFormat == 1U &&
-      (applyHeader_.bitsPerSample == 8U ||
-       applyHeader_.bitsPerSample == 16U);
+      (applyHeader_.bitsPerSample == 8U || applyHeader_.bitsPerSample == 16U);
   if (!supportedPcm)
     return FailApply(Ui2SampleEditorTransactionResult::MutationFailed);
 
-  totalWork_ = static_cast<std::uint64_t>(applyHeader_.dataChunkSize) * 2U +
-               sourceSize_;
+  totalWork_ =
+      static_cast<std::uint64_t>(applyHeader_.dataChunkSize) * 2U + sourceSize_;
   bytesRemaining_ = applyHeader_.dataChunkSize;
   readOffset_ = applyHeader_.dataOffset;
   normalizePeak_ = 0U;
@@ -358,8 +354,8 @@ Ui2SampleEditorTransaction::BeginTrimMutation() {
   readFile_ = fileSystem_->Open(StagingPath(), "r+");
   if (!readFile_)
     return FailApply(Ui2SampleEditorTransactionResult::MutationFailed);
-  readOffset_ = applyHeader_.dataOffset +
-                trimStartFrame_ * applyHeader_.blockAlign;
+  readOffset_ =
+      applyHeader_.dataOffset + trimStartFrame_ * applyHeader_.blockAlign;
   writeOffset_ = applyHeader_.dataOffset;
   bytesRemaining_ = trimFrames_ * applyHeader_.blockAlign;
   phase_ = ApplyPhase::TrimMove;
@@ -381,8 +377,7 @@ Ui2SampleEditorTransaction::BeginNormalizeWrite() {
   return Ui2SampleEditorTransactionResult::InProgress;
 }
 
-Ui2SampleEditorTransactionResult
-Ui2SampleEditorTransaction::CompleteCopy() {
+Ui2SampleEditorTransactionResult Ui2SampleEditorTransaction::CompleteCopy() {
   if (!readFile_ || !writeFile_ || readFile_->Error() != 0 ||
       !writeFile_->Sync())
     return FailApply(Ui2SampleEditorTransactionResult::CopyFailed);
@@ -403,11 +398,10 @@ Ui2SampleEditorTransaction::CompleteNormalizeScan() {
   normalizeGainQ16_ = static_cast<std::uint32_t>(
       (static_cast<std::uint64_t>(fullScale) << 16U) / normalizePeak_);
   return BeginCopy(initialHadWorkingCopy_ ? WorkingPath()
-                                         : destination_.data());
+                                          : destination_.data());
 }
 
-Ui2SampleEditorTransactionResult
-Ui2SampleEditorTransaction::CommitStaging() {
+Ui2SampleEditorTransactionResult Ui2SampleEditorTransaction::CommitStaging() {
   if (!Validate(StagingPath()))
     return FailApply(Ui2SampleEditorTransactionResult::MutationFailed);
   if (initialHadWorkingCopy_) {
@@ -427,9 +421,9 @@ Ui2SampleEditorTransactionResult Ui2SampleEditorTransaction::CompleteTrim() {
   const std::uint32_t newDataSize = trimFrames_ * applyHeader_.blockAlign;
   readFile_->Seek(static_cast<long>(applyHeader_.dataOffset + newDataSize),
                   SEEK_SET);
-  if (!WavHeaderWriter::UpdateFileSize(
-          readFile_.get(), trimFrames_, applyHeader_.numChannels,
-          applyHeader_.bytesPerSample))
+  if (!WavHeaderWriter::UpdateFileSize(readFile_.get(), trimFrames_,
+                                       applyHeader_.numChannels,
+                                       applyHeader_.bytesPerSample))
     return FailApply(Ui2SampleEditorTransactionResult::MutationFailed);
   readFile_.reset();
   return CommitStaging();
@@ -451,14 +445,13 @@ Ui2SampleEditorTransaction::StepApply(std::uint32_t payloadIoBudget) {
     return FailApply(Ui2SampleEditorTransactionResult::MutationFailed);
   lastStepPayloadIoBytes_ = 0U;
   while (ApplyActive() && lastStepPayloadIoBytes_ < payloadIoBudget) {
-    const std::uint32_t available =
-        payloadIoBudget - lastStepPayloadIoBytes_;
+    const std::uint32_t available = payloadIoBudget - lastStepPayloadIoBytes_;
     const bool readWrite = phase_ != ApplyPhase::NormalizeScan;
     const std::uint32_t ioFactor = readWrite ? 2U : 1U;
     std::uint32_t chunk = std::min<std::uint32_t>(
-        bytesRemaining_, std::min<std::uint32_t>(
-                             static_cast<std::uint32_t>(scratch_.size()),
-                             available / ioFactor));
+        bytesRemaining_,
+        std::min<std::uint32_t>(static_cast<std::uint32_t>(scratch_.size()),
+                                available / ioFactor));
     if (phase_ == ApplyPhase::NormalizeScan ||
         phase_ == ApplyPhase::NormalizeWrite) {
       chunk -= chunk % applyHeader_.blockAlign;
@@ -481,8 +474,8 @@ Ui2SampleEditorTransaction::StepApply(std::uint32_t payloadIoBudget) {
         for (std::uint32_t index = 0U; index < chunk; ++index) {
           const std::int32_t centered =
               static_cast<std::int32_t>(scratch_[index]) - 128;
-          const std::uint32_t magnitude = static_cast<std::uint32_t>(
-              centered < 0 ? -centered : centered);
+          const std::uint32_t magnitude =
+              static_cast<std::uint32_t>(centered < 0 ? -centered : centered);
           normalizePeak_ = std::max(normalizePeak_, magnitude);
         }
       } else {
@@ -490,10 +483,9 @@ Ui2SampleEditorTransaction::StepApply(std::uint32_t payloadIoBudget) {
           const std::uint16_t encoded =
               static_cast<std::uint16_t>(scratch_[index]) |
               static_cast<std::uint16_t>(scratch_[index + 1U] << 8U);
-          const std::int32_t sample =
-              static_cast<std::int16_t>(encoded);
-          const std::uint32_t magnitude = static_cast<std::uint32_t>(
-              sample < 0 ? -sample : sample);
+          const std::int32_t sample = static_cast<std::int16_t>(encoded);
+          const std::uint32_t magnitude =
+              static_cast<std::uint32_t>(sample < 0 ? -sample : sample);
           normalizePeak_ = std::max(normalizePeak_, magnitude);
         }
       }
@@ -557,8 +549,7 @@ Ui2SampleEditorTransaction::StepApply(std::uint32_t payloadIoBudget) {
               std::clamp<std::int64_t>(scaled, -32768, 32767));
           const std::uint16_t outputBits = static_cast<std::uint16_t>(output);
           scratch_[index] = static_cast<std::uint8_t>(outputBits);
-          scratch_[index + 1U] =
-              static_cast<std::uint8_t>(outputBits >> 8U);
+          scratch_[index + 1U] = static_cast<std::uint8_t>(outputBits >> 8U);
         }
       }
       readFile_->Seek(static_cast<long>(readOffset_), SEEK_SET);
@@ -574,13 +565,10 @@ Ui2SampleEditorTransaction::StepApply(std::uint32_t payloadIoBudget) {
     if (bytesRemaining_ != 0U)
       continue;
     Ui2SampleEditorTransactionResult transition =
-        phase_ == ApplyPhase::NormalizeScan
-            ? CompleteNormalizeScan()
-            : phase_ == ApplyPhase::CopyWorking
-                  ? CompleteCopy()
-                  : phase_ == ApplyPhase::TrimMove
-                        ? CompleteTrim()
-                        : CompleteNormalizeWrite();
+        phase_ == ApplyPhase::NormalizeScan ? CompleteNormalizeScan()
+        : phase_ == ApplyPhase::CopyWorking ? CompleteCopy()
+        : phase_ == ApplyPhase::TrimMove    ? CompleteTrim()
+                                            : CompleteNormalizeWrite();
     if (transition != Ui2SampleEditorTransactionResult::InProgress)
       return transition;
   }
@@ -588,8 +576,7 @@ Ui2SampleEditorTransaction::StepApply(std::uint32_t payloadIoBudget) {
 }
 
 Ui2SampleEditorTransactionResult
-Ui2SampleEditorTransaction::ApplyTrim(std::uint32_t start,
-                                      std::uint32_t end) {
+Ui2SampleEditorTransaction::ApplyTrim(std::uint32_t start, std::uint32_t end) {
   Ui2SampleEditorTransactionResult result = BeginTrim(start, end);
   while (result == Ui2SampleEditorTransactionResult::InProgress)
     result = StepApply(DefaultStepBudget);

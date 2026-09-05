@@ -1,6 +1,7 @@
 #ifndef _NODEAUDIO_DRIVER_H_
 #define _NODEAUDIO_DRIVER_H_
 
+#include "Foundation/Concurrency/WorkerGate.h"
 #include "Services/Audio/AudioDriver.h"
 
 #include <atomic>
@@ -21,6 +22,7 @@ public:
   virtual int GetPlayedBufferPercentage();
   virtual int GetSampleRate() { return 44100; };
   virtual bool Interlaced() { return true; };
+  std::span<short> GetOutputBuffer() override;
   void AddBuffer(short *buffer, int samplecount) override;
 
   // Additional
@@ -30,15 +32,16 @@ public:
   static void BufferNeeded();
 
 private:
-  static void AudioThread(void* arg);
-  static void I2SThread(void* arg);
+  static void AudioThread(void *arg);
+  static void I2SThread(void *arg);
   static NodeAudioDriver *instance_;
   static uint8_t miniBlank_[MINI_BLANK_SIZE * 2U * sizeof(int16_t)];
   // Node's two worker tasks run on different cores, so their run gate needs a
   // real cross-core synchronization primitive.
-  std::atomic<bool> driverPlaying_{false};
+  WorkerGate<2> workerGate_;
   int renderBufferIndex_ = -1;
   bool renderBufferQueued_ = false;
+  std::uint32_t renderedFrames_ = 0;
   uint32_t startTime_;
 };
 #endif

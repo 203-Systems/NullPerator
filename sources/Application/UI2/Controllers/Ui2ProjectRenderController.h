@@ -47,6 +47,7 @@ public:
   Start(Ui2ProjectRenderMode mode) = 0;
   virtual void Stop() = 0;
   [[nodiscard]] virtual bool IsRunning() const = 0;
+  [[nodiscard]] virtual bool Failed() const = 0;
   [[nodiscard]] virtual Ui2ProjectRenderPlaybackSnapshot
   CapturePlayback() const = 0;
   [[nodiscard]] virtual int ChainPhraseCount(int songRow,
@@ -121,7 +122,15 @@ public:
   void Tick() {
     if (phase_ != Phase::Rendering || backend_ == nullptr)
       return;
-    if (backend_->IsRunning()) {
+    // Observe the transport stop before reading finalization status. Player
+    // publishes stopped only after every writer has finished closing.
+    const bool running = backend_->IsRunning();
+    if (backend_->Failed()) {
+      backend_->Stop();
+      ShowMessage(Message::WriteFailed);
+      return;
+    }
+    if (running) {
       UpdateProgress(backend_->CapturePlayback());
       return;
     }
@@ -141,7 +150,8 @@ public:
     if (phase_ == Phase::Rendering) {
       if (backend_ != nullptr && backend_->IsRunning())
         backend_->Stop();
-      ShowMessage(Message::RenderingStopped);
+      ShowMessage(backend_ && backend_->Failed() ? Message::WriteFailed
+                                                 : Message::RenderingStopped);
       return;
     }
     Dismiss();
@@ -160,6 +170,10 @@ public:
         snapshot.SetTitle("Render failed");
         snapshot.SetLabel("Could not open file");
         break;
+      case Message::WriteFailed:
+        snapshot.SetTitle("Render failed");
+        snapshot.SetLabel("Could not write file");
+        break;
       case Message::RenderingStopped:
         snapshot.SetTitle("Rendering Stopped");
         break;
@@ -172,9 +186,8 @@ public:
     }
 
     snapshot.kind = UiDialogKind::RenderProgress;
-    snapshot.SetTitle(mode_ == Ui2ProjectRenderMode::Stems
-                          ? "Stems Rendering"
-                          : "Rendering");
+    snapshot.SetTitle(mode_ == Ui2ProjectRenderMode::Stems ? "Stems Rendering"
+                                                           : "Rendering");
     if (phase_ == Phase::Complete)
       snapshot.SetLabel("Render Complete!");
     char percent[Ui2DialogSnapshot::ElapsedCapacity]{};
@@ -182,7 +195,7 @@ public:
     snapshot.SetElapsed(percent);
     snapshot.SetProgressPercent(ProgressPercent());
     snapshot.PushAction(phase_ == Phase::Complete ? UiDialogAction::Ok
-                                                   : UiDialogAction::Cancel);
+                                                  : UiDialogAction::Cancel);
     snapshot.SetSelectedAction(0, true);
     return snapshot;
   }
@@ -194,6 +207,7 @@ private:
     EmptyFirstSongRow,
     OutputUnavailable,
     RenderingStopped,
+    WriteFailed,
   };
 
   void ResetProgress() {
@@ -204,8 +218,8 @@ private:
     startSongRowCaptured_ = false;
   }
 
-  static void FormatPercent(
-      int value, char (&output)[Ui2DialogSnapshot::ElapsedCapacity]) {
+  static void
+  FormatPercent(int value, char (&output)[Ui2DialogSnapshot::ElapsedCapacity]) {
     const int percent = std::clamp(value, 0, 100);
     int cursor = 0;
     if (percent >= 100) {
@@ -240,8 +254,8 @@ private:
     for (int channel = 0; channel < SONG_CHANNEL_COUNT; ++channel) {
       if (!playback.active[channel])
         continue;
-      const int row = std::clamp<int>(playback.songRow[channel], 0,
-                                      SONG_ROW_COUNT - 1);
+      const int row =
+          std::clamp<int>(playback.songRow[channel], 0, SONG_ROW_COUNT - 1);
       if (!hasActive || row > currentRow) {
         currentRow = row;
         hasActive = true;
@@ -297,16 +311,15 @@ private:
 
   [[nodiscard]] int CalculateRenderedUnits(
       int channel, const Ui2ProjectRenderPlaybackSnapshot &playback) const {
-    if (backend_ == nullptr || channel < 0 ||
-        channel >= SONG_CHANNEL_COUNT)
+    if (backend_ == nullptr || channel < 0 || channel >= SONG_CHANNEL_COUNT)
       return 0;
     const int currentSongRow = playback.songRow[channel];
     if (currentSongRow < startSongRow_)
       return 0;
 
     int rendered = 0;
-    for (int row = startSongRow_;
-         row < currentSongRow && row < SONG_ROW_COUNT; ++row) {
+    for (int row = startSongRow_; row < currentSongRow && row < SONG_ROW_COUNT;
+         ++row) {
       const int phraseCount = backend_->ChainPhraseCount(row, channel);
       if (phraseCount <= 0)
         return rendered;
@@ -315,14 +328,13 @@ private:
     if (currentSongRow >= SONG_ROW_COUNT)
       return totalRenderUnits_;
 
-    const int phraseCount =
-        backend_->ChainPhraseCount(currentSongRow, channel);
+    const int phraseCount = backend_->ChainPhraseCount(currentSongRow, channel);
     if (phraseCount <= 0)
       return rendered;
     const int chainRow =
         std::clamp<int>(playback.chainRow[channel], 0, phraseCount - 1);
-    const int phraseRow = std::clamp<int>(playback.phraseRow[channel], 0,
-                                          STEPS_PER_PHRASE - 1);
+    const int phraseRow =
+        std::clamp<int>(playback.phraseRow[channel], 0, STEPS_PER_PHRASE - 1);
     rendered += chainRow * STEPS_PER_PHRASE + phraseRow;
     return std::min(rendered, totalRenderUnits_);
   }

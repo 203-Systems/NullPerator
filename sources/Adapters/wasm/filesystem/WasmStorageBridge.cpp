@@ -4,7 +4,7 @@
 
 #include "WasmStorageBridge.h"
 
-#include "Adapters/wasm/tracing/WasmProfiler.h"
+#include "System/Console/Profiler.h"
 
 #include <atomic>
 
@@ -13,9 +13,8 @@
 #include <emscripten/threading.h>
 
 namespace {
-EM_JS(void, NotifyStorageCoordinatorOnBrowserMain, (), {
-  Module['picoTrackerStorageMutation']?.();
-});
+EM_JS(void, NotifyStorageCoordinatorOnBrowserMain, (),
+      { Module['picoTrackerStorageMutation'] ?.(); });
 
 void NotifyStorageCoordinator() { NotifyStorageCoordinatorOnBrowserMain(); }
 
@@ -23,9 +22,8 @@ std::atomic<bool> pendingMutation{false};
 } // namespace
 
 void WasmStorage_NotifyMutation() noexcept {
-  WasmProfiler::Emit(WasmTraceCategory::Storage,
-                     WasmTraceName::StorageMutation,
-                     WasmTracePhase::Instant);
+  Profiler::Emit(TraceCategory::Storage, TraceName::StorageMutation,
+                 TracePhase::Instant);
   pendingMutation.store(true, std::memory_order_release);
 }
 

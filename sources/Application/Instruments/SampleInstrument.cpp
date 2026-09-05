@@ -12,7 +12,7 @@
 #include "Application/Model/Table.h"
 #include "Application/Persistency/PersistencyAttribute.h"
 #include "Application/Player/SyncMaster.h"
-#include "Application/Utils/fixed.h"
+#include "Foundation/Types/Fixed.h"
 #include "CommandList.h"
 #include "SamplePool.h"
 #include "SampleVariable.h"

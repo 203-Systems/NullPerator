@@ -35,6 +35,7 @@ public:
 protected:
   // Only the filesystem deleter and explicit legacy helpers may close files.
   friend struct FileCloser;
+  friend class FileHandle;
   friend bool CloseFile_DO_NOT_USE(I_File *);
   virtual bool Close() = 0;
 };

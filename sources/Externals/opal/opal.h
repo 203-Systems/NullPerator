@@ -24,7 +24,7 @@
 #ifndef _OPAL_H_
 #define _OPAL_H_
 
-#include "Application/Utils/fixed.h"
+#include "Foundation/Types/Fixed.h"
 #include <cstdint>
 
 //==================================================================================================

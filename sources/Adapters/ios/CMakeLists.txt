@@ -5,8 +5,8 @@ include_directories(
   "${PROJECT_SOURCE_DIR}/config"
   "${CMAKE_CURRENT_SOURCE_DIR}/platform")
 
-# iOS uses the same 240x240 product configuration as the hardware Node.
-add_compile_definitions(NODE NULLPERATOR_IOS)
+# Product geometry is shared by UI2; only the iOS capability is selected here.
+add_compile_definitions(NULLPERATOR_IOS)
 add_compile_options(
   -include "${CMAKE_CURRENT_SOURCE_DIR}/platform/IOSMemorySections.h")
 
@@ -19,31 +19,25 @@ target_include_directories(platform PUBLIC
 add_library(platform_timer timer/IOSTimer.cpp)
 target_include_directories(platform_timer PUBLIC "${PROJECT_SOURCE_DIR}")
 
-# The browser adapter's filesystem and sample pool are ordinary bounded POSIX
-# implementations outside Emscripten. Reuse them here until they are promoted
-# to a shared POSIX adapter, avoiding a fork of persistence semantics.
+# Shared host adapters contain no Web API exports or target SDK branches.
 add_library(platform_tracing
-  "${PROJECT_SOURCE_DIR}/Adapters/wasm/tracing/WasmProfiler.cpp")
+  "${PROJECT_SOURCE_DIR}/System/Console/Profiler.cpp")
 target_include_directories(platform_tracing PUBLIC "${PROJECT_SOURCE_DIR}")
 
 add_library(platform_filesystem
-  "${PROJECT_SOURCE_DIR}/Adapters/wasm/filesystem/WasmFile.cpp"
-  "${PROJECT_SOURCE_DIR}/Adapters/wasm/filesystem/WasmFileSystem.cpp"
-  "${PROJECT_SOURCE_DIR}/Adapters/wasm/filesystem/WasmStorageBridge.cpp")
+  "${PROJECT_SOURCE_DIR}/Adapters/posix/filesystem/PosixFile.cpp"
+  "${PROJECT_SOURCE_DIR}/Adapters/posix/filesystem/PosixFileSystem.cpp"
+)
 target_include_directories(platform_filesystem PUBLIC "${PROJECT_SOURCE_DIR}")
 target_link_libraries(platform_filesystem PUBLIC platform_tracing)
-
-add_library(platform_logging
-  "${PROJECT_SOURCE_DIR}/Adapters/wasm/logging/WasmTrace.cpp")
-target_include_directories(platform_logging PUBLIC "${PROJECT_SOURCE_DIR}")
 
 # CoreMIDI crosses the Swift boundary, while the firmware-facing byte parser
 # and bounded output queue stay in the native C++ runtime.
 add_library(platform_midi
-  "${PROJECT_SOURCE_DIR}/Adapters/wasm/midi/MidiLatencyTrace.cpp"
-  "${PROJECT_SOURCE_DIR}/Adapters/wasm/midi/WasmMidiInDevice.cpp"
-  "${PROJECT_SOURCE_DIR}/Adapters/wasm/midi/WasmMidiOutDevice.cpp"
-  "${PROJECT_SOURCE_DIR}/Adapters/wasm/midi/WasmMidiService.cpp")
+  "${PROJECT_SOURCE_DIR}/Adapters/common/midi/MidiLatencyTrace.cpp"
+  "${PROJECT_SOURCE_DIR}/Adapters/common/midi/QueuedMidiInDevice.cpp"
+  "${PROJECT_SOURCE_DIR}/Adapters/common/midi/QueuedMidiOutDevice.cpp"
+  "${PROJECT_SOURCE_DIR}/Adapters/common/midi/QueuedMidiService.cpp")
 target_include_directories(platform_midi PUBLIC "${PROJECT_SOURCE_DIR}")
 target_link_libraries(platform_midi PUBLIC platform_tracing)
 
@@ -71,7 +65,7 @@ add_library(nullperator_ios_core STATIC
   gui/IOSUiPresenter.cpp
   runtime/IOSNativeRuntime.cpp
   system/IOSSystem.cpp
-  "${PROJECT_SOURCE_DIR}/Adapters/wasm/system/WasmSamplePool.cpp")
+  "${PROJECT_SOURCE_DIR}/Adapters/common/system/HeapSamplePool.cpp")
 target_include_directories(nullperator_ios_core PUBLIC "${PROJECT_SOURCE_DIR}")
 execute_process(
   COMMAND git rev-parse HEAD
@@ -92,10 +86,34 @@ target_link_libraries(nullperator_ios_core PUBLIC
   services_audio
   platform_audio
   platform_filesystem
-  platform_logging
   platform_midi
   platform_timer
   platform
   system_timer
   foundation
   "-framework AudioToolbox")
+
+add_library(platform_memory "${PROJECT_SOURCE_DIR}/Adapters/common/memory/Memory.cpp")
+target_include_directories(platform_memory PUBLIC "${PROJECT_SOURCE_DIR}")
+
+# Enumerate only targets in this configured native graph. Scanning the build
+# directory for *.a can silently merge removed adapters or another configuration.
+function(collect_ios_archives directory output)
+  get_property(targets DIRECTORY "${directory}" PROPERTY BUILDSYSTEM_TARGETS)
+  set(archives "")
+  foreach(target IN LISTS targets)
+    get_target_property(kind "${target}" TYPE)
+    if(kind STREQUAL "STATIC_LIBRARY")
+      string(APPEND archives "$<TARGET_FILE:${target}>\n")
+    endif()
+  endforeach()
+  get_property(children DIRECTORY "${directory}" PROPERTY SUBDIRECTORIES)
+  foreach(child IN LISTS children)
+    collect_ios_archives("${child}" child_archives)
+    string(APPEND archives "${child_archives}")
+  endforeach()
+  set(${output} "${archives}" PARENT_SCOPE)
+endfunction()
+collect_ios_archives("${CMAKE_CURRENT_SOURCE_DIR}" ios_archives)
+file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/native-core-archives-$<CONFIG>.txt"
+  CONTENT "${ios_archives}")

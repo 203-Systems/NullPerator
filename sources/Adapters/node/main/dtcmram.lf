@@ -24,3 +24,8 @@ entries:
 archive: libapplication_instruments.a
 entries:
     * (dtcmram_to_bss)
+
+[mapping:dtcmram_application_mixer]
+archive: libapplication_mixer.a
+entries:
+    * (dtcmram_to_bss)

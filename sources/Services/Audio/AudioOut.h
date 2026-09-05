@@ -10,10 +10,10 @@
 #ifndef _AUDIO_OUT_H_
 #define _AUDIO_OUT_H_
 
-#include "Application/Instruments/WavFileWriter.h"
 #include "AudioMixer.h"
 #include "Externals/etl/include/etl/string.h"
 #include "Foundation/Observable.h"
+#include "Services/Audio/WavFileWriter.h"
 #include "config/StringLimits.h"
 
 class AudioDriver;
@@ -22,7 +22,13 @@ class AudioDriver;
 
 class AudioOut : public AudioMixer, public Observable {
 public:
+  using FrameClock = float (*)();
   AudioOut();
+  // Installed by the application while the output is stopped.
+  void SetFrameClock(FrameClock clock) {
+    frameClock_ = clock;
+    sampleOffset_ = 0;
+  }
   virtual ~AudioOut();
   virtual bool Init() = 0;
   virtual void Close() = 0;
@@ -52,5 +58,6 @@ protected:
 
 private:
   float sampleOffset_;
+  FrameClock frameClock_ = nullptr;
 };
 #endif

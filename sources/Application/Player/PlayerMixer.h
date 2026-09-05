@@ -14,9 +14,9 @@
 #include "Application/Audio/RecordStreamer.h"
 #include "Application/Mixer/MixerService.h"
 #include "Application/Model/Project.h"
-#include "Application/Utils/fixed.h"
 #include "Foundation/Observable.h"
 #include "Foundation/T_Singleton.h"
+#include "Foundation/Types/Fixed.h"
 #include "PlayerChannel.h"
 #include "PlayerMixerTelemetry.h"
 #include "Services/Audio/AudioOut.h"
@@ -31,7 +31,7 @@ class PlayerMixer : public T_Singleton<PlayerMixer>,
                     public I_Observer {
 public:
   PlayerMixer();
-  virtual ~PlayerMixer(){};
+  virtual ~PlayerMixer() {};
 
   bool Start();
   void Stop();
@@ -100,7 +100,6 @@ private:
   AudioFileStreamer fileStreamer_;
   RecordStreamer recordStreamer_;
   PlayerChannel *channel_[SONG_CHANNEL_COUNT];
-
 };
 
 #endif

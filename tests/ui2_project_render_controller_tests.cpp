@@ -17,11 +17,11 @@ public:
   ui2::Ui2ProjectRenderPlaybackSnapshot playback{};
   std::array<std::array<std::uint8_t, SONG_CHANNEL_COUNT>, SONG_ROW_COUNT>
       phraseCounts{};
-  ui2::Ui2ProjectRenderMode startedMode =
-      ui2::Ui2ProjectRenderMode::Mixdown;
+  ui2::Ui2ProjectRenderMode startedMode = ui2::Ui2ProjectRenderMode::Mixdown;
   int startCalls = 0;
   int stopCalls = 0;
   bool running = false;
+  bool failed = false;
 
   ui2::Ui2ProjectRenderStartResult
   Start(ui2::Ui2ProjectRenderMode mode) override {
@@ -35,6 +35,7 @@ public:
     running = false;
   }
   bool IsRunning() const override { return running; }
+  bool Failed() const override { return failed; }
   ui2::Ui2ProjectRenderPlaybackSnapshot CapturePlayback() const override {
     return playback;
   }
@@ -202,3 +203,18 @@ TEST_CASE("UI2 Project render reset safely unwinds an active Player") {
 static_assert(
     std::is_trivially_copyable_v<ui2::Ui2ProjectRenderPlaybackSnapshot>);
 static_assert(sizeof(ui2::Ui2ProjectRenderController) <= 64U);
+
+TEST_CASE("UI2 render never reports completion after output failure") {
+  for (bool stillPlaying : {false, true}) {
+    FakeRenderBackend backend;
+    ui2::Ui2ProjectRenderController controller(backend);
+    REQUIRE(controller.Request(ui2::Ui2ProjectRenderMode::Stems));
+    backend.running = stillPlaying;
+    backend.failed = true;
+    controller.Tick();
+    CHECK_FALSE(controller.Rendering());
+    CHECK(Text(controller.Snapshot().title) == "Render failed");
+    CHECK(Text(controller.Snapshot().label) == "Could not write file");
+    CHECK(backend.stopCalls == 1);
+  }
+}

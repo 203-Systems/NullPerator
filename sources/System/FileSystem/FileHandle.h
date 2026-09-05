@@ -38,6 +38,13 @@ public:
   I_File *operator->() const { return ptr_.get(); }
   explicit operator bool() const { return static_cast<bool>(ptr_); }
 
+  // Explicit finalization reports close failures; RAII remains the fallback.
+  bool Close() {
+    const bool ok = !ptr_ || ptr_->Close();
+    ptr_.reset();
+    return ok;
+  }
+
   void reset(I_File *file = nullptr) { ptr_.reset(file); }
 
 private:

@@ -10,9 +10,9 @@
 #include "AudioOutDriver.h"
 #include "System/Console/Trace.h"
 #include "System/System/System.h"
+#include <algorithm>
 
 fixed AudioOutDriver::primarySoundBuffer_[MIX_BUFFER_SIZE];
-short AudioOutDriver::mixBuffer_[MIX_BUFFER_SIZE];
 
 AudioOutDriver::AudioOutDriver(AudioDriver &driver) {
   driver_ = &driver;
@@ -45,9 +45,13 @@ void AudioOutDriver::SetAudioActive(bool active) {
 
 void AudioOutDriver::Trigger() {
   prepareMixBuffers();
+  const auto output = driver_->GetOutputBuffer();
+  if (output.data() == nullptr ||
+      output.size() < static_cast<std::size_t>(sampleCount_) * 2U)
+    return;
   hasSound_ = AudioMixer::Render(primarySoundBuffer_, sampleCount_) > 0;
-  clipToMix();
-  driver_->AddBuffer(mixBuffer_, sampleCount_);
+  clipToMix(output.data());
+  driver_->AddBuffer(output.data(), sampleCount_);
 }
 
 void AudioOutDriver::Update(Observable &o, I_ObservableData *d) {
@@ -71,16 +75,16 @@ void AudioOutDriver::prepareMixBuffers() {
   }
 };
 
-void AudioOutDriver::clipToMix() {
+void AudioOutDriver::clipToMix(short *destination) {
   if (!hasSound_) {
-    memset(mixBuffer_, 0, sampleCount_ * 2 * sizeof(short));
+    memset(destination, 0, sampleCount_ * 2 * sizeof(short));
     return;
   }
 
   fixed *src = primarySoundBuffer_;
 
   if (driver_->Interlaced()) {
-    short *dst = mixBuffer_;
+    short *dst = destination;
     int i = 0;
     for (; i + 4 <= sampleCount_; i += 4) {
       int l0 = fp2i(src[0]);
@@ -92,14 +96,14 @@ void AudioOutDriver::clipToMix() {
       int l3 = fp2i(src[6]);
       int r3 = fp2i(src[7]);
 
-      dst[0] = static_cast<short>(l0);
-      dst[1] = static_cast<short>(r0);
-      dst[2] = static_cast<short>(l1);
-      dst[3] = static_cast<short>(r1);
-      dst[4] = static_cast<short>(l2);
-      dst[5] = static_cast<short>(r2);
-      dst[6] = static_cast<short>(l3);
-      dst[7] = static_cast<short>(r3);
+      dst[0] = static_cast<short>(std::clamp(l0, -32768, 32767));
+      dst[1] = static_cast<short>(std::clamp(r0, -32768, 32767));
+      dst[2] = static_cast<short>(std::clamp(l1, -32768, 32767));
+      dst[3] = static_cast<short>(std::clamp(r1, -32768, 32767));
+      dst[4] = static_cast<short>(std::clamp(l2, -32768, 32767));
+      dst[5] = static_cast<short>(std::clamp(r2, -32768, 32767));
+      dst[6] = static_cast<short>(std::clamp(l3, -32768, 32767));
+      dst[7] = static_cast<short>(std::clamp(r3, -32768, 32767));
 
       src += 8;
       dst += 8;
@@ -107,19 +111,19 @@ void AudioOutDriver::clipToMix() {
     for (; i < sampleCount_; ++i) {
       int l = fp2i(src[0]);
       int r = fp2i(src[1]);
-      dst[0] = static_cast<short>(l);
-      dst[1] = static_cast<short>(r);
+      dst[0] = static_cast<short>(std::clamp(l, -32768, 32767));
+      dst[1] = static_cast<short>(std::clamp(r, -32768, 32767));
       src += 2;
       dst += 2;
     }
   } else {
-    short *left = mixBuffer_;
+    short *left = destination;
     short *right = left + sampleCount_;
     for (int i = 0; i < sampleCount_; ++i) {
       int l = fp2i(*src++);
       int r = fp2i(*src++);
-      *left++ = static_cast<short>(l);
-      *right++ = static_cast<short>(r);
+      *left++ = static_cast<short>(std::clamp(l, -32768, 32767));
+      *right++ = static_cast<short>(std::clamp(r, -32768, 32767));
     }
   }
 };

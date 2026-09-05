@@ -9,7 +9,8 @@
 #include <span>
 #include <thread>
 
-IOSAudioDriver::IOSAudioDriver(AudioSettings &settings) : AudioDriver(settings) {}
+IOSAudioDriver::IOSAudioDriver(AudioSettings &settings)
+    : AudioDriver(settings) {}
 
 IOSAudioDriver::~IOSAudioDriver() { CloseDriver(); }
 
@@ -50,8 +51,7 @@ bool IOSAudioDriver::InitDriver() {
   AudioStreamBasicDescription format{};
   format.mSampleRate = 44100.0;
   format.mFormatID = kAudioFormatLinearPCM;
-  format.mFormatFlags = kAudioFormatFlagIsFloat |
-                        kAudioFormatFlagIsPacked |
+  format.mFormatFlags = kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked |
                         kAudioFormatFlagIsNonInterleaved |
                         kAudioFormatFlagsNativeEndian;
   format.mFramesPerPacket = 1;
@@ -85,7 +85,8 @@ void IOSAudioDriver::CloseDriver() {
   inputAvailable_.store(false, std::memory_order_release);
   EndInputCapture();
   inputMonitoring_.store(false, std::memory_order_release);
-  if (unit_ == nullptr) return;
+  if (unit_ == nullptr)
+    return;
   AudioUnitUninitialize(unit_);
   AudioComponentInstanceDispose(unit_);
   unit_ = nullptr;
@@ -98,7 +99,8 @@ bool IOSAudioDriver::StartDriver() {
   started_.store(true, std::memory_order_release);
   return true;
 #else
-  if (unit_ == nullptr) return false;
+  if (unit_ == nullptr)
+    return false;
   ring_.Reset();
   consumedFrames_.store(0U, std::memory_order_release);
   started_.store(true, std::memory_order_release);
@@ -113,7 +115,8 @@ bool IOSAudioDriver::StartDriver() {
 void IOSAudioDriver::StopDriver() {
   started_.store(false, std::memory_order_release);
 #if !TARGET_OS_SIMULATOR
-  if (unit_ != nullptr) AudioOutputUnitStop(unit_);
+  if (unit_ != nullptr)
+    AudioOutputUnitStop(unit_);
 #endif
 }
 
@@ -130,7 +133,8 @@ double IOSAudioDriver::GetStreamTime() {
 
 void IOSAudioDriver::AddBuffer(short *buffer, int samplecount) {
   if (buffer == nullptr || samplecount <= 0 ||
-      !started_.load(std::memory_order_acquire)) return;
+      !started_.load(std::memory_order_acquire))
+    return;
   (void)ring_.WriteInterleaved(std::span<const short>(
       buffer, static_cast<std::size_t>(samplecount) * 2U));
 }
@@ -140,15 +144,16 @@ void IOSAudioDriver::OnAudioActive(bool active) {
 }
 
 void IOSAudioDriver::PumpProducer() noexcept {
-  if (!started_.load(std::memory_order_acquire)) return;
+  if (!started_.load(std::memory_order_acquire))
+    return;
 #if TARGET_OS_SIMULATOR
   std::array<StereoF32, 1470> simulatedCallback{};
   (void)ring_.Read(simulatedCallback);
   consumedFrames_.fetch_add(simulatedCallback.size(),
                             std::memory_order_relaxed);
 #endif
-  for (int request = 0;
-       request < 3 && ring_.FillFrames() < TargetFillFrames; ++request) {
+  for (int request = 0; request < 3 && ring_.FillFrames() < TargetFillFrames;
+       ++request) {
     onAudioBufferTick();
     OnNewBufferNeeded();
   }
@@ -161,7 +166,7 @@ bool IOSAudioDriver::InputAvailable() const noexcept {
 void IOSAudioDriver::SetInputMonitoring(bool enabled) noexcept {
   inputMonitoring_.store(enabled && InputAvailable(),
                          std::memory_order_release);
-  if (!enabled && !inputCapturing_.load(std::memory_order_acquire))
+  if (!enabled && !inputCaptureGate_.IsRunning())
     inputPeak_.store(0U, std::memory_order_release);
 }
 
@@ -171,24 +176,24 @@ bool IOSAudioDriver::IsInputMonitoring() const noexcept {
 
 bool IOSAudioDriver::BeginInputCapture(
     std::span<std::int16_t> destination) noexcept {
-  if (!InputAvailable() || destination.empty() ||
-      inputCapturing_.load(std::memory_order_acquire))
+  if (!InputAvailable() || destination.empty() || inputCaptureGate_.IsRunning())
     return false;
+  EndInputCapture(); // Also drain the callback that filled the previous take.
   inputCapacityFrames_ = destination.size();
   inputCapturedFrames_.store(0U, std::memory_order_release);
   inputDestination_.store(destination.data(), std::memory_order_release);
-  inputCapturing_.store(true, std::memory_order_release);
+  inputCaptureGate_.Start();
   return true;
 }
 
 void IOSAudioDriver::EndInputCapture() noexcept {
-  inputCapturing_.store(false, std::memory_order_release);
-  while (inputCaptureWriting_.load(std::memory_order_acquire))
+  inputCaptureGate_.Stop();
+  while (!inputCaptureGate_.IsIdle())
     std::this_thread::yield();
 }
 
 bool IOSAudioDriver::IsInputCapturing() const noexcept {
-  return inputCapturing_.load(std::memory_order_acquire);
+  return inputCaptureGate_.IsRunning();
 }
 
 std::size_t IOSAudioDriver::CapturedInputFrames() const noexcept {
@@ -202,10 +207,9 @@ std::uint16_t IOSAudioDriver::InputPeak() const noexcept {
 OSStatus IOSAudioDriver::Render(void *context,
                                 AudioUnitRenderActionFlags *flags,
                                 const AudioTimeStamp *timestamp, UInt32,
-                                UInt32 frames,
-                                AudioBufferList *buffers) {
-  return static_cast<IOSAudioDriver *>(context)->Render(
-      flags, timestamp, frames, buffers);
+                                UInt32 frames, AudioBufferList *buffers) {
+  return static_cast<IOSAudioDriver *>(context)->Render(flags, timestamp,
+                                                        frames, buffers);
 }
 
 OSStatus IOSAudioDriver::Render(AudioUnitRenderActionFlags *flags,
@@ -214,7 +218,8 @@ OSStatus IOSAudioDriver::Render(AudioUnitRenderActionFlags *flags,
   PullInput(flags, timestamp, frames);
   if (buffers == nullptr || buffers->mNumberBuffers < 2 ||
       buffers->mBuffers[0].mData == nullptr ||
-      buffers->mBuffers[1].mData == nullptr) return noErr;
+      buffers->mBuffers[1].mData == nullptr)
+    return noErr;
 
   auto *left = static_cast<float *>(buffers->mBuffers[0].mData);
   auto *right = static_cast<float *>(buffers->mBuffers[1].mData);
@@ -243,7 +248,10 @@ void IOSAudioDriver::PullInput(AudioUnitRenderActionFlags *flags,
   (void)frames;
 #else
   const bool monitoring = inputMonitoring_.load(std::memory_order_acquire);
-  const bool capturing = inputCapturing_.load(std::memory_order_acquire);
+  // Acquire before AudioUnitRender: an old callback cannot copy microphone
+  // data into a new take after Stop/Begin changes the destination.
+  WorkerGate<1>::Guard capture(inputCaptureGate_, 0);
+  const bool capturing = static_cast<bool>(capture);
   if ((!monitoring && !capturing) || unit_ == nullptr || timestamp == nullptr ||
       frames == 0U || frames > inputScratch_.size()) {
     if (!monitoring && !capturing)
@@ -275,13 +283,7 @@ void IOSAudioDriver::PullInput(AudioUnitRenderActionFlags *flags,
 
   if (!capturing)
     return;
-  inputCaptureWriting_.store(true, std::memory_order_release);
-  if (!inputCapturing_.load(std::memory_order_acquire)) {
-    inputCaptureWriting_.store(false, std::memory_order_release);
-    return;
-  }
-  std::int16_t *destination =
-      inputDestination_.load(std::memory_order_acquire);
+  std::int16_t *destination = inputDestination_.load(std::memory_order_acquire);
   const std::size_t offset =
       inputCapturedFrames_.load(std::memory_order_relaxed);
   const std::size_t count =
@@ -291,7 +293,6 @@ void IOSAudioDriver::PullInput(AudioUnitRenderActionFlags *flags,
   }
   inputCapturedFrames_.store(offset + count, std::memory_order_release);
   if (offset + count >= inputCapacityFrames_)
-    inputCapturing_.store(false, std::memory_order_release);
-  inputCaptureWriting_.store(false, std::memory_order_release);
+    inputCaptureGate_.Stop();
 #endif
 }

@@ -1,7 +1,7 @@
 #ifndef SID_H
 #define SID_H
 
-#include "Application/Utils/fixed.h"
+#include "Foundation/Types/Fixed.h"
 
 #define ATTENUATION 26
 #define C64_PAL_CPUCLK 985248

@@ -4,7 +4,7 @@
 
 #include "Adapters/ios/audio/IOSAudio.h"
 #include "Adapters/ios/audio/IOSAudioDriver.h"
-#include "Application/Instruments/WavHeader.h"
+#include "Services/Audio/WavHeader.h"
 #include "System/FileSystem/FileSystem.h"
 
 #include <algorithm>
@@ -59,21 +59,18 @@ bool PersistRecording(std::size_t frames) {
 
   std::size_t written = 0U;
   while (written < frames) {
-    const std::size_t chunk =
-        std::min(kWriteChunkSamples, frames - written);
-    if (file->Write(captureBuffer.data() + written,
-                    sizeof(std::int16_t), static_cast<int>(chunk)) !=
-        static_cast<int>(chunk))
+    const std::size_t chunk = std::min(kWriteChunkSamples, frames - written);
+    if (file->Write(captureBuffer.data() + written, sizeof(std::int16_t),
+                    static_cast<int>(chunk)) != static_cast<int>(chunk))
       return fail();
     written += chunk;
-    savingProgress.store(
-        static_cast<std::uint8_t>((written * 100U) / frames),
-        std::memory_order_release);
+    savingProgress.store(static_cast<std::uint8_t>((written * 100U) / frames),
+                         std::memory_order_release);
   }
   if (!file->Sync() ||
-      !WavHeaderWriter::UpdateFileSize(
-          file.get(), static_cast<std::uint32_t>(frames), 1U,
-          sizeof(std::int16_t)) ||
+      !WavHeaderWriter::UpdateFileSize(file.get(),
+                                       static_cast<std::uint32_t>(frames), 1U,
+                                       sizeof(std::int16_t)) ||
       !file->Sync())
     return fail();
   return true;
@@ -98,8 +95,7 @@ void FinishCaptureAndSave() {
   }
   driver->EndInputCapture();
   const std::size_t frames = driver->CapturedInputFrames();
-  elapsedMs.store(static_cast<std::uint32_t>(
-                      (frames * 1000ULL) / kSampleRate),
+  elapsedMs.store(static_cast<std::uint32_t>((frames * 1000ULL) / kSampleRate),
                   std::memory_order_release);
   JoinCompletedSavingThread();
   saving.store(true, std::memory_order_release);
@@ -197,8 +193,9 @@ bool WaitForRecordingStop(std::uint32_t timeoutMs) {
   const auto started = std::chrono::steady_clock::now();
   while (saving.load(std::memory_order_acquire)) {
     if (timeoutMs != UINT32_MAX) {
-      const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-          std::chrono::steady_clock::now() - started);
+      const auto elapsed =
+          std::chrono::duration_cast<std::chrono::milliseconds>(
+              std::chrono::steady_clock::now() - started);
       if (elapsed.count() >= timeoutMs)
         return false;
     }

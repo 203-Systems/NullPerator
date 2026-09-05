@@ -10,7 +10,7 @@
 
 #include "Adapters/node/hal/nullperator/audio/audio.h"
 #include "Adapters/node/platform/platform.h"
-#include "Application/Instruments/WavHeader.h"
+#include "Services/Audio/WavHeader.h"
 #include "System/Console/Trace.h"
 #include "System/FileSystem/FileSystem.h"
 
@@ -109,8 +109,8 @@ bool PersistRecording() {
   FileHandle file = fileSystem->Open(recordingPath.data(), "w");
   if (!file)
     return false;
-  if (!WavHeaderWriter::WriteHeader(file.get(), kSampleRate,
-                                    recordingChannels, 16U)) {
+  if (!WavHeaderWriter::WriteHeader(file.get(), kSampleRate, recordingChannels,
+                                    16U)) {
     file.reset();
     (void)fileSystem->DeleteFile(recordingPath.data());
     return false;
@@ -120,16 +120,16 @@ bool PersistRecording() {
   while (written < recordingBytes) {
     const std::size_t chunk =
         std::min(kWriteChunkBytes, recordingBytes - written);
-    if (file->Write(recordingBuffer + written, 1,
-                    static_cast<int>(chunk)) != static_cast<int>(chunk)) {
+    if (file->Write(recordingBuffer + written, 1, static_cast<int>(chunk)) !=
+        static_cast<int>(chunk)) {
       file.reset();
       (void)fileSystem->DeleteFile(recordingPath.data());
       return false;
     }
     written += chunk;
-    savingProgress.store(static_cast<std::uint8_t>(
-                             (written * 100U) / recordingBytes),
-                         std::memory_order_release);
+    savingProgress.store(
+        static_cast<std::uint8_t>((written * 100U) / recordingBytes),
+        std::memory_order_release);
   }
 
   const std::uint32_t frames = static_cast<std::uint32_t>(
@@ -190,9 +190,8 @@ void CaptureTask(void *) {
         recordingBytes += copyBytes;
         const std::uint64_t frameBytes =
             recordingChannels * sizeof(std::int16_t);
-        elapsedMs.store(static_cast<std::uint32_t>(
-                            (recordingBytes * 1000ULL) /
-                            (frameBytes * kSampleRate)),
+        elapsedMs.store(static_cast<std::uint32_t>((recordingBytes * 1000ULL) /
+                                                   (frameBytes * kSampleRate)),
                         std::memory_order_release);
       }
       if (copyBytes != bytesRead) {
@@ -202,8 +201,8 @@ void CaptureTask(void *) {
     }
 
     CaptureMode expected = mode;
-    (void)requestedMode.compare_exchange_strong(
-        expected, CaptureMode::Idle, std::memory_order_acq_rel);
+    (void)requestedMode.compare_exchange_strong(expected, CaptureMode::Idle,
+                                                std::memory_order_acq_rel);
     (void)i2s_channel_disable(rx);
     activeMode.store(CaptureMode::Idle, std::memory_order_release);
     inputPeak.store(0U, std::memory_order_release);
@@ -239,9 +238,8 @@ bool WaitUntilStopped(std::uint32_t timeoutMs) {
     return true;
   if (stoppedSemaphore == nullptr)
     return false;
-  const TickType_t timeout = timeoutMs == UINT32_MAX
-                                 ? portMAX_DELAY
-                                 : pdMS_TO_TICKS(timeoutMs);
+  const TickType_t timeout =
+      timeoutMs == UINT32_MAX ? portMAX_DELAY : pdMS_TO_TICKS(timeoutMs);
   return xSemaphoreTake(stoppedSemaphore, timeout) == pdTRUE;
 }
 
@@ -256,9 +254,8 @@ bool StartRecording(const char *filename, std::uint8_t /*threshold*/,
   StopMonitoring();
   SetInputSource(inputSource.load(std::memory_order_acquire));
 
-  recordingChannels = inputSource.load(std::memory_order_acquire) == LineIn
-                          ? 2U
-                          : 1U;
+  recordingChannels =
+      inputSource.load(std::memory_order_acquire) == LineIn ? 2U : 1U;
   const std::uint32_t durationMs =
       milliseconds == 0U ? kMaximumSeconds * 1000U : milliseconds;
   const std::uint64_t requestedBytes =
@@ -271,14 +268,14 @@ bool StartRecording(const char *filename, std::uint8_t /*threshold*/,
       largest > kPsramReserveBytes ? largest - kPsramReserveBytes : 0U;
   const std::size_t minimumBytes = static_cast<std::size_t>(
       kMinimumFrames * recordingChannels * sizeof(std::int16_t));
-  recordingCapacity = static_cast<std::size_t>(
-      std::min<std::uint64_t>(requestedBytes, usable));
-  recordingCapacity -= recordingCapacity %
-                       (recordingChannels * sizeof(std::int16_t));
+  recordingCapacity =
+      static_cast<std::size_t>(std::min<std::uint64_t>(requestedBytes, usable));
+  recordingCapacity -=
+      recordingCapacity % (recordingChannels * sizeof(std::int16_t));
   if (recordingCapacity < minimumBytes)
     return false;
-  recordingBuffer = static_cast<std::uint8_t *>(heap_caps_malloc(
-      recordingCapacity, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+  recordingBuffer = static_cast<std::uint8_t *>(
+      heap_caps_malloc(recordingCapacity, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
   if (recordingBuffer == nullptr) {
     recordingCapacity = 0U;
     return false;
@@ -328,8 +325,7 @@ void StopMonitoring() {
     requestedMode.store(CaptureMode::Idle, std::memory_order_release);
     (void)WaitUntilStopped(1000U);
   }
-  (void)NullperatorHAL::Audio::SetInputMode(
-      NullperatorHAL::Audio::INPUT_OFF);
+  (void)NullperatorHAL::Audio::SetInputMode(NullperatorHAL::Audio::INPUT_OFF);
   switch_audio_mode(headphone_out);
 }
 
@@ -359,7 +355,8 @@ bool IsRecordingActive() {
 }
 
 bool IsMonitoringActive() {
-  return requestedMode.load(std::memory_order_acquire) == CaptureMode::Monitor ||
+  return requestedMode.load(std::memory_order_acquire) ==
+             CaptureMode::Monitor ||
          activeMode.load(std::memory_order_acquire) == CaptureMode::Monitor;
 }
 

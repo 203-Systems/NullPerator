@@ -20,10 +20,6 @@
 #include "System/FileSystem/FileSystem.h"
 #include "System/Timer/Timer.h"
 
-#ifdef DUMMY_MIDI
-#include "Adapters/Dummy/Midi/DummyMidi.h"
-#endif
-
 #include "esp_heap_caps.h"
 #include "esp_random.h"
 #include "esp_system.h"
@@ -45,34 +41,29 @@ bool NodeUi2System::Boot(int, char **) {
     return true;
 
   alignas(NodeUi2System) static std::byte systemStorage[sizeof(NodeUi2System)];
-  System::Install(std::construct_at(
-      reinterpret_cast<NodeUi2System *>(systemStorage)));
+  System::Install(
+      std::construct_at(reinterpret_cast<NodeUi2System *>(systemStorage)));
 
-  alignas(NodeTimerService)
-      static std::byte timerStorage[sizeof(NodeTimerService)];
-  TimerService::GetInstance()->Install(std::construct_at(
-      reinterpret_cast<NodeTimerService *>(timerStorage)));
+  alignas(
+      NodeTimerService) static std::byte timerStorage[sizeof(NodeTimerService)];
+  TimerService::GetInstance()->Install(
+      std::construct_at(reinterpret_cast<NodeTimerService *>(timerStorage)));
 
-  alignas(NodeFileSystem)
-      static std::byte fileSystemStorage[sizeof(NodeFileSystem)];
-  FileSystem::Install(std::construct_at(
-      reinterpret_cast<NodeFileSystem *>(fileSystemStorage)));
+  alignas(NodeFileSystem) static std::byte
+      fileSystemStorage[sizeof(NodeFileSystem)];
+  FileSystem::Install(
+      std::construct_at(reinterpret_cast<NodeFileSystem *>(fileSystemStorage)));
   if (!FileSystem::GetInstance()->chdir("/"))
     Trace::Error("NODE_UI2", "SD card root is unavailable");
 
   // Config observes MIDI settings while it is constructed, so the service
   // installation order deliberately remains identical to the proven legacy
   // Node boot path: MIDI before Audio.
-#ifdef DUMMY_MIDI
-  alignas(DummyMidi) static std::byte midiStorage[sizeof(DummyMidi)];
+
+  alignas(
+      NodeMidiService) static std::byte midiStorage[sizeof(NodeMidiService)];
   MidiService::Install(
-      std::construct_at(reinterpret_cast<DummyMidi *>(midiStorage)));
-#else
-  alignas(NodeMidiService)
-      static std::byte midiStorage[sizeof(NodeMidiService)];
-  MidiService::Install(std::construct_at(
-      reinterpret_cast<NodeMidiService *>(midiStorage)));
-#endif
+      std::construct_at(reinterpret_cast<NodeMidiService *>(midiStorage)));
 
   AudioSettings audioSettings;
   audioSettings.bufferSize_ = 1024;
@@ -87,14 +78,14 @@ bool NodeUi2System::Boot(int, char **) {
 
   void *samplePoolStorage = nullptr;
   if (heap_caps_get_total_size(MALLOC_CAP_SPIRAM) > 0U) {
-    samplePoolStorage = heap_caps_aligned_alloc(
-        alignof(NodeSamplePool), sizeof(NodeSamplePool),
-        MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    samplePoolStorage =
+        heap_caps_aligned_alloc(alignof(NodeSamplePool), sizeof(NodeSamplePool),
+                                MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
   }
   if (samplePoolStorage == nullptr) {
-    samplePoolStorage = heap_caps_aligned_alloc(
-        alignof(NodeSamplePool), sizeof(NodeSamplePool),
-        MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    samplePoolStorage =
+        heap_caps_aligned_alloc(alignof(NodeSamplePool), sizeof(NodeSamplePool),
+                                MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
   }
   if (samplePoolStorage == nullptr) {
     Trace::Error("NODE_UI2", "Unable to allocate SamplePool service");
@@ -157,8 +148,7 @@ void NodeUi2System::GetBatteryState(BatteryState &state) {
 
   state = {
       .percentage = NullperatorHAL::Power::GetBatteryPercentage(),
-      .voltage_mv =
-          static_cast<std::uint16_t>(std::lround(voltage * 1000.0F)),
+      .voltage_mv = static_cast<std::uint16_t>(std::lround(voltage * 1000.0F)),
       .temperature_c = 0,
       .charging = NullperatorHAL::Power::IsCharging(),
       .error = false,

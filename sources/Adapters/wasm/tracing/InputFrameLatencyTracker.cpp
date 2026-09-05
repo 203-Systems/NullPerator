@@ -2,8 +2,8 @@
 
 #include "InputFrameLatencyTracker.h"
 
-#include "Adapters/wasm/tracing/TraceRecord.h"
-#include "Adapters/wasm/tracing/WasmProfiler.h"
+#include "System/Console/Profiler.h"
+#include "System/Console/TraceRecord.h"
 
 #include <algorithm>
 #include <array>
@@ -88,13 +88,12 @@ void ReleaseSlot(TicketSlot &slot, std::uint64_t claimedControl) noexcept {
 }
 
 void PublishDropped(const Ticket &ticket, std::uint64_t timestampUs,
-                    WasmTraceFlag reason, WasmTraceThread thread) noexcept {
+                    TraceFlag reason, TraceThread thread) noexcept {
   const std::uint16_t flags = static_cast<std::uint16_t>(
       static_cast<std::uint16_t>(reason) | (ticket.action & ActionMask));
-  WasmProfiler::EmitAt(
-      timestampUs, WasmTraceCategory::Input,
-      WasmTraceName::InputLatencyDropped, WasmTracePhase::Instant,
-      ticket.correlation, thread, ticket.generation, flags);
+  Profiler::EmitAt(timestampUs, TraceCategory::Input,
+                   TraceName::InputLatencyDropped, TracePhase::Instant,
+                   ticket.correlation, thread, ticket.generation, flags);
 }
 
 void ExpireAt(std::uint64_t nowUs, std::uint32_t currentGeneration) noexcept {
@@ -115,14 +114,13 @@ void ExpireAt(std::uint64_t nowUs, std::uint32_t currentGeneration) noexcept {
     }
     if (!slot.control.compare_exchange_strong(
             control, Control(Version(control), TicketState::Reading),
-            std::memory_order_acq_rel,
-            std::memory_order_acquire)) {
+            std::memory_order_acq_rel, std::memory_order_acquire)) {
       continue;
     }
 
     if (!staleGeneration) {
-      PublishDropped(ticket, nowUs, WasmTraceFlag::InputNoPresentation,
-                     WasmTraceThread::Application);
+      PublishDropped(ticket, nowUs, TraceFlag::InputNoPresentation,
+                     TraceThread::Application);
     }
     ReleaseSlot(slot, control);
   }
@@ -140,12 +138,12 @@ std::uint32_t SaturatingLatency(std::uint64_t acceptedUs,
 
 std::uint16_t
 InputFrameLatencyTracker::AcceptPress(std::uint16_t action) noexcept {
-  if (!WasmProfiler::CategoryEnabled(WasmTraceCategory::Input)) {
+  if (!Profiler::CategoryEnabled(TraceCategory::Input)) {
     return 0U;
   }
 
-  const std::uint32_t generation = WasmProfiler::Generation();
-  const std::uint64_t acceptedUs = WasmProfiler::TimestampNow();
+  const std::uint32_t generation = Profiler::Generation();
+  const std::uint64_t acceptedUs = Profiler::TimestampNow();
   ExpireAt(acceptedUs, generation);
 
   const Ticket ticket{acceptedUs, generation, NextCorrelation(), action};
@@ -157,19 +155,18 @@ InputFrameLatencyTracker::AcceptPress(std::uint16_t action) noexcept {
     if (State(control) != TicketState::Empty ||
         !slot.control.compare_exchange_strong(
             control, Control(Version(control), TicketState::Writing),
-            std::memory_order_acq_rel,
-            std::memory_order_acquire)) {
+            std::memory_order_acq_rel, std::memory_order_acquire)) {
       continue;
     }
     slot.acceptedUs.store(ticket.acceptedUs, std::memory_order_relaxed);
     slot.identity.store(Identity(ticket), std::memory_order_relaxed);
     slot.control.store(Control(Version(control), TicketState::Accepted),
                        std::memory_order_release);
-    WasmProfiler::EmitAt(
-        ticket.acceptedUs, WasmTraceCategory::Input,
-        WasmTraceName::InputAccepted, WasmTracePhase::Instant,
-        ticket.correlation, WasmTraceThread::Browser, ticket.generation,
-        static_cast<std::uint16_t>(ticket.action & ActionMask));
+    Profiler::EmitAt(ticket.acceptedUs, TraceCategory::Input,
+                     TraceName::InputAccepted, TracePhase::Instant,
+                     ticket.correlation, TraceThread::Browser,
+                     ticket.generation,
+                     static_cast<std::uint16_t>(ticket.action & ActionMask));
     return ticket.correlation;
   }
 
@@ -177,13 +174,12 @@ InputFrameLatencyTracker::AcceptPress(std::uint16_t action) noexcept {
   // The browser transition itself was accepted even though tracing could not
   // retain another ticket. Publish both facts so instrumentation overload is
   // never mistaken for application latency.
-  WasmProfiler::EmitAt(
-      ticket.acceptedUs, WasmTraceCategory::Input,
-      WasmTraceName::InputAccepted, WasmTracePhase::Instant,
-      ticket.correlation, WasmTraceThread::Browser, ticket.generation,
-      static_cast<std::uint16_t>(ticket.action & ActionMask));
-  PublishDropped(ticket, ticket.acceptedUs, WasmTraceFlag::InputOverflow,
-                 WasmTraceThread::Browser);
+  Profiler::EmitAt(ticket.acceptedUs, TraceCategory::Input,
+                   TraceName::InputAccepted, TracePhase::Instant,
+                   ticket.correlation, TraceThread::Browser, ticket.generation,
+                   static_cast<std::uint16_t>(ticket.action & ActionMask));
+  PublishDropped(ticket, ticket.acceptedUs, TraceFlag::InputOverflow,
+                 TraceThread::Browser);
   return ticket.correlation;
 }
 
@@ -204,12 +200,11 @@ void InputFrameLatencyTracker::CancelAccepted(
             std::memory_order_acq_rel, std::memory_order_acquire)) {
       continue;
     }
-    const std::uint32_t generation = WasmProfiler::Generation();
+    const std::uint32_t generation = Profiler::Generation();
     if (ticket.generation == generation &&
-        WasmProfiler::CategoryEnabled(WasmTraceCategory::Input)) {
-      PublishDropped(ticket, WasmProfiler::TimestampNow(),
-                     WasmTraceFlag::InputCoalesced,
-                     WasmTraceThread::Browser);
+        Profiler::CategoryEnabled(TraceCategory::Input)) {
+      PublishDropped(ticket, Profiler::TimestampNow(),
+                     TraceFlag::InputCoalesced, TraceThread::Browser);
     }
     ReleaseSlot(slot, control);
     return;
@@ -218,17 +213,16 @@ void InputFrameLatencyTracker::CancelAccepted(
 
 void InputFrameLatencyTracker::MarkDispatching(std::uint16_t action,
                                                bool pressed) noexcept {
-  if (!pressed || !WasmProfiler::CategoryEnabled(WasmTraceCategory::Input)) {
+  if (!pressed || !Profiler::CategoryEnabled(TraceCategory::Input)) {
     return;
   }
 
-  const std::uint32_t generation = WasmProfiler::Generation();
+  const std::uint32_t generation = Profiler::Generation();
   TicketSlot *selected = nullptr;
   Ticket selectedTicket{};
   std::uint64_t selectedControl = 0;
   for (TicketSlot &slot : slots) {
-    const std::uint64_t control =
-        slot.control.load(std::memory_order_acquire);
+    const std::uint64_t control = slot.control.load(std::memory_order_acquire);
     if (State(control) != TicketState::Accepted) {
       continue;
     }
@@ -236,7 +230,8 @@ void InputFrameLatencyTracker::MarkDispatching(std::uint16_t action,
     if (candidate.generation != generation || candidate.action != action) {
       continue;
     }
-    if (selected == nullptr || candidate.acceptedUs < selectedTicket.acceptedUs ||
+    if (selected == nullptr ||
+        candidate.acceptedUs < selectedTicket.acceptedUs ||
         (candidate.acceptedUs == selectedTicket.acceptedUs &&
          candidate.correlation < selectedTicket.correlation)) {
       selected = &slot;
@@ -250,17 +245,16 @@ void InputFrameLatencyTracker::MarkDispatching(std::uint16_t action,
   selected->control.compare_exchange_strong(
       selectedControl,
       Control(Version(selectedControl), TicketState::Dispatched),
-      std::memory_order_acq_rel,
-      std::memory_order_acquire);
+      std::memory_order_acq_rel, std::memory_order_acquire);
 }
 
 void InputFrameLatencyTracker::PresentedFrame() noexcept {
-  if (!WasmProfiler::CategoryEnabled(WasmTraceCategory::Input)) {
+  if (!Profiler::CategoryEnabled(TraceCategory::Input)) {
     return;
   }
 
-  const std::uint32_t generation = WasmProfiler::Generation();
-  const std::uint64_t presentedUs = WasmProfiler::TimestampNow();
+  const std::uint32_t generation = Profiler::Generation();
+  const std::uint64_t presentedUs = Profiler::TimestampNow();
   ExpireAt(presentedUs, generation);
 
   std::array<Ticket, Capacity> presented{};
@@ -270,8 +264,7 @@ void InputFrameLatencyTracker::PresentedFrame() noexcept {
     if (State(control) != TicketState::Dispatched ||
         !slot.control.compare_exchange_strong(
             control, Control(Version(control), TicketState::Reading),
-            std::memory_order_acq_rel,
-            std::memory_order_acquire)) {
+            std::memory_order_acq_rel, std::memory_order_acquire)) {
       continue;
     }
     const Ticket ticket = ReadTicket(slot);
@@ -292,28 +285,27 @@ void InputFrameLatencyTracker::PresentedFrame() noexcept {
             });
   for (std::size_t index = 0; index < count; ++index) {
     const Ticket &ticket = presented[index];
-    WasmProfiler::EmitAt(
-        presentedUs, WasmTraceCategory::Input,
-        WasmTraceName::InputPresented, WasmTracePhase::Instant,
-        ticket.correlation, WasmTraceThread::Application, ticket.generation,
-        static_cast<std::uint16_t>(ticket.action & ActionMask));
+    Profiler::EmitAt(presentedUs, TraceCategory::Input,
+                     TraceName::InputPresented, TracePhase::Instant,
+                     ticket.correlation, TraceThread::Application,
+                     ticket.generation,
+                     static_cast<std::uint16_t>(ticket.action & ActionMask));
     // Counter flags are name-specific here: all 16 bits carry the same
     // correlation ID as the adjacent accepted/presented instants. Action bits
     // remain on those instants, so the two payloads cannot be confused.
-    WasmProfiler::EmitAt(
-        presentedUs, WasmTraceCategory::Input,
-        WasmTraceName::InputToFrameLatencyUs, WasmTracePhase::Counter,
-        SaturatingLatency(ticket.acceptedUs, presentedUs),
-        WasmTraceThread::Application, ticket.generation, ticket.correlation);
+    Profiler::EmitAt(
+        presentedUs, TraceCategory::Input, TraceName::InputToFrameLatencyUs,
+        TracePhase::Counter, SaturatingLatency(ticket.acceptedUs, presentedUs),
+        TraceThread::Application, ticket.generation, ticket.correlation);
   }
 }
 
 void InputFrameLatencyTracker::ObserveNoPresentation() noexcept {
-  if (!WasmProfiler::CategoryEnabled(WasmTraceCategory::Input)) {
+  if (!Profiler::CategoryEnabled(TraceCategory::Input)) {
     return;
   }
-  const std::uint32_t generation = WasmProfiler::Generation();
-  ExpireAt(WasmProfiler::TimestampNow(), generation);
+  const std::uint32_t generation = Profiler::Generation();
+  ExpireAt(Profiler::TimestampNow(), generation);
 }
 
 #ifdef HOST_TEST

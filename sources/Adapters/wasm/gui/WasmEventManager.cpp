@@ -5,21 +5,21 @@
 #include "Adapters/wasm/gui/WasmEventManager.h"
 #include "Adapters/wasm/gui/WasmViewDiagnostics.h"
 
-#include "Adapters/wasm/gui/WasmGUIWindowImp.h"
+#include "Adapters/common/midi/QueuedMidiService.h"
 #include "Adapters/wasm/audio/WasmAudio.h"
 #include "Adapters/wasm/audio/WasmAudioDriver.h"
 #include "Adapters/wasm/filesystem/WasmStorageBridge.h"
+#include "Adapters/wasm/gui/WasmGUIWindowImp.h"
 #include "Adapters/wasm/input/InputMap.h"
-#include "Adapters/wasm/midi/WasmMidiService.h"
 #include "Adapters/wasm/platform/WasmApplicationSnapshot.h"
 #include "Adapters/wasm/platform/wasm_bridge.h"
 #include "Adapters/wasm/system/WasmSystem.h"
-#include "Adapters/wasm/tracing/WasmProfiler.h"
-#include "Application/UI2/Ui2TrackerApplication.h"
 #include "Application/Instruments/SamplePool.h"
 #include "Application/Model/Project.h"
 #include "Application/Persistency/PersistenceConstants.h"
 #include "Application/Player/Player.h"
+#include "Application/UI2/Ui2TrackerApplication.h"
+#include "System/Console/Profiler.h"
 #include "System/System/System.h"
 #include <SDL.h>
 #include <emscripten/emscripten.h>
@@ -133,8 +133,7 @@ bool WasmEventManager::Init() {
   requestedDiagnosticView_.store(NoDiagnosticView, std::memory_order_release);
   diagnosticView_.store(NoDiagnosticView, std::memory_order_release);
   diagnosticViewGeneration_.store(0, std::memory_order_release);
-  requestedDiagnosticModal_.store(NoDiagnosticModal,
-                                  std::memory_order_release);
+  requestedDiagnosticModal_.store(NoDiagnosticModal, std::memory_order_release);
   diagnosticModal_.store(NoDiagnosticModal, std::memory_order_release);
   diagnosticModalGeneration_.store(0, std::memory_order_release);
   diagnosticInputGeneration_.store(0, std::memory_order_release);
@@ -177,7 +176,7 @@ void WasmEventManager::PumpFrame() {
     StopRuntime();
     return;
   }
-  WASM_TRACE_SCOPE(WasmTraceCategory::Ui, WasmTraceName::Frame);
+  PROFILE_SCOPE(TraceCategory::Ui, TraceName::Frame);
   WasmGUIWindowImp &window = *nativeWindow_;
   ui2::Ui2TrackerApplication &application = *nativeApplication_;
   if (booting_) {
@@ -224,10 +223,10 @@ void WasmEventManager::PumpFrame() {
   // SDL can temporarily reject an event when its queue is full. InputMap keeps
   // the browser's latest desired state and retries it here in frame order.
   {
-    WASM_TRACE_SCOPE(WasmTraceCategory::Input, WasmTraceName::InputRetry);
+    PROFILE_SCOPE(TraceCategory::Input, TraceName::InputRetry);
     InputMap::RetryPendingTransitions();
   }
-  if (auto *midi = WasmMidiService::Instance()) {
+  if (auto *midi = QueuedMidiService::Instance()) {
     midi->Poll();
   }
   if (auto *audio = WasmAudioDriver::Instance()) {
@@ -256,8 +255,7 @@ void WasmEventManager::PumpFrame() {
                 reinterpret_cast<std::uintptr_t>(event.user.data1), action,
                 pressed)) {
           {
-            WASM_TRACE_SCOPE(WasmTraceCategory::Input,
-                             WasmTraceName::InputDispatch);
+            PROFILE_SCOPE(TraceCategory::Input, TraceName::InputDispatch);
             application.DispatchTrackerAction(
                 static_cast<TrackerAction>(action), pressed);
           }

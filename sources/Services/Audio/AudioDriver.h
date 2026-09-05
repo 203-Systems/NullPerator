@@ -12,6 +12,7 @@
 
 #include "AudioSettings.h"
 #include "Foundation/Observable.h"
+#include <span>
 
 #define MAX_SAMPLE_COUNT 1875
 
@@ -46,7 +47,12 @@ public:
 
   virtual double GetStreamTime() = 0; // in secs
 
-  virtual void AddBuffer(short *buffer, int size) = 0; // size in samples
+  // Called by the sole producer during its buffer-needed callback. Storage is
+  // driver-owned and writable until passed to AddBuffer; an empty span means
+  // no reservation is available. Submission transfers ownership to the driver;
+  // the caller must not retain or write the span after submitting it.
+  virtual std::span<short> GetOutputBuffer() = 0;
+  virtual void AddBuffer(short *buffer, int size) = 0; // size in stereo frames
 
   AudioSettings GetAudioSettings();
 

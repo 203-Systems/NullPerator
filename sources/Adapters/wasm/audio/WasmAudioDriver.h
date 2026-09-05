@@ -4,10 +4,11 @@
 
 #pragma once
 
-#include "PcmRingBuffer.h"
-#include "WasmAudioState.h"
 #include "Services/Audio/AudioDriver.h"
+#include "Services/Audio/PcmRingBuffer.h"
+#include "WasmAudioState.h"
 
+#include <array>
 #include <atomic>
 #include <cstdint>
 
@@ -30,6 +31,7 @@ public:
   bool Interlaced() override;
   int GetPlayedBufferPercentage() override;
   double GetStreamTime() override;
+  std::span<short> GetOutputBuffer() override { return outputBuffer_; }
   void AddBuffer(short *buffer, int samplecount) override;
   void OnAudioActive(bool active) override;
 
@@ -48,10 +50,10 @@ public:
   [[nodiscard]] std::uint32_t OutputGainQ16() const noexcept;
   [[nodiscard]] WasmAudioMetrics Metrics() const noexcept;
   // Realtime-safe callback instrumentation: fixed lock-free atomics only.
-  // callbackMilliseconds is measured around the successful AudioWorklet workload;
-  // frames selects the exact browser quantum deadline for this callback.
-  void RecordCallback(double callbackMilliseconds,
-                      std::size_t frames) noexcept;
+  // callbackMilliseconds is measured around the successful AudioWorklet
+  // workload; frames selects the exact browser quantum deadline for this
+  // callback.
+  void RecordCallback(double callbackMilliseconds, std::size_t frames) noexcept;
 
   static WasmAudioDriver *Instance() noexcept;
 
@@ -67,6 +69,7 @@ private:
   void SetHostOutputGainQ16(std::uint32_t gain) noexcept;
 
   PcmRingBuffer<RingCapacityFrames> ring_;
+  std::array<short, MAX_SAMPLE_COUNT * 2U> outputBuffer_;
   std::atomic<bool> started_{false};
   std::atomic<bool> active_{false};
   std::atomic<bool> producerEnabled_{true};

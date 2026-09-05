@@ -12,15 +12,22 @@
 #include "Application/Model/Project.h"
 #include "Application/Player/Player.h"
 #include "Application/Player/PlayerMixer.h"
+#include "Application/Player/SyncMaster.h"
 #include "Application/Utils/char.h"
 #include "Services/Audio/Audio.h"
 #include "Services/Audio/AudioDriver.h"
 #include "Services/Audio/AudioOut.h"
 #include "Services/Midi/MidiService.h"
 #include "System/Console/Trace.h"
+#include "System/Process/SysMutex.h"
 #include "System/System/System.h"
-#include "platform.h"
 #include <nanoprintf.h>
+
+namespace {
+PICOTRACKER_FAST_AUDIO_BUFFER AudioMixer::Workspace mixingWorkspace;
+static_assert(sizeof(mixingWorkspace) <= MAX_SAMPLE_COUNT * 9U + 33U,
+              "one full Q15 scratch plus packed stereo carries and alignment");
+} // namespace
 
 MixerService::MixerService() : master_(), sync_(platform_mutex()) {
   out_ = 0;
@@ -29,7 +36,7 @@ MixerService::MixerService() : master_(), sync_(platform_mutex()) {
   master_.SetName("Master");
 };
 
-MixerService::~MixerService(){};
+MixerService::~MixerService() {};
 
 bool MixerService::Init() {
   out_ = 0;
@@ -39,18 +46,28 @@ bool MixerService::Init() {
 
   bool result = false;
 
+  master_.SetWorkspace(mixingWorkspace);
+  bus_[STREAM_MIX_BUS].SetWorkspace(mixingWorkspace);
+  // Finish the only branching child before master needs accumulation scratch.
+  // Channel buses have one input each. No voice is split or rendered twice.
+  if (!master_.AddModule(bus_[STREAM_MIX_BUS]))
+    return false;
   char buffer[5];
   for (int i = 0; i < MAX_BUS_COUNT; i++) {
     hex2char(i, buffer);
     bus_[i].SetName(etl::string<12>(buffer));
-    master_.AddModule(bus_[i]);
+    if (i != STREAM_MIX_BUS && !master_.AddModule(bus_[i]))
+      return false;
     master_.SetName("Master");
   }
 
   if (out_) {
+    out_->SetFrameClock(
+        +[] { return SyncMaster::GetInstance()->GetPlaySampleCount(); });
     result = out_->Init();
     if (result) {
-      out_->AddModule(master_);
+      if (!out_->AddModule(master_))
+        return false;
     }
 
     out_->AddObserver(*MidiService::GetInstance());
@@ -191,8 +208,10 @@ void MixerService::setRenderingMode(MixerServiceMode mode) {
     // in case proj name changed since last time paths were configured
     bool pathsResult = configureRenderPaths();
     if (!pathsResult) {
+      renderSetupFailed_.store(true);
       Trace::Error(
           "[MixerService::setRenderingMode] Failed to set render paths");
+      return;
     }
   }
 
@@ -215,6 +234,12 @@ void MixerService::setRenderingMode(MixerServiceMode mode) {
 }
 
 void MixerService::OnPlayerStart(MixerServiceMode mode) {
+  if (mode != MSM_AUDIO) {
+    renderSetupFailed_.store(false);
+    out_->ClearRenderError();
+    for (auto &bus : bus_)
+      bus.ClearRenderError();
+  }
   setRenderingMode(mode);
 };
 
@@ -222,6 +247,15 @@ void MixerService::OnPlayerStop() {
   // always reset back to audio mode when stopping
   setRenderingMode(MSM_AUDIO);
 };
+
+bool MixerService::RenderFailed() const {
+  if (renderSetupFailed_.load() || (out_ && out_->RenderFailed()))
+    return true;
+  for (const auto &bus : bus_)
+    if (bus.RenderFailed())
+      return true;
+  return false;
+}
 
 bool MixerService::configureRenderPaths() {
   if (!out_) {

@@ -1,10 +1,11 @@
 #include "doctest/doctest.h"
 
-#include "Application/Instruments/WavHeader.h"
-#include "Application/Instruments/WavFile.h"
-#include "Application/Instruments/WavFileWriter.h"
-#include "Application/Model/Config.h"
 #include "Adapters/wasm/filesystem/WasmFileSystem.h"
+#include "Application/Instruments/WavFile.h"
+#include "Application/Instruments/WavReadPolicy.h"
+#include "Application/Model/Config.h"
+#include "Services/Audio/WavFileWriter.h"
+#include "Services/Audio/WavHeader.h"
 #include "System/FileSystem/I_File.h"
 
 #include <algorithm>
@@ -13,6 +14,7 @@
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <vector>
 
 namespace {
 
@@ -127,13 +129,13 @@ private:
 
 class HeaderWriteFile final : public I_File {
 public:
+  bool failWrite = false, failSync = false, failClose = false;
   int Read(void *ptr, int size) override {
     if (!ptr || size <= 0 || position_ >= size_) {
       return 0;
     }
     const size_t available = size_ - position_;
-    const size_t count =
-        std::min(static_cast<size_t>(size), available);
+    const size_t count = std::min(static_cast<size_t>(size), available);
     std::memcpy(ptr, data_ + position_, count);
     position_ += count;
     return static_cast<int>(count);
@@ -147,11 +149,12 @@ public:
   }
 
   int Write(const void *ptr, int size, int nmemb) override {
+    if (failWrite)
+      return nmemb > 0 ? nmemb - 1 : 0;
     if (!ptr || size <= 0 || nmemb <= 0) {
       return 0;
     }
-    const size_t count =
-        static_cast<size_t>(size) * static_cast<size_t>(nmemb);
+    const size_t count = static_cast<size_t>(size) * static_cast<size_t>(nmemb);
     if (position_ + count > sizeof(data_)) {
       error_ = true;
       return 0;
@@ -159,7 +162,7 @@ public:
     std::memcpy(data_ + position_, ptr, count);
     position_ += count;
     size_ = std::max(size_, position_);
-    return static_cast<int>(count);
+    return nmemb;
   }
 
   void Seek(long offset, int whence) override {
@@ -187,14 +190,14 @@ public:
     return true;
   }
   int Error() override { return error_ ? 1 : 0; }
-  bool Sync() override { return !error_; }
+  bool Sync() override { return !error_ && !failSync; }
   void Dispose() override {}
 
   const uint8_t *data() const { return data_; }
   size_t size() const { return size_; }
 
 protected:
-  bool Close() override { return true; }
+  bool Close() override { return !failClose; }
 
 private:
   uint8_t data_[256] = {0};
@@ -204,8 +207,7 @@ private:
 };
 
 uint16_t ReadU16(const uint8_t *data) {
-  return static_cast<uint16_t>(data[0]) |
-         static_cast<uint16_t>(data[1] << 8U);
+  return static_cast<uint16_t>(data[0]) | static_cast<uint16_t>(data[1] << 8U);
 }
 
 uint32_t ReadU32(const uint8_t *data) {
@@ -422,9 +424,8 @@ TEST_CASE("UpdateFileSize patches the parsed data chunk and truncates") {
 }
 
 TEST_CASE("WavFileWriter finalizes a WAV through a real stdio stream") {
-  const std::filesystem::path root =
-      std::filesystem::temp_directory_path() /
-      "picotracker-wav-writer-finalization-test";
+  const std::filesystem::path root = std::filesystem::temp_directory_path() /
+                                     "picotracker-wav-writer-finalization-test";
   std::error_code error;
   std::filesystem::remove_all(root, error);
   REQUIRE(std::filesystem::create_directories(root, error));
@@ -454,9 +455,8 @@ TEST_CASE("WavFileWriter finalizes a WAV through a real stdio stream") {
 
 TEST_CASE("WavFile zero-pads GetBuffer past logical end of file") {
   Config::SetImportResampler(0);
-  const std::filesystem::path root =
-      std::filesystem::temp_directory_path() /
-      "picotracker-wav-get-buffer-test";
+  const std::filesystem::path root = std::filesystem::temp_directory_path() /
+                                     "picotracker-wav-get-buffer-test";
   std::error_code error;
   std::filesystem::remove_all(root, error);
   REQUIRE(std::filesystem::create_directories(root, error));
@@ -499,6 +499,169 @@ TEST_CASE("WavFile zero-pads GetBuffer past logical end of file") {
 
   wave.Close();
   std::filesystem::remove_all(root, error);
+}
+
+TEST_CASE("WavFile reads high-depth audio into one-frame PCM16 buffers") {
+  const auto root = std::filesystem::temp_directory_path() /
+                    "picotracker-wav-stream-conversion-test";
+  std::filesystem::create_directories(root);
+  WasmFileSystem fileSystem(root.string());
+  FileSystemInstallGuard install(fileSystem);
+  Config::SetImportResampler(0);
+  for (const auto format : {1, 3}) {
+    for (const auto bits : {8, 16, 24, 32, 64}) {
+      if ((format == 1 && bits == 64) || (format == 3 && bits < 32))
+        continue;
+      for (const auto channels : {1, 2}) {
+        CAPTURE(format);
+        CAPTURE(bits);
+        CAPTURE(channels);
+        auto wav = BuildPcmWav(channels, 44100, bits, 2 * channels * bits / 8);
+        wav.data[20] = format;
+        for (int sample = 0; sample < 2 * channels; ++sample) {
+          const int value = sample % 2 == 0 ? 8192 : -16384;
+          auto *destination = wav.data + 44 + sample * bits / 8;
+          if (format == 3) {
+            const double value64 = value / 32768.0;
+            const float value32 = static_cast<float>(value64);
+            if (bits == 64)
+              std::memcpy(destination, &value64, sizeof(value64));
+            else
+              std::memcpy(destination, &value32, sizeof(value32));
+          } else {
+            const int32_t pcm =
+                bits == 8 ? 128 + value / 256 : value * (1 << (bits - 16));
+            for (int byte = 0; byte < bits / 8; ++byte)
+              destination[byte] = static_cast<uint32_t>(pcm) >> (byte * 8);
+          }
+        }
+        {
+          std::ofstream file(root / "input.wav", std::ios::binary);
+          file.write(reinterpret_cast<const char *>(wav.data), wav.size);
+          REQUIRE(file.good());
+        }
+        WavFile wave;
+        REQUIRE(wave.Open("/input.wav").has_value());
+        // One leading and trailing canary around exactly one stereo frame.
+        int16_t output[4] = {123, 123, 123, 123};
+        for (int frame = 0; frame < 2; ++frame) {
+          uint32_t bytesRead = 999;
+          REQUIRE(
+              wave.Read(output + 1, channels * sizeof(int16_t), &bytesRead));
+          REQUIRE(bytesRead == channels * sizeof(int16_t));
+          for (int channel = 0; channel < channels; ++channel)
+            CHECK(output[channel + 1] ==
+                  ((frame * channels + channel) % 2 == 0 ? 8192 : -16384));
+          CHECK(output[0] == 123);
+          CHECK(output[channels + 1] == 123);
+        }
+        uint32_t bytesRead = 999;
+        REQUIRE(wave.Read(output + 1, channels * sizeof(int16_t), &bytesRead));
+        CHECK(bytesRead == 0);
+        REQUIRE(wave.Rewind());
+        float floats[4]{};
+        uint32_t samplesRead = 999;
+        REQUIRE(wave.ReadFloat(floats, 2 * channels, &samplesRead));
+        REQUIRE(samplesRead == 2 * channels);
+        for (uint32_t sample = 0; sample < samplesRead; ++sample)
+          CHECK(floats[sample] == (sample % 2 == 0 ? 0.25F : -0.5F));
+        wave.Close();
+        CHECK_FALSE(wave.Rewind());
+        CHECK_FALSE(
+            wave.Read(output + 1, channels * sizeof(int16_t), &bytesRead));
+        CHECK(bytesRead == 0);
+        CHECK_FALSE(wave.ReadFloat(floats, 2 * channels, &samplesRead));
+        CHECK(samplesRead == 0);
+      }
+    }
+  }
+  std::filesystem::remove_all(root);
+}
+
+TEST_CASE("WavFile handles non-finite floating-point sample data") {
+  const auto root =
+      std::filesystem::temp_directory_path() / "picotracker-wav-nonfinite-test";
+  std::filesystem::create_directories(root);
+  WasmFileSystem fileSystem(root.string());
+  FileSystemInstallGuard install(fileSystem);
+  Config::SetImportResampler(0);
+  auto wav = BuildPcmWav(1, 44100, 64, 4 * sizeof(double));
+  wav.data[20] = 3;
+  const double values[] = {std::numeric_limits<double>::quiet_NaN(),
+                           std::numeric_limits<double>::infinity(),
+                           -std::numeric_limits<double>::infinity(), 0.25};
+  std::memcpy(wav.data + 44, values, sizeof(values));
+  {
+    std::ofstream file(root / "input.wav", std::ios::binary);
+    file.write(reinterpret_cast<const char *>(wav.data), wav.size);
+    REQUIRE(file.good());
+  }
+  WavFile wave;
+  REQUIRE(wave.Open("/input.wav").has_value());
+  int16_t pcm[4]{};
+  uint32_t bytesRead = 999;
+  REQUIRE(wave.Read(pcm, sizeof(pcm), &bytesRead));
+  REQUIRE(bytesRead == sizeof(pcm));
+  CHECK(pcm[0] == 0);
+  CHECK(pcm[1] == 32767);
+  CHECK(pcm[2] == -32768);
+  CHECK(pcm[3] == 8192);
+  REQUIRE(wave.Rewind());
+  float floats[4]{};
+  uint32_t samplesRead = 999;
+  REQUIRE(wave.ReadFloat(floats, 4, &samplesRead));
+  REQUIRE(samplesRead == 4);
+  CHECK(floats[0] == 0);
+  CHECK(floats[1] == 0);
+  CHECK(floats[2] == 0);
+  CHECK(floats[3] == 0.25F);
+  wave.Close();
+  std::filesystem::remove_all(root);
+}
+
+TEST_CASE(
+    "WavFile streams multiple conversion blocks and reports premature EOF") {
+  const auto root = std::filesystem::temp_directory_path() /
+                    "picotracker-wav-block-stream-test";
+  std::filesystem::create_directories(root);
+  WasmFileSystem fileSystem(root.string());
+  FileSystemInstallGuard install(fileSystem);
+  Config::SetImportResampler(0);
+  constexpr uint32_t frames = 32768;
+  auto header = BuildPcmWav(1, 44100, 16, 2);
+  const uint32_t dataBytes = frames * 2;
+  const uint32_t riffBytes = dataBytes + 36;
+  std::memcpy(header.data + 4, &riffBytes, sizeof(riffBytes));
+  std::memcpy(header.data + 40, &dataBytes, sizeof(dataBytes));
+  const std::vector<int16_t> source(frames, 8192);
+  {
+    std::ofstream file(root / "input.wav", std::ios::binary);
+    file.write(reinterpret_cast<const char *>(header.data), 44);
+    file.write(reinterpret_cast<const char *>(source.data()), dataBytes);
+    REQUIRE(file.good());
+  }
+  WavFile wave;
+  REQUIRE(wave.Open("/input.wav").has_value());
+  std::vector<int16_t> pcm(frames);
+  uint32_t bytesRead = 0;
+  REQUIRE(wave.Read(pcm.data(), dataBytes, &bytesRead));
+  CHECK(bytesRead == dataBytes);
+  CHECK(pcm == source);
+  REQUIRE(wave.Rewind());
+  std::vector<float> floats(frames);
+  uint32_t samplesRead = 0;
+  REQUIRE(wave.ReadFloat(floats.data(), frames, &samplesRead));
+  CHECK(samplesRead == frames);
+  CHECK(std::all_of(floats.begin(), floats.end(),
+                    [](float value) { return value == 0.25F; }));
+  REQUIRE(wave.Rewind());
+  // Simulate the backing file being truncated after its valid header was read.
+  // The request exceeds stdio read-ahead, so it must reach the premature EOF.
+  std::filesystem::resize_file(root / "input.wav", 44);
+  CHECK_FALSE(wave.Read(pcm.data(), dataBytes, &bytesRead));
+  CHECK(bytesRead < dataBytes);
+  wave.Close();
+  std::filesystem::remove_all(root);
 }
 
 TEST_CASE("ReadHeader parses valid PCM WAV") {
@@ -555,9 +718,11 @@ TEST_CASE("ReadHeader rejects unsupported sample rate without resampling") {
   ByteWriter wav = BuildPcmWav(2, 48000, 16, 4);
   TestFile file(wav.data, wav.size);
 
-  auto result = WavHeaderWriter::ReadHeader(&file);
+  auto result = ReadTrackerWavHeader(&file);
   REQUIRE_FALSE(result.has_value());
   CHECK(result.error() == UNSUPPORTED_SAMPLERATE);
+  REQUIRE(WavHeaderWriter::ReadHeader(
+      &file)); // Format inspection is independent of Config.
 }
 
 TEST_CASE("ReadHeader rejects unsupported audio format") {
@@ -704,4 +869,30 @@ TEST_CASE("ReadHeader rejects data chunk size whose end wraps") {
   auto result = WavHeaderWriter::ReadHeader(&file);
   REQUIRE_FALSE(result.has_value());
   CHECK(result.error() == INVALID_HEADER);
+}
+
+TEST_CASE("WAV export retains write, sync, header and close failures") {
+  for (int fault = 0; fault < 4; ++fault) {
+    CAPTURE(fault);
+    HeaderWriteFile file;
+    WavFileWriter writer;
+    REQUIRE(writer.Open(FileHandle(&file)));
+    const fixed samples[] = {i2fp(1234), i2fp(-2345)};
+    if (fault == 0)
+      file.failWrite = true;
+    CHECK(writer.AddBuffer(samples, 1) == (fault != 0));
+    if (fault == 1)
+      file.failSync = true;
+    if (fault == 2)
+      file.failWrite = true;
+    if (fault == 3)
+      file.failClose = true;
+    CHECK_FALSE(writer.Close());
+    CHECK(writer.Failed());
+    CHECK_FALSE(writer.IsOpen());
+    CHECK_FALSE(writer.Close());
+    file.failWrite = file.failSync = file.failClose = false;
+    CHECK(writer.Open(FileHandle(&file)));
+    CHECK_FALSE(writer.Failed());
+  }
 }

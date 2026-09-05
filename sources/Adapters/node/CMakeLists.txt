@@ -30,3 +30,7 @@ add_subdirectory(platform)
 add_subdirectory(usb)
 add_subdirectory(mutex)
 add_subdirectory(ui2)
+
+add_library(platform_memory "${PROJECT_SOURCE_DIR}/Adapters/node/memory/Memory.cpp")
+target_include_directories(platform_memory PUBLIC "${PROJECT_SOURCE_DIR}")
+target_link_libraries(platform_memory PUBLIC idf::heap)

@@ -6,7 +6,7 @@
 #pragma once
 
 #include "Application/Instruments/SampleEditorFileJournal.h"
-#include "Application/Instruments/WavHeader.h"
+#include "Services/Audio/WavHeader.h"
 #include "System/FileSystem/FileSystem.h"
 
 #include <array>
@@ -50,11 +50,11 @@ public:
   static constexpr std::uint32_t MinimumStepBudget = 32U;
   static constexpr std::uint32_t DefaultStepBudget = 16U * 1024U;
 
-  [[nodiscard]] Ui2SampleEditorTransactionResult
-  Begin(FileSystem &fileSystem, const char *destination);
+  [[nodiscard]] Ui2SampleEditorTransactionResult Begin(FileSystem &fileSystem,
+                                                       const char *destination);
 
-  [[nodiscard]] Ui2SampleEditorTransactionResult
-  BeginTrim(std::uint32_t start, std::uint32_t end);
+  [[nodiscard]] Ui2SampleEditorTransactionResult BeginTrim(std::uint32_t start,
+                                                           std::uint32_t end);
   [[nodiscard]] Ui2SampleEditorTransactionResult BeginNormalize();
   [[nodiscard]] Ui2SampleEditorTransactionResult
   StepApply(std::uint32_t payloadIoBudget = DefaultStepBudget);
@@ -63,8 +63,8 @@ public:
   // Synchronous compatibility wrappers are retained for non-UI callers and
   // focused transaction tests. The product Sample Editor uses Begin*/StepApply
   // exclusively; grep-enforced tests protect that owner-task boundary.
-  [[nodiscard]] Ui2SampleEditorTransactionResult
-  ApplyTrim(std::uint32_t start, std::uint32_t end);
+  [[nodiscard]] Ui2SampleEditorTransactionResult ApplyTrim(std::uint32_t start,
+                                                           std::uint32_t end);
   [[nodiscard]] Ui2SampleEditorTransactionResult ApplyNormalize();
 
   [[nodiscard]] Ui2SampleEditorTransactionResult Save();

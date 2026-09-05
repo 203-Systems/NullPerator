@@ -1,19 +1,19 @@
-#include "Adapters/wasm/audio/OutputResampler.h"
-#include "Adapters/wasm/audio/PcmRingBuffer.h"
 #include "Adapters/wasm/audio/AudioWorklet.h"
+#include "Adapters/wasm/audio/OutputResampler.h"
 #include "Adapters/wasm/audio/WasmAudioDriver.h"
 #include "Adapters/wasm/gui/WasmFrameSnapshot.h"
 #include "Application/Player/PlayerAudioActivity.h"
+#include "Services/Audio/PcmRingBuffer.h"
 
 #include "doctest/doctest.h"
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
-#include <atomic>
 #include <thread>
 #include <vector>
 
@@ -49,7 +49,8 @@ void CheckFrame(const StereoF32 &frame, float left, float right) {
 }
 } // namespace
 
-TEST_CASE("WASM audio producer pre-fills before the worklet consumer is ready") {
+TEST_CASE(
+    "WASM audio producer pre-fills before the worklet consumer is ready") {
   AudioSettings settings{};
   WasmAudioDriver driver(settings);
   ProducerObserver observer(driver);
@@ -69,8 +70,7 @@ TEST_CASE("WASM audio producer pre-fills before the worklet consumer is ready") 
   driver.PumpProducer();
   CHECK(observer.bufferRequests == 1);
   CHECK(driver.Metrics().ringFillFrames == 512U);
-  CHECK(driver.Metrics().ringFillFrames <=
-        driver.TargetFillFramesConfigured());
+  CHECK(driver.Metrics().ringFillFrames <= driver.TargetFillFramesConfigured());
 
   driver.PumpProducer();
   CHECK(observer.bufferRequests == 1);
@@ -95,12 +95,14 @@ TEST_CASE("WASM frame snapshot publishes only complete even-sequence frames") {
   CHECK(std::equal(source.begin(), source.end(), snapshot.Data()));
 }
 
-TEST_CASE("PCM ring preserves frame ordering across wrap and distinguishes full from empty") {
+TEST_CASE("PCM ring preserves frame ordering across wrap and distinguishes "
+          "full from empty") {
   PcmRingBuffer<8> ring;
   std::array<StereoI16, 11> input{};
   for (std::size_t index = 0; index < input.size(); ++index) {
-    input[index] = Frame(static_cast<std::int16_t>(index * 1000),
-                         static_cast<std::int16_t>(-static_cast<int>(index) * 1000));
+    input[index] =
+        Frame(static_cast<std::int16_t>(index * 1000),
+              static_cast<std::int16_t>(-static_cast<int>(index) * 1000));
   }
 
   CHECK(ring.Write({input.data(), 8}) == 8);
@@ -128,7 +130,8 @@ TEST_CASE("PCM ring preserves frame ordering across wrap and distinguishes full 
   CHECK(ring.FillFrames() == 0);
 }
 
-TEST_CASE("PCM ring rejects only excess producer frames and records rejected frames") {
+TEST_CASE("PCM ring rejects only excess producer frames and records rejected "
+          "frames") {
   PcmRingBuffer<4> ring;
   const std::array<StereoI16, 6> input{Frame(1, -1), Frame(2, -2),
                                        Frame(3, -3), Frame(4, -4),
@@ -155,11 +158,15 @@ TEST_CASE("PCM ring fills underruns with silence and counts missing frames") {
   CHECK(ring.Underruns() == 2);
 }
 
-TEST_CASE("PCM ring accepts engine interleaved shorts without aliasing stereo storage") {
+TEST_CASE("PCM ring accepts engine interleaved shorts without aliasing stereo "
+          "storage") {
   PcmRingBuffer<4> ring;
-  const std::array<short, 6> input{
-      std::numeric_limits<short>::min(), std::numeric_limits<short>::max(),
-      0, -1, 123, -456};
+  const std::array<short, 6> input{std::numeric_limits<short>::min(),
+                                   std::numeric_limits<short>::max(),
+                                   0,
+                                   -1,
+                                   123,
+                                   -456};
 
   CHECK(ring.WriteInterleaved(input) == 3);
   std::array<StereoF32, 3> output{};
@@ -170,7 +177,8 @@ TEST_CASE("PCM ring accepts engine interleaved shorts without aliasing stereo st
   CheckFrame(output[2], 123.0F / 32768.0F, -456.0F / 32768.0F);
 }
 
-TEST_CASE("PCM ring rejects an odd interleaved sample count without changing order") {
+TEST_CASE(
+    "PCM ring rejects an odd interleaved sample count without changing order") {
   PcmRingBuffer<4> ring;
   const std::array<short, 3> malformed{1, 2, 3};
   const std::array<short, 4> valid{4, 5, 6, 7};
@@ -199,7 +207,8 @@ TEST_CASE("PCM ring reset clears positions and counters") {
   CHECK(ring.Write(input) == 2);
 }
 
-TEST_CASE("PCM ring uses wide monotonic positions and remains ordered under SPSC contention") {
+TEST_CASE("PCM ring uses wide monotonic positions and remains ordered under "
+          "SPSC contention") {
   static_assert(sizeof(PcmRingBuffer<8>::Position) == sizeof(std::uint64_t));
   CHECK(std::numeric_limits<PcmRingBuffer<8>::Position>::max() >
         PcmRingBuffer<8>::Capacity);
@@ -229,8 +238,10 @@ TEST_CASE("PCM ring uses wide monotonic positions and remains ordered under SPSC
       }
       StereoF32 frame{};
       if (ring.Read({&frame, 1}) != 1U ||
-          frame.left != static_cast<float>(static_cast<std::int16_t>(index)) / 32768.0F ||
-          frame.right != static_cast<float>(static_cast<std::int16_t>(~index)) / 32768.0F) {
+          frame.left !=
+              static_cast<float>(static_cast<std::int16_t>(index)) / 32768.0F ||
+          frame.right != static_cast<float>(static_cast<std::int16_t>(~index)) /
+                             32768.0F) {
         ordered.store(false, std::memory_order_relaxed);
       }
     }
@@ -247,9 +258,11 @@ TEST_CASE("PCM ring uses wide monotonic positions and remains ordered under SPSC
   CHECK(ring.Overruns() == rejectedFrames.load(std::memory_order_relaxed));
 }
 
-TEST_CASE("PCM ring retains full empty and ordering semantics across position wrap") {
+TEST_CASE(
+    "PCM ring retains full empty and ordering semantics across position wrap") {
   PcmRingBuffer<4> ring;
-  constexpr auto nearWrap = std::numeric_limits<PcmRingBuffer<4>::Position>::max() - 3U;
+  constexpr auto nearWrap =
+      std::numeric_limits<PcmRingBuffer<4>::Position>::max() - 3U;
   ring.SeedPositionsForTest(nearWrap, nearWrap);
   const std::array<StereoI16, 6> input{Frame(1, -1), Frame(2, -2),
                                        Frame(3, -3), Frame(4, -4),
@@ -272,11 +285,11 @@ TEST_CASE("PCM ring retains full empty and ordering semantics across position wr
   CHECK(ring.FillFrames() == 0);
 }
 
-TEST_CASE("output resampler preserves identity rate across partial calls and reset") {
+TEST_CASE(
+    "output resampler preserves identity rate across partial calls and reset") {
   OutputResampler resampler(44100, 44100);
-  const std::array<StereoF32, 5> input{{{0.0F, 0.5F}, {0.1F, 0.4F},
-                                        {0.2F, 0.3F}, {0.3F, 0.2F},
-                                        {0.4F, 0.1F}}};
+  const std::array<StereoF32, 5> input{
+      {{0.0F, 0.5F}, {0.1F, 0.4F}, {0.2F, 0.3F}, {0.3F, 0.2F}, {0.4F, 0.1F}}};
   std::array<StereoF32, 2> first{};
   auto result = resampler.Process(input, first);
   CHECK(result.inputFramesConsumed == 2);
@@ -286,7 +299,8 @@ TEST_CASE("output resampler preserves identity rate across partial calls and res
 
   std::array<StereoF32, 3> second{};
   result = resampler.Process({input.data() + result.inputFramesConsumed,
-                              input.size() - result.inputFramesConsumed}, second);
+                              input.size() - result.inputFramesConsumed},
+                             second);
   CHECK(result.inputFramesConsumed == 3);
   CHECK(result.outputFramesProduced == 3);
   for (std::size_t index = 0; index < second.size(); ++index) {
@@ -305,8 +319,10 @@ TEST_CASE("output resampler preserves identity rate across partial calls and res
 
 TEST_CASE("output resampler preserves DC endpoints through the final flush") {
   OutputResampler resampler(4, 7);
-  const std::array<StereoF32, 5> input{{{0.25F, -0.75F}, {0.25F, -0.75F},
-                                        {0.25F, -0.75F}, {0.25F, -0.75F},
+  const std::array<StereoF32, 5> input{{{0.25F, -0.75F},
+                                        {0.25F, -0.75F},
+                                        {0.25F, -0.75F},
+                                        {0.25F, -0.75F},
                                         {0.25F, -0.75F}}};
   std::array<StereoF32, 16> first{};
   const auto firstResult = resampler.Process(input, first);
@@ -314,20 +330,24 @@ TEST_CASE("output resampler preserves DC endpoints through the final flush") {
 
   std::array<StereoF32, 16> tail{};
   const auto tailResult = resampler.Flush(tail);
-  REQUIRE(firstResult.outputFramesProduced + tailResult.outputFramesProduced == 9);
-  for (std::size_t index = 0; index < firstResult.outputFramesProduced; ++index) {
+  REQUIRE(firstResult.outputFramesProduced + tailResult.outputFramesProduced ==
+          9);
+  for (std::size_t index = 0; index < firstResult.outputFramesProduced;
+       ++index) {
     CheckFrame(first[index], 0.25F, -0.75F);
   }
-  for (std::size_t index = 0; index < tailResult.outputFramesProduced; ++index) {
+  for (std::size_t index = 0; index < tailResult.outputFramesProduced;
+       ++index) {
     CheckFrame(tail[index], 0.25F, -0.75F);
   }
 }
 
-TEST_CASE("output resampler safely handles invalid rates and empty or one-frame streams") {
+TEST_CASE("output resampler safely handles invalid rates and empty or "
+          "one-frame streams") {
   std::array<StereoF32, 4> output{};
   const std::array<StereoF32, 1> oneFrame{{{0.25F, -0.5F}}};
-  for (OutputResampler resampler : {OutputResampler(0, 48000),
-                                    OutputResampler(44100, 0)}) {
+  for (OutputResampler resampler :
+       {OutputResampler(0, 48000), OutputResampler(44100, 0)}) {
     const auto processResult = resampler.Process(oneFrame, output);
     CHECK(processResult.inputFramesConsumed == 0);
     CHECK(processResult.outputFramesProduced == 0);
@@ -346,15 +366,17 @@ TEST_CASE("output resampler safely handles invalid rates and empty or one-frame 
   CheckFrame(output[1], 0.25F, -0.5F);
 }
 
-TEST_CASE("output resampler supports downsampling and partial non-identity output continuation") {
-  const std::array<StereoF32, 4> input{{{0.0F, 0.0F}, {0.25F, -0.25F},
-                                        {0.5F, -0.5F}, {0.75F, -0.75F}}};
+TEST_CASE("output resampler supports downsampling and partial non-identity "
+          "output continuation") {
+  const std::array<StereoF32, 4> input{
+      {{0.0F, 0.0F}, {0.25F, -0.25F}, {0.5F, -0.5F}, {0.75F, -0.75F}}};
   OutputResampler downsampler(4, 2);
   std::array<StereoF32, 4> downsampled{};
   const auto downsampleResult = downsampler.Process(input, downsampled);
   CHECK(downsampleResult.inputFramesConsumed == input.size());
   CHECK(downsampleResult.outputFramesProduced == 2);
-  CHECK(downsampler.Flush({downsampled.data() + 2, 2}).outputFramesProduced == 0);
+  CHECK(downsampler.Flush({downsampled.data() + 2, 2}).outputFramesProduced ==
+        0);
   CheckFrame(downsampled[0], 0.0F, 0.0F);
   CheckFrame(downsampled[1], 0.5F, -0.5F);
 
@@ -366,18 +388,21 @@ TEST_CASE("output resampler supports downsampling and partial non-identity outpu
   CheckFrame(first[0], 0.0F, 0.0F);
 
   std::array<StereoF32, 8> second{};
-  const auto secondResult = upsampler.Process(
-      {input.data() + firstResult.inputFramesConsumed,
-       input.size() - firstResult.inputFramesConsumed}, second);
+  const auto secondResult =
+      upsampler.Process({input.data() + firstResult.inputFramesConsumed,
+                         input.size() - firstResult.inputFramesConsumed},
+                        second);
   CHECK(secondResult.inputFramesConsumed == 2);
   CHECK(secondResult.outputFramesProduced == 5);
-  CheckFrame(second[0], 0.25F * (4.0F / 7.0F),
-             -0.25F * (4.0F / 7.0F));
+  CheckFrame(second[0], 0.25F * (4.0F / 7.0F), -0.25F * (4.0F / 7.0F));
 }
 
-TEST_CASE("output resampler flushes in pieces and reset discards non-identity history") {
-  const std::array<StereoF32, 5> input{{{0.0F, 0.0F}, {0.1F, -0.1F},
-                                        {0.2F, -0.2F}, {0.3F, -0.3F},
+TEST_CASE("output resampler flushes in pieces and reset discards non-identity "
+          "history") {
+  const std::array<StereoF32, 5> input{{{0.0F, 0.0F},
+                                        {0.1F, -0.1F},
+                                        {0.2F, -0.2F},
+                                        {0.3F, -0.3F},
                                         {0.4F, -0.4F}}};
   OutputResampler resampler(4, 7);
   std::array<StereoF32, 16> rendered{};
@@ -394,13 +419,16 @@ TEST_CASE("output resampler flushes in pieces and reset discards non-identity hi
   std::array<StereoF32, 16> reused{};
   const auto reusedResult = resampler.Process(input, reused);
   CHECK(reusedResult.inputFramesConsumed == input.size());
-  CHECK(reusedResult.outputFramesProduced == processResult.outputFramesProduced);
-  for (std::size_t index = 0; index < processResult.outputFramesProduced; ++index) {
+  CHECK(reusedResult.outputFramesProduced ==
+        processResult.outputFramesProduced);
+  for (std::size_t index = 0; index < processResult.outputFramesProduced;
+       ++index) {
     CheckFrame(reused[index], rendered[index].left, rendered[index].right);
   }
 }
 
-TEST_CASE("output resampler converts one second from 44.1 kHz to 48 kHz across adversarial chunks") {
+TEST_CASE("output resampler converts one second from 44.1 kHz to 48 kHz across "
+          "adversarial chunks") {
   constexpr std::uint32_t sourceRate = 44100;
   constexpr std::uint32_t destinationRate = 48000;
   constexpr float frequency = 440.0F;
@@ -408,30 +436,34 @@ TEST_CASE("output resampler converts one second from 44.1 kHz to 48 kHz across a
 
   std::vector<StereoF32> input(sourceRate);
   for (std::size_t index = 0; index < input.size(); ++index) {
-    const float sample = std::sin(twoPi * frequency *
-                                  static_cast<float>(index) / sourceRate);
+    const float sample =
+        std::sin(twoPi * frequency * static_cast<float>(index) / sourceRate);
     input[index] = StereoF32{sample, sample};
   }
 
   OutputResampler resampler(sourceRate, destinationRate);
   std::vector<StereoF32> output;
   output.reserve(destinationRate);
-  constexpr std::array<std::size_t, 9> chunks{1, 37, 2, 251, 7, 3, 127, 19, 509};
+  constexpr std::array<std::size_t, 9> chunks{1, 37,  2,  251, 7,
+                                              3, 127, 19, 509};
   std::size_t inputOffset = 0;
   std::size_t chunkIndex = 0;
   while (inputOffset < input.size()) {
     const std::size_t requested = chunks[chunkIndex++ % chunks.size()];
-    const std::size_t available = std::min(requested, input.size() - inputOffset);
+    const std::size_t available =
+        std::min(requested, input.size() - inputOffset);
     std::size_t consumed = 0;
     do {
       std::array<StereoF32, 1024> scratch{};
       const auto result = resampler.Process(
-          {input.data() + inputOffset + consumed, available - consumed}, scratch);
+          {input.data() + inputOffset + consumed, available - consumed},
+          scratch);
       consumed += result.inputFramesConsumed;
       output.insert(output.end(), scratch.begin(),
-                    scratch.begin() + static_cast<std::ptrdiff_t>(result.outputFramesProduced));
-      const bool madeProgress = result.inputFramesConsumed != 0 ||
-                                result.outputFramesProduced != 0;
+                    scratch.begin() + static_cast<std::ptrdiff_t>(
+                                          result.outputFramesProduced));
+      const bool madeProgress =
+          result.inputFramesConsumed != 0 || result.outputFramesProduced != 0;
       const bool didNotStall = madeProgress || consumed == available;
       REQUIRE(didNotStall);
     } while (consumed < available);
@@ -442,7 +474,8 @@ TEST_CASE("output resampler converts one second from 44.1 kHz to 48 kHz across a
     std::array<StereoF32, 1024> scratch{};
     const auto result = resampler.Flush(scratch);
     output.insert(output.end(), scratch.begin(),
-                  scratch.begin() + static_cast<std::ptrdiff_t>(result.outputFramesProduced));
+                  scratch.begin() +
+                      static_cast<std::ptrdiff_t>(result.outputFramesProduced));
     if (result.outputFramesProduced == 0) {
       break;
     }
@@ -451,9 +484,10 @@ TEST_CASE("output resampler converts one second from 44.1 kHz to 48 kHz across a
   REQUIRE(output.size() == destinationRate);
   float maxError = 0.0F;
   for (std::size_t index = 0; index < output.size(); ++index) {
-    const float expected = std::sin(twoPi * frequency *
-                                    static_cast<float>(index) / destinationRate);
-    CHECK(output[index].left == doctest::Approx(output[index].right).epsilon(0.000001));
+    const float expected = std::sin(
+        twoPi * frequency * static_cast<float>(index) / destinationRate);
+    CHECK(output[index].left ==
+          doctest::Approx(output[index].right).epsilon(0.000001));
     CHECK(output[index].left >= -1.0F);
     CHECK(output[index].left <= 1.0F);
     CHECK(output[index].left == doctest::Approx(expected).epsilon(0.0012));
@@ -461,23 +495,32 @@ TEST_CASE("output resampler converts one second from 44.1 kHz to 48 kHz across a
   }
   CHECK(maxError < 0.0006F);
   CHECK(output.front().left == doctest::Approx(0.0F));
-  CHECK(output.back().left == doctest::Approx(
-            std::sin(twoPi * frequency * (destinationRate - 1) / destinationRate))
+  CHECK(output.back().left ==
+        doctest::Approx(std::sin(twoPi * frequency * (destinationRate - 1) /
+                                 destinationRate))
             .epsilon(0.0012));
 }
 
-TEST_CASE("WASM audio driver writes interleaved engine frames and fixed worklet helper pulls planar stereo") {
+TEST_CASE("WASM audio driver writes interleaved engine frames and fixed "
+          "worklet helper pulls planar stereo") {
   AudioSettings settings{};
   WasmAudioDriver driver(settings);
   REQUIRE(driver.Init());
   REQUIRE(driver.Start());
   driver.OnAudioActive(true);
   std::array<short, 8> input{0, 16384, 8192, -8192, -16384, 0, 32767, -32768};
-  driver.AddBuffer(input.data(), 4);
+  const auto reserved = driver.GetOutputBuffer();
+  REQUIRE(reserved.size() >= input.size());
+  std::copy(input.begin(), input.end(), reserved.begin());
+  driver.AddBuffer(reserved.data(), 4);
+  // A later producer reservation must not overwrite frames already queued.
+  const auto nextReservation = driver.GetOutputBuffer();
+  std::fill(nextReservation.begin(), nextReservation.end(), 0);
   WasmAudioWorkletRenderer renderer(driver, 44100U);
   std::array<float, 4> left{};
   std::array<float, 4> right{};
-  static_assert(noexcept(renderer.Render(left.data(), right.data(), left.size())));
+  static_assert(
+      noexcept(renderer.Render(left.data(), right.data(), left.size())));
   REQUIRE(renderer.Render(left.data(), right.data(), left.size()));
   CHECK(left[0] == doctest::Approx(0.0F));
   CHECK(right[0] == doctest::Approx(0.5F));
@@ -506,13 +549,15 @@ TEST_CASE("WASM audio driver writes interleaved engine frames and fixed worklet 
   WasmAudioWorkletRenderer combinedRenderer(driver, 44100U);
   std::array<float, 1> combinedLeft{};
   std::array<float, 1> combinedRight{};
-  REQUIRE(combinedRenderer.Render(combinedLeft.data(), combinedRight.data(), 1));
+  REQUIRE(
+      combinedRenderer.Render(combinedLeft.data(), combinedRight.data(), 1));
   CHECK(combinedLeft[0] == doctest::Approx(0.1F));
   CHECK(combinedRight[0] == doctest::Approx(-0.1F));
   driver.Stop();
 }
 
-TEST_CASE("WASM audio combines browser-host gain and tracker Device volume in integer Q16") {
+TEST_CASE("WASM audio combines browser-host gain and tracker Device volume in "
+          "integer Q16") {
   AudioSettings settings{};
   WasmAudioDriver driver(settings);
 
@@ -538,7 +583,8 @@ TEST_CASE("WASM audio combines browser-host gain and tracker Device volume in in
   CHECK(driver.OutputGainQ16() == 1U);
 }
 
-TEST_CASE("WASM host gain and tracker volume retain independent concurrent updates") {
+TEST_CASE(
+    "WASM host gain and tracker volume retain independent concurrent updates") {
   AudioSettings settings{};
   WasmAudioDriver driver(settings);
   std::atomic<bool> start{false};
@@ -549,9 +595,8 @@ TEST_CASE("WASM host gain and tracker volume retain independent concurrent updat
     }
     for (std::uint32_t update = 0U; update < 4096U; ++update) {
       driver.Configure(WasmAudioDriver::TargetFillFrames,
-                       update % 2U == 0U
-                           ? WasmAudioDriver::UnityGainQ16
-                           : WasmAudioDriver::UnityGainQ16 / 4U);
+                       update % 2U == 0U ? WasmAudioDriver::UnityGainQ16
+                                         : WasmAudioDriver::UnityGainQ16 / 4U);
     }
     driver.Configure(WasmAudioDriver::TargetFillFrames,
                      WasmAudioDriver::UnityGainQ16 / 2U);
@@ -621,7 +666,8 @@ TEST_CASE("WASM audio activity remains owned until every source stops") {
   driver.Stop();
 }
 
-TEST_CASE("WASM audio worklet helper resamples a 44.1k source at a 48k boundary") {
+TEST_CASE(
+    "WASM audio worklet helper resamples a 44.1k source at a 48k boundary") {
   AudioSettings settings{};
   WasmAudioDriver driver(settings);
   REQUIRE(driver.Init());
@@ -696,7 +742,8 @@ TEST_CASE("WASM AudioWorklet callback metrics use the exact quantum deadline") {
   CHECK(metrics.callbackMaxMicros == 2903U);
 }
 
-TEST_CASE("WASM AudioWorklet callback maximum uses a contention-safe atomic peak") {
+TEST_CASE(
+    "WASM AudioWorklet callback maximum uses a contention-safe atomic peak") {
   AudioSettings settings{};
   WasmAudioDriver driver(settings);
   driver.SetDestinationRate(0U);

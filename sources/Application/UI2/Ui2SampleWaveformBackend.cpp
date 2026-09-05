@@ -1,10 +1,11 @@
+#include "Application/Instruments/WavReadPolicy.h"
 /*
  * SPDX-License-Identifier: BSD-3-Clause
  * Copyright (c) 2026 PicoTracker contributors
  */
 
-#include "Application/UI2/Ui2SampleWaveformBackend.h"
 #include "Application/UI2/Ui2SamplePathPolicy.h"
+#include "Application/UI2/Ui2SampleWaveformBackend.h"
 
 #include <algorithm>
 #include <cmath>
@@ -53,7 +54,7 @@ Ui2SampleWaveformBackend::LoadPath(FileSystem &fileSystem, const char *path) {
     Reset();
     return Ui2SampleWaveformLoadResult::OpenFailed;
   }
-  auto header = WavHeaderWriter::ReadHeader(file.get());
+  auto header = ReadTrackerWavHeader(file.get());
   if (!header.has_value()) {
     Reset();
     return Ui2SampleWaveformLoadResult::InvalidWav;
@@ -62,9 +63,9 @@ Ui2SampleWaveformBackend::LoadPath(FileSystem &fileSystem, const char *path) {
     Reset();
     return Ui2SampleWaveformLoadResult::UnsupportedChannels;
   }
-  const bool supportedPcm =
-      header->audioFormat == 1U && header->bytesPerSample >= 1U &&
-      header->bytesPerSample <= 4U;
+  const bool supportedPcm = header->audioFormat == 1U &&
+                            header->bytesPerSample >= 1U &&
+                            header->bytesPerSample <= 4U;
   const bool supportedFloat =
       header->audioFormat == 3U &&
       (header->bytesPerSample == 4U || header->bytesPerSample == 8U);
@@ -103,9 +104,9 @@ Ui2SampleWaveformLoadResult Ui2SampleWaveformBackend::LoadProjectPool(
   if (projectName == nullptr || projectName[0] == '\0' ||
       !Ui2IsFlatProjectSampleLeaf(sampleName))
     return Ui2SampleWaveformLoadResult::InvalidPath;
-  const int written = std::snprintf(path.data(), path.size(), "%s/%s/%s/%s",
-                                    PROJECTS_DIR, projectName,
-                                    PROJECT_SAMPLES_DIR, sampleName);
+  const int written =
+      std::snprintf(path.data(), path.size(), "%s/%s/%s/%s", PROJECTS_DIR,
+                    projectName, PROJECT_SAMPLES_DIR, sampleName);
   if (written <= 0 || static_cast<std::size_t>(written) >= path.size())
     return Ui2SampleWaveformLoadResult::InvalidPath;
   return LoadPath(fileSystem, path.data());
@@ -113,15 +114,15 @@ Ui2SampleWaveformLoadResult Ui2SampleWaveformBackend::LoadProjectPool(
 
 Ui2SampleWaveformLoadResult
 Ui2SampleWaveformBackend::LoadLibrary(FileSystem &fileSystem,
-                                     const char *relativePath) {
+                                      const char *relativePath) {
   std::array<char, PFILENAME_SIZE> path{};
   if (relativePath == nullptr || relativePath[0] == '\0')
     return Ui2SampleWaveformLoadResult::InvalidPath;
-  const int written = relativePath[0] == '/'
-                          ? std::snprintf(path.data(), path.size(), "%s",
-                                          relativePath)
-                          : std::snprintf(path.data(), path.size(), "%s/%s",
-                                          SAMPLES_LIB_DIR, relativePath);
+  const int written =
+      relativePath[0] == '/'
+          ? std::snprintf(path.data(), path.size(), "%s", relativePath)
+          : std::snprintf(path.data(), path.size(), "%s/%s", SAMPLES_LIB_DIR,
+                          relativePath);
   if (written <= 0 || static_cast<std::size_t>(written) >= path.size())
     return Ui2SampleWaveformLoadResult::InvalidPath;
   return LoadPath(fileSystem, path.data());
@@ -186,16 +187,15 @@ bool Ui2SampleWaveformBackend::PanColumns(std::int16_t columns) {
   const std::uint32_t span = viewEnd_ - viewStart_;
   const std::int64_t step = std::max<std::uint32_t>(
       1U, span / static_cast<std::uint32_t>(Ui2WaveformSnapshot::Width));
-  const std::int64_t center =
-      static_cast<std::int64_t>(viewStart_) + span / 2U;
+  const std::int64_t center = static_cast<std::int64_t>(viewStart_) + span / 2U;
   const std::int64_t maximum = static_cast<std::int64_t>(frameCount_ - 1U);
   const std::int64_t next = std::clamp<std::int64_t>(
       center + static_cast<std::int64_t>(columns) * step, 0, maximum);
   return UpdateWindow(static_cast<std::uint32_t>(next));
 }
 
-std::int16_t Ui2SampleWaveformBackend::DecodeFirstChannel(
-    const std::uint8_t *frame) const {
+std::int16_t
+Ui2SampleWaveformBackend::DecodeFirstChannel(const std::uint8_t *frame) const {
   if (header_.audioFormat == 1U) {
     switch (header_.bytesPerSample) {
     case 1U:
@@ -245,8 +245,9 @@ std::int16_t Ui2SampleWaveformBackend::DecodeFirstChannel(
   return static_cast<std::int16_t>(value * 32768.0);
 }
 
-Ui2SampleWaveformBuildResult Ui2SampleWaveformBackend::BuildMask(
-    Ui2WaveformSnapshot &destination, std::uint8_t targetHeight) {
+Ui2SampleWaveformBuildResult
+Ui2SampleWaveformBackend::BuildMask(Ui2WaveformSnapshot &destination,
+                                    std::uint8_t targetHeight) {
   destination = {};
   if (!ready_ || fileSystem_ == nullptr || viewEnd_ <= viewStart_ ||
       targetHeight == 0U)
@@ -281,11 +282,9 @@ Ui2SampleWaveformBuildResult Ui2SampleWaveformBackend::BuildMask(
     for (std::uint32_t frame = 0U; frame < frames; ++frame) {
       const std::uint32_t relative = processed + frame;
       std::size_t column = static_cast<std::size_t>(
-          (static_cast<std::uint64_t>(relative) *
-           Ui2WaveformSnapshot::Width) /
+          (static_cast<std::uint64_t>(relative) * Ui2WaveformSnapshot::Width) /
           span);
-      column = std::min<std::size_t>(column,
-                                     Ui2WaveformSnapshot::Width - 1U);
+      column = std::min<std::size_t>(column, Ui2WaveformSnapshot::Width - 1U);
       const std::int16_t sample =
           DecodeFirstChannel(readBuffer_.data() + frame * frameBytes);
       const std::int32_t quantized = static_cast<std::int32_t>(sample) >> 8U;
@@ -301,9 +300,8 @@ Ui2SampleWaveformBuildResult Ui2SampleWaveformBackend::BuildMask(
       continue;
     const std::uint64_t mean = sumSquares_[column] / counts_[column];
     const std::uint64_t rms = IntegerSquareRoot(mean);
-    amplitudes_[column] = static_cast<std::uint8_t>(
-        std::min<std::uint64_t>(targetHeight,
-                                (rms * targetHeight + 127U) / 128U));
+    amplitudes_[column] = static_cast<std::uint8_t>(std::min<std::uint64_t>(
+        targetHeight, (rms * targetHeight + 127U) / 128U));
   }
   destination.Capture(amplitudes_.data(), amplitudes_.size(), targetHeight,
                       targetHeight);

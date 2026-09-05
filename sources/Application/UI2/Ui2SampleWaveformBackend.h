@@ -5,9 +5,9 @@
 
 #pragma once
 
-#include "Application/Instruments/WavHeader.h"
 #include "Application/Persistency/PersistenceConstants.h"
 #include "Application/Views/Ui2SampleSnapshot.h"
+#include "Services/Audio/WavHeader.h"
 #include "System/FileSystem/FileSystem.h"
 
 #include <array>
@@ -84,7 +84,8 @@ private:
 
   bool SetPath(const char *path);
   bool UpdateWindow(std::uint32_t centerSample);
-  [[nodiscard]] std::int16_t DecodeFirstChannel(const std::uint8_t *frame) const;
+  [[nodiscard]] std::int16_t
+  DecodeFirstChannel(const std::uint8_t *frame) const;
 
   FileSystem *fileSystem_ = nullptr;
   std::array<char, PFILENAME_SIZE> path_{};

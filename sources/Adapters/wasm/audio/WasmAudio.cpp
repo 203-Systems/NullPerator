@@ -4,21 +4,21 @@
 
 #include "WasmAudio.h"
 
-#include "Adapters/wasm/tracing/WasmProfiler.h"
+#include "System/Console/Profiler.h"
 
-#include "AudioWorklet.h"
-#include "WasmAudioBridge.h"
-#include "WasmAudioDriver.h"
 #include "Adapters/wasm/platform/WasmApplicationSnapshot.h"
 #include "Adapters/wasm/platform/WasmBrowserSnapshots.h"
 #include "Application/Audio/RecordingPlatform.h"
 #include "Application/Model/Config.h"
+#include "AudioWorklet.h"
 #include "Services/Audio/AudioOutDriver.h"
+#include "WasmAudioBridge.h"
+#include "WasmAudioDriver.h"
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten/eventloop.h>
-#include <emscripten/webaudio.h>
 #include <emscripten/threading.h>
+#include <emscripten/webaudio.h>
 #endif
 
 #include <algorithm>
@@ -51,8 +51,8 @@ thread_local std::array<char, WasmAudio::ErrorBytes> WasmAudio::errorCopy_{};
 namespace {
 alignas(WasmAudioDriver) unsigned char driverStorage[sizeof(WasmAudioDriver)];
 alignas(AudioOutDriver) unsigned char outputStorage[sizeof(AudioOutDriver)];
-alignas(WasmAudioWorkletRenderer)
-    unsigned char rendererStorage[sizeof(WasmAudioWorkletRenderer)];
+alignas(WasmAudioWorkletRenderer) unsigned char rendererStorage[sizeof(
+    WasmAudioWorkletRenderer)];
 WasmAudioWorkletRenderer *renderer = nullptr;
 thread_local WasmAudioMetrics metricsCopy{};
 WasmBrowserSnapshots browserSnapshots{};
@@ -60,8 +60,7 @@ WasmBrowserSnapshots browserSnapshots{};
 #ifdef __EMSCRIPTEN__
 alignas(16) unsigned char workletStack[64U * 1024U];
 
-void ContextResumed(EMSCRIPTEN_WEBAUDIO_T, AUDIO_CONTEXT_STATE state,
-                    void *) {
+void ContextResumed(EMSCRIPTEN_WEBAUDIO_T, AUDIO_CONTEXT_STATE state, void *) {
   WasmAudio::OnContextResumed(state);
 }
 
@@ -143,8 +142,7 @@ int WasmAudio::GetMixerVolume() {
 
 void WasmAudio::SetMixerVolume(int volume) {
   const int clamped = std::clamp(volume, 0, 100);
-  volume_.store(static_cast<std::uint32_t>(clamped),
-                std::memory_order_release);
+  volume_.store(static_cast<std::uint32_t>(clamped), std::memory_order_release);
   if (auto *driver = WasmAudioDriver::Instance()) {
     driver->SetMixerVolume(clamped);
   }
@@ -152,9 +150,9 @@ void WasmAudio::SetMixerVolume(int volume) {
 
 void WasmAudio::Configure(std::uint32_t targetFillFrames,
                           std::uint32_t outputGainQ16) noexcept {
-  const std::uint32_t target = std::clamp(
-      targetFillFrames, WasmAudioDriver::MinimumTargetFillFrames,
-      WasmAudioDriver::MaximumTargetFillFrames);
+  const std::uint32_t target =
+      std::clamp(targetFillFrames, WasmAudioDriver::MinimumTargetFillFrames,
+                 WasmAudioDriver::MaximumTargetFillFrames);
   const std::uint32_t gain =
       std::min(outputGainQ16, WasmAudioDriver::UnityGainQ16);
   configuredAudio_.store(target | (gain << ConfiguredTargetBits),
@@ -179,12 +177,11 @@ void WasmAudio::ApplyConfiguration(WasmAudioDriver &driver) noexcept {
 bool WasmAudio::Unlock() noexcept {
 #ifdef __EMSCRIPTEN__
   unlockOnBrowserMainThread_.store(
-      emscripten_is_main_browser_thread() ? 1U : 2U,
-      std::memory_order_release);
+      emscripten_is_main_browser_thread() ? 1U : 2U, std::memory_order_release);
 #endif
   const auto current = State();
-  if (current == WasmAudioState::Unavailable || current == WasmAudioState::Failed ||
-      current == WasmAudioState::Stopped) {
+  if (current == WasmAudioState::Unavailable ||
+      current == WasmAudioState::Failed || current == WasmAudioState::Stopped) {
     return false;
   }
   if (current == WasmAudioState::Running ||
@@ -192,8 +189,8 @@ bool WasmAudio::Unlock() noexcept {
       current == WasmAudioState::Suspended) {
     const int context = context_.load(std::memory_order_acquire);
     if (context <= 0) {
-      MarkFailed(
-          "The browser AudioContext is unavailable. Restart the runtime and retry.");
+      MarkFailed("The browser AudioContext is unavailable. Restart the runtime "
+                 "and retry.");
       return false;
     }
     // WebKit can stop worklet callbacks after backgrounding without first
@@ -210,12 +207,13 @@ bool WasmAudio::Unlock() noexcept {
   }
   bool expected = false;
   if (!unlockStarted_.compare_exchange_strong(expected, true,
-                                               std::memory_order_acq_rel)) {
+                                              std::memory_order_acq_rel)) {
     return true;
   }
   const int context = context_.load(std::memory_order_acquire);
   if (context <= 0) {
-    MarkFailed("The browser AudioContext is unavailable. Restart the runtime and retry.");
+    MarkFailed("The browser AudioContext is unavailable. Restart the runtime "
+               "and retry.");
     return false;
   }
   SetState(WasmAudioState::Starting);
@@ -303,7 +301,8 @@ const WasmAudioMetrics *WasmAudio::CopyMetrics() noexcept {
     }
     auto *words = reinterpret_cast<std::uint32_t *>(&metricsCopy);
     for (std::size_t index = 0; index < MetricsWords; ++index) {
-      words[index] = metricsSnapshot_[index + 1U].load(std::memory_order_relaxed);
+      words[index] =
+          metricsSnapshot_[index + 1U].load(std::memory_order_relaxed);
     }
     const std::uint32_t after =
         metricsSnapshot_[0].load(std::memory_order_acquire);
@@ -334,34 +333,25 @@ void WasmAudio::PublishSnapshot() noexcept {
   // Publish audio diagnostics from the application snapshot boundary. The
   // realtime AudioWorklet callback only samples its monotonic clock and
   // updates fixed lock-free source atomics; it never writes trace records.
-  WasmProfiler::Emit(WasmTraceCategory::Audio, WasmTraceName::AudioSnapshot,
-                     WasmTracePhase::Counter, metrics.ringFillFrames);
-  WasmProfiler::Emit(WasmTraceCategory::Audio,
-                     WasmTraceName::AudioCallbackCount,
-                     WasmTracePhase::Counter, metrics.callbackCount);
-  WasmProfiler::Emit(WasmTraceCategory::Audio,
-                     WasmTraceName::AudioUnderrunFrames,
-                     WasmTracePhase::Counter, metrics.underrunFrames);
-  WasmProfiler::Emit(WasmTraceCategory::Audio,
-                     WasmTraceName::AudioOverrunFrames,
-                     WasmTracePhase::Counter, metrics.overrunFrames);
-  WasmProfiler::Emit(WasmTraceCategory::Audio,
-                     WasmTraceName::AudioRenderDurationUs,
-                     WasmTracePhase::Counter, metrics.renderMicros);
-  WasmProfiler::Emit(WasmTraceCategory::Audio,
-                     WasmTraceName::AudioCallbackDurationUs,
-                     WasmTracePhase::Counter, metrics.callbackMicros);
-  WasmProfiler::Emit(WasmTraceCategory::Audio,
-                     WasmTraceName::AudioCallbackMaxDurationUs,
-                     WasmTracePhase::Counter, metrics.callbackMaxMicros);
-  WasmProfiler::Emit(WasmTraceCategory::Audio,
-                     WasmTraceName::AudioCallbackDeadlineUs,
-                     WasmTracePhase::Counter,
-                     metrics.callbackDeadlineMicros);
-  WasmProfiler::Emit(WasmTraceCategory::Audio,
-                     WasmTraceName::AudioCallbackProcessingDeadlineMisses,
-                     WasmTracePhase::Counter,
-                     metrics.callbackDeadlineMisses);
+  Profiler::Emit(TraceCategory::Audio, TraceName::AudioSnapshot,
+                 TracePhase::Counter, metrics.ringFillFrames);
+  Profiler::Emit(TraceCategory::Audio, TraceName::AudioCallbackCount,
+                 TracePhase::Counter, metrics.callbackCount);
+  Profiler::Emit(TraceCategory::Audio, TraceName::AudioUnderrunFrames,
+                 TracePhase::Counter, metrics.underrunFrames);
+  Profiler::Emit(TraceCategory::Audio, TraceName::AudioOverrunFrames,
+                 TracePhase::Counter, metrics.overrunFrames);
+  Profiler::Emit(TraceCategory::Audio, TraceName::AudioRenderDurationUs,
+                 TracePhase::Counter, metrics.renderMicros);
+  Profiler::Emit(TraceCategory::Audio, TraceName::AudioCallbackDurationUs,
+                 TracePhase::Counter, metrics.callbackMicros);
+  Profiler::Emit(TraceCategory::Audio, TraceName::AudioCallbackMaxDurationUs,
+                 TracePhase::Counter, metrics.callbackMaxMicros);
+  Profiler::Emit(TraceCategory::Audio, TraceName::AudioCallbackDeadlineUs,
+                 TracePhase::Counter, metrics.callbackDeadlineMicros);
+  Profiler::Emit(TraceCategory::Audio,
+                 TraceName::AudioCallbackProcessingDeadlineMisses,
+                 TracePhase::Counter, metrics.callbackDeadlineMisses);
   const std::uint32_t writing =
       metricsSnapshot_[0].fetch_add(1U, std::memory_order_acq_rel) + 1U;
   const auto *words = reinterpret_cast<const std::uint32_t *>(&metrics);
@@ -395,24 +385,24 @@ void WasmAudio::SetState(WasmAudioState state) noexcept {
 
 void WasmAudio::AdvanceSetupPhase(std::uint32_t phase) noexcept {
   std::uint32_t current = setupPhase_.load(std::memory_order_acquire);
-  while (current < phase &&
-         !setupPhase_.compare_exchange_weak(current, phase,
-                                            std::memory_order_acq_rel,
-                                            std::memory_order_acquire)) {
+  while (current < phase && !setupPhase_.compare_exchange_weak(
+                                current, phase, std::memory_order_acq_rel,
+                                std::memory_order_acquire)) {
   }
 }
 
 void WasmAudio::SetError(const char *message) noexcept {
-  const char *text = message == nullptr ? "Audio initialization failed" : message;
+  const char *text =
+      message == nullptr ? "Audio initialization failed" : message;
   bool ended = false;
   for (std::size_t index = 0; index < ErrorWords; ++index) {
     std::uint32_t word = 0U;
     for (std::size_t byte = 0; byte < sizeof(word); ++byte) {
       const auto offset = index * sizeof(word) + byte;
       if (!ended && offset < ErrorBytes - 1U && text[offset] != '\0') {
-        word |= static_cast<std::uint32_t>(
-                    static_cast<unsigned char>(text[offset]))
-                << (byte * 8U);
+        word |=
+            static_cast<std::uint32_t>(static_cast<unsigned char>(text[offset]))
+            << (byte * 8U);
       } else {
         ended = true;
       }
@@ -438,9 +428,11 @@ void WasmAudio::BootstrapBrowserMain() noexcept {
   attributes.latencyHint = "interactive";
   attributes.sampleRate = 44100U;
   attributes.renderSizeHint = AUDIO_CONTEXT_RENDER_SIZE_DEFAULT;
-  const EMSCRIPTEN_WEBAUDIO_T context = emscripten_create_audio_context(&attributes);
+  const EMSCRIPTEN_WEBAUDIO_T context =
+      emscripten_create_audio_context(&attributes);
   if (context <= 0) {
-    MarkFailed("The browser could not create an AudioContext. Use Chrome or Edge and retry.");
+    MarkFailed("The browser could not create an AudioContext. Use Chrome or "
+               "Edge and retry.");
     return;
   }
   context_.store(context, std::memory_order_release);
@@ -450,7 +442,8 @@ void WasmAudio::BootstrapBrowserMain() noexcept {
   // pthread. Emscripten 6.0.5's hybrid worklet bootstrap synchronously
   // initializes pthread metadata and is not safe as a late exported call.
   emscripten_start_wasm_audio_worklet_thread_async(
-      context, workletStack, sizeof(workletStack), WorkletThreadStarted, nullptr);
+      context, workletStack, sizeof(workletStack), WorkletThreadStarted,
+      nullptr);
   setupPhase_.store(3U, std::memory_order_release);
   emscripten_set_timeout(PumpBrowserMainSetup, 20.0, nullptr);
 #else
@@ -482,7 +475,8 @@ void WasmAudio::PumpBrowserMainSetup(void *) noexcept {
   const bool driverReady = driverReady_.load(std::memory_order_acquire);
   if (!scopeReady || !driverReady) {
     if (tick >= watchdogLimit) {
-      MarkFailed("AudioWorklet setup timed out. Check browser audio support and restart the runtime.");
+      MarkFailed("AudioWorklet setup timed out. Check browser audio support "
+                 "and restart the runtime.");
       StopBrowserAudio();
       return;
     }
@@ -494,7 +488,8 @@ void WasmAudio::PumpBrowserMainSetup(void *) noexcept {
       processorRequestedTick_.load(std::memory_order_acquire);
   if (requested && workletNode_.load(std::memory_order_acquire) <= 0) {
     if (tick - requestedTick >= watchdogLimit) {
-      MarkFailed("AudioWorklet processor setup timed out. Check browser audio support and restart the runtime.");
+      MarkFailed("AudioWorklet processor setup timed out. Check browser audio "
+                 "support and restart the runtime.");
       StopBrowserAudio();
       return;
     }
@@ -507,7 +502,7 @@ void WasmAudio::PumpBrowserMainSetup(void *) noexcept {
   }
   bool expected = false;
   if (!processorRequested_.compare_exchange_strong(expected, true,
-                                                    std::memory_order_acq_rel)) {
+                                                   std::memory_order_acq_rel)) {
     return;
   }
   processorRequestedTick_.store(tick, std::memory_order_release);
@@ -515,7 +510,8 @@ void WasmAudio::PumpBrowserMainSetup(void *) noexcept {
   WebAudioWorkletProcessorCreateOptions options{};
   options.name = "picotracker-pcm";
   emscripten_create_wasm_audio_worklet_processor_async(
-      context_.load(std::memory_order_acquire), &options, ProcessorCreated, nullptr);
+      context_.load(std::memory_order_acquire), &options, ProcessorCreated,
+      nullptr);
   emscripten_set_timeout(PumpBrowserMainSetup, 20.0, nullptr);
 #endif
 }
@@ -583,8 +579,8 @@ void WasmAudio::OnProcessorCreated(bool success) noexcept {
     StopBrowserAudio();
     return;
   }
-  const std::uint32_t rate = static_cast<std::uint32_t>(std::max(
-      0, emscripten_audio_context_sample_rate(context)));
+  const std::uint32_t rate = static_cast<std::uint32_t>(
+      std::max(0, emscripten_audio_context_sample_rate(context)));
   driver->SetDestinationRate(rate);
   renderer = new (rendererStorage) WasmAudioWorkletRenderer(*driver, rate);
   int outputChannels[1] = {2};
@@ -596,8 +592,8 @@ void WasmAudio::OnProcessorCreated(bool success) noexcept {
   options.channelCountMode = WEBAUDIO_CHANNEL_COUNT_MODE_EXPLICIT;
   options.channelInterpretation = WEBAUDIO_CHANNEL_INTERPRETATION_DISCRETE;
   const EMSCRIPTEN_WEBAUDIO_T node = emscripten_create_wasm_audio_worklet_node(
-      context, "picotracker-pcm", &options, PicoTracker_Wasm_AudioWorkletProcess,
-      renderer);
+      context, "picotracker-pcm", &options,
+      PicoTracker_Wasm_AudioWorkletProcess, renderer);
   if (node <= 0) {
     MarkFailed("The browser could not attach the WASM AudioWorklet node.");
     StopBrowserAudio();

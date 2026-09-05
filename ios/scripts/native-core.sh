@@ -52,10 +52,21 @@ cmake --build "$build_root/cmake" \
   --target nullperator_ios_core
 
 libraries=()
+archive_manifest="$build_root/cmake/native-core-archives-$configuration.txt"
+if [[ ! -s "$archive_manifest" ]]; then
+  echo "Native core archive manifest is missing: $archive_manifest" >&2
+  exit 1
+fi
 while IFS= read -r library; do
+  # Xcode preserves this build-setting token in CMake's generated target path.
+  effective_platform_token='${EFFECTIVE_PLATFORM_NAME}'
+  library="${library//$effective_platform_token/-$platform_name}"
+  if [[ ! -f "$library" ]]; then
+    echo "Native core archive was not built: $library" >&2
+    exit 1
+  fi
   libraries+=("$library")
-done < <(find "$build_root/cmake" -type f -name '*.a' \
-  ! -path "$archive" -print | sort)
+done < "$archive_manifest"
 if (( ${#libraries[@]} == 0 )); then
   echo "No native core archives were produced" >&2
   exit 1

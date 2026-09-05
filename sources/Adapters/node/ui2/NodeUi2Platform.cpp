@@ -6,6 +6,7 @@
 
 #include "Adapters/node/ui2/NodeUi2Platform.h"
 
+#include "Adapters/node/audio/AudioTelemetry.h"
 #include "Adapters/node/display/Rgb565DisplayTransport.h"
 #include "Adapters/node/hal/nullperator/input/input.h"
 #include "Adapters/node/midi/MidiService.h"
@@ -15,6 +16,7 @@
 #include "Services/Midi/MidiService.h"
 
 #include "esp_attr.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 
 #include <algorithm>
@@ -303,6 +305,8 @@ void NodeUi2Platform::RunApplicationTask() {
 
   state_.store(State::Running, std::memory_order_release);
   std::uint32_t nextFrameMs = millis();
+  std::uint32_t nextAudioReportMs = nextFrameMs + 5000U;
+  std::uint32_t nextMemoryReportMs = nextFrameMs;
   bool presenterFailureReported = false;
 
   while (runRequested_.load(std::memory_order_acquire)) {
@@ -318,6 +322,36 @@ void NodeUi2Platform::RunApplicationTask() {
     PollMidi();
 
     const std::uint32_t nowMs = millis();
+    if (TimeReached(nowMs, nextMemoryReportMs)) {
+      constexpr auto internal = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
+      constexpr auto external = MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT;
+      ESP_LOGI("MEMORY_PERF",
+               "uptime_ms=%lu internal_free=%u internal_largest=%u "
+               "internal_min=%u psram_free=%u psram_largest=%u",
+               static_cast<unsigned long>(nowMs),
+               static_cast<unsigned>(heap_caps_get_free_size(internal)),
+               static_cast<unsigned>(heap_caps_get_largest_free_block(internal)),
+               static_cast<unsigned>(heap_caps_get_minimum_free_size(internal)),
+               static_cast<unsigned>(heap_caps_get_free_size(external)),
+               static_cast<unsigned>(heap_caps_get_largest_free_block(external)));
+      nextMemoryReportMs = nowMs + 30000U;
+    }
+    if (TimeReached(nowMs, nextAudioReportMs)) {
+      const NodeAudioMetrics audio = GetNodeAudioTelemetry().Read();
+      ESP_LOGI("AUDIO_PERF",
+               "uptime_ms=%lu blocks=%lu frames=%lu max_render_us=%lu "
+               "max_load_permille=%lu deadline_misses=%lu "
+               "producer_starvations=%lu write_errors=%lu",
+               static_cast<unsigned long>(nowMs),
+               static_cast<unsigned long>(audio.blocks),
+               static_cast<unsigned long>(audio.frames),
+               static_cast<unsigned long>(audio.maxRenderUs),
+               static_cast<unsigned long>(audio.maxLoadPermille),
+               static_cast<unsigned long>(audio.deadlineMisses),
+               static_cast<unsigned long>(audio.producerStarvations),
+               static_cast<unsigned long>(audio.writeErrors));
+      nextAudioReportMs = nowMs + 5000U;
+    }
     if (!TimeReached(nowMs, nextFrameMs))
       continue;
 

@@ -9,10 +9,10 @@
 
 #include "Player.h"
 
-#include "System/Console/Trace.h"
 #include "Application/Instruments/CommandList.h"
-#ifdef __EMSCRIPTEN__
-#include "Adapters/wasm/tracing/WasmProfiler.h"
+#include "System/Console/Trace.h"
+#ifdef PICOTRACKER_ENABLE_PROFILING
+#include "System/Console/Profiler.h"
 #endif
 #include "Application/Instruments/I_Instrument.h"
 #include "Application/Instruments/SampleInstrument.h"
@@ -150,8 +150,8 @@ bool Player::CanStartTransport() const {
 
   const bool projectBound = project_ != nullptr;
   const bool viewDataBound = viewData_ != nullptr;
-  return player_audio_readiness::CanStartTransport(
-      audioReady, projectBound, viewDataBound);
+  return player_audio_readiness::CanStartTransport(audioReady, projectBound,
+                                                   viewDataBound);
 }
 
 void Player::Start(PlayMode mode, bool forceSongMode, MixerServiceMode msmMode,
@@ -395,9 +395,8 @@ SequencerMode Player::GetSequencerMode() {
 };
 
 bool Player::IsChannelPlaying(int channel) {
-  return channel >= 0 &&
-         CaptureTransportSnapshot().IsChannelPlaying(
-             static_cast<std::size_t>(channel));
+  return channel >= 0 && CaptureTransportSnapshot().IsChannelPlaying(
+                             static_cast<std::size_t>(channel));
 };
 
 // Handles start button on any screen BUT the song screen
@@ -554,8 +553,7 @@ PlayerTransportSnapshot Player::BuildTransportSnapshotLocked() const {
   snapshot.running = isRunning_.load(std::memory_order_acquire);
   snapshot.sequencerMode = sequencerMode_;
   snapshot.mode = mode_;
-  snapshot.liveQueueElapsedMs =
-      static_cast<std::uint32_t>(now_ - startClock_);
+  snapshot.liveQueueElapsedMs = static_cast<std::uint32_t>(now_ - startClock_);
   for (int channel = 0; channel < SONG_CHANNEL_COUNT; ++channel) {
     snapshot.note[channel] = NO_NOTE;
     snapshot.chain[channel] = 0xFFU;
@@ -584,9 +582,11 @@ PlayerTransportSnapshot Player::BuildTransportSnapshotLocked() const {
       continue;
     }
     snapshot.phraseRow[channel] = static_cast<std::int8_t>(phraseRow);
-    snapshot.note[channel] = viewData_->song_->phrase_.note_[
-        static_cast<int>(snapshot.phrase[channel]) * STEPS_PER_PHRASE +
-        phraseRow];
+    snapshot.note[channel] =
+        viewData_->song_->phrase_
+            .note_[static_cast<int>(snapshot.phrase[channel]) *
+                       STEPS_PER_PHRASE +
+                   phraseRow];
   }
   return snapshot;
 }
@@ -686,8 +686,8 @@ void Player::QueueChannelLocked(int i, QueueingMode mode,
  ************************************************************/
 
 void Player::Update(Observable &o, I_ObservableData *d) {
-#ifdef __EMSCRIPTEN__
-  WASM_TRACE_SCOPE(WasmTraceCategory::Player, WasmTraceName::PlayerTick);
+#ifdef PICOTRACKER_ENABLE_PROFILING
+  PROFILE_SCOPE(TraceCategory::Player, TraceName::PlayerTick);
 #endif
 
   // Make sure sync's ok
@@ -1509,9 +1509,7 @@ void Player::StopAllAudio() {
   StopRecordStreaming();
 }
 
-void Player::RefreshAudioActive() {
-  SetAudioActive(audioActivity_.IsActive());
-}
+void Player::RefreshAudioActive() { SetAudioActive(audioActivity_.IsActive()); }
 
 void Player::SetAudioActive(bool active) {
   if (audioActive_ == active)
@@ -1573,9 +1571,8 @@ void Player::PlayNote(unsigned short instrumentIndex, unsigned short channel,
     int playerChannel = channel % SONG_CHANNEL_COUNT;
     mixer_.Lock();
     mixer_.StartInstrument(playerChannel, instrument, note, true);
-    audioActivity_.SetVoice(
-        static_cast<std::uint8_t>(playerChannel),
-        mixer_.GetInstrument(playerChannel) != nullptr);
+    audioActivity_.SetVoice(static_cast<std::uint8_t>(playerChannel),
+                            mixer_.GetInstrument(playerChannel) != nullptr);
     RefreshAudioActive();
     mixer_.Unlock();
   }

@@ -26,10 +26,10 @@ public:
   Start(Ui2ProjectRenderMode mode) override;
   void Stop() override;
   [[nodiscard]] bool IsRunning() const override;
+  [[nodiscard]] bool Failed() const override;
   [[nodiscard]] Ui2ProjectRenderPlaybackSnapshot
   CapturePlayback() const override;
-  [[nodiscard]] int ChainPhraseCount(int songRow,
-                                     int channel) const override;
+  [[nodiscard]] int ChainPhraseCount(int songRow, int channel) const override;
 
 private:
   [[nodiscard]] bool CanRenderFromFirstSongRow() const;

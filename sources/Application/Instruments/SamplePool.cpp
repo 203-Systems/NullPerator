@@ -8,7 +8,6 @@
  */
 
 #include "SamplePool.h"
-#include "SamplePoolLoading.h"
 #include "Application/Model/Config.h"
 #include "Application/Persistency/PersistencyService.h"
 #include "Application/Utils/DrawUtils.h"
@@ -16,20 +15,22 @@
 #include "Externals/etl/include/etl/string.h"
 #include "Externals/etl/include/etl/string_stream.h"
 #include "Foundation/Constants/SpecialCharacters.h"
+#include "SamplePoolLoading.h"
+#include "Services/Audio/WavHeader.h"
 #include "System/Console/Trace.h"
 #include "System/FileSystem/FileSystem.h"
 #include "System/FileSystem/I_File.h"
 #include "System/io/Status.h"
-#include "WavHeader.h"
+#include "WavReadPolicy.h"
 #include <cstdint>
 #include <memory>
 #include <stdlib.h>
 #include <string.h>
 #include <utility>
 
-#ifdef ESP_PLATFORM
-#include <esp_heap_caps.h>
-#endif
+#include "System/Memory/Memory.h"
+
+static_assert(TrackerMaximumResampleRatio == SRC_MAX_RATIO);
 
 SamplePool::SamplePool() : Observable(&observers_) {
   count_ = 0;
@@ -48,18 +49,8 @@ SamplePool::~SamplePool() {
 void SamplePool::updateStatus(uint32_t index, uint32_t total,
                               const char *message) {
   uint32_t percentage = (total > 0) ? (index * 100U) / total : 100U;
-  #ifdef NODE
-    Status::SetMultiLine("%s %.19s\n%3d%%",
-                        message, importName,
-                        static_cast<int>(percentage));
-  #else
-    progressBar_t progressBar;
-    fillProgressBar(index, total, &progressBar);
-    Status::SetMultiLine("%s %.19s" char_indicator_ellipsis_s " \n \n %s %3d%%",
-                        message, importName, progressBar,
-                        static_cast<int>(percentage));
-  #endif
-
+  Status::SetMultiLine("%s %.19s\n%3d%%", message, importName,
+                       static_cast<int>(percentage));
 };
 
 bool SamplePool::Load(const char *projectName) {
@@ -77,8 +68,8 @@ bool SamplePool::Load(const char *projectName) {
   }
 
   const uint totalSamples = fileIndexes.size();
-  if (!SamplePoolLoading::FitsLoadableSampleCapacity(
-          *fs, fileIndexes, count_, MAX_SAMPLES)) {
+  if (!SamplePoolLoading::FitsLoadableSampleCapacity(*fs, fileIndexes, count_,
+                                                     MAX_SAMPLES)) {
     Trace::Error("SAMPLEPOOL: Project contains too many sample entries");
     return false;
   }
@@ -171,11 +162,7 @@ struct ImportResampleScratch {
 
 struct ImportResampleScratchDeleter {
   void operator()(ImportResampleScratch *scratch) const {
-#ifdef ESP_PLATFORM
-    heap_caps_free(scratch);
-#else
-    free(scratch);
-#endif
+    PlatformMemory::FreeBulk(scratch);
   }
 };
 
@@ -192,12 +179,7 @@ struct SrcStateDeleter {
 using SrcStatePtr = std::unique_ptr<SRC_STATE, SrcStateDeleter>;
 
 ImportResampleScratchPtr allocateImportResampleScratch() {
-#ifdef ESP_PLATFORM
-  void *storage = heap_caps_malloc(sizeof(ImportResampleScratch),
-                                   MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-#else
-  void *storage = malloc(sizeof(ImportResampleScratch));
-#endif
+  void *storage = PlatformMemory::AllocateBulk(sizeof(ImportResampleScratch));
   return ImportResampleScratchPtr(
       static_cast<ImportResampleScratch *>(storage));
 }
@@ -230,11 +212,9 @@ int SamplePool::ImportSample(const char *name, const char *projectName) {
   projectSamplePath.append(projectName);
   projectSamplePath.append("/samples/");
   projectSamplePath.append(projSampleFilename);
-  Status::SetMultiLine("Loading %s->\n%s", name,
-                       projSampleFilename.c_str());
+  Status::SetMultiLine("Loading %s->\n%s", name, projSampleFilename.c_str());
 
-  auto fout =
-      FileSystem::GetInstance()->Open(projectSamplePath.c_str(), "w+b");
+  auto fout = FileSystem::GetInstance()->Open(projectSamplePath.c_str(), "w+b");
   if (!fout) {
     Trace::Error("Failed to open sample project file:%s",
                  projectSamplePath.c_str());
@@ -351,8 +331,7 @@ int SamplePool::ImportSample(const char *name, const char *projectName) {
           const int32_t outputSamples =
               static_cast<int32_t>(data.output_frames_gen) * channelCount;
           src_float_to_short_array(resampleScratch->output,
-                                   resampleScratch->outputInt16,
-                                   outputSamples);
+                                   resampleScratch->outputInt16, outputSamples);
           const int32_t bytesToWrite = outputSamples * sizeof(int16_t);
           uint32_t written =
               fout->Write(resampleScratch->outputInt16, 1, bytesToWrite);

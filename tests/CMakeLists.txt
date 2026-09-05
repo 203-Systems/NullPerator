@@ -30,6 +30,7 @@ add_executable(picoTracker_tests
   node_path_resolver_tests.cpp
   project_defaults_tests.cpp
   sample_pool_loading_tests.cpp
+  shared_adapter_contract_tests.cpp
   ui2_browser_legacy_snapshot_tests.cpp
   ui2_dialog_adapter_tests.cpp
   ui2_feedback_controller_tests.cpp
@@ -39,11 +40,11 @@ add_executable(picoTracker_tests
   ui2_rename_render_tests.cpp
   ui2_legacy_snapshot_tests.cpp
   ui2_core_tests.cpp
-  ../sources/Adapters/wasm/midi/MidiLatencyTrace.cpp
-  ../sources/Adapters/wasm/midi/WasmMidiOutDevice.cpp
-  ../sources/Adapters/wasm/logging/WasmTrace.cpp
+  ../sources/Adapters/common/midi/MidiLatencyTrace.cpp
+  ../sources/Adapters/common/midi/QueuedMidiOutDevice.cpp
+  ../sources/Adapters/common/logging/BufferedTrace.cpp
   ../sources/Adapters/wasm/tracing/InputFrameLatencyTracker.cpp
-  ../sources/Adapters/wasm/tracing/WasmProfiler.cpp
+  ../sources/System/Console/Profiler.cpp
   ../sources/Adapters/wasm/tracing/Benchmark.cpp
   ../sources/Services/Midi/MidiOutDevice.cpp
   ../sources/Services/Midi/MidiNoteTracker.cpp
@@ -55,8 +56,8 @@ add_executable(picoTracker_tests
   ../sources/Services/Audio/AudioDriver.cpp
   ../sources/Application/Audio/RecordStreamer.cpp
   ../sources/Adapters/wasm/input/InputMap.cpp
-  ../sources/Application/Instruments/WavHeader.cpp
-  ../sources/Application/Instruments/WavFileWriter.cpp
+  ../sources/Services/Audio/WavHeader.cpp
+  ../sources/Services/Audio/WavFileWriter.cpp
   ../sources/Application/Instruments/WavFile.cpp
   ../sources/Application/Instruments/MacroInstrument.cpp
   ../sources/Application/Instruments/MidiInstrument.cpp
@@ -99,8 +100,8 @@ add_executable(picoTracker_tests
   nanoprintf_test.cpp
   ../sources/Adapters/wasm/system/WasmSystem.cpp
   ../sources/Adapters/wasm/timer/WasmTimer.cpp
-  ../sources/Adapters/wasm/filesystem/WasmFile.cpp
-  ../sources/Adapters/wasm/filesystem/WasmFileSystem.cpp
+  ../sources/Adapters/posix/filesystem/PosixFile.cpp
+  ../sources/Adapters/posix/filesystem/PosixFileSystem.cpp
   ../sources/Adapters/wasm/filesystem/WasmStorageBridge.cpp
   ../sources/Adapters/node/filesystem/PathResolver.cpp
   ../sources/Application/Instruments/SamplePoolLoading.cpp
@@ -147,7 +148,7 @@ target_include_directories(picoTracker_tests PRIVATE
 )
 
 target_compile_definitions(picoTracker_tests PRIVATE
-  HOST_TEST
+  HOST_TEST PICOTRACKER_ENABLE_PROFILING
 )
 add_test(NAME picoTracker_unit COMMAND picoTracker_tests)
 
@@ -173,6 +174,10 @@ add_test(NAME midi_in_device COMMAND midi_in_device_tests)
 add_executable(audio_mixer_tests
   test_main.cpp
   audio_mixer_tests.cpp
+  ../sources/Services/Audio/AudioOut.cpp
+  ../sources/Services/Audio/AudioOutDriver.cpp
+  ../sources/Services/Audio/AudioDriver.cpp
+  ../sources/Foundation/Observable.cpp
   ../sources/Services/Audio/AudioMixer.cpp
 )
 
@@ -255,6 +260,17 @@ add_test(NAME player_start_plan COMMAND player_start_plan_tests)
 # the sequence-validated publication under real concurrent readers without
 # pulling the audio driver graph into the focused test.
 find_package(Threads REQUIRED)
+add_executable(node_audio_runtime_tests
+  test_main.cpp
+  node_audio_telemetry_tests.cpp
+)
+target_include_directories(node_audio_runtime_tests PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/../sources
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals
+)
+target_link_libraries(node_audio_runtime_tests PRIVATE Threads::Threads)
+add_test(NAME node_audio_runtime COMMAND node_audio_runtime_tests)
+
 add_executable(player_transport_snapshot_tests
   test_main.cpp
   player_transport_snapshot_tests.cpp
@@ -327,7 +343,7 @@ target_include_directories(tracker_player_initialization_tests PRIVATE
 )
 
 target_compile_definitions(tracker_player_initialization_tests PRIVATE
-  HOST_TEST
+  HOST_TEST PICOTRACKER_ENABLE_PROFILING
 )
 add_test(NAME tracker_player_initialization
          COMMAND tracker_player_initialization_tests)
@@ -407,7 +423,7 @@ target_include_directories(ui2_tracker_session_model_port_tests PRIVATE
 )
 
 target_compile_definitions(ui2_tracker_session_model_port_tests PRIVATE
-  HOST_TEST
+  HOST_TEST PICOTRACKER_ENABLE_PROFILING
 )
 add_test(NAME ui2_tracker_session_model_port
          COMMAND ui2_tracker_session_model_port_tests)

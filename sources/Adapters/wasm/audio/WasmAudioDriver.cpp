@@ -4,7 +4,7 @@
 
 #include "WasmAudioDriver.h"
 
-#include "Adapters/wasm/tracing/WasmProfiler.h"
+#include "System/Console/Profiler.h"
 #include "System/System/System.h"
 
 #include <algorithm>
@@ -32,7 +32,8 @@ std::uint32_t QuantizeCallbackMicros(double callbackMilliseconds) noexcept {
 
 std::atomic<WasmAudioDriver *> WasmAudioDriver::instance_{nullptr};
 
-WasmAudioDriver::WasmAudioDriver(AudioSettings &settings) : AudioDriver(settings) {
+WasmAudioDriver::WasmAudioDriver(AudioSettings &settings)
+    : AudioDriver(settings) {
   instance_.store(this, std::memory_order_release);
 }
 
@@ -41,7 +42,8 @@ bool WasmAudioDriver::InitDriver() { return true; }
 void WasmAudioDriver::CloseDriver() {
   StopDriver();
   WasmAudioDriver *expected = this;
-  instance_.compare_exchange_strong(expected, nullptr, std::memory_order_acq_rel);
+  instance_.compare_exchange_strong(expected, nullptr,
+                                    std::memory_order_acq_rel);
 }
 
 bool WasmAudioDriver::StartDriver() {
@@ -69,8 +71,8 @@ void WasmAudioDriver::AddBuffer(short *buffer, int samplecount) {
   if (buffer == nullptr || samplecount <= 0 || !IsStarted()) {
     return;
   }
-  const std::size_t accepted = ring_.WriteInterleaved(
-      std::span<const short>(buffer, static_cast<std::size_t>(samplecount) * 2U));
+  const std::size_t accepted = ring_.WriteInterleaved(std::span<const short>(
+      buffer, static_cast<std::size_t>(samplecount) * 2U));
   producerFrames_.fetch_add(accepted, std::memory_order_relaxed);
 }
 
@@ -87,23 +89,20 @@ void WasmAudioDriver::PumpProducer() noexcept {
   // Waiting for the consumer's first callback guarantees a cold-start
   // underrun. The started/active checks above own the producer lifecycle, and
   // the target-fill check below keeps this prebuffer bounded by ring capacity.
-  WASM_TRACE_SCOPE(WasmTraceCategory::Audio,
-                   WasmTraceName::AudioProducer);
+  PROFILE_SCOPE(TraceCategory::Audio, TraceName::AudioProducer);
   // Bound rendering work per browser frame. The callback only consumes the
   // queue; observer notification and tracker rendering stay on this thread.
   const std::size_t target = targetFillFrames_.load(std::memory_order_relaxed);
-  for (int request = 0; request < 3 && ring_.FillFrames() < target;
-       ++request) {
+  for (int request = 0; request < 3 && ring_.FillFrames() < target; ++request) {
     onAudioBufferTick();
     const auto renderStart = std::chrono::steady_clock::now();
     OnNewBufferNeeded();
     const auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(
                              std::chrono::steady_clock::now() - renderStart)
                              .count();
-    renderMicros_.store(
-        Saturating(static_cast<std::uint64_t>(
-            std::max<std::int64_t>(0, elapsed))),
-        std::memory_order_relaxed);
+    renderMicros_.store(Saturating(static_cast<std::uint64_t>(
+                            std::max<std::int64_t>(0, elapsed))),
+                        std::memory_order_relaxed);
   }
 }
 
@@ -129,10 +128,9 @@ void WasmAudioDriver::SetDestinationRate(std::uint32_t rate) noexcept {
 
 void WasmAudioDriver::Configure(std::uint32_t targetFillFrames,
                                 std::uint32_t outputGainQ16) noexcept {
-  targetFillFrames_.store(
-      std::clamp(targetFillFrames, MinimumTargetFillFrames,
-                 MaximumTargetFillFrames),
-      std::memory_order_release);
+  targetFillFrames_.store(std::clamp(targetFillFrames, MinimumTargetFillFrames,
+                                     MaximumTargetFillFrames),
+                          std::memory_order_release);
   SetHostOutputGainQ16(outputGainQ16);
 }
 
@@ -152,8 +150,7 @@ std::uint32_t WasmAudioDriver::TargetFillFramesConfigured() const noexcept {
 }
 
 std::uint32_t WasmAudioDriver::OutputGainQ16() const noexcept {
-  const std::uint32_t state =
-      outputGainState_.load(std::memory_order_acquire);
+  const std::uint32_t state = outputGainState_.load(std::memory_order_acquire);
   const std::uint32_t hostGain = state & HostOutputGainMask;
   const std::uint32_t mixerVolume = state >> MixerVolumeShift;
   // Compose the exact host Q16 value with the integer Device percentage and
@@ -181,7 +178,7 @@ WasmAudioMetrics WasmAudioDriver::Metrics() const noexcept {
 }
 
 void WasmAudioDriver::RecordCallback(double callbackMilliseconds,
-                                    std::size_t frames) noexcept {
+                                     std::size_t frames) noexcept {
   const std::uint32_t callbackMicros =
       QuantizeCallbackMicros(callbackMilliseconds);
   callbackCount_.fetch_add(1U, std::memory_order_relaxed);
@@ -189,13 +186,12 @@ void WasmAudioDriver::RecordCallback(double callbackMilliseconds,
 
   std::uint32_t maximum = callbackMaxMicros_.load(std::memory_order_relaxed);
   while (maximum < callbackMicros &&
-         !callbackMaxMicros_.compare_exchange_weak(
-             maximum, callbackMicros, std::memory_order_relaxed,
-             std::memory_order_relaxed)) {
+         !callbackMaxMicros_.compare_exchange_weak(maximum, callbackMicros,
+                                                   std::memory_order_relaxed,
+                                                   std::memory_order_relaxed)) {
   }
 
-  const std::uint32_t rate =
-      destinationRate_.load(std::memory_order_relaxed);
+  const std::uint32_t rate = destinationRate_.load(std::memory_order_relaxed);
   std::uint32_t deadlineMicros = 0U;
   if (rate != 0U && frames != 0U) {
     const std::uint64_t numerator =

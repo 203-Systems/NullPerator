@@ -1,3 +1,4 @@
+#include "Application/Instruments/WavReadPolicy.h"
 /*
  * SPDX-License-Identifier: BSD-3-Clause
  *
@@ -7,26 +8,31 @@
  * This file is part of the picoTracker firmware
  */
 
-#include "WavFile.h"
 #include "Application/Model/Config.h"
 #include "Application/Model/Song.h"
 #include "Foundation/Types/Types.h"
+#include "Services/Audio/WavHeader.h"
 #include "System/Console/Trace.h"
 #include "System/FileSystem/I_File.h"
-#include "WavHeader.h"
+#include "WavFile.h"
 #include <algorithm>
+#include <array>
+#include <cmath>
+#include <limits>
 #include <stdlib.h>
+#include <type_traits>
 
 unsigned char WavFile::readBuffer_[BUFFER_SIZE];
 int16_t WavFile::convertedBuffer_[BUFFER_SIZE / 2];
 
 int16_t ClampToInt16(double sample) {
-  float s = static_cast<float>(sample);
-  if (s <= -1.0f)
+  if (std::isnan(sample))
+    return 0;
+  if (sample <= -1.0)
     return -32768;
-  if (s >= +1.0f)
+  if (sample >= +1.0)
     return +32767;
-  return static_cast<int16_t>(s * 32768.0f);
+  return static_cast<int16_t>(sample * 32768.0);
 }
 
 int16_t ConvertSampleToInt16(const uint8_t *samplePtr, uint16_t audioFormat,
@@ -111,12 +117,15 @@ float ConvertSampleToFloat(const uint8_t *samplePtr, uint16_t audioFormat,
     if (bytePerSample == 4) {
       float value;
       memcpy(&value, samplePtr, sizeof(value));
-      return value;
+      return std::isfinite(value) ? value : 0.0F;
     }
     if (bytePerSample == 8) {
       double value;
       memcpy(&value, samplePtr, sizeof(value));
-      return static_cast<float>(value);
+      return std::isfinite(value) &&
+                     std::abs(value) <= std::numeric_limits<float>::max()
+                 ? static_cast<float>(value)
+                 : 0.0F;
     }
   }
 
@@ -138,7 +147,7 @@ etl::expected<void, WAVEFILE_ERROR> WavFile::Open(const char *name) {
   if (!file)
     return etl::unexpected(INVALID_FILE);
 
-  auto header = WavHeaderWriter::ReadHeader(file.get());
+  auto header = ReadTrackerWavHeader(file.get());
   if (!header) {
     return etl::unexpected(header.error());
   }
@@ -194,8 +203,7 @@ bool WavFile::GetBuffer(long start, long size) {
     return false;
   }
 
-  const int64_t totalSamplesWide =
-      static_cast<int64_t>(size) * channelCount_;
+  const int64_t totalSamplesWide = static_cast<int64_t>(size) * channelCount_;
   const int32_t maxSamples =
       static_cast<int32_t>(sizeof(convertedBuffer_) / sizeof(int16_t));
   if (totalSamplesWide <= 0 || totalSamplesWide > maxSamples) {
@@ -247,153 +255,73 @@ uint32_t WavFile::GetDiskSize(int note) { return sampleBufferSize_; }
 
 // rewind to start of data (no header)
 bool WavFile::Rewind() {
+  if (!file_)
+    return false;
   file_->Seek(dataPosition_, SEEK_SET);
+  if (file_->Tell() != dataPosition_)
+    return false;
   readCount_ = size_ * channelCount_ * bytePerSample_;
   return true;
 };
 
-// incrementally read file, use rewind method to go to beginning
-bool WavFile::Read(void *buff, uint32_t btr, uint32_t *bytesRead) {
-
-  if (!buff || !bytesRead) {
+// Both output formats share frame bounds and I/O failure handling. Decode from
+// a bounded local block so a single PCM16 output frame can accept 24/32/64-bit
+// input without needing room for the source representation in the destination.
+template <typename Sample>
+bool WavFile::ReadSamples(Sample *buffer, uint32_t capacity,
+                          uint32_t *samplesRead) {
+  if (!samplesRead)
     return false;
-  }
+  *samplesRead = 0;
+  if (!file_ || !buffer || channelCount_ <= 0 || bytePerSample_ <= 0)
+    return false;
 
-  *bytesRead = 0;
-
-  if (btr == 0 || readCount_ == 0) {
-    return true;
-  }
-
-  // dst is always 16-bit
-  uint32_t dstFrameSize = channelCount_ * 2;
-  // src can be 8/16/24-bit
-  uint32_t srcFrameSize = channelCount_ * bytePerSample_;
-  // the max number of frames we can read (floor)
-  uint32_t dstFrames = btr / dstFrameSize;
-  // Also cap by how many source bytes fit in caller buffer to avoid overflow
-  uint32_t srcFramesByBuffer = (srcFrameSize > 0) ? (btr / srcFrameSize) : 0;
-  // the number of frames that still have to be read
-  uint32_t srcFrames = readCount_ / srcFrameSize;
-
-  uint32_t framesToRead = std::min({dstFrames, srcFrames, srcFramesByBuffer});
-  if (framesToRead == 0) {
-    return true;
-  }
-  uint32_t readSize = framesToRead * srcFrameSize;
-
-  uint32_t actualBytesRead = file_->Read(buff, readSize);
-  // We should have enough capacity to read all of readSize, if we don't, we
-  // need to adjust the file position to where we actually read, adjusting to a
-  // full frame
-  uint32_t missing = actualBytesRead % srcFrameSize;
-  // if we have reminder bytes to read, rewind to last frame read in preparation
-  // for next iteration
-  if (missing != 0) {
-    file_->Seek(-static_cast<long>(missing), SEEK_CUR);
-    actualBytesRead -= missing;
-  }
-
-  // If what we actually read was less than a frame we could end up with 0 bytes
-  // read. Assume the rest of the file does not contain a full frame (unlikely)
-  if (actualBytesRead == 0) {
-    return true;
-  }
-
-  uint32_t framesRead = actualBytesRead / srcFrameSize;
-  uint32_t totalSamples = framesRead * channelCount_;
-
-  // TODO: we repeat this logic in two places
-  // Now adjust the samples
-  uint8_t *src = static_cast<uint8_t *>(buff);
-  int16_t *dst = static_cast<int16_t *>(buff);
-  if (bytePerSample_ == 1) {
-    // Expanding 8-bit to 16-bit; convert backward to avoid overwrite
-    for (int32_t i = static_cast<int32_t>(totalSamples) - 1; i >= 0; --i) {
-      const uint8_t *samplePtr = src + i * bytePerSample_;
-      dst[i] = ConvertSampleToInt16(samplePtr, audioFormat_, bytePerSample_);
+  const uint32_t sourceFrameSize = channelCount_ * bytePerSample_;
+  const uint32_t blockFrames = BUFFER_SIZE / sourceFrameSize;
+  if (blockFrames == 0)
+    return false;
+  uint32_t remaining =
+      std::min(capacity / channelCount_, readCount_ / sourceFrameSize);
+  std::array<uint8_t, BUFFER_SIZE> block;
+  while (remaining > 0) {
+    const uint32_t frames = std::min(remaining, blockFrames);
+    const uint32_t bytes = frames * sourceFrameSize;
+    // A short read before the declared data end is an I/O failure. Never
+    // convert a negative result to unsigned or claim a truncated import worked.
+    const int actual = file_->Read(block.data(), static_cast<int>(bytes));
+    if (actual != static_cast<int>(bytes) || file_->Error())
+      return false;
+    const uint32_t count = frames * channelCount_;
+    for (uint32_t i = 0; i < count; ++i) {
+      const uint8_t *sample = block.data() + i * bytePerSample_;
+      if constexpr (std::is_same_v<Sample, float>)
+        buffer[*samplesRead + i] =
+            ConvertSampleToFloat(sample, audioFormat_, bytePerSample_);
+      else
+        buffer[*samplesRead + i] =
+            ConvertSampleToInt16(sample, audioFormat_, bytePerSample_);
     }
-  } else {
-    // retain or shrink width
-    for (uint32_t i = 0; i < totalSamples; ++i) {
-      const uint8_t *samplePtr = src + i * bytePerSample_;
-      dst[i] = ConvertSampleToInt16(samplePtr, audioFormat_, bytePerSample_);
-    }
+    *samplesRead += count;
+    readCount_ -= bytes;
+    remaining -= frames;
   }
-  *bytesRead = framesRead * dstFrameSize;
-
-  readCount_ -= actualBytesRead;
   return true;
 }
 
-// Resampler takes it's input in float, so we read as float if we are resampling
-// so that we don't lose precision from higher bitrate samples
-bool WavFile::ReadFloat(float *buff, uint32_t maxSamples,
+bool WavFile::Read(void *buffer, uint32_t capacityBytes, uint32_t *bytesRead) {
+  if (!bytesRead)
+    return false;
+  uint32_t samplesRead = 0;
+  const bool result =
+      ReadSamples(static_cast<int16_t *>(buffer),
+                  capacityBytes / sizeof(int16_t), &samplesRead);
+  *bytesRead = samplesRead * sizeof(int16_t);
+  return result;
+}
+
+bool WavFile::ReadFloat(float *buffer, uint32_t capacity,
                         uint32_t *samplesRead) {
-  if (!buff || !samplesRead) {
-    return false;
-  }
-
-  *samplesRead = 0;
-
-  if (maxSamples == 0 || readCount_ == 0) {
-    return true;
-  }
-
-  const uint32_t srcFrameSize = channelCount_ * bytePerSample_;
-  if (srcFrameSize == 0) {
-    return false;
-  }
-
-  const uint32_t maxFramesByOutput = maxSamples / channelCount_;
-  const uint32_t maxFramesByReadCount = readCount_ / srcFrameSize;
-  uint32_t framesRemaining = std::min(maxFramesByOutput, maxFramesByReadCount);
-  if (framesRemaining == 0) {
-    return true;
-  }
-
-  const uint32_t maxFramesPerRead = BUFFER_SIZE / srcFrameSize;
-  if (maxFramesPerRead == 0) {
-    return false;
-  }
-
-  uint32_t framesReadTotal = 0;
-
-  while (framesRemaining > 0) {
-    const uint32_t framesThisRead = std::min(framesRemaining, maxFramesPerRead);
-    const uint32_t readSize = framesThisRead * srcFrameSize;
-
-    uint32_t actualBytesRead = file_->Read(readBuffer_, readSize);
-    uint32_t missing = actualBytesRead % srcFrameSize;
-    if (missing != 0) {
-      file_->Seek(-static_cast<int>(missing), SEEK_CUR);
-      actualBytesRead -= missing;
-    }
-    if (actualBytesRead == 0) {
-      break;
-    }
-
-    const uint32_t framesRead = actualBytesRead / srcFrameSize;
-    const uint32_t totalSamples = framesRead * channelCount_;
-    const uint8_t *src = readBuffer_;
-    float *dst = buff + (framesReadTotal * channelCount_);
-
-    for (uint32_t i = 0; i < totalSamples; ++i) {
-      const uint8_t *samplePtr = src + i * bytePerSample_;
-      dst[i] = ConvertSampleToFloat(samplePtr, audioFormat_, bytePerSample_);
-    }
-
-    framesReadTotal += framesRead;
-    framesRemaining -= framesRead;
-    readCount_ -= actualBytesRead;
-
-    if (actualBytesRead < readSize) {
-      break;
-    }
-  }
-
-  *samplesRead = framesReadTotal * channelCount_;
-  return true;
+  return ReadSamples(buffer, capacity, samplesRead);
 }
 
 bool WavFile::IsOpen() const { return static_cast<bool>(file_); }

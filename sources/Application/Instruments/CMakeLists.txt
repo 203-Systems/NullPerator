@@ -15,8 +15,6 @@ add_library(application_instruments
   SampleVariable.cpp
   SIDInstrument.cpp
   WavFile.cpp
-  WavFileWriter.cpp
-  WavHeader.cpp
 )
 
 # Keep the measured sampler hot path at O2. On ESP32-S3 hardware, forcing this
@@ -30,6 +28,8 @@ if(Node)
 endif()
 
 target_link_libraries(application_instruments PUBLIC
+  platform_memory
+  services_wav
   foundation
   foundation_services
   system_io

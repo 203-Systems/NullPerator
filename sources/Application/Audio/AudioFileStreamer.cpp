@@ -9,7 +9,7 @@
 
 #include "AudioFileStreamer.h"
 #include "Application/Model/Config.h"
-#include "Application/Utils/fixed.h"
+#include "Foundation/Types/Fixed.h"
 #include "Services/Audio/Audio.h"
 #include "System/Console/Trace.h"
 #include "System/FileSystem/FileSystem.h"
@@ -74,8 +74,7 @@ bool AudioFileStreamer::Start(const char *name, int startSample, bool looping) {
   // UI2 also prevents issuing this request for an oversized source.
   if (looping &&
       (size <= 0 || channels <= 0 ||
-       static_cast<unsigned long>(size) *
-               static_cast<unsigned long>(channels) >
+       static_cast<unsigned long>(size) * static_cast<unsigned long>(channels) >
            SINGLE_CYCLE_MAX_SAMPLE_SIZE)) {
     Trace::Error("Single-cycle source exceeds fixed buffer; streaming once");
     looping = false;

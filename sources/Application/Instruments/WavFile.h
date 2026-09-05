@@ -11,10 +11,10 @@
 #define _WAV_FILE_H_
 
 #include "Externals/etl/include/etl/expected.h"
+#include "Services/Audio/WavFileErrors.h"
 #include "SoundSource.h"
 #include "System/FileSystem/FileSystem.h"
 #include "System/System/System.h"
-#include "WavFileErrors.h"
 
 #define BUFFER_SIZE 512
 
@@ -51,6 +51,9 @@ protected:
   long readBlock(long position, long count);
 
 private:
+  template <typename Sample>
+  bool ReadSamples(Sample *buffer, uint32_t capacity, uint32_t *samplesRead);
+
   FileHandle file_; // File
   short *samples_;  // sample buffer size (16 bits)
   int sampleBufferSize_;

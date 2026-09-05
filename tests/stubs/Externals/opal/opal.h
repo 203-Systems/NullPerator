@@ -1,7 +1,7 @@
 /* Deterministic host decoder boundary for OpalInstrument register coverage. */
 #pragma once
 
-#include "Application/Utils/fixed.h"
+#include "Foundation/Types/Fixed.h"
 
 #include <cstdint>
 

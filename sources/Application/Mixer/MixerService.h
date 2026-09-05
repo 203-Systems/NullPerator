@@ -49,6 +49,7 @@ public:
 
   void OnPlayerStart(MixerServiceMode mode);
   void OnPlayerStop();
+  bool RenderFailed() const;
 
   void SetMasterVolume(int);
   int GetPlayedBufferPercentage();
@@ -70,6 +71,7 @@ protected:
 
 private:
   bool configureRenderPaths();
+  std::atomic<bool> renderSetupFailed_{false};
 
   AudioOut *out_;
   MixBus master_;

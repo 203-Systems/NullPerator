@@ -28,8 +28,7 @@ Ui2ProjectRenderBackend::Start(Ui2ProjectRenderMode mode) {
   // song traversal and closes every WavFileWriter through MixerService when
   // the last playable chain ends.
   player->Start(PM_SONG, true,
-                mode == Ui2ProjectRenderMode::Stems ? MSM_FILESPLIT
-                                                     : MSM_FILE,
+                mode == Ui2ProjectRenderMode::Stems ? MSM_FILESPLIT : MSM_FILE,
                 true);
   if (!player->IsRunning())
     return Ui2ProjectRenderStartResult::BackendUnavailable;
@@ -54,6 +53,11 @@ void Ui2ProjectRenderBackend::Stop() {
 bool Ui2ProjectRenderBackend::IsRunning() const {
   Player *player = Player::GetInstance();
   return player != nullptr && player->IsRunning();
+}
+
+bool Ui2ProjectRenderBackend::Failed() const {
+  const auto *mixer = MixerService::GetInstance();
+  return mixer == nullptr || mixer->RenderFailed();
 }
 
 Ui2ProjectRenderPlaybackSnapshot
@@ -111,7 +115,7 @@ bool Ui2ProjectRenderBackend::CanRenderFromFirstSongRow() const {
 
 bool Ui2ProjectRenderBackend::OutputReady(Ui2ProjectRenderMode mode) const {
   MixerService *mixer = MixerService::GetInstance();
-  if (mixer == nullptr)
+  if (mixer == nullptr || mixer->RenderFailed())
     return false;
   if (mode == Ui2ProjectRenderMode::Mixdown) {
     AudioOut *output = mixer->GetAudioOut();

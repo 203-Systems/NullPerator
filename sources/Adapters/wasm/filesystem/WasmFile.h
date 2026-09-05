@@ -1,35 +1,11 @@
-/*
- * SPDX-License-Identifier: BSD-3-Clause
- */
-
-#ifndef PICOTRACKER_WASM_FILE_H
-#define PICOTRACKER_WASM_FILE_H
-
-#include "System/FileSystem/I_File.h"
-
-#include <cstdio>
-
-class WasmFile final : public I_File {
+/* SPDX-License-Identifier: BSD-3-Clause */
+#pragma once
+#include "Adapters/posix/filesystem/PosixFile.h"
+#include "WasmStorageBridge.h"
+class WasmFile final : public PosixFile {
 public:
-  explicit WasmFile(std::FILE *file, bool initiallyDirty = false);
-  ~WasmFile() override;
-
-  int Read(void *ptr, int size) override;
-  int GetC() override;
-  int Write(const void *ptr, int size, int nmemb) override;
-  void Seek(long offset, int whence) override;
-  long Tell() override;
-  bool Truncate(long size) override;
-  int Error() override;
-  bool Sync() override;
-  void Dispose() override;
-
-protected:
-  bool Close() override;
-
-private:
-  std::FILE *file_;
-  bool dirty_ = false;
+  explicit WasmFile(std::FILE *file, bool dirty = false)
+      : PosixFile(
+            file, dirty,
+            {StoragePolicy::SyncMode::Buffered, &WasmStorage_NotifyMutation}) {}
 };
-
-#endif

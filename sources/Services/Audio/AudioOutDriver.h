@@ -10,11 +10,11 @@
 #ifndef _AUDIO_OUT_DRIVER_H_
 #define _AUDIO_OUT_DRIVER_H_
 
-#include "Application/Instruments/WavFileWriter.h"
 #include "AudioDriver.h"
 #include "AudioOut.h"
 #include "Externals/etl/include/etl/string.h"
 #include "Foundation/Observable.h"
+#include "Services/Audio/WavFileWriter.h"
 #include "config/MemorySections.h"
 #include "config/StringLimits.h"
 
@@ -48,7 +48,7 @@ protected:
   void Update(Observable &o, I_ObservableData *d) override;
 
   void prepareMixBuffers();
-  void clipToMix();
+  void clipToMix(short *destination);
 
 private:
   AudioDriver *driver_;
@@ -56,7 +56,6 @@ private:
 
   PICOTRACKER_FAST_AUDIO_BUFFER static fixed
       primarySoundBuffer_[MIX_BUFFER_SIZE];
-  PICOTRACKER_FAST_AUDIO_BUFFER static short mixBuffer_[MIX_BUFFER_SIZE];
   int sampleCount_;
 };
 #endif

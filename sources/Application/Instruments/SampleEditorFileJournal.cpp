@@ -1,3 +1,4 @@
+#include "Application/Instruments/WavReadPolicy.h"
 /*
  * SPDX-License-Identifier: BSD-3-Clause
  * Copyright (c) 2026 PicoTracker contributors
@@ -5,7 +6,7 @@
 
 #include "SampleEditorFileJournal.h"
 
-#include "Application/Instruments/WavHeader.h"
+#include "Services/Audio/WavHeader.h"
 #include "System/FileSystem/FileSystem.h"
 
 #include <array>
@@ -19,14 +20,14 @@ bool ReadValidWav(FileSystem &fileSystem, const char *path,
   FileHandle file = fileSystem.Open(path, "r");
   if (!file)
     return false;
-  auto header = WavHeaderWriter::ReadHeader(file.get());
+  auto header = ReadTrackerWavHeader(file.get());
   if (!header.has_value() || header->numChannels == 0U ||
       header->numChannels > 2U || header->blockAlign == 0U ||
       header->dataChunkSize / header->blockAlign == 0U)
     return false;
-  const bool supportedPcm =
-      header->audioFormat == 1U && header->bytesPerSample >= 1U &&
-      header->bytesPerSample <= 4U;
+  const bool supportedPcm = header->audioFormat == 1U &&
+                            header->bytesPerSample >= 1U &&
+                            header->bytesPerSample <= 4U;
   const bool supportedFloat =
       header->audioFormat == 3U &&
       (header->bytesPerSample == 4U || header->bytesPerSample == 8U);
@@ -36,8 +37,7 @@ bool ReadValidWav(FileSystem &fileSystem, const char *path,
   return true;
 }
 
-bool SameSampleEncoding(const WavHeaderInfo &left,
-                        const WavHeaderInfo &right) {
+bool SameSampleEncoding(const WavHeaderInfo &left, const WavHeaderInfo &right) {
   return left.audioFormat == right.audioFormat &&
          left.numChannels == right.numChannels &&
          left.sampleRate == right.sampleRate &&
@@ -64,8 +64,7 @@ SampleEditorFileJournal::RecoverDestinationStatus(FileSystem &fileSystem,
                  working.size()) ||
       !BuildPath(destination, Generation::Operation, operation.data(),
                  operation.size()) ||
-      !BuildPath(destination, Generation::Backup, backup.data(),
-                 backup.size()))
+      !BuildPath(destination, Generation::Backup, backup.data(), backup.size()))
     return RecoveryStatus::Failed;
   if (!fileSystem.exists(backup.data()))
     return RecoveryStatus::Complete;
@@ -77,17 +76,15 @@ SampleEditorFileJournal::RecoverDestinationStatus(FileSystem &fileSystem,
   const bool destinationValid =
       ReadValidWav(fileSystem, destination, destinationHeader);
 
-  if (!backupValid ||
-      (destinationValid &&
-       !SameSampleEncoding(destinationHeader, backupHeader)))
+  if (!backupValid || (destinationValid &&
+                       !SameSampleEncoding(destinationHeader, backupHeader)))
     return RecoveryStatus::NotOwned;
 
   if (destinationValid) {
     if (!fileSystem.DeleteFile(backup.data()))
       return RecoveryStatus::Failed;
   } else {
-    if (fileSystem.exists(destination) &&
-        !fileSystem.DeleteFile(destination))
+    if (fileSystem.exists(destination) && !fileSystem.DeleteFile(destination))
       return RecoveryStatus::Failed;
     if (!fileSystem.MoveFile(backup.data(), destination) ||
         !ValidateWav(fileSystem, destination))
@@ -108,8 +105,7 @@ bool SampleEditorFileJournal::RecoverDestination(FileSystem &fileSystem,
          RecoveryStatus::Complete;
 }
 
-bool SampleEditorFileJournal::RecoverCurrentDirectory(
-    FileSystem &fileSystem) {
+bool SampleEditorFileJournal::RecoverCurrentDirectory(FileSystem &fileSystem) {
   etl::vector<int, MAX_FILE_INDEX_SIZE> entries;
   if (!fileSystem.listChecked(&entries, ".b", false, true) || entries.full())
     return false;

@@ -11,7 +11,7 @@
 #include "Application/Instruments/SampleInstrument.h"
 #include "Application/Mixer/MixerService.h"
 #include "Application/Model/Mixer.h"
-#include "Application/Utils/fixed.h"
+#include "Foundation/Types/Fixed.h"
 #include "Services/Midi/MidiService.h"
 #include "SyncMaster.h"
 #include "System/Console/Trace.h"
@@ -62,12 +62,14 @@ bool PlayerMixer::Init(Project *project) {
   }
 
   AudioMixer *audioMixer = ms->GetMixBus(STREAM_MIX_BUS);
-  audioMixer->AddModule(fileStreamer_);
+  if (!audioMixer->AddModule(fileStreamer_))
+    return false;
 
   project_ = project;
 
   // Add the record mixer
-  audioMixer->AddModule(recordStreamer_);
+  if (!audioMixer->AddModule(recordStreamer_))
+    return false;
 
   // Init states
   for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {

@@ -10,7 +10,7 @@
 #ifndef _I_SRP_UPDATER_H_
 #define _I_SRP_UPDATER_H_
 
-#include "Application/Utils/fixed.h"
+#include "Foundation/Types/Fixed.h"
 
 struct RUParams {
   fixed volumeOffset_;
@@ -24,8 +24,8 @@ struct RUParams {
 
 class I_SRPUpdater {
 public:
-  I_SRPUpdater(){};
-  virtual ~I_SRPUpdater(){};
+  I_SRPUpdater() {};
+  virtual ~I_SRPUpdater() {};
   virtual void Trigger(bool tableTick) = 0;
   virtual void UpdateSRP(struct RUParams &rup) = 0;
   void Enable() { enabled_ = true; };

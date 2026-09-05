@@ -5,13 +5,13 @@
 #include "WasmSystem.h"
 
 #ifndef HOST_TEST
+#include "Adapters/common/logging/BufferedTrace.h"
+#include "Adapters/common/midi/QueuedMidiService.h"
+#include "Adapters/common/system/HeapSamplePool.h"
 #include "Adapters/wasm/audio/WasmAudio.h"
 #include "Adapters/wasm/filesystem/WasmFileSystem.h"
-#include "Adapters/wasm/logging/WasmTrace.h"
-#include "Adapters/wasm/midi/WasmMidiService.h"
 #include "Adapters/wasm/platform/wasm_bridge.h"
 #include "Adapters/wasm/process/WasmProcess.h"
-#include "Adapters/wasm/system/WasmSamplePool.h"
 #include "Adapters/wasm/timer/WasmTimer.h"
 #include "Services/Audio/Audio.h"
 #include "Services/Midi/MidiService.h"
@@ -82,23 +82,26 @@ bool WasmSystem::InstallPlatformServices() {
 
   // Construct before any platform service can emit Trace output. The sink is
   // fixed-storage and remains valid until the WASM module is terminated.
-  static WasmTrace trace;
+  static BufferedTrace trace(+[] {
+    return static_cast<std::uint64_t>(DefaultNowMilliseconds() * 1000.0);
+  });
 
-  alignas(WasmTimerService)
-      static unsigned char timerStorage[sizeof(WasmTimerService)];
+  alignas(WasmTimerService) static unsigned char
+      timerStorage[sizeof(WasmTimerService)];
   TimerService::Install(new (timerStorage) WasmTimerService());
 
-  alignas(WasmFileSystem)
-      static unsigned char filesystemStorage[sizeof(WasmFileSystem)];
+  alignas(WasmFileSystem) static unsigned char
+      filesystemStorage[sizeof(WasmFileSystem)];
   FileSystem::Install(new (filesystemStorage) WasmFileSystem());
   if (!FileSystem::GetInstance()->chdir("/")) {
     Trace::Error("WASM_SYSTEM", "failed to enter MEMFS root /data");
     return false;
   }
 
-  alignas(WasmMidiService)
-      static unsigned char midiStorage[sizeof(WasmMidiService)];
-  MidiService::Install(new (midiStorage) WasmMidiService());
+  alignas(QueuedMidiService) static unsigned char
+      midiStorage[sizeof(QueuedMidiService)];
+  MidiService::Install(new (midiStorage) QueuedMidiService(
+      &DefaultNowMilliseconds, "Web MIDI input", "Web MIDI output"));
 
   AudioSettings settings{};
   settings.audioAPI_ = "wasm-audio-worklet";
@@ -108,9 +111,9 @@ bool WasmSystem::InstallPlatformServices() {
   alignas(WasmAudio) static unsigned char audioStorage[sizeof(WasmAudio)];
   Audio::Install(new (audioStorage) WasmAudio(settings));
 
-  alignas(WasmSamplePool)
-      static unsigned char samplePoolStorage[sizeof(WasmSamplePool)];
-  SamplePool::Install(new (samplePoolStorage) WasmSamplePool());
+  alignas(HeapSamplePool) static unsigned char
+      samplePoolStorage[sizeof(HeapSamplePool)];
+  SamplePool::Install(new (samplePoolStorage) HeapSamplePool());
   return true;
 }
 
@@ -123,7 +126,8 @@ void WasmSystem::ShutdownPlatformServices() {
   if (midi != nullptr) {
     midi->Close();
   }
-  if (WasmTrace *trace = WasmTrace::Instance()) trace->FlushLine();
+  if (BufferedTrace *trace = BufferedTrace::Instance())
+    trace->FlushLine();
 }
 
 unsigned long WasmSystem::GetClock() { return Millis(); }
@@ -147,13 +151,13 @@ unsigned int WasmSystem::GetMemoryUsage() { return 0; }
 void WasmSystem::PowerDown() { (void)WasmProcess::PowerDown(); }
 
 void WasmSystem::SystemPutChar(int c) {
-  if (WasmTrace *trace = WasmTrace::Instance()) trace->PutChar(c);
-  else std::putchar(c);
+  if (BufferedTrace *trace = BufferedTrace::Instance())
+    trace->PutChar(c);
+  else
+    std::putchar(c);
 }
 
-void WasmSystem::SystemBootloader() {
-  (void)WasmProcess::EnterBootloader();
-}
+void WasmSystem::SystemBootloader() { (void)WasmProcess::EnterBootloader(); }
 
 void WasmSystem::SystemReboot() { (void)WasmProcess::Reboot(); }
 

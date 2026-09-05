@@ -12,8 +12,8 @@
 #include "Application/Model/Mixer.h"
 #include "Application/Player/SyncMaster.h"
 
-#ifdef __EMSCRIPTEN__
-#include "Adapters/wasm/tracing/WasmProfiler.h"
+#ifdef PICOTRACKER_ENABLE_PROFILING
+#include "System/Console/Profiler.h"
 #endif
 
 PlayerChannel::PlayerChannel(int index) {
@@ -48,9 +48,8 @@ void PlayerChannel::StopInstrument() {
 
 bool PlayerChannel::Render(fixed *buffer, int samplecount) {
   if (instr_) {
-#ifdef __EMSCRIPTEN__
-    WASM_TRACE_SCOPE(WasmTraceCategory::Instrument,
-                     WasmTraceName::InstrumentRender);
+#ifdef PICOTRACKER_ENABLE_PROFILING
+    PROFILE_SCOPE(TraceCategory::Instrument, TraceName::InstrumentRender);
 #endif
     bool tableSlice = SyncMaster::GetInstance()->TableSlice();
     bool status = instr_->Render(index_, buffer, samplecount, tableSlice);
@@ -66,9 +65,7 @@ void PlayerChannel::SetMute(bool muted) {
   muted_.store(muted, std::memory_order_relaxed);
 }
 
-bool PlayerChannel::IsMuted() {
-  return muted_.load(std::memory_order_relaxed);
-}
+bool PlayerChannel::IsMuted() { return muted_.load(std::memory_order_relaxed); }
 
 void PlayerChannel::SetMixBus(int i) {
 

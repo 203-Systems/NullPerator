@@ -7,7 +7,7 @@ include_directories(
 
 # The browser simulator models the 240x240 Node target and uses the same UI2
 # application layout as the firmware.
-add_compile_definitions(NODE)
+add_compile_definitions(PICOTRACKER_ENABLE_PROFILING)
 
 set(PICOTRACKER_WEB_WASM_DIR
   "${CMAKE_CURRENT_SOURCE_DIR}/../../../web/public/wasm"
@@ -26,8 +26,8 @@ target_include_directories(platform_timer PUBLIC "${PROJECT_SOURCE_DIR}")
 target_link_libraries(platform_timer PUBLIC system_timer)
 
 add_library(platform_filesystem
-  filesystem/WasmFile.cpp
-  filesystem/WasmFileSystem.cpp
+${PROJECT_SOURCE_DIR}/Adapters/posix/filesystem/PosixFile.cpp
+${PROJECT_SOURCE_DIR}/Adapters/posix/filesystem/PosixFileSystem.cpp
   filesystem/WasmStorageBridge.cpp)
 target_include_directories(platform_filesystem PUBLIC "${PROJECT_SOURCE_DIR}")
 
@@ -48,18 +48,21 @@ target_include_directories(platform_audio PUBLIC "${PROJECT_SOURCE_DIR}")
 target_link_libraries(platform_audio PUBLIC platform_snapshot)
 
 add_library(platform_midi
-  midi/MidiLatencyTrace.cpp
-  midi/WasmMidiInDevice.cpp
-  midi/WasmMidiOutDevice.cpp
-  midi/WasmMidiService.cpp)
+  midi/WasmMidiBridge.cpp
+  ${PROJECT_SOURCE_DIR}/Adapters/common/midi/MidiLatencyTrace.cpp
+  ${PROJECT_SOURCE_DIR}/Adapters/common/midi/QueuedMidiInDevice.cpp
+  ${PROJECT_SOURCE_DIR}/Adapters/common/midi/QueuedMidiOutDevice.cpp
+  ${PROJECT_SOURCE_DIR}/Adapters/common/midi/QueuedMidiService.cpp)
 target_include_directories(platform_midi PUBLIC "${PROJECT_SOURCE_DIR}")
 
-add_library(platform_logging logging/WasmTrace.cpp)
+add_library(platform_logging logging/WasmLogBridge.cpp
+  ${PROJECT_SOURCE_DIR}/Adapters/common/logging/BufferedTrace.cpp)
 target_include_directories(platform_logging PUBLIC "${PROJECT_SOURCE_DIR}")
 
 add_library(platform_tracing
   tracing/InputFrameLatencyTracker.cpp
-  tracing/WasmProfiler.cpp
+  ${PROJECT_SOURCE_DIR}/System/Console/Profiler.cpp
+  tracing/WasmTraceBridge.cpp
   tracing/Benchmark.cpp)
 target_include_directories(platform_tracing PUBLIC "${PROJECT_SOURCE_DIR}")
 
@@ -70,7 +73,7 @@ target_include_directories(platform PUBLIC
 target_link_libraries(platform PUBLIC platform_mutex)
 
 add_library(platform_system
-  system/WasmSamplePool.cpp
+  ${PROJECT_SOURCE_DIR}/Adapters/common/system/HeapSamplePool.cpp
   system/WasmSystem.cpp)
 target_include_directories(platform_system PUBLIC "${PROJECT_SOURCE_DIR}")
 target_link_libraries(platform_system PUBLIC
@@ -208,3 +211,6 @@ add_custom_command(TARGET picotracker_wasm POST_BUILD
     -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/VerifyCoreSymbols.cmake"
   COMMENT "Verifying non-GUI PicoTracker core link closure"
   VERBATIM)
+
+add_library(platform_memory "${PROJECT_SOURCE_DIR}/Adapters/common/memory/Memory.cpp")
+target_include_directories(platform_memory PUBLIC "${PROJECT_SOURCE_DIR}")

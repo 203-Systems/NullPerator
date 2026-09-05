@@ -13,10 +13,11 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstring>
 #include <limits>
 
-#ifdef __EMSCRIPTEN__
-#include "Adapters/wasm/tracing/WasmProfiler.h"
+#ifdef PICOTRACKER_ENABLE_PROFILING
+#include "System/Console/Profiler.h"
 #endif
 
 namespace {
@@ -33,10 +34,8 @@ std::uint16_t PeakLevel(std::uint32_t magnitude) {
 
 } // namespace
 
-fixed AudioMixer::renderBuffer_[MAX_SAMPLE_COUNT * 2];
-
-AudioMixer::AudioMixer(const char *name)
-    : enableRendering_(0), name_(name), modules_() {
+AudioMixer::AudioMixer(const char *name, Workspace *workspace)
+    : enableRendering_(0), name_(name), modules_(), workspace_(workspace) {
   volume_ = (i2fp(1));
 };
 
@@ -53,6 +52,7 @@ void AudioMixer::EnableRendering(bool enable) {
     if (!writer_.Open(renderPath_.c_str())) {
       Trace::Error("AUDIO_MIXER", "Failed to open render file: %s",
                    renderPath_.c_str());
+      renderFailed_.store(true);
       enableRendering_ = false;
       return;
     }
@@ -60,138 +60,135 @@ void AudioMixer::EnableRendering(bool enable) {
 
   enableRendering_ = enable;
   if (!enable) {
-    writer_.Close();
+    if (!writer_.Close())
+      renderFailed_.store(true);
   }
 };
 
 bool AudioMixer::Render(fixed *buffer, int samplecount) {
-#ifdef __EMSCRIPTEN__
-  WASM_TRACE_SCOPE(WasmTraceCategory::Mixer, WasmTraceName::MixerRender);
+#ifdef PICOTRACKER_ENABLE_PROFILING
+  PROFILE_SCOPE(TraceCategory::Mixer, TraceName::MixerRender);
 #endif
+  if (!buffer || samplecount <= 0 || samplecount > MAX_SAMPLE_COUNT)
+    return false;
+  // One render worker traverses the graph. Detect recursive scratch reuse
+  // before a child can overwrite its parent's temporary buffer or carries.
+  if (workspace_ && workspace_->inUse_) {
+    workspace_->conflict_ = true;
+    renderFailed_.store(true);
+    peakMixerLevel_.store(0, std::memory_order_relaxed);
+    return false;
+  }
+  if (workspace_)
+    workspace_->conflict_ = false;
+  struct WorkspaceLease {
+    bool *inUse = nullptr;
+    ~WorkspaceLease() {
+      if (inUse)
+        *inUse = false;
+    }
+  } lease;
   bool gotData = false;
+  bool needsWideGain = false;
   std::uint32_t peakL = 0;
   std::uint32_t peakR = 0;
-
+  const int count = samplecount * 2;
   for (auto *mod : modules_) {
-    if (!mod) {
-      continue;
-    }
     if (!gotData) {
       gotData = mod->Render(buffer, samplecount);
     } else {
-      if (mod->Render(renderBuffer_, samplecount)) {
-        fixed *dst = buffer;
-        fixed *src = renderBuffer_;
-        int count = samplecount * 2;
-
-        /* Manually unrolling the loop gives a 25% performance increase (from
-         * 6500 cycles for 800 samples to 5100 cycles. This is due to being able
-         * to schedule independent loads simultanously, reduce load latency by
-         * loading independent loads instead of immediately executing a
-         * dependent action (add) having to wait for the load to complete.
-         * Potentially also reducing the load comparison overhead 16
-         * instructions in the unroll gives the best performance, 8 gave ~17%
-         * improvement.
-         */
-        int i = 0;
-        for (; i + 16 <= count; i += 16) {
-          dst[i + 0] += src[i + 0];
-          dst[i + 1] += src[i + 1];
-          dst[i + 2] += src[i + 2];
-          dst[i + 3] += src[i + 3];
-          dst[i + 4] += src[i + 4];
-          dst[i + 5] += src[i + 5];
-          dst[i + 6] += src[i + 6];
-          dst[i + 7] += src[i + 7];
-          dst[i + 8] += src[i + 8];
-          dst[i + 9] += src[i + 9];
-          dst[i + 10] += src[i + 10];
-          dst[i + 11] += src[i + 11];
-          dst[i + 12] += src[i + 12];
-          dst[i + 13] += src[i + 13];
-          dst[i + 14] += src[i + 14];
-          dst[i + 15] += src[i + 15];
-        }
-        for (; i < count; ++i)
-          dst[i] += src[i];
+      // The first child renders directly into the destination. Its scratch
+      // lifetime has ended, so acquire only now and clear its old carries.
+      if (!lease.inUse) {
+        workspace_->inUse_ = true;
+        lease.inUse = &workspace_->inUse_;
+        std::memset(workspace_->carry, 0x88, samplecount);
       }
+      if (mod->Render(workspace_->temporary, samplecount)) {
+        for (int i = 0; i < count; ++i) {
+          const fixed a = buffer[i], b = workspace_->temporary[i];
+          // Sum low words with defined unsigned wrap, retaining signed carries.
+          // Ten full-scale Q15 modules need only four additional bits. This
+          // preserves cancellation and fractional precision without a 64-bit
+          // sample buffer or saturating before the master volume is applied.
+          const fixed sum = static_cast<fixed>(static_cast<std::uint32_t>(a) +
+                                               static_cast<std::uint32_t>(b));
+          if (((a ^ sum) & (b ^ sum)) < 0) {
+            const int increment = (i & 1) ? 16 : 1;
+            workspace_->carry[i >> 1] += a < 0 ? -increment : increment;
+            needsWideGain = true;
+          }
+          buffer[i] = sum;
+        }
+      }
+    }
+    if (workspace_ && workspace_->conflict_) {
+      renderFailed_.store(true);
+      peakMixerLevel_.store(0, std::memory_order_relaxed);
+      return false;
     }
   }
 
-  // Apply volume to mix of all of this instance's "sub" audiomixers
   if (gotData) {
-    fixed *c = buffer;
-    int totalFixed = samplecount * 2;
-
-    if (volume_ == FP_ONE) {
-      // unity gain, no calculations to be done, just grab the levels
-      for (int i = 0; i < samplecount; i += 32, c += 64) {
-        const std::uint32_t l = FixedMagnitude(*c);
-        const std::uint32_t r = FixedMagnitude(*(c + 1));
-        if (l > peakL)
-          peakL = l;
-        if (r > peakR)
-          peakR = r;
+    if (needsWideGain) {
+      for (int i = 0; i < count; ++i) {
+        const std::int64_t sum =
+            std::int64_t(buffer[i]) +
+            std::int64_t(((workspace_->carry[i >> 1] >> ((i & 1) * 4)) & 0x0f) -
+                         8) *
+                (INT64_C(1) << 32);
+        const auto scaled =
+            volume_ == FP_ONE ? sum : (sum * volume_) >> FIXED_SHIFT;
+        buffer[i] = static_cast<fixed>(
+            std::clamp<std::int64_t>(scaled, std::numeric_limits<fixed>::min(),
+                                     std::numeric_limits<fixed>::max()));
       }
-    } else {
-      int i = 0;
-      for (; i + 16 <= totalFixed; i += 16) {
-        c[i + 0] = fp_mul(c[i + 0], volume_);
-        c[i + 1] = fp_mul(c[i + 1], volume_);
-        c[i + 2] = fp_mul(c[i + 2], volume_);
-        c[i + 3] = fp_mul(c[i + 3], volume_);
-        c[i + 4] = fp_mul(c[i + 4], volume_);
-        c[i + 5] = fp_mul(c[i + 5], volume_);
-        c[i + 6] = fp_mul(c[i + 6], volume_);
-        c[i + 7] = fp_mul(c[i + 7], volume_);
-        c[i + 8] = fp_mul(c[i + 8], volume_);
-        c[i + 9] = fp_mul(c[i + 9], volume_);
-        c[i + 10] = fp_mul(c[i + 10], volume_);
-        c[i + 11] = fp_mul(c[i + 11], volume_);
-        c[i + 12] = fp_mul(c[i + 12], volume_);
-        c[i + 13] = fp_mul(c[i + 13], volume_);
-        c[i + 14] = fp_mul(c[i + 14], volume_);
-        c[i + 15] = fp_mul(c[i + 15], volume_);
-      }
-      for (; i < totalFixed; ++i) {
-        c[i] = fp_mul(c[i], volume_);
-      }
-
-      for (int j = 0; j < samplecount; j += 32) {
-        const std::uint32_t l = FixedMagnitude(buffer[j * 2]);
-        const std::uint32_t r = FixedMagnitude(buffer[j * 2 + 1]);
-        if (l > peakL)
-          peakL = l;
-        if (r > peakR)
-          peakR = r;
-      }
+    } else if (volume_ != FP_ONE) {
+      for (int i = 0; i < count; ++i)
+        buffer[i] = fp_mul(buffer[i], volume_);
+    }
+    for (int i = 0; i < samplecount; i += 32) {
+      peakL = std::max(peakL, FixedMagnitude(buffer[2 * i]));
+      peakR = std::max(peakR, FixedMagnitude(buffer[2 * i + 1]));
     }
   }
 
   // Always update peakMixerLevel_ regardless of whether we got data
   // This ensures VU meters update properly in all scenarios
-  const stereosample peakLevel =
-      static_cast<stereosample>(PeakLevel(peakL)) << 16U |
-      static_cast<stereosample>(PeakLevel(peakR));
+  const stereosample peakLevel = static_cast<stereosample>(PeakLevel(peakL))
+                                     << 16U |
+                                 static_cast<stereosample>(PeakLevel(peakR));
   peakMixerLevel_.store(peakLevel, std::memory_order_relaxed);
 
   if (enableRendering_ && writer_.IsOpen()) {
     if (!gotData) {
       memset(buffer, 0, samplecount * 2 * sizeof(fixed));
     };
-    writer_.AddBuffer(buffer, samplecount);
+    if (!writer_.AddBuffer(buffer, samplecount))
+      renderFailed_.store(true);
   }
   return gotData;
 };
 
-void AudioMixer::SetVolume(fixed volume) { volume_ = volume; }
+void AudioMixer::SetVolume(fixed volume) {
+  volume_ = std::clamp<fixed>(volume, 0, FP_ONE);
+}
 
-void AudioMixer::AddModule(AudioModule &module) {
-  if (modules_.full()) {
-    Trace::Error("AUDIOMIXER", "Module list full");
-    return;
+bool AudioMixer::SetWorkspace(Workspace &workspace) {
+  if (modules_.size() > 1)
+    return false;
+  workspace_ = &workspace;
+  return true;
+}
+
+bool AudioMixer::AddModule(AudioModule &module) {
+  if (modules_.full() || (!modules_.empty() && !workspace_) ||
+      &module == this) {
+    Trace::Error("AUDIOMIXER", "Invalid graph or missing branch workspace");
+    return false;
   }
   modules_.push_back(&module);
+  return true;
 }
 
 void AudioMixer::RemoveModule(AudioModule &module) {

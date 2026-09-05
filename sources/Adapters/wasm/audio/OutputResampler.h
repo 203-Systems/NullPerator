@@ -5,7 +5,7 @@
 #ifndef PICOTRACKER_WASM_OUTPUT_RESAMPLER_H
 #define PICOTRACKER_WASM_OUTPUT_RESAMPLER_H
 
-#include "PcmRingBuffer.h"
+#include "Services/Audio/PcmRingBuffer.h"
 
 #include <cstddef>
 #include <cstdint>

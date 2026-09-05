@@ -22,7 +22,7 @@ some useful abstract info:
  buffer rendering again (removing clics)
 -------------------------------------------*/
 
-#include "Application/Utils/fixed.h"
+#include "Foundation/Types/Fixed.h"
 
 typedef enum {
   FLT_LOWPASS, // only lowpass is implemented so far
