@@ -120,6 +120,35 @@ describe('virtual disk ZIP safety', () => {
     expect(previewZipRestore(archive, new Set()).files.map(({ path }) => path)).toEqual(['/data/idbfs-e2e-user-file.dat'])
   })
 
+  it('round-trips filenames that are JavaScript object property names', () => {
+    const entries = ['__proto__', 'constructor', 'toString'].map((name) => ({
+      path: `/data/${name}`, kind: 'file', bytes: strToU8(`contents of ${name}`),
+    }))
+    const restored = previewZipRestore(createDiskZip(entries)).files
+    expect(restored).toHaveLength(entries.length)
+    for (const entry of entries) {
+      expect(restored.find(({ path }) => path === entry.path)?.bytes).toEqual(entry.bytes)
+    }
+  })
+
+  it('reserves incoming files and implicit directories before choosing keep-both names', () => {
+    for (const names of [
+      ['demo.dat', 'demo (2).dat', 'demo (3).dat/child'],
+      ['demo (3).dat/child', 'demo (2).dat', 'demo.dat'],
+    ]) {
+      const preview = previewZipRestore(makeZip(Object.fromEntries(names.map((name) => [name, name]))),
+        new Map([['/data/demo.dat', 'file']]))
+      const plan = planZipRestore(preview, 'keep-both')
+      expect(plan.files.find(({ relativePath }) => relativePath === 'demo.dat').path).toBe('/data/demo (4).dat')
+      expect(plan.files.find(({ relativePath }) => relativePath === 'demo (2).dat').path).toBe('/data/demo (2).dat')
+      expect(plan.directories).toContain('/data/demo (3).dat')
+      for (const file of plan.files) expect(plan.directories).not.toContain(file.path)
+    }
+    const preview = previewZipRestore(makeZip({ 'demo.dat': 'new' }),
+      new Set(['/data/demo.dat', '/data/demo (2).dat/child']))
+    expect(planZipRestore(preview, 'keep-both').files[0].path).toBe('/data/demo (3).dat')
+  })
+
   it('reports existing file/directory kind conflicts in the preview before planning writes', () => {
     const preview = previewZipRestore(makeZip({ name: 'x', 'other/child': 'y' }), new Map([
       ['/data/name', 'directory'],

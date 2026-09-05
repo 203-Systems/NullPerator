@@ -1,4 +1,4 @@
-import { Inflate, zipSync } from 'fflate'
+import { Inflate, Zip, ZipDeflate } from 'fflate'
 
 export const ZIP_LIMITS = Object.freeze({
   maxEntries: 4096,
@@ -89,15 +89,15 @@ function parseCentralDirectory(input) {
     cursor = next
   }
   if (cursor !== centralOffset + centralSize) invalid('central directory length')
-  const seen = new Set()
+  const byPath = new Map()
   for (const entry of entries) {
-    if (seen.has(entry.path)) unsafe(`duplicate ${entry.relativePath}`)
-    seen.add(entry.path)
+    if (byPath.has(entry.path)) unsafe(`duplicate ${entry.relativePath}`)
+    byPath.set(entry.path, entry)
   }
   for (const entry of entries) {
     let parent = entry.path.slice(0, entry.path.lastIndexOf('/'))
     while (parent && parent !== '/data') {
-      const ancestor = entries.find((candidate) => candidate.path === parent)
+      const ancestor = byPath.get(parent)
       if (ancestor?.kind === 'file') unsafe(`file ancestor ${ancestor.relativePath}`)
       parent = parent.slice(0, parent.lastIndexOf('/'))
     }
@@ -199,10 +199,20 @@ function nextName(path, occupied) {
 export function planZipRestore(preview, policy) {
   if (!['overwrite', 'keep-both'].includes(policy)) throw new Error('A ZIP conflict policy is required')
   if (preview.conflicts.some((conflict) => conflict.reason !== 'replace' || conflict.kind !== 'file')) throw new Error('ZIP path conflicts with an existing file or directory')
-  const occupied = new Set(preview.existing.keys())
+  const occupied = new Set()
+  // Reserve original archive names and implicit parent directories so a
+  // renamed conflict cannot steal another incoming entry's destination.
+  const reservePath = (path) => {
+    while (path && path !== '/data') {
+      occupied.add(path)
+      path = path.slice(0, path.lastIndexOf('/'))
+    }
+  }
+  for (const path of preview.existing.keys()) reservePath(path)
+  for (const entry of preview.entries) reservePath(entry.path)
   const files = preview.files.map((file) => {
     let path = file.path
-    if (occupied.has(path) && policy === 'keep-both') path = nextName(path, occupied)
+    if (preview.existing.has(path) && policy === 'keep-both') path = nextName(path, occupied)
     occupied.add(path)
     return { ...file, path }
   })
@@ -216,7 +226,16 @@ export function planZipRestore(preview, policy) {
 
 export function createDiskZip(entries) {
   if (entries.length > ZIP_LIMITS.maxEntries) throw new Error('Disk export exceeds ZIP entry limit')
-  const content = {}
+  const chunks = []
+  let compressedBytes = 0
+  // zipSync flattens filenames through an ordinary object internally, which
+  // treats __proto__ as a property setter. Add named streams directly instead.
+  const writer = new Zip((error, chunk) => {
+    if (error) throw error
+    compressedBytes += chunk.byteLength
+    if (compressedBytes > ZIP_LIMITS.maxCompressedBytes) throw new Error('Disk export exceeds ZIP compressed limit')
+    chunks.push(chunk)
+  })
   let total = 0
   for (const entry of entries) {
     if (!entry.path.startsWith('/data/')) throw new Error('Disk export contains a path outside /data')
@@ -226,9 +245,16 @@ export function createDiskZip(entries) {
       if (total > ZIP_LIMITS.maxInflatedBytes) throw new Error('Disk export exceeds ZIP size limit')
     }
     const relative = entry.path.slice('/data/'.length)
-    content[entry.kind === 'directory' ? `${relative}/` : relative] = entry.kind === 'directory' ? new Uint8Array() : entry.bytes
+    const file = new ZipDeflate(entry.kind === 'directory' ? `${relative}/` : relative)
+    writer.add(file)
+    file.push(entry.kind === 'directory' ? new Uint8Array() : entry.bytes, true)
   }
-  const archive = zipSync(content)
-  if (archive.byteLength > ZIP_LIMITS.maxCompressedBytes) throw new Error('Disk export exceeds ZIP compressed limit')
+  writer.end()
+  const archive = new Uint8Array(compressedBytes)
+  let offset = 0
+  for (const chunk of chunks) {
+    archive.set(chunk, offset)
+    offset += chunk.byteLength
+  }
   return archive
 }

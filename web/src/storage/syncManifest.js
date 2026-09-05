@@ -39,7 +39,8 @@ export function createManifest(entries = []) {
     manifest.set(entry.path, entry)
   }
   for (const entry of manifest.values()) {
-    let parent = entry.path.slice(0, entry.path.lastIndexOf('/'))
+    const slash = entry.path.lastIndexOf('/')
+    let parent = slash < 0 ? '' : entry.path.slice(0, slash)
     while (parent) {
       if (manifest.get(parent)?.kind === 'file') throw new Error(`File ancestor in manifest: ${parent}`)
       const slash = parent.lastIndexOf('/')

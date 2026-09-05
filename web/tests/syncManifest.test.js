@@ -48,6 +48,17 @@ describe('host-folder sync manifests', () => {
     ])).not.toThrow()
   })
 
+  it('accepts top-level names differing by a final character and rejects real file ancestors', () => {
+    expect(() => createManifest([
+      { path: 'a', kind: 'file', size: 1, hash: 'a' },
+      { path: 'ab', kind: 'file', size: 1, hash: 'b' },
+    ])).not.toThrow()
+    expect(() => createManifest([
+      { path: 'a', kind: 'file', size: 1, hash: 'a' },
+      { path: 'a/b', kind: 'file', size: 1, hash: 'b' },
+    ])).toThrow(/file ancestor/i)
+  })
+
   it('classifies browser-only and host-only changes plus equal convergence', () => {
     const base = createManifest([{ path: 'same.dat', kind: 'file', size: 3, hash: 'old' }])
     const browser = createManifest([
