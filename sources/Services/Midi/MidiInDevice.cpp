@@ -25,7 +25,7 @@ MidiInDevice::MidiInDevice(const char *) : isRunning_(false) {
   noteTracker_.clear();
 };
 
-MidiInDevice::~MidiInDevice(){};
+MidiInDevice::~MidiInDevice() {};
 
 bool MidiInDevice::Init() { return initDriver(); };
 
@@ -142,73 +142,30 @@ void MidiInDevice::treatChannelEvent(MidiMessage &event) {
 
   // Process channel messages using GetType()
   switch (event.GetType()) {
-  case MidiMessage::MIDI_NOTE_OFF: {
-    int note = event.data1_ & MIDI_DATA_MASK;
-
-    const int instrumentIndex = GetInstrumentForChannel(midiChannel);
-    if (instrumentIndex < 0) {
-      Trace::Debug("No instrument assigned for MIDI channel %d", midiChannel);
-      break;
-    }
-
-    Player *player = Player::GetInstance();
-    if (player) {
-      int audioChannel = noteTracker_.unregisterNote(note, midiChannel);
-      if (audioChannel >= 0) {
-        Trace::Debug("Stopping note %d on MIDI channel %d, audio channel %d",
-                     note, midiChannel, audioChannel);
-        player->StopNote(instrumentIndex, audioChannel);
-      } else {
-        Trace::Debug("Note %d not active on MIDI channel %d, not stopping",
-                     note, midiChannel);
-      }
-    }
-  } break;
-
+  case MidiMessage::MIDI_NOTE_OFF:
   case MidiMessage::MIDI_NOTE_ON: {
-    int note = event.data1_ & MIDI_DATA_MASK;
-    int value = event.data2_ & MIDI_DATA_MASK;
-
+    const int note = event.data1_ & MIDI_DATA_MASK;
+    const int value = event.data2_ & MIDI_DATA_MASK;
     const int instrumentIndex = GetInstrumentForChannel(midiChannel);
-    if (instrumentIndex < 0) {
-      Trace::Debug("No instrument assigned for MIDI channel %d", midiChannel);
+    const bool releasing =
+        event.GetType() == MidiMessage::MIDI_NOTE_OFF || value == 0;
+    Player *player = Player::GetInstance();
+    if (releasing) {
+      // The voice belongs to the note tracker even if its channel mapping
+      // changed after Note On. StopNote addresses the voice; its instrument
+      // argument is unused. Both MIDI encodings must release that ownership.
+      const int audioChannel = noteTracker_.unregisterNote(note, midiChannel);
+      if (player != nullptr && audioChannel >= 0)
+        player->StopNote(instrumentIndex >= 0 ? instrumentIndex : 0,
+                         audioChannel);
       break;
     }
-
-    Player *player = Player::GetInstance();
-    if (player) {
-      // If velocity is 0, it's actually a note off in MIDI
-      if (value == 0) {
-        int audioChannel = noteTracker_.unregisterNote(note, midiChannel);
-        if (audioChannel >= 0) {
-          Trace::Debug("Note off (vel=0): Stopping note %d on MIDI channel "
-                       "%d, audio channel %d",
-                       note, midiChannel, audioChannel);
-          player->StopNote(instrumentIndex, audioChannel);
-        } else {
-          Trace::Debug("Note off (vel=0): Note %d not active on MIDI channel "
-                       "%d, not stopping",
-                       note, midiChannel);
-        }
-      } else {
-        // Get the next available audio channel for this note
-        int audioChannel = noteTracker_.getNextAvailableChannel();
-
-        if (audioChannel >= 0) {
-          // Register the note with the tracker
-          if (noteTracker_.registerNote(note, midiChannel, audioChannel)) {
-            Trace::Debug("Playing note %d on MIDI channel %d (instrument %d), "
-                         "audio channel %d",
-                         note, midiChannel, instrumentIndex, audioChannel);
-            player->PlayNote(instrumentIndex, audioChannel, note, value);
-          } else {
-            Trace::Debug("Failed to register note %d", note);
-          }
-        } else {
-          Trace::Debug("No available audio channels for note %d", note);
-        }
-      }
-    }
+    if (player == nullptr || instrumentIndex < 0)
+      break;
+    const int audioChannel = noteTracker_.getNextAvailableChannel();
+    if (audioChannel >= 0 &&
+        noteTracker_.registerNote(note, midiChannel, audioChannel))
+      player->PlayNote(instrumentIndex, audioChannel, note, value);
   } break;
 
   case MidiMessage::MIDI_AFTERTOUCH: {

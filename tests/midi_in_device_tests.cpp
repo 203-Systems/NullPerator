@@ -118,6 +118,28 @@ TEST_CASE("Stopping MIDI input releases every tracked live voice") {
   CHECK(Player::GetInstance()->playedNotes.back().voice == 0U);
 }
 
+TEST_CASE(
+    "MIDI note-off releases a voice after its channel assignment is cleared") {
+  for (const auto status :
+       {MidiMessage::MIDI_NOTE_OFF, MidiMessage::MIDI_NOTE_ON}) {
+    Player::ResetTestState();
+    TestMidiInDevice device;
+    MidiInDevice::AssignInstrumentToChannel(3, 5);
+    device.Send(MidiMessage::MIDI_NOTE_ON + 3U, 60U, 100U);
+    REQUIRE(Player::GetInstance()->playedNotes.size() == 1);
+    MidiInDevice::ClearChannelAssignment(3);
+    device.Send(status + 3U, 60U, 0U);
+    REQUIRE(Player::GetInstance()->stoppedNotes.size() == 1);
+    CHECK(Player::GetInstance()->stoppedNotes.back().voice == 0);
+    device.Send(status + 3U, 60U, 0U);
+    CHECK(Player::GetInstance()->stoppedNotes.size() == 1);
+    MidiInDevice::AssignInstrumentToChannel(3, 5);
+    device.Send(MidiMessage::MIDI_NOTE_ON + 3U, 62U, 100U);
+    REQUIRE(Player::GetInstance()->playedNotes.size() == 2);
+    CHECK(Player::GetInstance()->playedNotes.back().voice == 0);
+  }
+}
+
 TEST_CASE("Restarting MIDI input cannot orphan a tracked voice") {
   Player::ResetTestState();
   TestMidiInDevice device;
