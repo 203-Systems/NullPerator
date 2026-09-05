@@ -10,14 +10,16 @@ if ! command -v "${CLANG_FORMAT_BIN}" >/dev/null 2>&1; then
 fi
 
 mapfile -d '' files < <(
-  find sources -type f \
-    ! -path 'sources/Externals/*' \
-    \( \
-      -name '*.c' -o -name '*.cc' -o -name '*.cpp' -o -name '*.cxx' -o \
-      -name '*.h' -o -name '*.hh' -o -name '*.hpp' -o -name '*.hxx' -o \
-      -name '*.proto' \
-    \) \
-    -print0
+  git ls-files -z -- sources \
+    ':!:sources/Externals/**' \
+    ':!:sources/Adapters/node/managed_components/**' |
+    while IFS= read -r -d '' path; do
+      [[ -f "$path" ]] || continue
+      case "$path" in
+        *.c|*.cc|*.cpp|*.cxx|*.h|*.hh|*.hpp|*.hxx|*.proto)
+          printf '%s\0' "$path" ;;
+      esac
+    done
 )
 
 if [ "${#files[@]}" -eq 0 ]; then

@@ -1,0 +1,65 @@
+name: Native quality
+
+on:
+  workflow_dispatch:
+  push:
+    paths: ['sources/**', 'tests/**', 'tools/**', 'cmake/**', 'ios/scripts/**', '.github/workflows/native-quality.yml']
+  pull_request:
+    paths: ['sources/**', 'tests/**', 'tools/**', 'cmake/**', 'ios/scripts/**', '.github/workflows/native-quality.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  sanitizers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Configure production host tests with sanitizers
+        env:
+          CC: clang
+          CXX: clang++
+        run: >-
+          cmake -S tests -B build-asan -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer"
+          -DCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer"
+          -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+      - run: cmake --build build-asan --parallel 2
+      - run: ctest --test-dir build-asan --output-on-failure
+        env:
+          ASAN_OPTIONS: detect_leaks=0
+          UBSAN_OPTIONS: halt_on_error=1
+      - run: python3 -m unittest discover -s tools/tests
+
+  esp32:
+    runs-on: ubuntu-latest
+    container: espressif/idf:v5.3.5
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Build ESP32-S3 and enforce firmware budgets
+        shell: bash
+        run: |
+          source "$IDF_PATH/export.sh"
+          cd sources
+          idf.py -B build/node -DNode=true build
+          cmake --build build/node --target ui2_only_firmware_acceptance node_iram_budget node_dram_budget
+
+  ios:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Compile native iOS core without signing
+        env:
+          PLATFORM_NAME: iphoneos
+          CURRENT_ARCH: arm64
+          CONFIGURATION: Release
+        run: ios/scripts/native-core.sh

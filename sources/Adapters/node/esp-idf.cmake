@@ -92,6 +92,12 @@ macro(adapter_node_setup)
     FIRMWARE_TARGET "${PROJECT_NAME}.elf"
     LINK_MAP "${CMAKE_BINARY_DIR}/${PROJECT_NAME}.map")
 
+  include("${_node_root}/../cmake/NodeDramBudget.cmake")
+  pico_tracker_add_node_dram_budget_check(
+    NAME node_dram_budget
+    FIRMWARE_TARGET "${PROJECT_NAME}.elf"
+    LINK_MAP "${CMAKE_BINARY_DIR}/${PROJECT_NAME}.map")
+
   # Enable ETL debug mode only for Debug builds
   if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_compile_definitions(ETL_DEBUG)

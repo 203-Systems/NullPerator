@@ -453,10 +453,18 @@ add_test(NAME node_ui2_input_mailbox COMMAND node_ui2_input_mailbox_tests)
 # inputs, forbidden UI2 artifacts, and memory-budget boundaries fail closed.
 find_package(Python3 COMPONENTS Interpreter QUIET)
 if(Python3_Interpreter_FOUND)
+  add_test(NAME node_audio_performance_checker
+    COMMAND "${Python3_EXECUTABLE}" -m unittest discover
+      -s "${CMAKE_CURRENT_LIST_DIR}/../tools/tests"
+      -p "test_check_node_audio_performance.py")
   add_test(NAME ui2_only_firmware_acceptance_checker
     COMMAND "${Python3_EXECUTABLE}" -m unittest discover
       -s "${CMAKE_CURRENT_LIST_DIR}/../tools/tests"
       -p "test_verify_ui2_only_firmware.py")
+  add_test(NAME node_dram_budget_checker
+    COMMAND "${Python3_EXECUTABLE}" -m unittest discover
+      -s "${CMAKE_CURRENT_LIST_DIR}/../tools/tests"
+      -p "test_check_node_dram_budget.py")
   add_test(NAME node_iram_budget_checker
     COMMAND "${Python3_EXECUTABLE}" -m unittest discover
       -s "${CMAKE_CURRENT_LIST_DIR}/../tools/tests"
@@ -972,3 +980,9 @@ target_include_directories(ios_timer_tests PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}/../sources)
 target_link_libraries(ios_timer_tests PRIVATE Threads::Threads)
 add_test(NAME ios_timer COMMAND ios_timer_tests)
+
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+add_test(NAME architecture_boundaries COMMAND ${Python3_EXECUTABLE}
+  ${CMAKE_CURRENT_LIST_DIR}/../tools/check_architecture.py)
+add_test(NAME architecture_checker COMMAND ${Python3_EXECUTABLE}
+  ${CMAKE_CURRENT_LIST_DIR}/../tools/tests/test_check_architecture.py)
