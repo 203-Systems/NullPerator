@@ -3,8 +3,8 @@
 
 #include "System/Timer/Timer.h"
 
-#include <atomic>
 #include <condition_variable>
+#include <cstdint>
 #include <mutex>
 #include <thread>
 
@@ -22,7 +22,11 @@ private:
   std::condition_variable wake_;
   std::thread thread_;
   float periodMs_ = -1.0F;
+  std::uint64_t generation_ = 0;
   bool running_ = false;
+  bool callbackActive_ = false;
+  bool stopping_ = false;
+  bool shutdown_ = false;
 };
 
 class IOSTimerService final : public TimerService {

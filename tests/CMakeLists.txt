@@ -962,3 +962,12 @@ if(PICOTRACKER_ENABLE_UI2_GOLDEN_TESTS)
       DEPENDS ui2_dialog_${DIALOG_STATE}_snapshot)
   endforeach()
 endif()
+
+add_executable(ios_timer_tests test_main.cpp ios_timer_tests.cpp
+  ../sources/Adapters/ios/timer/IOSTimer.cpp
+  ../sources/System/Timer/Timer.cpp ../sources/Foundation/Observable.cpp)
+target_include_directories(ios_timer_tests PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals
+  ${CMAKE_CURRENT_LIST_DIR}/../sources)
+target_link_libraries(ios_timer_tests PRIVATE Threads::Threads)
+add_test(NAME ios_timer COMMAND ios_timer_tests)
