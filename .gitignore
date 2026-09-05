@@ -62,3 +62,13 @@ __pycache__/
 *.py[cod]
 .vercel
 .env*
+
+# Local review reports, scratch files and one-off performance experiments
+/.agent/
+/output/
+/tmp/
+/benchmark/
+/benchmarks/
+/reviews/
+/tools/esp32_sampler_benchmark/
+/tools/generate_sampler_stress_samples.py
