@@ -210,6 +210,20 @@
     .operator-controls.native-host { --control-slot-edge:66px; --face-edge:88px; --bottom-w:142px; --bottom-h:68px; --bottom-gap:30px; --upper-controls-top:clamp(64px,7.5dvh,82px); width:min(100%,720px); padding-inline:42px; }
     .operator-controls.native-host .face-buttons { gap:18px; }
   }
+  @media(max-width:401px) and (orientation:portrait){
+    .operator-controls.native-host {
+      --control-slot-edge:max(44px,14vw);
+      --face-edge:max(60px,19vw);
+      --bottom-w:29vw;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      column-gap:4.4vw;
+      row-gap:12px;
+      min-height:var(--native-phone-controls-height);
+      padding-inline:8px;
+    }
+    .operator-controls.native-host .d-pad { align-self:center; margin-top:0; }
+    .operator-controls.native-host .face-buttons { align-self:center; margin-top:-.25px; }
+  }
   @media(orientation:landscape){
     .operator-controls.native-host {
       --control-slot-edge:clamp(48px,6.8vw,64px); --face-edge:clamp(66px,9vw,86px);

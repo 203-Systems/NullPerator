@@ -324,6 +324,21 @@
       padding-bottom:max(42px,env(safe-area-inset-bottom));
     }
   }
+  @media(max-width:401px) and (orientation:portrait){
+    .native-host .device-scene {
+      /* Display Zoom reduces the viewport to as little as 320pt. Reserve
+         the rotated D-pad, 12px row gap and 62px bottom keys before sizing
+         the screen. Short phones give up top space first, then screen size. */
+      --native-phone-controls-height:calc(max(160px,49.75vw) + 74px);
+      --native-phone-bottom:max(42px,env(safe-area-inset-bottom));
+      --native-phone-top:max(calc(env(safe-area-inset-top) + 28px),clamp(38px,calc(100dvh - 89.64vw - var(--native-phone-controls-height) - 12px - var(--native-phone-bottom)),100px));
+      padding-top:var(--native-phone-top);
+      padding-bottom:var(--native-phone-bottom);
+    }
+    .native-host .operator-device {
+      --native-screen-size:min(89.64vw,calc(100dvh - var(--native-phone-top) - var(--native-phone-bottom) - var(--native-phone-controls-height) - 12px));
+    }
+  }
   @media(orientation:landscape){
     .native-host .device-scene {
       align-items:center;

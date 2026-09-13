@@ -12,6 +12,12 @@ const goldenScreens = {
 }
 
 const devices = [
+  // Display Zoom / Large UI can reduce an iPhone to a 320pt-wide viewport.
+  { name: 'iPhone Large UI portrait', width: 320, height: 693 },
+  { name: 'iPhone Large UI landscape', width: 693, height: 320 },
+  { name: 'iPhone SE portrait', width: 375, height: 667 },
+  { name: 'iPhone compact portrait', width: 320, height: 568 },
+  { name: 'iPhone portrait', width: 390, height: 844 },
   { name: 'iPhone Pro portrait', width: 402, height: 874 },
   { name: 'iPhone Pro landscape', width: 874, height: 402 },
   { name: 'iPhone Pro Max portrait', width: 440, height: 956 },
@@ -175,6 +181,9 @@ for (const device of devices) {
     const directionBox = union(['up', 'left', 'down', 'right'].map((action) => actionBoxes.get(action)))
     const faceBox = union(['enter', 'option'].map((action) => actionBoxes.get(action)))
     const bottomBox = union(['play', 'shift'].map((action) => actionBoxes.get(action)))
+    expect(intersects(directionBox, faceBox)).toBe(false)
+    expect(intersects(directionBox, bottomBox)).toBe(false)
+    expect(intersects(faceBox, bottomBox)).toBe(false)
     const viewportCenter = center(viewport)
     const controlsCenter = center(controlsBox)
     const directionCenter = center(directionBox)
