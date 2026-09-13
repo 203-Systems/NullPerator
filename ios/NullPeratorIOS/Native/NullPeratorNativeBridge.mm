@@ -43,16 +43,27 @@ extern "C" bool NullPeratorIOSSetRecordingSession(bool recording) {
   AVAudioSession *session = AVAudioSession.sharedInstance;
   NSError *error = nil;
   const AVAudioSessionCategoryOptions options =
-      recording ? AVAudioSessionCategoryOptionDefaultToSpeaker |
-                      AVAudioSessionCategoryOptionAllowBluetoothHFP
-                : 0;
-  return [session setCategory:recording ? AVAudioSessionCategoryPlayAndRecord
+      AVAudioSessionCategoryOptionMixWithOthers |
+      (recording ? AVAudioSessionCategoryOptionDefaultToSpeaker |
+                       AVAudioSessionCategoryOptionAllowBluetoothHFP
+                 : 0);
+  if (![session setCategory:recording ? AVAudioSessionCategoryPlayAndRecord
                                         : AVAudioSessionCategoryPlayback
                          mode:AVAudioSessionModeDefault
                       options:options
-                        error:&error] &&
-         [session setPreferredSampleRate:44100 error:&error] &&
-         [session setActive:YES error:&error];
+                        error:&error]) {
+    NSLog(@"NullPerator audio session category failed: %@", error);
+    return false;
+  }
+  // Other active audio apps may determine the hardware rate. RemoteIO converts
+  // the 44.1 kHz client format, so this preference is not required to activate.
+  if (![session setPreferredSampleRate:44100 error:&error])
+    NSLog(@"NullPerator preferred sample rate unavailable: %@", error);
+  if (![session setActive:YES error:&error]) {
+    NSLog(@"NullPerator audio session activation failed: %@", error);
+    return false;
+  }
+  return true;
 }
 
 #include "System/System/System.h"

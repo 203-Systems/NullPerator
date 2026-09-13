@@ -116,9 +116,15 @@ final class NativeHybridAppModel: ObservableObject {
         let session = AVAudioSession.sharedInstance()
         do {
             if session.category != .playAndRecord {
-                try session.setCategory(.playback, mode: .default, options: [])
+                try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
             }
-            try session.setPreferredSampleRate(44_100)
+            // A shared session may keep another app's hardware rate. RemoteIO
+            // converts our client format; a rejected preference must not block activation.
+            do {
+                try session.setPreferredSampleRate(44_100)
+            } catch {
+                NSLog("NullPerator preferred sample rate unavailable: %@", error.localizedDescription)
+            }
             try session.setActive(true)
             MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
         } catch {

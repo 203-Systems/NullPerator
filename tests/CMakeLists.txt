@@ -995,6 +995,27 @@ target_include_directories(ios_timer_tests PRIVATE
 target_link_libraries(ios_timer_tests PRIVATE Threads::Threads)
 add_test(NAME ios_timer COMMAND ios_timer_tests)
 
+if(APPLE)
+  find_program(SWIFTC_EXECUTABLE swiftc)
+  if(NOT SWIFTC_EXECUTABLE)
+    message(FATAL_ERROR "CoreMIDI regression tests require the Swift compiler from Xcode")
+  endif()
+  set(IOS_MIDI_PACKET_READER
+    "${CMAKE_CURRENT_LIST_DIR}/../ios/NullPeratorIOS/Controllers/MidiPacketReader.swift")
+  set(IOS_MIDI_PACKET_TEST "${CMAKE_CURRENT_LIST_DIR}/ios_midi_packet_tests.swift")
+  add_custom_command(
+    OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/ios_midi_packet_tests"
+    COMMAND "${SWIFTC_EXECUTABLE}" -swift-version 6 -sanitize=address
+      -module-cache-path "${CMAKE_CURRENT_BINARY_DIR}/swift-module-cache"
+      "${IOS_MIDI_PACKET_READER}" "${IOS_MIDI_PACKET_TEST}"
+      -o "${CMAKE_CURRENT_BINARY_DIR}/ios_midi_packet_tests"
+    DEPENDS "${IOS_MIDI_PACKET_READER}" "${IOS_MIDI_PACKET_TEST}"
+    VERBATIM)
+  add_custom_target(ios_midi_packet_tests_build ALL
+    DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/ios_midi_packet_tests")
+  add_test(NAME ios_midi_packets COMMAND "${CMAKE_CURRENT_BINARY_DIR}/ios_midi_packet_tests")
+endif()
+
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 add_test(NAME architecture_boundaries COMMAND ${Python3_EXECUTABLE}
   ${CMAKE_CURRENT_LIST_DIR}/../tools/check_architecture.py)

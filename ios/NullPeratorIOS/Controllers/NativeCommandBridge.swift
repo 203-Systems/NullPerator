@@ -327,7 +327,7 @@ final class NativeCommandBridge: NSObject, WKScriptMessageHandlerWithReply {
             do {
                 let session = AVAudioSession.sharedInstance()
                 if session.category != .playAndRecord {
-                    try session.setCategory(.playback, mode: .default, options: [])
+                    try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
                 }
                 try session.setActive(true)
                 replyHandler(["ok": true], nil)
@@ -559,7 +559,7 @@ private final class NativeMidiBridge {
             let endpoint = MIDIEndpointRef(
                 UInt32(truncatingIfNeeded: UInt(bitPattern: sourceConnection))
             )
-            let messages = Self.packetBytes(packetList)
+            let messages = MidiPacketReader.bytes(from: packetList)
             Task { @MainActor [weak self] in
                 self?.emitInput(from: endpoint, messages: messages)
             }
@@ -689,21 +689,6 @@ private final class NativeMidiBridge {
         webView?.evaluateJavaScript(
             "globalThis.__nullPeratorNativeMIDI?.receive(\(json));"
         )
-    }
-
-    nonisolated private static func packetBytes(
-        _ packetList: UnsafePointer<MIDIPacketList>
-    ) -> [[UInt8]] {
-        var result: [[UInt8]] = []
-        var packet = packetList.pointee.packet
-        for _ in 0..<packetList.pointee.numPackets {
-            let bytes = withUnsafeBytes(of: &packet.data) { buffer in
-                Array(buffer.prefix(Int(packet.length)))
-            }
-            result.append(bytes)
-            packet = MIDIPacketNext(&packet).pointee
-        }
-        return result
     }
 
     nonisolated private static func endpointID(
