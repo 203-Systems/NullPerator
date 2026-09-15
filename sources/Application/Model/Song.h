@@ -23,6 +23,7 @@
 #define MAX_OPALINSTRUMENT_COUNT 0x03
 #define MAX_DRUMINSTRUMENT_COUNT 0x04
 #define MAX_STACKINSTRUMENT_COUNT 0x04
+#define MAX_CHIPTUNEINSTRUMENT_COUNT 0x02
 
 // Provide 64 type-independent instrument slots (00-3F). The fixed pools above
 // independently limit how many instruments of each type may exist at the same
@@ -33,7 +34,8 @@ static_assert(MAX_INSTRUMENT_COUNT <= 0xFF,
               "instrument slots must fit persisted one-byte references");
 static_assert(MAX_SAMPLEINSTRUMENT_COUNT + MAX_MIDIINSTRUMENT_COUNT +
                       MAX_SIDINSTRUMENT_COUNT + MAX_OPALINSTRUMENT_COUNT +
-                      MAX_DRUMINSTRUMENT_COUNT + MAX_STACKINSTRUMENT_COUNT <=
+                      MAX_DRUMINSTRUMENT_COUNT + MAX_STACKINSTRUMENT_COUNT +
+                      MAX_CHIPTUNEINSTRUMENT_COUNT <=
                   MAX_INSTRUMENT_COUNT,
               "instrument type pools must fit the logical slot bank");
 

@@ -52,7 +52,10 @@ std::string_view ColumnValue(UiInstrumentKind kind, std::string_view value,
 }
 
 constexpr std::array<std::string_view, kUiInstrumentTypeCount> kTypeOptions{
-    "NONE", "SAMPLE", "MIDI", "SID", "OPAL", "DRUM", "STACK"};
+    "NONE", "SAMPLE", "MIDI", "SID", "OPAL", "DRUM", "STACK", "CHIPTUNE"};
+constexpr std::array<std::string_view, 8> kChiptuneWaveOptions{
+    "PULSE 12.5", "PULSE 25",  "PULSE 50",      "TRIANGLE 4BIT",
+    "NOISE GB7",  "NOISE NES", "NOISE SN76489", "WHITE NOISE"};
 constexpr std::array<std::string_view, 7> kStackWaveOptions{
     "PULSE 12.5", "PULSE 25", "PULSE 50", "SAW", "TRIANGLE", "ORGAN", "VOX"};
 constexpr std::array<std::string_view, 2> kBooleanOptions{"NO", "YES"};
@@ -92,6 +95,8 @@ std::span<const std::string_view> OptionsFor(UiInstrumentFieldOptions options) {
     return kOpalWaveOptions;
   case UiInstrumentFieldOptions::OpalKeyscale:
     return kOpalKeyscaleOptions;
+  case UiInstrumentFieldOptions::ChiptuneWave:
+    return kChiptuneWaveOptions;
   case UiInstrumentFieldOptions::StackWave:
     return kStackWaveOptions;
   case UiInstrumentFieldOptions::None:

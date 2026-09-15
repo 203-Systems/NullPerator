@@ -74,6 +74,7 @@ add_executable(picoTracker_tests
   ../sources/Application/Instruments/OpalInstrument.cpp
   ../sources/Application/Instruments/DrumInstrument.cpp
   ../sources/Application/Instruments/StackInstrument.cpp
+  ../sources/Application/Instruments/ChiptuneInstrument.cpp
   ../sources/Application/Instruments/SampleInstrument.cpp
   ../sources/Application/Instruments/SIDInstrument.cpp
   ../sources/Externals/cRSID/SID.cpp

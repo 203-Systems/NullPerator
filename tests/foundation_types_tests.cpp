@@ -190,6 +190,11 @@ TEST_CASE("FourCC streaming decoder handles odd and even ABI boundaries") {
       FourCC::InstrumentCommandFilterResonance,
       FourCC::InstrumentCommandTable,
       FourCC::InstrumentCommandMidiChord,
+      FourCC::InstrumentCommandSetInstrumentParameter,
+      FourCC::InstrumentCommandChordUp,
+      FourCC::InstrumentCommandChordDown,
+      FourCC::InstrumentCommandChordBidirectional,
+      FourCC::InstrumentCommandVibrato,
       FourCC::InstrumentCommandNone};
   for (std::size_t index = 0; index < source.size(); ++index)
     source[index] = pattern[index % std::size(pattern)];
@@ -209,4 +214,17 @@ TEST_CASE("FourCC streaming decoder handles odd and even ABI boundaries") {
         CHECK(restored[index] == source[index]);
     }
   }
+}
+
+TEST_CASE("Ported FX keep stable IDs and reject unknown command bytes") {
+  CHECK(FourCC::InstrumentCommandMidiChord == 143);
+  CHECK(FourCC::InstrumentCommandSetInstrumentParameter == 216);
+  CHECK(FourCC::InstrumentCommandChordUp == 217);
+  CHECK(FourCC::InstrumentCommandChordDown == 218);
+  CHECK(FourCC::InstrumentCommandChordBidirectional == 219);
+  CHECK(FourCC::InstrumentCommandVibrato == 220);
+  const std::array<std::uint8_t, 1> sentinel{255};
+  FourCC restored;
+  FourCCSerialization::DecodeCommands(sentinel, &restored, 1);
+  CHECK(restored == FourCC::InstrumentCommandNone);
 }

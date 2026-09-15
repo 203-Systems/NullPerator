@@ -295,6 +295,28 @@ struct FourCC {
     StackChord = 214,
     VarUIAnimation = 215,
 
+    // New commands use fresh IDs: upstream numeric IDs collide with our
+    // settings.
+    InstrumentCommandSetInstrumentParameter = 216,
+    InstrumentCommandChordUp = 217,
+    InstrumentCommandChordDown = 218,
+    InstrumentCommandChordBidirectional = 219,
+    InstrumentCommandVibrato = 220,
+    ChiptuneWave = 221,
+    ChiptuneTranspose = 222,
+    ChiptuneVolume = 223,
+    ChiptuneBurst = 224,
+    ChiptuneArpSpeed = 225,
+    ChiptuneLength = 226,
+    ChiptuneAttack = 227,
+    ChiptuneDecay = 228,
+    ChiptuneVibratoDelay = 229,
+    ChiptuneVibratoDepth = 230,
+    ChiptuneSweepTime = 231,
+    ChiptuneSweepAmount = 232,
+    ChiptuneTable = 233,
+    ChiptuneTableAuto = 234,
+
     Default = 255, // "    "
   };
   ETL_DECLARE_ENUM_TYPE(FourCC, uint8_t)
@@ -478,6 +500,26 @@ struct FourCC {
   ETL_ENUM_TYPE(VarImportResampler, "IMPORTRESAMP")
   ETL_ENUM_TYPE(VarUITextCase, "UITEXTCASE")
   ETL_ENUM_TYPE(VarUIAnimation, "UIANIMATION")
+
+  ETL_ENUM_TYPE(InstrumentCommandSetInstrumentParameter, "SIP")
+  ETL_ENUM_TYPE(InstrumentCommandChordUp, "CHU")
+  ETL_ENUM_TYPE(InstrumentCommandChordDown, "CHD")
+  ETL_ENUM_TYPE(InstrumentCommandChordBidirectional, "CHB")
+  ETL_ENUM_TYPE(InstrumentCommandVibrato, "VIB")
+  ETL_ENUM_TYPE(ChiptuneWave, "CHIPTUNEWAVE")
+  ETL_ENUM_TYPE(ChiptuneTranspose, "CHIPTUNETRANSPOSE")
+  ETL_ENUM_TYPE(ChiptuneVolume, "CHIPTUNEVOLUME")
+  ETL_ENUM_TYPE(ChiptuneBurst, "CHIPTUNEBURST")
+  ETL_ENUM_TYPE(ChiptuneArpSpeed, "CHIPTUNEARPSPEED")
+  ETL_ENUM_TYPE(ChiptuneLength, "CHIPTUNELENGTH")
+  ETL_ENUM_TYPE(ChiptuneAttack, "CHIPTUNEATTACK")
+  ETL_ENUM_TYPE(ChiptuneDecay, "CHIPTUNEDECAY")
+  ETL_ENUM_TYPE(ChiptuneVibratoDelay, "CHIPTUNEVIBRATODELAY")
+  ETL_ENUM_TYPE(ChiptuneVibratoDepth, "CHIPTUNEVIBRATODEPTH")
+  ETL_ENUM_TYPE(ChiptuneSweepTime, "CHIPTUNESWEEPTIME")
+  ETL_ENUM_TYPE(ChiptuneSweepAmount, "CHIPTUNESWEEPAMOUNT")
+  ETL_ENUM_TYPE(ChiptuneTable, "CHIPTUNETABLE")
+  ETL_ENUM_TYPE(ChiptuneTableAuto, "CHIPTUNETABLEAUTO")
 
   ETL_ENUM_TYPE(Default, "   ")
   ETL_END_ENUM_TYPE

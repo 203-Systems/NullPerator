@@ -90,6 +90,87 @@ typedef struct stack_voice_t {
 
   stack_flags flags;
   int16_t notes[5];
+  int8_t chord[4]{};
+  int32_t previousFrequency = 0;
+  int32_t pitchFactor = 65536, pitchTarget = 65536, pitchStep = 0;
+  uint16_t pitchTicks = 0;
+  uint16_t vibratoPhase = 0, vibratoRate = 0;
+  uint8_t vibratoDepth = 0;
+  uint8_t panPosition = 128, panTarget = 128;
+  int16_t panStep = 0;
+  uint8_t arpNotes[5]{};
+  uint8_t arpLength = 1, arpIndex = 0;
+  int32_t arpFactor = 65536;
+
+  static int32_t ScaleFrequency(int32_t frequency, int32_t factor) {
+    return static_cast<int32_t>(std::clamp<int64_t>(
+        (int64_t(frequency) * factor) >> 16, 1, INT32_MAX));
+  }
+  void refresh_notes() {
+    set_oscillator_note(0, note + parameters.transpose);
+    for (int i = 1; i < stackNumOscillators; ++i)
+      set_oscillator_note(i, note + parameters.transpose + chord[i - 1]);
+  }
+  void advance_arp() {
+    if (arpLength > 1) {
+      arpIndex = (arpIndex + 1) % arpLength;
+      arpFactor = semitoneRatioQ16[128 + arpNotes[arpIndex]];
+      update_frequency();
+    }
+  }
+  void update_frequency() {
+    const int32_t sine = interpolateS8(sine64LUT.data(), vibratoPhase >> 8);
+    const int32_t vibratoFactor = 65536 +
+        (int64_t(semitoneRatioQ16[129] - 65536) * sine * vibratoDepth) / (127 * 255);
+    for (int o = 0; o < stackNumOscillators; ++o) {
+      auto f = ScaleFrequency(base_frequency[o], pitch[o].value);
+      f = ScaleFrequency(f, arpFactor);
+      f = ScaleFrequency(f, pitchFactor);
+      frequency[o] = ScaleFrequency(f, vibratoFactor);
+    }
+  }
+  void command_arp(uint16_t value) {
+    arpLength = 5;
+    uint16_t tail = value;
+    while (arpLength > 1 && (tail & 15) == 0) { --arpLength; tail >>= 4; }
+    arpNotes[0] = 0;
+    for (int i = 0; i < 4; ++i) arpNotes[i + 1] = (value >> (12 - i * 4)) & 15;
+    arpIndex = 0;
+    arpFactor = 65536;
+    update_frequency();
+  }
+  void command_vibrato(uint8_t rate, uint8_t depth) {
+    vibratoRate = uint16_t(rate) << 6;
+    vibratoDepth = depth;
+    vibratoPhase = 0;
+    update_frequency();
+  }
+  void command_pan(uint8_t speed, uint8_t target) {
+    panTarget = target;
+    panStep = target > panPosition ? int(speed) : -int(speed);
+    if (speed == 0) panPosition = target;
+  }
+  void slide_to(int32_t target, uint8_t duration) {
+    pitchTarget = target;
+    pitchTicks = duration;
+    if (duration == 0) pitchFactor = target;
+    else pitchStep = (pitchTarget - pitchFactor) / duration;
+    update_frequency();
+  }
+  void command_pitch(uint8_t duration, int8_t semitones, bool legato) {
+    if (legato && semitones == 0 && previousFrequency > 0) {
+      pitchFactor = static_cast<int32_t>(std::clamp<int64_t>(
+          (int64_t(previousFrequency) * 65536) / std::max(1, base_frequency[0]),
+          1, INT32_MAX));
+      slide_to(65536, duration);
+    } else {
+      slide_to(semitoneRatioQ16[128 + int(semitones)], duration);
+    }
+  }
+  void command_finetune(uint8_t duration, int8_t amount) {
+    const int32_t semitone = int32_t(semitoneRatioQ16[128 + sign(amount)]) - 65536;
+    slide_to(65536 + semitone * std::abs(int(amount)) / 128, duration);
+  }
 
   // implementation ------------------------------------------------------------
 
@@ -131,11 +212,23 @@ typedef struct stack_voice_t {
     // recompute combined gain when envelope, pan or volume changes
     level = (uint32_t(parameters.volume) * volume * envelope.value) >> 24;
 
-    // pitch
-    for (int o = 0; o < stackNumOscillators; o++) {
-      int32_t value = pitch[o].tick();
-      frequency[o] = uint32_t((uint64_t(base_frequency[o]) * value) >> 16);
+    // Pitch decay is independent of command pitch, arpeggio and vibrato.
+    for (int o = 0; o < stackNumOscillators; o++) pitch[o].tick();
+    if (pitchTicks > 0) {
+      --pitchTicks;
+      pitchFactor = pitchTicks == 0 ? pitchTarget : pitchFactor + pitchStep;
     }
+    vibratoPhase += vibratoRate;
+    if (panStep != 0) {
+      const int next = int(panPosition) + panStep;
+      if ((panStep > 0 && next >= panTarget) || (panStep < 0 && next <= panTarget)) {
+        panPosition = panTarget;
+        panStep = 0;
+      } else {
+        panPosition = static_cast<uint8_t>(std::clamp(next, 0, 255));
+      }
+    }
+    update_frequency();
   }
 
   inline void tick_1000Hz() {
@@ -206,9 +299,14 @@ typedef struct stack_voice_t {
       // sample *= drive;
     }
 
-    // apply panning
-    *left = sample;
-    *right = sample;
+    // Match Sample PAN: 00 right, FF left. Preserve the old centered output
+    // bit-for-bit when no pan command is present.
+    if (panPosition == 128) {
+      *left = *right = sample;
+    } else {
+      *left = static_cast<int32_t>((int64_t(sample) * std::min(255, 2 * int(panPosition))) / 255);
+      *right = static_cast<int32_t>((int64_t(sample) * std::min(255, 2 * (255 - int(panPosition)))) / 255);
+    }
   }
 
   inline void set_oscillator_note(int osc, int note) {
@@ -250,7 +348,18 @@ typedef struct stack_voice_t {
 
   inline void note_on(unsigned char note, uint8_t inVolume, bool retrigger, const stack_parameters_t inParameters,
                       bool keepClocks = false) {
-    // bool retrigger is currently unused
+    previousFrequency = wave == stackWaveNone ? 0 : frequency[0];
+    pitchFactor = pitchTarget = 65536;
+    pitchStep = 0;
+    pitchTicks = 0;
+    vibratoPhase = vibratoRate = 0;
+    vibratoDepth = 0;
+    panPosition = panTarget = 128;
+    panStep = 0;
+    arpLength = 1;
+    arpIndex = 0;
+    arpFactor = 65536;
+    std::fill_n(chord, 4, 0);
     parameters = inParameters;
     parameters.wave = std::min<uint8_t>(parameters.wave, stackWaveLastItem);
     parameters.brightness = std::min<uint8_t>(parameters.brightness, 12);
@@ -306,31 +415,37 @@ typedef struct stack_voice_t {
     
     switch (param) {
       case 0: // wave
-        wave = (stack_wave_type_e)((value <= (int)stackWaveLastItem) ? value : (int)stackWaveLastItem);
+        parameters.wave = std::min<uint8_t>(value, stackWaveLastItem);
+        if (wave != stackWaveNone) wave = static_cast<stack_wave_type_e>(parameters.wave);
         break;
       case 1: // transpose
-        parameters.transpose = (int8_t)value;
+        parameters.transpose = static_cast<int8_t>(value);
+        refresh_notes();
+        update_frequency();
         break;
       case 2: // volume
         volume = value;
         break;
       case 3: // attack
+        parameters.attack = value;
         envelope.set_attack(value);
         break;
       case 4: // decay
+        parameters.decay = value;
         envelope.set_decay(value);
         break;
       case 5: // sustain
+        parameters.sustain = value;
         envelope.set_sustain(value);
         break;
       case 6: // release
+        parameters.release = value;
         envelope.set_release(value);
         break;
       case 7: // spread
         parameters.spread = value;
-        for (int o = 0; o < stackNumOscillators; o++) {
-          set_oscillator_note(o, notes[o]);
-        }
+        refresh_notes();
+        update_frequency();
         break;
       case 8: // brightness
         parameters.brightness = std::min<uint8_t>(value, 12);
@@ -355,11 +470,8 @@ typedef struct stack_voice_t {
   }
 
   void set_chord(int8_t a, int8_t b, int8_t c, int8_t d) {
-    int baseNote = note + parameters.transpose;
-
-    set_oscillator_note(1, baseNote + a);
-    set_oscillator_note(2, baseNote + b);
-    set_oscillator_note(3, baseNote + c);
-    set_oscillator_note(4, baseNote + d);
+    chord[0] = a; chord[1] = b; chord[2] = c; chord[3] = d;
+    refresh_notes();
+    update_frequency();
   }
 } stack_voice_t;

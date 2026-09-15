@@ -14,10 +14,11 @@
 // TinyXML's embedded adapter intentionally remaps stdio names. Keep all host
 // standard-library headers above the production persistence headers.
 #include "Adapters/wasm/filesystem/WasmFileSystem.h"
-#include "Application/Instruments/InstrumentBankRestorePolicy.h"
+#include "Application/Instruments/ChiptuneInstrument.h"
 #include "Application/Instruments/DrumInstrument.h"
-#include "Application/Instruments/StackInstrument.h"
+#include "Application/Instruments/InstrumentBankRestorePolicy.h"
 #include "Application/Instruments/SampleInstrumentParameterLimits.h"
+#include "Application/Instruments/StackInstrument.h"
 #include "Application/Model/Groove.h"
 #include "Application/Model/Phrase.h"
 #include "Application/Model/ProjectParameterRestore.h"
@@ -2244,14 +2245,16 @@ TEST_CASE("Instrument service exports a validated pti and preserves overwrite "
   CHECK(restored.MidiChannel() == 15);
 }
 
-TEST_CASE_TEMPLATE("Coping instrument parameters survive validated file export and import",
-                   Synth, DrumInstrument, StackInstrument) {
+TEST_CASE_TEMPLATE(
+    "Coping instrument parameters survive validated file export and import",
+    Synth, DrumInstrument, StackInstrument, ChiptuneInstrument) {
   FourCCXmlFixture fixture;
   fixture.MakeDirectory("instruments");
   auto &service = TestPersistencyService();
   Synth source, restored;
   source.SetName("New synth");
-  source.Variables()->front()->SetInt(123);
+  source.Variables()->front()->SetInt(source.GetType() == IT_CHIPTUNE ? 3
+                                                                      : 123);
   REQUIRE(service.ExportInstrument(
       &source, etl::string<MAX_INSTRUMENT_NAME_LENGTH>("synth"), false) == PERSIST_SAVED);
   CHECK(service.DetectInstrumentType("synth.pti") == source.GetType());

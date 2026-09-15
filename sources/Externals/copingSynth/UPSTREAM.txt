@@ -1,8 +1,10 @@
 Source: https://github.com/n1LS/copingTracker
-Revision: cdedc35385 (main inspected 2026-09-08)
+Drum/Stack base revision: cdedc35385 (main inspected 2026-09-08)
+Chiptune Lead, SIP/chords and Sample VIB reference revision:
+e725fb705d21036845dec5d0563206971eec3cb1 (inspected 2026-09-15)
 License: BSD-3-Clause; see LICENSE and source copyright headers.
 
-Imported Drum and Stack DSP, envelope helpers, lookup-table generators and
+Imported Drum, Stack, and Chiptune Lead DSP, envelope helpers, lookup-table generators and
 tools/copingSynth/generate_wavetables.py. No audio samples or GM bank included.
 
 NullPerator adaptations: native fixed-point include; natural voice alignment;
@@ -12,3 +14,12 @@ mip selection; retrigger handling; removal of logging from the audio path.
 
 Wave tables: regenerate with
 python3 tools/copingSynth/generate_wavetables.py sources/Externals/copingSynth/StackInstrument/StackWavetables.generated.h
+
+Lead adaptations: isolated per-instrument voices; bounded modulation math;
+bipolar output; explicit stop/idle handling; terminating attack/decay; immediate
+zero-duration commands; consistent pan direction; fast arpeggio updates; no
+logging in audio callbacks. Stack ARP/VIB/PAN/PSL/LEG/PFT were upstream stubs;
+NullPerator implements them alongside the ported SIP and chord commands.
+Sample VIB advances only at the sample control rate, independent of tempo.
+Command and parameter IDs are appended to NullPerator's existing enum, not
+copied from copingTracker. No Phrase volume column was imported.

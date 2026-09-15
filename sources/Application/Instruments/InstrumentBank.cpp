@@ -183,6 +183,8 @@ I_Instrument *InstrumentBank::createInstrument(InstrumentType type) {
     return drumInstrumentPool_.create();
   case IT_STACK:
     return stackInstrumentPool_.create();
+  case IT_CHIPTUNE:
+    return chiptuneInstrumentPool_.create();
   case IT_SAMPLE: {
     SampleInstrument *si = sampleInstrumentPool_.create();
     if (si == nullptr) {
@@ -291,6 +293,9 @@ void InstrumentBank::destroyInstrument(I_Instrument *instrument) {
     break;
   case IT_STACK:
     stackInstrumentPool_.destroy(instrument);
+    break;
+  case IT_CHIPTUNE:
+    chiptuneInstrumentPool_.destroy(instrument);
     break;
   case IT_SAMPLE:
     sampleInstrumentPool_.destroy(instrument);

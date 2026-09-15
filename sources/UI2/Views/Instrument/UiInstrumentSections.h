@@ -9,7 +9,14 @@
 namespace ui2 {
 
 enum class UiInstrumentKind : std::uint8_t {
-  None, Sample, Midi, Sid, Opal, Drum, Stack
+  None,
+  Sample,
+  Midi,
+  Sid,
+  Opal,
+  Drum,
+  Stack,
+  Chiptune
 };
 
 inline constexpr std::int16_t kUiInstrumentOperatorHeaderY = 120;
@@ -36,6 +43,12 @@ inline constexpr std::array<UiInstrumentSection, 2> kDrumSections{{
     {"VOICES", 0, 4}, {"KIT", 12}}};
 inline constexpr std::array<UiInstrumentSection, 4> kStackSections{{
     {"OSCILLATOR", 0}, {"TONE", 4}, {"ENVELOPE", 7}, {"MODULATION", 11}}};
+inline constexpr std::array<UiInstrumentSection, 5> kChiptuneSections{
+    {{"OSCILLATOR", 0},
+     {"ENVELOPE", 5},
+     {"VIBRATO", 8},
+     {"SWEEP", 10},
+     {"MODULATION", 12}}};
 } // namespace detail
 
 [[nodiscard]] constexpr std::span<const UiInstrumentSection>
@@ -46,6 +59,8 @@ UiInstrumentSections(UiInstrumentKind kind) {
   case UiInstrumentKind::Sid: return detail::kSidSections;
   case UiInstrumentKind::Drum: return detail::kDrumSections;
   case UiInstrumentKind::Stack: return detail::kStackSections;
+  case UiInstrumentKind::Chiptune:
+    return detail::kChiptuneSections;
   // OPAL retains its general/operator layout; NONE has no parameters.
   case UiInstrumentKind::Opal:
   case UiInstrumentKind::None: return {};

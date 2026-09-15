@@ -46,6 +46,11 @@ inline bool IsInstrumentCommand(std::uint8_t value) {
   case FourCC::InstrumentCommandVolume:
   case FourCC::InstrumentCommandNone:
   case FourCC::InstrumentCommandMidiChord:
+  case FourCC::InstrumentCommandSetInstrumentParameter:
+  case FourCC::InstrumentCommandChordUp:
+  case FourCC::InstrumentCommandChordDown:
+  case FourCC::InstrumentCommandChordBidirectional:
+  case FourCC::InstrumentCommandVibrato:
     return true;
   default:
     return false;

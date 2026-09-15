@@ -21,11 +21,13 @@ StackInstrument::StackInstrument()
                   Variable(FourCC::StackBrightness, 12),
                   Variable(FourCC::StackGlide, 0),
                   Variable(FourCC::StackChord, 0x047C)} {
+  tableState_.Reset();
   for (auto &parameter : parameters_)
     variables_.push_back(&parameter);
 }
 
 void StackInstrument::OnStart() {
+  tableState_.Reset();
   for (auto &voice : voices_)
     voice.stop();
 }
@@ -57,12 +59,15 @@ bool StackInstrument::Start(int channel, unsigned char note, bool retrigger) {
   return true;
 }
 
-bool StackInstrument::Render(int channel, fixed *buffer, int size, bool) {
+bool StackInstrument::Render(int channel, fixed *buffer, int size,
+                             bool updateTick) {
   if (!buffer || size <= 0 || channel < 0 || channel >= SONG_CHANNEL_COUNT)
     return false;
   auto &voice = voices_[channel];
   if (voice.wave == stackWaveNone)
     return false;
+  if (updateTick)
+    voice.advance_arp();
   for (int i = 0; i < size; ++i)
     voice.sample(buffer + i * 2, buffer + i * 2 + 1);
   return true;
@@ -73,7 +78,44 @@ void StackInstrument::ProcessCommand(int channel, FourCC command,
   if (channel < 0 || channel >= SONG_CHANNEL_COUNT)
     return;
   auto &voice = voices_[channel];
+  const uint8_t hi = value >> 8, lo = value & 0xFF;
+  const auto signedNibble = [](int n) {
+    return static_cast<int8_t>(n >= 8 ? n - 16 : n);
+  };
   switch (command) {
+  case FourCC::InstrumentCommandSetInstrumentParameter:
+    voice.set_instrument_parameter(hi, lo);
+    break;
+  case FourCC::InstrumentCommandChordUp:
+    voice.set_chord((value >> 12) & 15, (value >> 8) & 15, (value >> 4) & 15,
+                    value & 15);
+    break;
+  case FourCC::InstrumentCommandChordDown:
+    voice.set_chord(-int((value >> 12) & 15), -int((value >> 8) & 15),
+                    -int((value >> 4) & 15), -int(value & 15));
+    break;
+  case FourCC::InstrumentCommandChordBidirectional:
+    voice.set_chord(signedNibble((value >> 12) & 15),
+                    signedNibble((value >> 8) & 15),
+                    signedNibble((value >> 4) & 15), signedNibble(value & 15));
+    break;
+  case FourCC::InstrumentCommandArpeggiator:
+    voice.command_arp(value);
+    break;
+  case FourCC::InstrumentCommandVibrato:
+    voice.command_vibrato(hi, lo);
+    break;
+  case FourCC::InstrumentCommandPan:
+    voice.command_pan(hi, lo);
+    break;
+  case FourCC::InstrumentCommandPitchSlide:
+  case FourCC::InstrumentCommandLegato:
+    voice.command_pitch(hi, static_cast<int8_t>(lo),
+                        command == FourCC::InstrumentCommandLegato);
+    break;
+  case FourCC::InstrumentCommandPitchFineTune:
+    voice.command_finetune(hi, static_cast<int8_t>(lo));
+    break;
   case FourCC::InstrumentCommandKill:
     voice.stop();
     break;

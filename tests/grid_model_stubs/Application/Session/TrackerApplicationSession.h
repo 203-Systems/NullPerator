@@ -25,7 +25,17 @@
 #define NO_MORE_INSTRUMENT 0x100
 #define VAR_OFF -1
 
-enum InstrumentType { IT_NONE = 0, IT_SAMPLE, IT_MIDI, IT_SID, IT_OPAL, IT_LAST };
+enum InstrumentType {
+  IT_NONE = 0,
+  IT_SAMPLE,
+  IT_MIDI,
+  IT_SID,
+  IT_OPAL,
+  IT_DRUM,
+  IT_STACK,
+  IT_CHIPTUNE,
+  IT_LAST
+};
 
 enum PlayMode { PM_SONG, PM_CHAIN, PM_PHRASE, PM_LIVE, PM_AUDITION };
 

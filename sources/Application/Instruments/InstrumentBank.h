@@ -13,6 +13,7 @@
 #include "Application/Instruments/I_Instrument.h"
 #include "Application/Model/Song.h"
 #include "Application/Persistency/Persistent.h"
+#include "ChiptuneInstrument.h"
 #include "DrumInstrument.h"
 #include "Externals/etl/include/etl/pool.h"
 #include "MidiInstrument.h"
@@ -85,6 +86,8 @@ private:
   etl::pool<OpalInstrument, MAX_OPALINSTRUMENT_COUNT> opalInstrumentPool_;
   etl::pool<DrumInstrument, MAX_DRUMINSTRUMENT_COUNT> drumInstrumentPool_;
   etl::pool<StackInstrument, MAX_STACKINSTRUMENT_COUNT> stackInstrumentPool_;
+  etl::pool<ChiptuneInstrument, MAX_CHIPTUNEINSTRUMENT_COUNT>
+      chiptuneInstrumentPool_;
   NoneInstrument none_ = NoneInstrument();
   unsigned short sidOscCount = 0;
 };

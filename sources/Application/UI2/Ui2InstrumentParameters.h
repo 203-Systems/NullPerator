@@ -204,6 +204,39 @@ inline constexpr std::array<Ui2InstrumentParameterDescriptor, 13>
     };
 static_assert(kDrumParameters.size() <= kUiInstrumentMaximumFields);
 static_assert(kStackParameters.size() <= kUiInstrumentMaximumFields);
+
+inline constexpr std::array<Ui2InstrumentParameterDescriptor, 14>
+    kChiptuneParameters{
+        Parameter("WAVE", FourCC::ChiptuneWave, 0, 7, 1, 1, 68, 0,
+                  Ui2InstrumentValueFormat::Choice, true),
+        Parameter("TRANSPOSE", FourCC::ChiptuneTranspose, -24, 24, 1, 12, 78, 3,
+                  Ui2InstrumentValueFormat::Decimal),
+        Parameter("VOLUME", FourCC::ChiptuneVolume, 0, 255, 1, 16, 88, 2,
+                  Ui2InstrumentValueFormat::Hex),
+        Parameter("BURST", FourCC::ChiptuneBurst, 1, 255, 1, 16, 98, 2,
+                  Ui2InstrumentValueFormat::OffHex, false, true),
+        Parameter("ARP SPEED", FourCC::ChiptuneArpSpeed, 0, 34, 1, 8, 108, 2,
+                  Ui2InstrumentValueFormat::Hex),
+        Parameter("LENGTH", FourCC::ChiptuneLength, 1, 255, 1, 16, 118, 2,
+                  Ui2InstrumentValueFormat::OffHex, false, true),
+        Parameter("ATTACK", FourCC::ChiptuneAttack, 0, 255, 1, 16, 128, 2,
+                  Ui2InstrumentValueFormat::Hex),
+        Parameter("DECAY", FourCC::ChiptuneDecay, 0, 255, 1, 16, 138, 2,
+                  Ui2InstrumentValueFormat::Hex),
+        Parameter("DELAY", FourCC::ChiptuneVibratoDelay, 0, 255, 1, 16, 148, 2,
+                  Ui2InstrumentValueFormat::Hex),
+        Parameter("DEPTH", FourCC::ChiptuneVibratoDepth, 0, 255, 1, 16, 158, 2,
+                  Ui2InstrumentValueFormat::Hex),
+        Parameter("TIME", FourCC::ChiptuneSweepTime, 0, 255, 1, 16, 168, 2,
+                  Ui2InstrumentValueFormat::Hex),
+        Parameter("AMOUNT", FourCC::ChiptuneSweepAmount, -127, 127, 1, 16, 178,
+                  4, Ui2InstrumentValueFormat::Decimal),
+        Parameter("TABLE", FourCC::ChiptuneTable, 0, TABLE_COUNT - 1, 1, 16,
+                  188, 2, Ui2InstrumentValueFormat::OffHex, false, true),
+        Parameter("AUTOMATION", FourCC::ChiptuneTableAuto, 0, 1, 1, 1, 198, 0,
+                  Ui2InstrumentValueFormat::Boolean)};
+static_assert(kChiptuneParameters.size() <= kUiInstrumentMaximumFields);
+
 static_assert(IT_LAST == kUiInstrumentTypeCount);
 
 inline constexpr std::array<Ui2InstrumentParameterDescriptor, 19>
@@ -416,6 +449,8 @@ Ui2InstrumentFieldCount(InstrumentType type) {
     return detail::kDrumParameters.size();
   case IT_STACK:
     return detail::kStackParameters.size();
+  case IT_CHIPTUNE:
+    return detail::kChiptuneParameters.size();
   case IT_NONE:
   case IT_LAST:
     return 0U;
@@ -460,6 +495,10 @@ Ui2InstrumentFieldParameter(InstrumentType type, std::uint8_t index,
   case IT_DRUM:
     if (index < detail::kDrumParameters.size())
       descriptor = detail::kDrumParameters[index];
+    break;
+  case IT_CHIPTUNE:
+    if (index < detail::kChiptuneParameters.size())
+      descriptor = detail::kChiptuneParameters[index];
     break;
   case IT_STACK:
     if (index < detail::kStackParameters.size())

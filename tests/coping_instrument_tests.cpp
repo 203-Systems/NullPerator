@@ -1,3 +1,4 @@
+#include "Application/Instruments/ChiptuneInstrument.h"
 #include "Application/Instruments/DrumInstrument.h"
 #include "Application/Instruments/InstrumentBankRestorePolicy.h"
 #include "Application/Instruments/StackInstrument.h"
@@ -7,8 +8,9 @@
 #include <algorithm>
 #include <array>
 
-TEST_CASE_TEMPLATE("Coping instruments isolate voices and preserve block continuity",
-                   Synth, DrumInstrument, StackInstrument) {
+TEST_CASE_TEMPLATE(
+    "Coping instruments isolate voices and preserve block continuity", Synth,
+    DrumInstrument, StackInstrument, ChiptuneInstrument) {
   Synth whole, split;
   std::array<fixed, 2048> a{}, b{};
   CHECK_FALSE(whole.Render(0, a.data(), 1024, false));
@@ -52,8 +54,9 @@ TEST_CASE("Drum and Stack have independent fixed restore capacities") {
   CHECK_FALSE(policy.Reserve(MAX_DRUMINSTRUMENT_COUNT + MAX_STACKINSTRUMENT_COUNT, IT_STACK));
 }
 
-TEST_CASE_TEMPLATE("Coping UI descriptors bind every real parameter exactly once",
-                   Synth, DrumInstrument, StackInstrument) {
+TEST_CASE_TEMPLATE(
+    "Coping UI descriptors bind every real parameter exactly once", Synth,
+    DrumInstrument, StackInstrument, ChiptuneInstrument) {
   Synth synth;
   const auto type = synth.GetType();
   REQUIRE(ui2::Ui2InstrumentFieldCount(type) == synth.Variables()->size());
@@ -120,4 +123,76 @@ TEST_CASE("Drum note presentation and editing keep the legacy stored octave") {
   CHECK(std::string_view(text.data()) == "---");
   ui2::FormatUiNote(NOTE_OFF, text, &drum);
   CHECK(std::string_view(text.data()) == "OFF");
+}
+
+TEST_CASE(
+    "Chiptune reserves two slots without affecting existing type capacities") {
+  InstrumentBankRestorePolicy policy;
+  CHECK(policy.Reserve(0, IT_CHIPTUNE));
+  CHECK(policy.Reserve(1, IT_CHIPTUNE));
+  CHECK_FALSE(policy.Reserve(2, IT_CHIPTUNE));
+  CHECK(policy.Reserve(2, IT_STACK));
+  CHECK(policy.Reserve(3, IT_DRUM));
+}
+
+TEST_CASE_TEMPLATE("SIP changes the playing voice and resets on a fresh note",
+                   Synth, StackInstrument, ChiptuneInstrument) {
+  Synth synth, reference;
+  std::array<fixed, 2048> changed{}, expected{};
+  REQUIRE(synth.Start(0, 60));
+  synth.ProcessCommand(0, FourCC::InstrumentCommandSetInstrumentParameter,
+                       0x010C);
+  REQUIRE(synth.Render(0, changed.data(), 1024, false));
+  REQUIRE(reference.Start(0, 60));
+  REQUIRE(reference.Render(0, expected.data(), 1024, false));
+  CHECK(changed != expected);
+  REQUIRE(synth.Start(0, 60));
+  REQUIRE(synth.Render(0, changed.data(), 1024, false));
+  CHECK(changed == expected);
+  synth.Stop(0);
+  synth.ProcessCommand(0, FourCC::InstrumentCommandSetInstrumentParameter,
+                       0x0003);
+  CHECK_FALSE(synth.Render(0, changed.data(), 1024, false));
+}
+
+TEST_CASE_TEMPLATE("Synth Table automation stores initialized state and resets "
+                   "on transport start",
+                   Synth, StackInstrument, ChiptuneInstrument) {
+  Synth instrument;
+  TableSaveState state;
+  instrument.GetTableState(state);
+  CHECK(state.position_[0] == 0);
+  CHECK(state.position_[1] == 0);
+  CHECK(state.position_[2] == 0);
+  CHECK(state.hopCount_[15][2] == 0);
+  state.position_[1] = 7;
+  state.hopCount_[3][1] = 2;
+  instrument.SetTableState(state);
+  TableSaveState restored;
+  instrument.GetTableState(restored);
+  CHECK(restored.position_[1] == 7);
+  CHECK(restored.hopCount_[3][1] == 2);
+  instrument.OnStart();
+  instrument.GetTableState(restored);
+  CHECK(restored.position_[1] == 0);
+  CHECK(restored.hopCount_[3][1] == 0);
+}
+
+TEST_CASE("Chiptune optional fields display the disabled marker and step back "
+          "to their minimum") {
+  ChiptuneInstrument instrument;
+  for (const std::uint8_t index : {3, 5, 12}) {
+    const auto descriptor =
+        ui2::Ui2InstrumentFieldParameter(IT_CHIPTUNE, index);
+    std::array<char, 16> text{};
+    ui2::Ui2FormatInstrumentParameter(descriptor, VAR_OFF, 0, nullptr,
+                                      text.data(), text.size());
+    CHECK(std::string_view(text.data()) == "--");
+    CHECK(ui2::Ui2AdjustInstrumentParameter(
+              descriptor, VAR_OFF, ui2::Ui2InstrumentValueDirection::Right) ==
+          descriptor.minimum);
+    CHECK(ui2::Ui2AdjustInstrumentParameter(
+              descriptor, descriptor.minimum,
+              ui2::Ui2InstrumentValueDirection::Left) == VAR_OFF);
+  }
 }

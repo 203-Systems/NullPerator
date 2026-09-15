@@ -26,6 +26,24 @@ bool GenericIntegerRange(FourCC id, int &minimum, int &maximum) {
     maximum = 0xFFFF;
     return true;
   }
+  if (id >= FourCC::ChiptuneTranspose && id <= FourCC::ChiptuneTable) {
+    maximum = 255;
+    if (id == FourCC::ChiptuneTranspose) {
+      minimum = -24;
+      maximum = 24;
+    } else if (id == FourCC::ChiptuneSweepAmount) {
+      minimum = -127;
+      maximum = 127;
+    } else if (id == FourCC::ChiptuneArpSpeed)
+      maximum = 34;
+    else if (id == FourCC::ChiptuneBurst || id == FourCC::ChiptuneLength)
+      minimum = VAR_OFF;
+    else if (id == FourCC::ChiptuneTable) {
+      minimum = VAR_OFF;
+      maximum = TABLE_COUNT - 1;
+    }
+    return true;
+  }
   if (id == FourCC::DrumCharacter || id == FourCC::StackSpread ||
       id == FourCC::StackAttack || id == FourCC::StackDecay ||
       id == FourCC::StackSustain || id == FourCC::StackRelease ||

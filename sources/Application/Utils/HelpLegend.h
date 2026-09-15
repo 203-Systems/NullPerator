@@ -121,6 +121,26 @@ static char **getHelpLegend(FourCC command) {
     result[0] = (char *)("Gate Off: ----");
     result[1] = (char *)("release gate (synth only)");
     break;
+  case FourCC::InstrumentCommandSetInstrumentParameter:
+    result[0] = (char *)("SIP: aabb");
+    result[1] = (char *)("parameter aa, value bb");
+    break;
+  case FourCC::InstrumentCommandChordUp:
+    result[0] = (char *)("Chord Up: abcd");
+    result[1] = (char *)("Stack offsets +a +b +c +d");
+    break;
+  case FourCC::InstrumentCommandChordDown:
+    result[0] = (char *)("Chord Down: abcd");
+    result[1] = (char *)("Stack offsets -a -b -c -d");
+    break;
+  case FourCC::InstrumentCommandChordBidirectional:
+    result[0] = (char *)("Chord Both: abcd");
+    result[1] = (char *)("signed offsets: 8..F = -8..-1");
+    break;
+  case FourCC::InstrumentCommandVibrato:
+    result[0] = (char *)("Vibrato: aabb");
+    result[1] = (char *)("rate aa, depth bb (00 stops)");
+    break;
   case FourCC::InstrumentCommandMidiChord:
     result[0] = (char *)("MIDI Chord:abcd");
     result[1] = (char *)("send rel notes:+a,+b,+c,+d");

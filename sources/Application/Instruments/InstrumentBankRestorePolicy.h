@@ -110,6 +110,8 @@ private:
       return MAX_DRUMINSTRUMENT_COUNT;
     case IT_STACK:
       return MAX_STACKINSTRUMENT_COUNT;
+    case IT_CHIPTUNE:
+      return MAX_CHIPTUNEINSTRUMENT_COUNT;
     case IT_NONE:
     case IT_LAST:
       break;

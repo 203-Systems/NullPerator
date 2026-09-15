@@ -30,21 +30,25 @@ typedef struct adsr_envelope_t {
   void set_attack(uint8_t a) {
     // map 8 bit attack value to 16 bit coefficient using LUT and interpolation
     attack = interpolateU16(attackCoeffLUT.data(), a);
+    if (state == adsrAttack) coefficient = attack;
   }
 
   void set_decay(uint8_t d) {
     // map 8 bit decay value to 16 bit coefficient using LUT and interpolation
     decay = interpolateU16(decayCoeffLUT.data(), d) >> 2;
+    if (state == adsrDecay) coefficient = decay;
   }
 
   void set_sustain(uint8_t s) {
     // map 8 bit sustain level (0-255) to 16 bit value (0-65535)
     sustain = s << 8;
+    if (state == adsrSustain) value = sustain;
   }
 
   void set_release(uint8_t r) {
     // map 8 bit release value to 16 bit coefficient using LUT and interpolation
     release = interpolateU16(decayCoeffLUT.data(), r);
+    if (state == adsrRelease) coefficient = release;
   }
 
   void trigger() {
@@ -72,7 +76,7 @@ typedef struct adsr_envelope_t {
     switch (state) {
       case adsrAttack:
         diff = 0xFFFF - value;
-        tmp = value + ((diff * coefficient) >> 16);
+        tmp = value + std::max<uint32_t>(1, (diff * coefficient) >> 16);
         if (tmp >= envAttackThreshold) {
           tmp = 0xFFFF;
           coefficient = decay;
@@ -82,7 +86,7 @@ typedef struct adsr_envelope_t {
 
       case adsrDecay:
         diff = value; // decay from 0xFFFF down to sustain level
-        tmp = value - std::max<uint32_t>(1, (diff * coefficient) >> 16);
+        tmp = int32_t(value) - int32_t(std::max<uint32_t>(1, (diff * coefficient) >> 16));
         if (tmp <= sustain) {
           tmp = sustain;
           state = adsrSustain;
@@ -95,7 +99,7 @@ typedef struct adsr_envelope_t {
 
       case adsrRelease:
         diff = value; // release from current level down to 0
-        tmp = value - ((diff * coefficient) >> 16);
+        tmp = int32_t(value) - int32_t(std::max<uint32_t>(1, (diff * coefficient) >> 16));
         if (tmp <= envDecayThreshold) {
           tmp = 0;
           state = adsrIdle;
