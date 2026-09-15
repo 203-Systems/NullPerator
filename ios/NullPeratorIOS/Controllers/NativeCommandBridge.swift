@@ -542,10 +542,9 @@ private final class NativeMidiBridge {
         started = true
         let clientStatus = MIDIClientCreateWithBlock(
             "NullPerator" as CFString,
-            &client
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in self?.refreshEndpoints() }
-        }
+            &client,
+            MidiCallbacks.notify { [weak self] in self?.refreshEndpoints() }
+        )
         guard clientStatus == noErr else {
             NSLog("NullPerator MIDI client creation failed: %d", clientStatus)
             return

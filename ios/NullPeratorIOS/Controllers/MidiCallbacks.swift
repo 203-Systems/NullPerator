@@ -4,6 +4,22 @@ enum MidiCallbacks {
     typealias ReadBlock = @Sendable @convention(block) (
         UnsafePointer<MIDIPacketList>, UnsafeMutableRawPointer?
     ) -> Void
+    typealias NotifyBlock = @Sendable @convention(block) (
+        UnsafePointer<MIDINotification>
+    ) -> Void
+
+    // Device-change notifications also arrive on implementation-chosen threads.
+    // Only schedule a refresh; never carry CoreMIDI's notification pointer across
+    // the actor boundary.
+    nonisolated static func notify(
+        refresh: @escaping @MainActor @Sendable () -> Void
+    ) -> NotifyBlock {
+        { _ in
+            Task { @MainActor in
+                refresh()
+            }
+        }
+    }
 
     // CoreMIDI invokes this block on its receive thread. Create it outside any
     // actor so Swift cannot inherit MainActor isolation from the caller.

@@ -42,7 +42,35 @@ struct MidiCallbackTests {
     }
 
     @MainActor
+    static func notifyFromBackground() async {
+        let notificationCount = 300
+        await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
+            var received = 0
+            let callback = MidiCallbacks.notify {
+                MainActor.preconditionIsolated()
+                received += 1
+                precondition(received <= notificationCount)
+                if received == notificationCount { done.resume() }
+            }
+            Task.detached {
+                precondition(!Thread.isMainThread)
+                let changes: [MIDINotificationMessageID] = [
+                    .msgObjectAdded, .msgObjectRemoved, .msgSetupChanged,
+                ]
+                for index in 0..<notificationCount {
+                    var notification = MIDINotification(
+                        messageID: changes[index % changes.count],
+                        messageSize: UInt32(MemoryLayout<MIDINotification>.size)
+                    )
+                    withUnsafePointer(to: &notification) { callback($0) }
+                }
+            }
+        }
+    }
+
+    @MainActor
     static func main() async {
+        await notifyFromBackground()
         await receiveFromBackground([])
         await receiveFromBackground([[0xF8]])
         let sysex: [UInt8] = [0xF0] + Array(repeating: 0x7F, count: 511) + [0xF7]
@@ -51,6 +79,6 @@ struct MidiCallbackTests {
         for _ in 0..<100 {
             await receiveFromBackground(clockBatch)
         }
-        print("CoreMIDI background input callbacks passed")
+        print("CoreMIDI background input and device-change callbacks passed")
     }
 }
