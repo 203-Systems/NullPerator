@@ -8,6 +8,8 @@
  */
 
 #include "SRPUpdaters.h"
+#include "Externals/copingSynth/ChiptuneInstrument/ChiptuneMath.h"
+#include "Externals/copingSynth/ChiptuneInstrument/ChiptuneTables.h"
 #include "System/Console/Trace.h"
 #include <math.h>
 //
@@ -298,3 +300,23 @@ void Arp::UpdateSRP(struct RUParams &rup) {
     return;
   rup.speedOffset_ = fp_mul(rup.speedOffset_, current_);
 };
+
+// Adapted from copingTracker's VIB updater (BSD-3-Clause). Advance only at the
+// sample control rate, so a song's tempo cannot change the LFO speed.
+void Vibrato::SetData(uint8_t rate, uint8_t depth) {
+  rate_ = 1U + (uint16_t(rate) << 4);
+  depth_ = depth;
+  phase_ = 0;
+  current_ = FP_ONE;
+}
+void Vibrato::Trigger(bool tableTick) {
+  if (!enabled_ || tableTick)
+    return;
+  phase_ += rate_;
+  const int32_t sine = interpolateS8(sine64LUT.data(), phase_ >> 8);
+  current_ = FP_ONE + (sine * depth_) / 4;
+}
+void Vibrato::UpdateSRP(RUParams &rup) {
+  if (enabled_)
+    rup.speedOffset_ = fp_mul(rup.speedOffset_, current_);
+}

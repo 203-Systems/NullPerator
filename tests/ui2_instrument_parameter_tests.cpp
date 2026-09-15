@@ -1391,3 +1391,28 @@ TEST_CASE("UI2 global settings transport accepts only plain PLAY") {
                              play | TrackerActionBit(TrackerAction::Enter)));
   CHECK_FALSE(Ui2IsPlainPlay(TrackerAction::Right, true, play));
 }
+
+TEST_CASE("Sample VIB activates once, composes with all updaters, and resets "
+          "on note start") {
+  FixedMonoSource source;
+  SampleInstrument instrument;
+  SampleInstrumentTestPeer::BindSource(instrument, source);
+  instrument.FindVariable(FourCC::SampleInstrumentEnd)->SetInt(8);
+  REQUIRE(instrument.Start(0, 60));
+  auto &params = SampleInstrumentTestPeer::Params(0);
+  for (auto command :
+       {FourCC::InstrumentCommandVolume, FourCC::InstrumentCommandPan,
+        FourCC::InstrumentCommandFilterCut,
+        FourCC::InstrumentCommandFilterResonance,
+        FourCC::InstrumentCommandPitchSlide, FourCC::InstrumentCommandLegato,
+        FourCC::InstrumentCommandPitchFineTune,
+        FourCC::InstrumentCommandArpeggiator, FourCC::InstrumentCommandVibrato})
+    instrument.ProcessCommand(0, command, 0x1010);
+  CHECK(params.activeUpdaters_.size() == 9);
+  for (int i = 0; i < 100; ++i)
+    instrument.ProcessCommand(0, FourCC::InstrumentCommandVibrato, i);
+  CHECK(params.activeUpdaters_.size() == 9);
+  REQUIRE(instrument.Start(0, 60));
+  CHECK(params.activeUpdaters_.empty());
+  CHECK_FALSE(params.vibrato_.Enabled());
+}

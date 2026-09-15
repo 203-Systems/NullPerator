@@ -69,8 +69,8 @@ struct renderParams {
   fixed pan_;
 
   // One slot for each updater member below. No voice can activate more than
-  // these eight distinct updaters at once.
-  etl::vector<I_SRPUpdater *, 8> activeUpdaters_;
+  // these nine distinct updaters at once.
+  etl::vector<I_SRPUpdater *, 9> activeUpdaters_;
 
   VolumeRamp volumeRamp_;
   Panner panner_;
@@ -80,6 +80,7 @@ struct renderParams {
   LogSpeedRamp legato_;
   LogSpeedRamp pfin_;
   Arp arp_;
+  Vibrato vibrato_;
 
   bool couldClick_;
 

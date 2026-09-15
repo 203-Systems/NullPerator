@@ -1461,6 +1461,13 @@ void SampleInstrument::ProcessCommand(int channel, FourCC cc, ushort value) {
     rp->couldClick_ = SHOULD_KILL_CLICKS;
   } break;
 
+  case FourCC::InstrumentCommandVibrato: {
+    rp->vibrato_.SetData(value >> 8, value & 0xFF);
+    if (!rp->vibrato_.Enabled()) {
+      rp->vibrato_.Enable();
+      activateUpdater(*rp, rp->vibrato_);
+    }
+  } break;
   case FourCC::InstrumentCommandArpeggiator: {
     rp->arp_.SetData(value);
     if (!rp->arp_.Enabled()) {

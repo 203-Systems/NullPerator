@@ -155,6 +155,48 @@ TEST_CASE_TEMPLATE("SIP changes the playing voice and resets on a fresh note",
   CHECK_FALSE(synth.Render(0, changed.data(), 1024, false));
 }
 
+#include "Application/Instruments/SampleRenderingParams.h"
+TEST_CASE("Sample VIB composes with pitch and ignores tempo tick frequency") {
+  Vibrato first, second;
+  first.SetData(64, 255);
+  second.SetData(64, 255);
+  first.Enable();
+  second.Enable();
+  bool changes = false;
+  for (int i = 0; i < 200; ++i) {
+    first.Trigger(false);
+    second.Trigger(false);
+    for (int extra = 0; extra < i % 7; ++extra)
+      second.Trigger(true);
+    RUParams a{}, b{};
+    a.speedOffset_ = b.speedOffset_ = FP_ONE * 2;
+    first.UpdateSRP(a);
+    second.UpdateSRP(b);
+    CHECK(a.speedOffset_ == b.speedOffset_);
+    CHECK(a.speedOffset_ > FP_ONE);
+    changes |= a.speedOffset_ != FP_ONE * 2;
+  }
+  CHECK(changes);
+  first.SetData(0, 0);
+  RUParams a{};
+  a.speedOffset_ = FP_ONE;
+  first.Trigger(false);
+  first.UpdateSRP(a);
+  CHECK(a.speedOffset_ == FP_ONE);
+  first.SetData(255, 255);
+  first.Disable();
+  first.Trigger(false);
+  first.UpdateSRP(a);
+  CHECK(a.speedOffset_ == FP_ONE);
+  renderParams params{};
+  for (auto *updater : std::array<I_SRPUpdater *, 9>{
+           &params.volumeRamp_, &params.panner_, &params.cutRamp_,
+           &params.resRamp_, &params.speedRamp_, &params.legato_, &params.pfin_,
+           &params.arp_, &params.vibrato_})
+    params.activeUpdaters_.push_back(updater);
+  CHECK(params.activeUpdaters_.size() == 9);
+}
+
 TEST_CASE_TEMPLATE("Synth Table automation stores initialized state and resets "
                    "on transport start",
                    Synth, StackInstrument, ChiptuneInstrument) {
