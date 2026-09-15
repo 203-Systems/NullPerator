@@ -554,16 +554,11 @@ private final class NativeMidiBridge {
         let inputStatus = MIDIInputPortCreateWithBlock(
             client,
             "NullPerator Input" as CFString,
-            &inputPort
-        ) { [weak self] packetList, sourceConnection in
-            let endpoint = MIDIEndpointRef(
-                UInt32(truncatingIfNeeded: UInt(bitPattern: sourceConnection))
-            )
-            let messages = MidiPacketReader.bytes(from: packetList)
-            Task { @MainActor [weak self] in
+            &inputPort,
+            MidiCallbacks.read { [weak self] endpoint, messages in
                 self?.emitInput(from: endpoint, messages: messages)
             }
-        }
+        )
         if inputStatus != noErr {
             NSLog("NullPerator MIDI input port creation failed: %d", inputStatus)
         }
