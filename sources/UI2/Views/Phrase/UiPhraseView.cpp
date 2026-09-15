@@ -98,7 +98,7 @@ RectI16 UiPhraseView::CursorTargetRect(const UiPhraseViewData &data) {
     return {};
   const std::string_view value = data.rows[data.editRow][data.editColumn];
   if (data.fxSelector)
-    return FxSelectorCursorRect(value);
+    return FxSelectorCursorRect(value, data.fxContext, data.fxOriginal);
   if (data.enterDigitFocus && IsParameterColumn(data.editColumn) &&
       !value.empty()) {
     const std::uint8_t digit = std::min<std::uint8_t>(
@@ -166,6 +166,10 @@ void UiPhraseView::RenderDelta(const UiPhraseViewData &previous,
                                UiIndexedSurface &surface,
                                const UiPalette &palette) {
   if (previous.fxSelector && current.fxSelector &&
+      previous.fxOriginal == current.fxOriginal &&
+      previous.fxScroll == current.fxScroll &&
+      previous.fxContext == current.fxContext &&
+      BottomEqual(previous.cursorBottom, current.cursorBottom) &&
       previous.rows[previous.editRow][previous.editColumn] ==
           current.rows[current.editRow][current.editColumn] &&
       previous.power == current.power && previous.elapsed == current.elapsed &&
@@ -238,14 +242,17 @@ void UiPhraseView::RenderDelta(const UiPhraseViewData &previous,
 
   std::uint8_t changedRows = 0;
   for (std::uint8_t row = 0; row < 16U; ++row) {
-    if (previous.rows[row] != current.rows[row])
+    if ((previous.rows[row] != current.rows[row] ||
+         previous.fxUnavailable[row] != current.fxUnavailable[row]))
       ++changedRows;
   }
   if (changedRows > 6U) {
     render({0, 34, 240, 174});
   } else {
     for (std::uint8_t row = 0; row < 16U; ++row) {
-      if (!rowRendered[row] && previous.rows[row] != current.rows[row]) {
+      if (!rowRendered[row] &&
+          (previous.rows[row] != current.rows[row] ||
+           previous.fxUnavailable[row] != current.fxUnavailable[row])) {
         render(RowDamageRect(row));
       }
     }
@@ -273,10 +280,11 @@ void UiPhraseView::RenderDelta(const UiPhraseViewData &previous,
 UiBuildStatus UiPhraseView::Build(const UiPhraseViewData &data, UiPalette &,
                                   UiFrameScene &scene) {
   if (data.fxSelector)
-    return BuildFxSelector(data.rows[data.editRow][data.editColumn], false,
-                           data.cursorBottom, data.power, data.elapsed, scene,
+    return BuildFxSelector(data.rows[data.editRow][data.editColumn],
+                           data.fxContext, data.fxOriginal, data.cursorBottom,
+                           data.power, data.elapsed, scene,
                            data.cursorVisualRect, data.cursorVisualOverride,
-                           data.cursorInkVisible);
+                           data.cursorInkVisible, data.fxScroll);
   scene.Clear();
   scene.topHeight = 34;
   scene.bottomTop = 208;
@@ -376,9 +384,11 @@ UiBuildStatus UiPhraseView::Build(const UiPhraseViewData &data, UiPalette &,
                          : UiColorToken::DerivedTextFaint);
     for (std::uint8_t column = 0; column < kColumnX.size(); ++column) {
       const std::string_view value = data.rows[row][column];
-      builder.GridText(value, kColumnX[column], y,
-                       IsDimValue(value) ? UiColorToken::DerivedTextFaint
-                                         : UiColorToken::TextNormal);
+      builder.GridText(
+          value, kColumnX[column], y,
+          (IsDimValue(value) || (data.fxUnavailable[row] & (1U << column)))
+              ? UiColorToken::DerivedTextFaint
+              : UiColorToken::TextNormal);
     }
   }
   for (std::uint8_t row = 0U; row < 16U; ++row) {

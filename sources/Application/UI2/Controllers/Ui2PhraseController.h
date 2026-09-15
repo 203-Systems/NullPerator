@@ -70,6 +70,12 @@ public:
     if (pressed && wasHeld && action == TrackerAction::Enter)
       return output;
 
+    if (pressed && action == TrackerAction::Play && FxSelectorActive()) {
+      // Play has no secondary action while choosing an effect.
+      enterChord_.Cancel();
+      return output;
+    }
+
     if (!pressed) {
       if (action == TrackerAction::Option && wasHeld && clonePending_ &&
           selection_.active && !input_.Held(TrackerAction::Shift)) {

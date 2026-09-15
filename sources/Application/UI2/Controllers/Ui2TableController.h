@@ -68,6 +68,12 @@ public:
     if (pressed && wasHeld && action == TrackerAction::Enter)
       return output;
 
+    if (pressed && action == TrackerAction::Play && FxSelectorActive()) {
+      // Play has no secondary action while choosing an effect.
+      enterChord_.Cancel();
+      return output;
+    }
+
     if (!pressed) {
       if (action == TrackerAction::Option && wasHeld && clonePending_ &&
           selection_.active && !input_.Held(TrackerAction::Shift)) {
@@ -381,8 +387,8 @@ private:
   std::uint8_t number_ = 0;
   std::uint8_t selectedTrack_ = 0;
   std::uint8_t parameterDigit_ = 3;
-  bool clonePending_ = false;
-  bool valueEditDirty_ = false;
+  bool clonePending_ : 1 = false;
+  bool valueEditDirty_ : 1 = false;
   Ui2EnterChord enterChord_{};
 };
 

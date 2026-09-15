@@ -6,6 +6,8 @@
 
 #include "Application/UI2/Ui2ApplicationRuntime.h"
 
+#include "UI2/Views/Tracker/UiFxSelector.h"
+
 #include <algorithm>
 #include <memory>
 
@@ -582,6 +584,10 @@ UiApplicationRuntime::ViewDataFor(const PhraseFrameState &state) {
   data.topMetaInkVisible = state.topMetaInkVisible;
   data.bottomTrackInkVisible = state.bottomTrackInkVisible;
   data.fxSelector = state.fxSelector;
+  data.fxOriginal = state.fxOriginal.data();
+  data.fxScroll = state.fxScroll;
+  data.fxContext = state.fxContext;
+  data.fxUnavailable = state.fxUnavailable;
   data.customNote = state.customNote;
   data.enterDigitFocus = state.enterDigitFocus;
   data.numberFocus = state.numberFocus;
@@ -644,7 +650,24 @@ UiApplicationRuntime::PresentPhrase(IUiApplicationStateSource &source,
     bottomTrackTargetValid_ = false;
     const UiPhraseViewData capture = ViewDataFor(current);
     const RectI16 target = UiPhraseView::CursorTargetRect(capture);
-    if (!cursorTargetValid_ || current.fxSelector != previous.fxSelector) {
+    if (current.fxSelector) {
+      const bool reset = !cursorTargetValid_ || !previous.fxSelector ||
+                         current.fxContext != previous.fxContext ||
+                         current.fxOriginal != previous.fxOriginal;
+      current.fxScrollTarget = FxSelectorScrollTarget(
+          capture.rows[capture.editRow][capture.editColumn], current.fxContext,
+          current.fxOriginal.data(), reset ? 0 : previous.fxScrollTarget);
+      const RectI16 scroll{current.fxScrollTarget, 0, 1, 1};
+      if (reset)
+        cursors_.Snap(UiCursorRole::FxScroll, scroll, nowMs);
+      else if (current.fxScrollTarget != previous.fxScrollTarget)
+        cursors_.Retarget(UiCursorRole::FxScroll, scroll, nowMs,
+                          kPhraseCursorDurationMs);
+      current.fxScroll = cursors_.Sample(UiCursorRole::FxScroll, nowMs).x;
+    }
+    if (!cursorTargetValid_ || current.fxSelector != previous.fxSelector ||
+        current.fxOriginal != previous.fxOriginal ||
+        current.fxContext != previous.fxContext) {
       cursors_.Snap(UiCursorRole::Content, target, nowMs);
       cursorTarget_ = target;
       cursorTargetValid_ = true;
@@ -740,6 +763,10 @@ UiApplicationRuntime::ViewDataFor(const TableFrameState &state) {
   data.topMetaInkVisible = state.topMetaInkVisible;
   data.bottomTrackInkVisible = state.bottomTrackInkVisible;
   data.fxSelector = state.fxSelector;
+  data.fxOriginal = state.fxOriginal.data();
+  data.fxScroll = state.fxScroll;
+  data.fxContext = state.fxContext;
+  data.fxUnavailable = state.fxUnavailable;
   data.enterDigitFocus = state.enterDigitFocus;
   data.numberFocus = state.numberFocus;
   data.adjustmentFocus = state.adjustmentFocus;
@@ -804,7 +831,24 @@ UiApplicationRuntime::PresentTable(IUiApplicationStateSource &source,
     bottomTrackTargetValid_ = false;
     const UiTableViewData capture = ViewDataFor(current);
     const RectI16 target = UiTableView::CursorTargetRect(capture);
-    if (!cursorTargetValid_ || current.fxSelector != previous.fxSelector) {
+    if (current.fxSelector) {
+      const bool reset = !cursorTargetValid_ || !previous.fxSelector ||
+                         current.fxContext != previous.fxContext ||
+                         current.fxOriginal != previous.fxOriginal;
+      current.fxScrollTarget = FxSelectorScrollTarget(
+          capture.rows[capture.editRow][capture.editColumn], current.fxContext,
+          current.fxOriginal.data(), reset ? 0 : previous.fxScrollTarget);
+      const RectI16 scroll{current.fxScrollTarget, 0, 1, 1};
+      if (reset)
+        cursors_.Snap(UiCursorRole::FxScroll, scroll, nowMs);
+      else if (current.fxScrollTarget != previous.fxScrollTarget)
+        cursors_.Retarget(UiCursorRole::FxScroll, scroll, nowMs,
+                          kPhraseCursorDurationMs);
+      current.fxScroll = cursors_.Sample(UiCursorRole::FxScroll, nowMs).x;
+    }
+    if (!cursorTargetValid_ || current.fxSelector != previous.fxSelector ||
+        current.fxOriginal != previous.fxOriginal ||
+        current.fxContext != previous.fxContext) {
       cursors_.Snap(UiCursorRole::Content, target, nowMs);
       cursorTarget_ = target;
       cursorTargetValid_ = true;

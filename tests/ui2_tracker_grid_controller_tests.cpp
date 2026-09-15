@@ -1046,3 +1046,22 @@ TEST_CASE("FX selector preserves the command on open and release") {
   check(Ui2TableController(Ui2TrackerPage::PhraseTable, 2, 1, 3, 0));
   check(Ui2TableController(Ui2TrackerPage::InstrumentTable, 2, 1, 3, 4));
 }
+
+TEST_CASE("Play does not change the FX selector or start transport") {
+  const auto check = [](auto controller) {
+    controller.Handle(TrackerAction::Enter, true);
+    CHECK(controller.Handle(TrackerAction::Play, true).Empty());
+    CHECK(controller.Handle(TrackerAction::Play, true).Empty());
+    CHECK(controller.Handle(TrackerAction::Play, false).Empty());
+    CHECK(controller.Handle(TrackerAction::Enter, false).Empty());
+    controller.Handle(TrackerAction::Enter, true);
+    controller.Handle(TrackerAction::Play, true);
+    controller.Handle(TrackerAction::Play, false);
+    const auto move = controller.Handle(TrackerAction::Right, true);
+    REQUIRE(move.count == 1U);
+    CHECK(move[0].type == Ui2TrackerCommandType::AdjustCell);
+  };
+  check(Ui2PhraseController(0, 0, 0, 2));
+  check(Ui2TableController(Ui2TrackerPage::PhraseTable));
+  check(Ui2TableController(Ui2TrackerPage::InstrumentTable));
+}

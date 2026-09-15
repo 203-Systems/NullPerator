@@ -55,14 +55,16 @@ std::int16_t DirectionDelta(Ui2TrackerEditDirection direction,
 }
 
 FourCC AdjustCommand(FourCC current, Ui2TrackerEditDirection direction,
-                     bool table) {
+                     fx::Context context, std::uint8_t original) {
   const int dx = direction == Ui2TrackerEditDirection::Left    ? -1
                  : direction == Ui2TrackerEditDirection::Right ? 1
                                                                : 0;
   const int dy = direction == Ui2TrackerEditDirection::Up     ? -1
                  : direction == Ui2TrackerEditDirection::Down ? 1
                                                               : 0;
-  return CommandList::MoveGrid(current, dx, dy, table);
+  return fx::Move(current, dx, dy, context,
+                  original == 0xFFU ? current.c_str()
+                                    : FourCC(original).c_str());
 }
 
 struct GridBounds {
@@ -311,6 +313,81 @@ void Ui2TrackerSessionModelPort::StoreGridState(
   editor.playMode_ = state.liveMode ? PM_LIVE : PM_SONG;
 }
 
+fx::Context Ui2TrackerSessionModelPort::FxContext(Ui2TrackerPage page,
+                                                  std::uint8_t row) const {
+  fx::Context context{.table = page == Ui2TrackerPage::PhraseTable ||
+                               page == Ui2TrackerPage::InstrumentTable};
+  const auto &editor = session_.EditorState();
+  auto *bank = session_.ProjectModel().GetInstrumentBank();
+  if (!bank)
+    return context;
+  int instrumentId = -1;
+  if (page == Ui2TrackerPage::InstrumentTable) {
+    instrumentId = editor.currentInstrumentID_;
+  } else {
+    const auto &phrase = session_.ProjectModel().song_.phrase_;
+    if (editor.currentPhrase_ < 0 || editor.currentPhrase_ >= 255)
+      return context;
+    const int base = editor.currentPhrase_ * STEPS_PER_PHRASE;
+    const int selectedRow =
+        std::min<int>(context.table ? phraseRow_ : row, STEPS_PER_PHRASE - 1);
+    // A blank INS inherits the last explicit instrument within this phrase.
+    // With no such INS the caller may have entered from several different
+    // chains; keep the context unknown instead of guessing from an audition.
+    for (int r = selectedRow; r >= 0; --r) {
+      if (phrase.instr_[base + r] != 0xFFU) {
+        instrumentId = phrase.instr_[base + r];
+        break;
+      }
+    }
+    if (context.table) {
+      const int index = base + selectedRow;
+      const bool referencesTable =
+          (phrase.cmd1_[index] == FourCC::InstrumentCommandTable &&
+           (phrase.param1_[index] & 0x7FU) == phraseTableNumber_) ||
+          (phrase.cmd2_[index] == FourCC::InstrumentCommandTable &&
+           (phrase.param2_[index] & 0x7FU) == phraseTableNumber_);
+      if (!referencesTable)
+        return context;
+    }
+  }
+  if (instrumentId < 0 || instrumentId >= MAX_INSTRUMENT_COUNT)
+    return context;
+  auto *instrument = bank->GetInstrument(instrumentId);
+  if (!instrument || (page == Ui2TrackerPage::InstrumentTable &&
+                      instrument->GetTable() != instrumentTableNumber_))
+    return context;
+  switch (instrument->GetType()) {
+  case IT_NONE:
+    context.instrument = fx::Instrument::None;
+    break;
+  case IT_SAMPLE:
+    context.instrument = fx::Instrument::Sample;
+    break;
+  case IT_MIDI:
+    context.instrument = fx::Instrument::Midi;
+    break;
+  case IT_SID:
+    context.instrument = fx::Instrument::Sid;
+    break;
+  case IT_OPAL:
+    context.instrument = fx::Instrument::Opal;
+    break;
+  case IT_DRUM:
+    context.instrument = fx::Instrument::Drum;
+    break;
+  case IT_STACK:
+    context.instrument = fx::Instrument::Stack;
+    break;
+  case IT_CHIPTUNE:
+    context.instrument = fx::Instrument::Chiptune;
+    break;
+  default:
+    break;
+  }
+  return context;
+}
+
 void Ui2TrackerSessionModelPort::ApplyGridCommand(
     const Ui2TrackerCommand &command) {
   if (command.type == Ui2TrackerCommandType::PasteSelection)
@@ -553,8 +630,9 @@ void Ui2TrackerSessionModelPort::ApplyAdjustCell(
       lastInstrument_ = phrase.instr_[index];
       break;
     case 2:
-      phrase.cmd1_[index] =
-          AdjustCommand(phrase.cmd1_[index], command.direction, false);
+      phrase.cmd1_[index] = AdjustCommand(
+          phrase.cmd1_[index], command.direction,
+          FxContext(command.sourcePage, command.row), command.fxOriginal);
       lastCommand_ = phrase.cmd1_[index];
       break;
     case 3:
@@ -565,8 +643,9 @@ void Ui2TrackerSessionModelPort::ApplyAdjustCell(
       lastParameter_ = phrase.param1_[index];
       break;
     case 4:
-      phrase.cmd2_[index] =
-          AdjustCommand(phrase.cmd2_[index], command.direction, false);
+      phrase.cmd2_[index] = AdjustCommand(
+          phrase.cmd2_[index], command.direction,
+          FxContext(command.sourcePage, command.row), command.fxOriginal);
       lastCommand_ = phrase.cmd2_[index];
       break;
     case 5:
@@ -594,8 +673,9 @@ void Ui2TrackerSessionModelPort::ApplyAdjustCell(
                                     table.param3_};
     const std::uint8_t group = command.column / 2U;
     if ((command.column & 1U) == 0U) {
-      commands[group][command.row] =
-          AdjustCommand(commands[group][command.row], command.direction, true);
+      commands[group][command.row] = AdjustCommand(
+          commands[group][command.row], command.direction,
+          FxContext(command.sourcePage, command.row), command.fxOriginal);
       lastCommand_ = commands[group][command.row];
     } else {
       parameters[group][command.row] = CommandList::RangeLimitCommandParam(
@@ -1222,6 +1302,19 @@ bool Ui2TrackerSessionModelPort::ApplyPasteSelection(
     }
   }
   return storageMutated;
+}
+
+FourCC Ui2TrackerSessionModelPort::FxCommand(Ui2TrackerPage page,
+                                             std::uint8_t row,
+                                             std::uint8_t column) const {
+  const bool phrase =
+      page == Ui2TrackerPage::Phrase && (column == 2U || column == 4U);
+  const bool table = (page == Ui2TrackerPage::PhraseTable ||
+                      page == Ui2TrackerPage::InstrumentTable) &&
+                     column < 6U && (column & 1U) == 0U;
+  if (row >= 16U || (!phrase && !table))
+    return FourCC::InstrumentCommandNone;
+  return FourCC(static_cast<std::uint8_t>(ReadCell(page, row, column)));
 }
 
 std::uint32_t Ui2TrackerSessionModelPort::ReadCell(Ui2TrackerPage page,

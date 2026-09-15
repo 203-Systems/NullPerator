@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include "Foundation/Types/FxCommands.h"
+
 #include "Application/UI2/Controllers/Ui2ChainController.h"
 #include "Application/UI2/Controllers/Ui2PhraseController.h"
 #include "Application/UI2/Controllers/Ui2SongController.h"
@@ -69,6 +71,15 @@ public:
   [[nodiscard]] virtual Ui2TrackerGridState LoadGridState() const = 0;
   virtual void StoreGridState(const Ui2TrackerGridState &state) = 0;
   virtual void ApplyGridCommand(const Ui2TrackerCommand &command) = 0;
+  [[nodiscard]] virtual fx::Context FxContext(Ui2TrackerPage page,
+                                              std::uint8_t) const {
+    return {.table = page == Ui2TrackerPage::PhraseTable ||
+                     page == Ui2TrackerPage::InstrumentTable};
+  }
+  [[nodiscard]] virtual FourCC FxCommand(Ui2TrackerPage, std::uint8_t,
+                                         std::uint8_t) const {
+    return FourCC::InstrumentCommandNone;
+  }
   [[nodiscard]] virtual Ui2TrackerClipboardState
   ClipboardState(Ui2TrackerPage) const {
     return {};
@@ -392,11 +403,26 @@ public:
     return port_.ClipboardState(hub_.ActivePage());
   }
 
+  [[nodiscard]] fx::Context FxContext(Ui2TrackerPage page,
+                                      std::uint8_t row) const {
+    return port_.FxContext(page, row);
+  }
+
+  [[nodiscard]] FourCC FxOriginal() const { return fxOriginal_; }
+
   Ui2TrackerCommandBatch<> Handle(TrackerAction action, bool pressed) {
+    const bool wasSelecting = FxSelectorActive();
     Ui2TrackerCommandBatch<> batch = hub_.Handle(action, pressed);
+    if (FxSelectorActive() && !wasSelecting) {
+      const auto state = hub_.ActiveState();
+      fxOriginal_ = port_.FxCommand(state.page, state.row, state.column);
+    }
     bool synchronize = false;
     for (std::uint8_t index = 0; index < batch.count; ++index) {
-      const Ui2TrackerCommand &command = batch.commands[index];
+      Ui2TrackerCommand &command = batch.commands[index];
+      if (FxSelectorActive()) {
+        command.fxOriginal = static_cast<std::uint8_t>(fxOriginal_);
+      }
       port_.ApplyGridCommand(command);
       if (command.type == Ui2TrackerCommandType::SwitchPage) {
         hub_.Activate(command.targetPage);
@@ -419,6 +445,19 @@ public:
   bool SynchronizeFromPort() { return hub_.Synchronize(port_.LoadGridState()); }
 
 private:
+  [[nodiscard]] bool FxSelectorActive() const {
+    switch (hub_.ActivePage()) {
+    case Ui2TrackerPage::Phrase:
+      return hub_.Phrase().FxSelectorActive();
+    case Ui2TrackerPage::PhraseTable:
+    case Ui2TrackerPage::InstrumentTable:
+      return hub_.Table().FxSelectorActive();
+    default:
+      return false;
+    }
+  }
+
+  FourCC fxOriginal_ = FourCC::InstrumentCommandNone;
   IUi2TrackerModelPort &port_;
   Ui2TrackerControllerHub hub_{};
 };

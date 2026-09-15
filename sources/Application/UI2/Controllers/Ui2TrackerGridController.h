@@ -149,7 +149,8 @@ struct Ui2TrackerCommand {
   std::uint8_t column = 0;
   std::uint8_t track = 0;
   std::uint8_t digit = 0;
-  bool flag = false;
+  bool flag : 1 = false;
+  std::uint8_t fxOriginal = 0xFFU;
 
   [[nodiscard]] constexpr bool HasValue() const {
     return type != Ui2TrackerCommandType::None;

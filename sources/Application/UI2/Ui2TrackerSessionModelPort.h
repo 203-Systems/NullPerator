@@ -24,6 +24,10 @@ public:
   [[nodiscard]] Ui2TrackerGridState LoadGridState() const override;
   void StoreGridState(const Ui2TrackerGridState &state) override;
   void ApplyGridCommand(const Ui2TrackerCommand &command) override;
+  [[nodiscard]] fx::Context FxContext(Ui2TrackerPage page,
+                                      std::uint8_t row) const override;
+  [[nodiscard]] FourCC FxCommand(Ui2TrackerPage page, std::uint8_t row,
+                                 std::uint8_t column) const override;
   [[nodiscard]] Ui2TrackerClipboardState
   ClipboardState(Ui2TrackerPage target) const override;
   [[nodiscard]] bool PreparePageNavigation(Ui2TrackerPage source,

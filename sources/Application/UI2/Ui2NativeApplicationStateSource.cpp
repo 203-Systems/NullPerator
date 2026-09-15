@@ -140,9 +140,36 @@ UiDeviceCursor DeviceCursorFor(Ui2DeviceField field) {
 
 template <std::size_t LeadSize, std::size_t TailSize,
           std::size_t DescriptionSize>
-void CaptureHelp(FourCC command, std::array<char, LeadSize> &lead,
+void CaptureHelp(FourCC command, ushort value, fx::Context context,
+                 std::array<char, LeadSize> &lead,
                  std::array<char, TailSize> &tail,
                  std::array<char, DescriptionSize> &description) {
+  if (command == FourCC::InstrumentCommandNone) {
+    CopyUiText(lead, "---");
+    CopyUiText(tail, "Clear FX");
+    CopyUiText(description, "Remove this command");
+    return;
+  }
+  if (command == FourCC::InstrumentCommandSetInstrumentParameter &&
+      fx::Available(command, context)) {
+    CopyUiText(lead, "SIP");
+    if (context.instrument == fx::Instrument::Unknown) {
+      CopyUiText(tail, "aabb");
+      CopyUiText(description, "Map depends on instrument");
+    } else if (const auto *parameter =
+                   fx::InstrumentParameter(context.instrument, value >> 8)) {
+      std::snprintf(tail.data(), tail.size(), "%02X %.*s", value >> 8,
+                    static_cast<int>(parameter->name.size()),
+                    parameter->name.data());
+      std::snprintf(description.data(), description.size(), "Value %02X / %.*s",
+                    value & 0xFF, static_cast<int>(parameter->range.size()),
+                    parameter->range.data());
+    } else {
+      std::snprintf(tail.data(), tail.size(), "%02X Unknown", value >> 8);
+      CopyUiText(description, "Parameter is ignored");
+    }
+    return;
+  }
   char **legend = getHelpLegend(command);
   const char *title = legend == nullptr ? nullptr : legend[0];
   const char *detail = legend == nullptr ? nullptr : legend[1];
@@ -343,6 +370,10 @@ Ui2NativeApplicationStateSource::CapturePhrase(UiPhraseFrameState &state) {
   state.selectedTrack = controller.SelectedTrack();
   state.numberFocus = controller.NumberFocus();
   state.fxSelector = controller.FxSelectorActive();
+  if (state.fxSelector)
+    FormatCommand(tracker_.FxOriginal(), state.fxOriginal);
+  state.fxContext =
+      tracker_.FxContext(Ui2TrackerPage::Phrase, controller.Row());
   state.enterDigitFocus = controller.EnterDigitFocus();
   state.adjustmentFocus =
       !state.numberFocus && !state.enterDigitFocus &&
@@ -384,6 +415,11 @@ Ui2NativeApplicationStateSource::CapturePhrase(UiPhraseFrameState &state) {
       state.rows[row].instrument[0] = 'I';
       hex2char(phrase.instr_[index], state.rows[row].instrument.data() + 1);
     }
+    const auto context = tracker_.FxContext(Ui2TrackerPage::Phrase, row);
+    if (!fx::Available(phrase.cmd1_[index], context))
+      state.fxUnavailable[row] |= 0x0CU;
+    if (!fx::Available(phrase.cmd2_[index], context))
+      state.fxUnavailable[row] |= 0x30U;
     FormatCommand(phrase.cmd1_[index], state.rows[row].fx1);
     hexshort2char(phrase.param1_[index], state.rows[row].parameter1.data());
     FormatCommand(phrase.cmd2_[index], state.rows[row].fx2);
@@ -433,8 +469,15 @@ Ui2NativeApplicationStateSource::CapturePhrase(UiPhraseFrameState &state) {
                                                      : phrase.cmd2_[selected];
     if (command != FourCC::InstrumentCommandNone || state.fxSelector) {
       state.context = UiPhraseContext::Fx;
-      CaptureHelp(command, state.contextLead, state.contextTail,
-                  state.contextDescription);
+      const ushort value = controller.Column() <= 3U ? phrase.param1_[selected]
+                                                     : phrase.param2_[selected];
+      CaptureHelp(command, value, state.fxContext, state.contextLead,
+                  state.contextTail, state.contextDescription);
+      if (!fx::Available(command, state.fxContext)) {
+        CopyUiText(state.contextLead, "Not Supported");
+        state.contextTail = {};
+        CopyUiText(state.contextDescription, "On This Instrument");
+      }
     }
   }
   return {.active = PlayerRunning()};
@@ -453,6 +496,9 @@ Ui2NativeApplicationStateSource::CaptureTable(UiTableFrameState &state) {
   state.selectedTrack = controller.SelectedTrack();
   state.numberFocus = controller.NumberFocus();
   state.fxSelector = controller.FxSelectorActive();
+  if (state.fxSelector)
+    FormatCommand(tracker_.FxOriginal(), state.fxOriginal);
+  state.fxContext = tracker_.FxContext(controller.Page(), controller.Row());
   state.enterDigitFocus = controller.EnterDigitFocus();
   // Table command and value cells always keep the command-specific help.
   // ENTER-held value editing is represented by the in-cell digit cursor.
@@ -475,6 +521,12 @@ Ui2NativeApplicationStateSource::CaptureTable(UiTableFrameState &state) {
   }
   Table &table = TableHolder::GetInstance()->GetTable(controller.Number());
   for (std::uint8_t row = 0; row < TABLE_STEPS; ++row) {
+    if (!fx::Available(table.cmd1_[row], state.fxContext))
+      state.fxUnavailable[row] |= 0x03U;
+    if (!fx::Available(table.cmd2_[row], state.fxContext))
+      state.fxUnavailable[row] |= 0x0CU;
+    if (!fx::Available(table.cmd3_[row], state.fxContext))
+      state.fxUnavailable[row] |= 0x30U;
     FormatCommand(table.cmd1_[row], state.rows[row].fx1);
     hexshort2char(table.param1_[row], state.rows[row].parameter1.data());
     FormatCommand(table.cmd2_[row], state.rows[row].fx2);
@@ -517,8 +569,16 @@ Ui2NativeApplicationStateSource::CaptureTable(UiTableFrameState &state) {
                                        : table.cmd3_[controller.Row()];
   if (command != FourCC::InstrumentCommandNone || state.fxSelector) {
     state.context = UiPhraseContext::Fx;
-    CaptureHelp(command, state.contextLead, state.contextTail,
-                state.contextDescription);
+    const ushort value = group == 0U   ? table.param1_[controller.Row()]
+                         : group == 1U ? table.param2_[controller.Row()]
+                                       : table.param3_[controller.Row()];
+    CaptureHelp(command, value, state.fxContext, state.contextLead,
+                state.contextTail, state.contextDescription);
+    if (!fx::Available(command, state.fxContext)) {
+      CopyUiText(state.contextLead, "Not Supported");
+      state.contextTail = {};
+      CopyUiText(state.contextDescription, "On This Instrument");
+    }
   }
   return {.active = PlayerRunning()};
 }

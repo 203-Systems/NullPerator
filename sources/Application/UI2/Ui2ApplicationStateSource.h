@@ -145,6 +145,11 @@ enum class UiPhraseContext : std::uint8_t { Hidden, Instrument, Fx };
 struct UiPhraseFrameState {
   bool customNote = false;
   bool fxSelector = false;
+  std::array<char, 4> fxOriginal{};
+  std::int16_t fxScroll = 0;
+  std::int16_t fxScrollTarget = 0;
+  fx::Context fxContext{};
+  std::array<std::uint8_t, 16> fxUnavailable{};
   std::array<char, 3> number{};
   std::array<char, 6> elapsed{};
   std::array<UiPhraseRowFrameState, 16> rows{};
@@ -198,6 +203,11 @@ struct UiTableRowFrameState {
 
 struct UiTableFrameState {
   bool fxSelector = false;
+  std::array<char, 4> fxOriginal{};
+  std::int16_t fxScroll = 0;
+  std::int16_t fxScrollTarget = 0;
+  fx::Context fxContext{};
+  std::array<std::uint8_t, 16> fxUnavailable{};
   std::array<char, 4> number{};
   std::array<char, 6> elapsed{};
   std::array<UiTableRowFrameState, 16> rows{};

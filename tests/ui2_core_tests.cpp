@@ -5618,3 +5618,176 @@ TEST_CASE("Instrument sections stay above their fields and scroll into view") {
     CheckDeltaMatchesFullFrame(data, edited, UiInstrumentView::Build, UiInstrumentView::RenderDelta);
   }
 }
+
+TEST_CASE(
+    "FX directory repaints support without moving commands when instrument "
+    "changes") {
+  const auto check = [](auto data, auto build, auto renderDelta) {
+    data.fxSelector = true;
+    data.fxContext.instrument = fx::Instrument::Sid;
+    data.rows[0][0] = data.rows[0][2] = "GOF";
+    data.editColumn = 2;
+    ui2::UiPalette palette;
+    ui2::UiFrameScene scene;
+    REQUIRE(build(data, palette, scene) == ui2::UiBuildStatus::Built);
+    CHECK(FindTextCommand(scene.content.Stream(), "MCC") != nullptr);
+    ui2::UiSurfaceStorage storage, expectedStorage;
+    ui2::UiIndexedSurface surface(storage), expected(expectedStorage);
+    ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+    auto previous = data;
+    data.fxOriginal = "MCC";
+    REQUIRE(build(data, palette, scene) == ui2::UiBuildStatus::Built);
+    const auto *mcc = FindTextCommand(scene.content.Stream(), "MCC");
+    REQUIRE(mcc != nullptr);
+    CHECK(mcc->color ==
+          static_cast<ui2::PaletteIndex>(ui2::UiColorToken::DerivedTextFaint));
+    renderDelta(previous, data, scene, surface, palette);
+    ui2::UiFrameRenderer::RenderStatic(scene, expected, palette);
+    CHECK(std::equal(surface.Pixels().begin(), surface.Pixels().end(),
+                     expected.Pixels().begin()));
+    previous = data;
+    data.fxContext.instrument = fx::Instrument::Midi;
+    REQUIRE(build(data, palette, scene) == ui2::UiBuildStatus::Built);
+    CHECK(FindTextCommand(scene.content.Stream(), "MCC")->color ==
+          static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextNormal));
+    renderDelta(previous, data, scene, surface, palette);
+    ui2::UiFrameRenderer::RenderStatic(scene, expected, palette);
+    CHECK(std::equal(surface.Pixels().begin(), surface.Pixels().end(),
+                     expected.Pixels().begin()));
+    // The original GOF stays grey when the instrument changes to MIDI.
+    data.fxOriginal = "GOF";
+    REQUIRE(build(data, palette, scene) == ui2::UiBuildStatus::Built);
+    CHECK(FindTextCommand(scene.content.Stream(), "GOF") != nullptr);
+  };
+  check(ui2::UiPhraseViewData{}, ui2::UiPhraseView::Build,
+        ui2::UiPhraseView::RenderDelta);
+  check(ui2::UiTableViewData{}, ui2::UiTableView::Build,
+        ui2::UiTableView::RenderDelta);
+}
+
+TEST_CASE("FX sections keep unsupported originals in their own group and show "
+          "two-line help") {
+  const auto check = [](auto data, auto build) {
+    data.fxSelector = true;
+    data.fxContext = {fx::Instrument::Sample};
+    data.fxOriginal = "MCC";
+    data.editColumn = 2;
+    data.rows[0][2] = "MCC";
+    ui2::UiPalette palette;
+    ui2::UiFrameScene scene;
+    REQUIRE(build(data, palette, scene) == ui2::UiBuildStatus::Built);
+    const auto *original = FindTextCommand(scene.content.Stream(), "MCC");
+    const auto *clear = FindTextCommand(scene.content.Stream(), "---");
+    REQUIRE(original != nullptr);
+    REQUIRE(clear != nullptr);
+    CHECK(original->bounds.x > clear->bounds.x);
+    CHECK(original->bounds.y == clear->bounds.y);
+    CHECK(original->color ==
+          static_cast<ui2::PaletteIndex>(ui2::UiColorToken::DerivedTextFaint));
+    const auto *first = FindTextCommand(scene.bottom.Stream(), "Not Supported");
+    const auto *second =
+        FindTextCommand(scene.bottom.Stream(), "On This Instrument");
+    REQUIRE(first != nullptr);
+    REQUIRE(second != nullptr);
+    CHECK(first->bounds.y < second->bounds.y);
+    CHECK(FindTextCommand(scene.content.Stream(), "AVAILABLE") == nullptr);
+    CHECK(FindTextCommand(scene.content.Stream(), "PLAY:ALL") == nullptr);
+    data.rows[0][2] = "---";
+    REQUIRE(build(data, palette, scene) == ui2::UiBuildStatus::Built);
+    REQUIRE(FindTextCommand(scene.content.Stream(), "MCC") != nullptr);
+    CHECK(FindTextCommand(scene.content.Stream(), "MCC")->color ==
+          static_cast<ui2::PaletteIndex>(ui2::UiColorToken::DerivedTextFaint));
+    CHECK(FindTextCommand(scene.bottom.Stream(), "Not Supported") == nullptr);
+  };
+  check(ui2::UiPhraseViewData{}, ui2::UiPhraseView::Build);
+  check(ui2::UiTableViewData{}, ui2::UiTableView::Build);
+}
+
+TEST_CASE("FX horizontal scroll moves section labels and repaints without a "
+          "selection change") {
+  const auto check = [](auto data, auto build, auto renderDelta) {
+    data.fxSelector = true;
+    data.fxContext = {fx::Instrument::Unknown};
+    data.editColumn = 2;
+    data.rows[0][2] = "SIP";
+    ui2::UiPalette palette;
+    ui2::UiFrameScene scene;
+    REQUIRE(build(data, palette, scene) == ui2::UiBuildStatus::Built);
+    const auto *label = FindTextCommand(scene.content.Stream(), "Sample");
+    REQUIRE(label != nullptr);
+    const auto labelX = label->bounds.x;
+    ui2::UiSurfaceStorage storage, expectedStorage;
+    ui2::UiIndexedSurface surface(storage), expected(expectedStorage);
+    ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+    const auto previous = data;
+    data.fxScroll = 126;
+    REQUIRE(build(data, palette, scene) == ui2::UiBuildStatus::Built);
+    CHECK(FindTextCommand(scene.content.Stream(), "Sample")->bounds.x ==
+          labelX - 126);
+    const auto *volume = FindTextCommand(scene.content.Stream(), "SIP");
+    REQUIRE(volume != nullptr);
+    CHECK(volume->bounds.x >= 8);
+    CHECK(volume->bounds.x + volume->bounds.width <= 232);
+    renderDelta(previous, data, scene, surface, palette);
+    ui2::UiFrameRenderer::RenderStatic(scene, expected, palette);
+    CHECK(std::equal(surface.Pixels().begin(), surface.Pixels().end(),
+                     expected.Pixels().begin()));
+    for (int y = 34; y < 208; ++y) {
+      for (int x : {0, 7, 232, 239})
+        CHECK(surface.Pixels()[y * 240 + x] ==
+              palette.Index(ui2::UiColorToken::SurfaceBackground));
+    }
+  };
+  check(ui2::UiPhraseViewData{}, ui2::UiPhraseView::Build,
+        ui2::UiPhraseView::RenderDelta);
+  check(ui2::UiTableViewData{}, ui2::UiTableView::Build,
+        ui2::UiTableView::RenderDelta);
+}
+
+TEST_CASE("Standard commands remain visible and repaint support after changing "
+          "instrument") {
+  const auto check = [](auto data, auto build, auto renderDelta) {
+    data.fxSelector = true;
+    data.fxContext = {fx::Instrument::Sample};
+    data.fxOriginal = "---";
+    data.editColumn = 2;
+    data.rows[0][2] = "VIB";
+    ui2::UiPalette palette;
+    ui2::UiFrameScene scene;
+    ui2::UiSurfaceStorage storage, expectedStorage;
+    ui2::UiIndexedSurface surface(storage), expected(expectedStorage);
+    REQUIRE(build(data, palette, scene) == ui2::UiBuildStatus::Built);
+    ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+    const auto *standard = FindTextCommand(scene.content.Stream(), "Standard");
+    REQUIRE(standard != nullptr);
+    const auto *vib = FindTextCommand(scene.content.Stream(), "VIB");
+    REQUIRE(vib != nullptr);
+    const auto position = vib->bounds;
+    CHECK(vib->color ==
+          static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextHighlighted));
+    CHECK(FindTextCommand(scene.content.Stream(), "ANY") == nullptr);
+    CHECK(FindTextCommand(scene.content.Stream(), "Generic") == nullptr);
+    CHECK(FindTextCommand(scene.content.Stream(), "MCC") != nullptr);
+    const auto previous = data;
+    data.fxContext.instrument = fx::Instrument::Sid;
+    REQUIRE(build(data, palette, scene) == ui2::UiBuildStatus::Built);
+    vib = FindTextCommand(scene.content.Stream(), "VIB");
+    REQUIRE(vib != nullptr);
+    CHECK(vib->bounds == position);
+    CHECK(vib->color ==
+          static_cast<ui2::PaletteIndex>(ui2::UiColorToken::DerivedTextFaint));
+    CHECK(FindTextCommand(scene.content.Stream(), "FCT") != nullptr);
+    CHECK(FindTextCommand(scene.content.Stream(), "GOF") != nullptr);
+    CHECK(FindTextCommand(scene.bottom.Stream(), "Not Supported") != nullptr);
+    CHECK(FindTextCommand(scene.bottom.Stream(), "On This Instrument") !=
+          nullptr);
+    renderDelta(previous, data, scene, surface, palette);
+    ui2::UiFrameRenderer::RenderStatic(scene, expected, palette);
+    CHECK(std::equal(surface.Pixels().begin(), surface.Pixels().end(),
+                     expected.Pixels().begin()));
+  };
+  check(ui2::UiPhraseViewData{}, ui2::UiPhraseView::Build,
+        ui2::UiPhraseView::RenderDelta);
+  check(ui2::UiTableViewData{}, ui2::UiTableView::Build,
+        ui2::UiTableView::RenderDelta);
+}

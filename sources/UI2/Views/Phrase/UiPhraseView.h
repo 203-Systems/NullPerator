@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include "Foundation/Types/FxCommands.h"
+
 #include "UI2/Chrome/UiBarResolver.h"
 #include "UI2/Chrome/UiChromeRenderer.h"
 #include "UI2/Render/UiIndexedSurface.h"
@@ -48,6 +50,10 @@ struct UiPhraseViewData {
   bool topMetaInkVisible = true;
   bool bottomTrackInkVisible = true;
   bool fxSelector = false;
+  std::string_view fxOriginal{};
+  std::int16_t fxScroll = 0;
+  fx::Context fxContext{};
+  std::array<std::uint8_t, 16> fxUnavailable{};
   bool enterDigitFocus = false;
   bool numberFocus = false;
   bool adjustmentFocus = false;

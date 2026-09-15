@@ -1874,3 +1874,208 @@ TEST_CASE("UI2 grid coarse edits saturate instead of wrapping at bounds") {
     CHECK(parameter == 0);
   }
 }
+
+TEST_CASE(
+    "FX context follows preceding INS and leaves incompatible data untouched") {
+  TrackerApplicationSession session;
+  Ui2TrackerSessionModelPort port(session);
+  auto &phrase = session.ProjectModel().song_.phrase_;
+  auto *bank = session.ProjectModel().GetInstrumentBank();
+  REQUIRE(bank->GetNextAndAssignID(IT_STACK, 2) == 2);
+  REQUIRE(bank->GetNextAndAssignID(IT_MIDI, 3) == 3);
+  session.EditorState().currentPhrase_ = 4;
+  const int base = 4 * STEPS_PER_PHRASE;
+  phrase.instr_[base + 2] = 2;
+  phrase.instr_[base + 8] = 3;
+  phrase.cmd1_[base + 5] = FourCC::InstrumentCommandPan;
+  phrase.param1_[base + 5] = 0x1234;
+  CHECK(port.FxContext(Ui2TrackerPage::Phrase, 0).instrument ==
+        fx::Instrument::Unknown);
+  CHECK(port.FxContext(Ui2TrackerPage::Phrase, 2).instrument ==
+        fx::Instrument::Stack);
+  CHECK(port.FxContext(Ui2TrackerPage::Phrase, 5).instrument ==
+        fx::Instrument::Stack);
+  CHECK(port.FxContext(Ui2TrackerPage::Phrase, 8).instrument ==
+        fx::Instrument::Midi);
+  CHECK(port.ProjectMutationGeneration() == 0U);
+  CHECK(phrase.cmd1_[base + 5] == FourCC::InstrumentCommandPan);
+  CHECK(phrase.param1_[base + 5] == 0x1234);
+
+  bank->GetInstrument(2)->SetType(IT_SID);
+  CHECK(port.FxContext(Ui2TrackerPage::Phrase, 5).instrument ==
+        fx::Instrument::Sid);
+  auto move = GridCommand(Ui2TrackerCommandType::AdjustCell,
+                          Ui2TrackerPage::Phrase, 2, 2);
+  move.direction = Ui2TrackerEditDirection::Right;
+  port.ApplyGridCommand(move);
+  CHECK(phrase.cmd1_[base + 2] == FourCC::InstrumentCommandHop);
+  port.ApplyGridCommand(move);
+  CHECK(phrase.cmd1_[base + 2] == FourCC::InstrumentCommandRetrigger);
+}
+
+TEST_CASE("Table FX context requires a matching invoking reference") {
+  TrackerApplicationSession session;
+  Ui2TrackerSessionModelPort port(session);
+  auto *bank = session.ProjectModel().GetInstrumentBank();
+  REQUIRE(bank->GetNextAndAssignID(IT_SAMPLE, 2) == 2);
+  bank->SetInstrumentTable(2, 3);
+  session.EditorState().currentInstrumentID_ = 2;
+  REQUIRE(port.PreparePageNavigation(Ui2TrackerPage::Instrument,
+                                     Ui2TrackerPage::InstrumentTable, 0, 0));
+  CHECK(port.FxContext(Ui2TrackerPage::InstrumentTable, 0) ==
+        fx::Context{fx::Instrument::Sample, true});
+  auto state = port.LoadGridState();
+  state.instrumentTableNumber = 4;
+  port.StoreGridState(state);
+  CHECK(port.FxContext(Ui2TrackerPage::InstrumentTable, 0).instrument ==
+        fx::Instrument::Unknown);
+
+  auto &phrase = session.ProjectModel().song_.phrase_;
+  phrase.instr_[0] = 2;
+  phrase.cmd1_[2] = FourCC::InstrumentCommandTable;
+  phrase.param1_[2] = 3;
+  state = port.LoadGridState();
+  state.phraseRow = 2;
+  state.phraseTableNumber = 3;
+  port.StoreGridState(state);
+  CHECK(port.FxContext(Ui2TrackerPage::PhraseTable, 10) ==
+        fx::Context{fx::Instrument::Sample, true});
+  phrase.cmd1_[2] = FourCC::InstrumentCommandNone;
+  CHECK(port.FxContext(Ui2TrackerPage::PhraseTable, 10).instrument ==
+        fx::Instrument::Unknown);
+}
+
+TEST_CASE("FX selector keeps cross-instrument commands at fixed positions and "
+          "preserves parameters") {
+  for (const auto page : {Ui2TrackerPage::Phrase, Ui2TrackerPage::PhraseTable,
+                          Ui2TrackerPage::InstrumentTable}) {
+    TrackerApplicationSession session;
+    Ui2TrackerSessionModelPort port(session);
+    auto *bank = session.ProjectModel().GetInstrumentBank();
+    REQUIRE(bank->GetNextAndAssignID(IT_SAMPLE, 2) == 2);
+    bank->SetInstrumentTable(2, 0);
+    session.EditorState().currentInstrumentID_ = 2;
+    auto &phrase = session.ProjectModel().song_.phrase_;
+    phrase.instr_[0] = 2;
+    phrase.cmd2_[0] = FourCC::InstrumentCommandTable;
+    auto state = port.LoadGridState();
+    state.activePage = page;
+    state.phraseColumn = 2;
+    port.StoreGridState(state);
+    auto &command = page == Ui2TrackerPage::Phrase
+                        ? phrase.cmd1_[0]
+                        : TableHolder::GetInstance()->GetTable(0).cmd1_[0];
+    auto &parameter = page == Ui2TrackerPage::Phrase
+                          ? phrase.param1_[0]
+                          : TableHolder::GetInstance()->GetTable(0).param1_[0];
+    command = FourCC::InstrumentCommandMidiCC;
+    parameter = 0x1234;
+    ui2::Ui2TrackerCommandExecutor executor(port);
+    CHECK(executor.Handle(TrackerAction::Enter, true).Empty());
+    CHECK(executor.FxOriginal() == FourCC::InstrumentCommandMidiCC);
+    CHECK(command == FourCC::InstrumentCommandMidiCC);
+    CHECK(port.ProjectMutationGeneration() == 0U);
+    executor.Handle(TrackerAction::Enter, false);
+    CHECK(port.ProjectMutationGeneration() == 0U);
+    executor.Handle(TrackerAction::Enter, true);
+    executor.Handle(TrackerAction::Down, true);
+    executor.Handle(TrackerAction::Down, false);
+    CHECK(command == FourCC::InstrumentCommandMidiChord);
+    CHECK(executor.FxOriginal() == FourCC::InstrumentCommandMidiCC);
+    executor.Handle(TrackerAction::Up, true);
+    executor.Handle(TrackerAction::Up, false);
+    CHECK(command == FourCC::InstrumentCommandMidiCC);
+    executor.Handle(TrackerAction::Down, true);
+    executor.Handle(TrackerAction::Down, false);
+    executor.Handle(TrackerAction::Enter, false);
+    executor.Handle(TrackerAction::Enter, true);
+    CHECK(executor.FxOriginal() == FourCC::InstrumentCommandMidiChord);
+    executor.Handle(TrackerAction::Up, true);
+    CHECK(command == FourCC::InstrumentCommandMidiCC);
+    CHECK(parameter == 0x1234);
+  }
+}
+
+TEST_CASE(
+    "Standard FX remain selectable on every instrument without a filter") {
+  for (const auto page : {Ui2TrackerPage::Phrase, Ui2TrackerPage::PhraseTable,
+                          Ui2TrackerPage::InstrumentTable}) {
+    TrackerApplicationSession session;
+    Ui2TrackerSessionModelPort port(session);
+    auto *bank = session.ProjectModel().GetInstrumentBank();
+    REQUIRE(bank->GetNextAndAssignID(IT_SID, 2) == 2);
+    bank->SetInstrumentTable(2, 0);
+    session.EditorState().currentInstrumentID_ = 2;
+    auto &phrase = session.ProjectModel().song_.phrase_;
+    phrase.instr_[0] = 2;
+    phrase.cmd2_[0] = FourCC::InstrumentCommandTable;
+    auto state = port.LoadGridState();
+    state.activePage = page;
+    state.phraseColumn = 2;
+    port.StoreGridState(state);
+    auto &command = page == Ui2TrackerPage::Phrase
+                        ? phrase.cmd1_[0]
+                        : TableHolder::GetInstance()->GetTable(0).cmd1_[0];
+    auto &parameter = page == Ui2TrackerPage::Phrase
+                          ? phrase.param1_[0]
+                          : TableHolder::GetInstance()->GetTable(0).param1_[0];
+    command = FourCC::InstrumentCommandNone;
+    parameter = 0x1234;
+    ui2::Ui2TrackerCommandExecutor executor(port);
+    const auto tap = [&](TrackerAction action) {
+      executor.Handle(action, true);
+      executor.Handle(action, false);
+    };
+    executor.Handle(TrackerAction::Enter, true);
+    CHECK(command == FourCC::InstrumentCommandNone);
+    CHECK(parameter == 0x1234);
+    executor.Handle(TrackerAction::Enter, false);
+    CHECK(port.ProjectMutationGeneration() == 0);
+    executor.Handle(TrackerAction::Enter, true);
+    tap(TrackerAction::Up);
+    tap(TrackerAction::Left);
+    CHECK(command == FourCC::InstrumentCommandNone);
+    // Navigate through the actual controller to an unsupported Standard FX.
+    const auto context = port.FxContext(page, 0);
+    std::array<int, 256> parent;
+    parent.fill(-1);
+    std::array<TrackerAction, 256> actions{};
+    std::array<int, 256> queue{};
+    int head = 0, tail = 1;
+    queue[0] = FourCC::InstrumentCommandNone;
+    parent[queue[0]] = queue[0];
+    const std::array dirs{TrackerAction::Left, TrackerAction::Right,
+                          TrackerAction::Up, TrackerAction::Down};
+    while (head < tail) {
+      const int from = queue[head++];
+      for (const auto action : dirs) {
+        const int dx = action == TrackerAction::Left    ? -1
+                       : action == TrackerAction::Right ? 1
+                                                        : 0;
+        const int dy = action == TrackerAction::Up     ? -1
+                       : action == TrackerAction::Down ? 1
+                                                       : 0;
+        const auto next = static_cast<uint8_t>(
+            fx::Move(FourCC(from), dx, dy, context, "---"));
+        if (next == 255 || parent[next] != -1)
+          continue;
+        parent[next] = from;
+        actions[next] = action;
+        queue[tail++] = next;
+      }
+    }
+    REQUIRE(parent[FourCC::InstrumentCommandVibrato] != -1);
+    std::array<TrackerAction, 256> path{};
+    int count = 0;
+    for (int at = FourCC::InstrumentCommandVibrato;
+         at != FourCC::InstrumentCommandNone; at = parent[at])
+      path[count++] = actions[at];
+    while (count > 0)
+      tap(path[--count]);
+    CHECK(command == FourCC::InstrumentCommandVibrato);
+    CHECK(parameter == 0x1234);
+    CHECK_FALSE(fx::Available(command, context));
+    executor.Handle(TrackerAction::Enter, false);
+    CHECK(port.ProjectMutationGeneration() > 0);
+  }
+}

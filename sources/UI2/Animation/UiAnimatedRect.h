@@ -70,6 +70,7 @@ enum class UiCursorRole : std::uint8_t {
   BottomTrack,
   ChromeNavigation,
   Navigation,
+  FxScroll,
   Count,
 };
 
