@@ -94,6 +94,7 @@ add_executable(picoTracker_tests
   ../sources/Application/Persistency/Persistent.cpp
   ../sources/Application/Persistency/InstrumentFileValidator.cpp
   ../sources/Application/Model/Table.cpp
+  ../sources/Application/Player/TablePlayback.cpp
   ../sources/Application/Model/Chain.cpp
   ../sources/Application/Model/Groove.cpp
   ../sources/Application/Model/Phrase.cpp

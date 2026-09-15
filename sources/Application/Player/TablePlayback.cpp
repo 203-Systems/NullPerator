@@ -224,19 +224,24 @@ void TablePlayback::ProcessStep(TablePlayerChange &tpc) {
 
         // try local processing for if it changes current table or position
 
-        hopped_[0] =
-            ProcessLocalCommand(0, table_->cmd1_, table_->param1_, tpc);
-        hopped_[1] =
-            ProcessLocalCommand(1, table_->cmd2_, table_->param2_, tpc);
-        hopped_[2] =
-            ProcessLocalCommand(2, table_->cmd3_, table_->param3_, tpc);
-
-        instrument_->ProcessCommand(channel_, table_->cmd1_[position_[0]],
-                                    table_->param1_[position_[0]]);
-        instrument_->ProcessCommand(channel_, table_->cmd2_[position_[1]],
-                                    table_->param2_[position_[1]]);
-        instrument_->ProcessCommand(channel_, table_->cmd3_[position_[2]],
-                                    table_->param3_[position_[2]]);
+        FourCC *commands[TABLE_COLUMNS] = {table_->cmd1_, table_->cmd2_,
+                                           table_->cmd3_};
+        ushort *parameters[TABLE_COLUMNS] = {table_->param1_, table_->param2_,
+                                             table_->param3_};
+        for (int column = 0; column < TABLE_COLUMNS; ++column) {
+          hopped_[column] = ProcessLocalCommand(column, commands[column],
+                                                parameters[column], tpc);
+          if (table_ == nullptr) // STP may stop the table in any column.
+            return;
+        }
+        for (int column = 0; column < TABLE_COLUMNS; ++column) {
+          const auto command = commands[column][position_[column]];
+          // KIL is scheduled by the player via timeToLive_. Forwarding it to
+          // an instrument would stop the voice immediately and lose the delay.
+          if (command != FourCC::InstrumentCommandKill)
+            instrument_->ProcessCommand(channel_, command,
+                                        parameters[column][position_[column]]);
+        }
 
         previous_[0] = position_[0];
         previous_[1] = position_[1];

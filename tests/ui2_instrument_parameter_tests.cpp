@@ -181,18 +181,6 @@ void MidiService::updateActiveDevicesList(unsigned short config) {
   (void)config;
 }
 
-// The focused host binary does not link TablePlayback.cpp; provide its small
-// value-state reset so the production SID lifecycle can be exercised directly.
-void TableSaveState::Reset() {
-  for (std::size_t row = 0U; row < TABLE_STEPS; ++row)
-    for (std::size_t column = 0U; column < TABLE_COLUMNS; ++column)
-      hopCount_[row][column] = 0U;
-  for (std::size_t column = 0U; column < TABLE_COLUMNS; ++column)
-    position_[column] = 0;
-  groove_.groove_ = static_cast<unsigned char>(-1);
-  groove_.position_ = 0U;
-  groove_.ticks_ = 0U;
-}
 
 namespace {
 

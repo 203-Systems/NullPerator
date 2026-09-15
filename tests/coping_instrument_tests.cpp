@@ -1,12 +1,109 @@
 #include "Application/Instruments/ChiptuneInstrument.h"
 #include "Application/Instruments/DrumInstrument.h"
 #include "Application/Instruments/InstrumentBankRestorePolicy.h"
+#include "Application/Instruments/MidiInstrument.h"
 #include "Application/Instruments/StackInstrument.h"
+#include "Application/Player/TablePlayback.h"
 #include "Application/UI2/Ui2InstrumentParameters.h"
 #include "Application/UI2/Ui2NotePresentation.h"
 #include "doctest/doctest.h"
 #include <algorithm>
 #include <array>
+
+namespace {
+// Table playback may be the first user of Groove in this host process. Do not
+// leave it initialized before the persistence tests install their service.
+struct ScopedTableGroove {
+  bool existed = etl::singleton<Groove>::is_valid();
+  ~ScopedTableGroove() {
+    if (!existed && etl::singleton<Groove>::is_valid())
+      etl::singleton<Groove>::destroy();
+  }
+};
+} // namespace
+
+TEST_CASE_TEMPLATE("Table KIL schedules voice termination without dispatching "
+                   "an immediate kill",
+                   Synth, DrumInstrument, StackInstrument, ChiptuneInstrument) {
+  ScopedTableGroove groove;
+  for (int column = 0; column < TABLE_COLUMNS; ++column) {
+    for (const bool automated : {false, true}) {
+      Synth instrument;
+      if (automated && instrument.GetType() == IT_DRUM)
+        continue; // Drum explicitly has no automation-table state.
+      REQUIRE(instrument.Start(0, 60));
+      Table table;
+      FourCC *commands[] = {table.cmd1_, table.cmd2_, table.cmd3_};
+      ushort *parameters[] = {table.param1_, table.param2_, table.param3_};
+      commands[column][0] = FourCC::InstrumentCommandKill;
+      parameters[column][0] = 5;
+      commands[(column + 1) % TABLE_COLUMNS][0] =
+          FourCC::InstrumentCommandVolume;
+      parameters[(column + 1) % TABLE_COLUMNS][0] = 0x80;
+      TablePlayback playback;
+      playback.Init(0);
+      playback.Start(&instrument, table, automated);
+      TablePlayerChange change{0, -1};
+      playback.ProcessStep(change);
+      CHECK(change.timeToLive_ == 6);
+      std::array<fixed, 256> buffer{};
+      CHECK(instrument.Render(0, buffer.data(), 128, false));
+      CHECK(std::any_of(buffer.begin(), buffer.end(),
+                        [](fixed x) { return x != 0; }));
+      instrument.Stop(0);
+    }
+  }
+}
+
+TEST_CASE("Table STP can stop safely from any command column") {
+  ScopedTableGroove groove;
+  for (int column = 0; column < TABLE_COLUMNS; ++column) {
+    StackInstrument instrument;
+    REQUIRE(instrument.Start(0, 60));
+    Table table;
+    FourCC *commands[] = {table.cmd1_, table.cmd2_, table.cmd3_};
+    commands[column][0] = FourCC::InstrumentCommandStop;
+    TablePlayback playback;
+    playback.Init(0);
+    playback.Start(&instrument, table, false);
+    TablePlayerChange change{0, -1};
+    playback.ProcessStep(change);
+    CHECK(playback.GetTable() == nullptr);
+    std::array<fixed, 256> buffer{};
+    CHECK(instrument.Render(0, buffer.data(), 128, false));
+  }
+}
+
+TEST_CASE(
+    "Table MIDI KIL preserves the scheduled delay and still forwards VOL") {
+  ScopedTableGroove groove;
+  struct ObservedMidi : MidiInstrument {
+    int kills = 0;
+    int volumes = 0;
+    void ProcessCommand(int channel, FourCC command, ushort value) override {
+      if (command == FourCC::InstrumentCommandKill)
+        ++kills;
+      if (command == FourCC::InstrumentCommandVolume)
+        ++volumes;
+      MidiInstrument::ProcessCommand(channel, command, value);
+    }
+  } instrument;
+  REQUIRE(instrument.Start(0, 60));
+  Table table;
+  table.cmd1_[0] = FourCC::InstrumentCommandKill;
+  table.param1_[0] = 7;
+  table.cmd2_[0] = FourCC::InstrumentCommandVolume;
+  table.param2_[0] = 0xFF;
+  TablePlayback playback;
+  playback.Init(0);
+  playback.Start(&instrument, table, false);
+  TablePlayerChange change{0, -1};
+  playback.ProcessStep(change);
+  CHECK(change.timeToLive_ == 8);
+  CHECK(instrument.kills == 0);
+  CHECK(instrument.volumes == 1);
+  instrument.Stop(0);
+}
 
 TEST_CASE_TEMPLATE(
     "Coping instruments isolate voices and preserve block continuity", Synth,
