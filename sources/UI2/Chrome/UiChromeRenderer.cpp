@@ -495,6 +495,21 @@ UiBuildStatus UiChromeRenderer::BuildBottom(const UiBottomBarModel &model,
     break;
   }
   case UiBottomBarKind::AdjustmentLegend: {
+    if (model.adjustment.context != nullptr) {
+      DrawSegments(builder, model.adjustment.context->firstLine,
+                   model.adjustment.context->firstLineCount, 213);
+      DrawSegments(builder, model.adjustment.context->secondLine,
+                   model.adjustment.context->secondLineCount, 227);
+      builder.Text("<", 176, 213, UiColorToken::DerivedTextFaint);
+      builder.CenteredText(model.adjustment.fineLabel, 204, 213,
+                           UiColorToken::TextDim);
+      builder.Text(">", 226, 213, UiColorToken::DerivedTextFaint);
+      DrawVerticalArrow(builder, 176, 229, false);
+      builder.CenteredText(model.adjustment.coarseLabel, 204, 227,
+                           UiColorToken::TextDim);
+      DrawVerticalArrow(builder, 226, 229, true);
+      break;
+    }
     std::array<char, 8> fine{};
     std::array<char, 8> coarse{};
     const bool semanticFine = !model.adjustment.fineLabel.empty();

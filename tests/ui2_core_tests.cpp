@@ -34,6 +34,7 @@
 #include "UI2/Views/Song/UiSongView.h"
 #include "UI2/Views/Table/UiTableView.h"
 #include "UI2/Views/Theme/UiThemeView.h"
+#include "UI2/Views/Tracker/UiFxParameterAdjustment.h"
 #include "UI2/Views/Tracker/UiTrackerGridMetrics.h"
 
 #include "ui2_browser_fixture.h"
@@ -5501,6 +5502,267 @@ TEST_CASE("Held instrument and FX parameter cells show editing legends") {
   REQUIRE(ui2::UiTableView::Build(table, palette, scene) == ui2::UiBuildStatus::Built);
   CHECK(FindTextCommand(scene.bottom.Stream(), "DIGIT") != nullptr);
   CHECK(FindTextCommand(scene.bottom.Stream(), "VALUE") != nullptr);
+}
+
+TEST_CASE(
+    "SIP editing keeps parameter context visible and repaints byte focus") {
+  const auto check = [](auto data, auto build, auto renderDelta,
+                        std::uint8_t firstColumn) {
+    for (std::uint8_t column = firstColumn; column < 6U; column += 2U) {
+      data.editColumn = column;
+      data.enterDigitFocus = true;
+      data.editDigit = 1;
+      data.rows[0][column - 1U] = "SIP";
+      data.rows[0][column] = "0340";
+      data.fxContext.instrument = fx::Instrument::Stack;
+      ui2::UiPalette palette;
+      ui2::UiFrameScene scene;
+      REQUIRE(build(data, palette, scene) == ui2::UiBuildStatus::Built);
+      const auto text = [&](std::string_view label) {
+        const auto *command = FindTextCommand(scene.bottom.Stream(), label);
+        REQUIRE(command != nullptr);
+        return command;
+      };
+      const auto repaint = [&](auto next) {
+        CheckDeltaMatchesFullFrame(data, next, build, renderDelta);
+        data = next;
+        REQUIRE(build(data, palette, scene) == ui2::UiBuildStatus::Built);
+      };
+      CHECK(text("STACK")->bounds.y == 213);
+      CHECK(text("Attack")->color ==
+            static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextColored));
+      CHECK(text("40")->color ==
+            static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextNormal));
+      CHECK(text("/ 00-FF")->bounds.y == 227);
+      CHECK(text("DIGIT")->bounds.x >= 176);
+
+      auto next = data;
+      next.editDigit = 2;
+      repaint(next);
+      CHECK(text("Attack")->color ==
+            static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextNormal));
+      CHECK(text("40")->color ==
+            static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextColored));
+
+      next = data;
+      next.fxContext.instrument = fx::Instrument::Chiptune;
+      repaint(next);
+      CHECK(text("Noise Burst")->bounds.y == 213);
+
+      next = data;
+      next.rows[0][column] = "0841";
+      next.editDigit = 1;
+      repaint(next);
+      CHECK(text("Vibrato Delay")->bounds.y == 213);
+      CHECK(text("41")->bounds.y == 227);
+
+      next = data;
+      next.fxContext.instrument = fx::Instrument::Unknown;
+      repaint(next);
+      CHECK(text("Parameter")->bounds.y == 213);
+      CHECK(text("08")->bounds.y == 213);
+      CHECK(text("/ Instrument map")->bounds.y == 227);
+      CHECK(FindTextCommand(scene.bottom.Stream(), "Vibrato Delay") == nullptr);
+
+      next = data;
+      next.fxContext.instrument = fx::Instrument::Stack;
+      next.rows[0][column] = "FF41";
+      repaint(next);
+      CHECK(text("Unknown")->bounds.y == 213);
+      CHECK(text("/ Ignored")->bounds.y == 227);
+
+      next = data;
+      next.rows[0][column - 1U] = "VIB";
+      repaint(next);
+      CHECK(text("DIGIT")->bounds.y == 213);
+      CHECK(text("Rate FF")->bounds.y == 213);
+      CHECK(FindTextCommand(scene.bottom.Stream(), "Unknown") == nullptr);
+      next = data;
+      next.enterDigitFocus = false;
+      repaint(next);
+    }
+  };
+  check(ui2::UiPhraseViewData{}, ui2::UiPhraseView::Build,
+        ui2::UiPhraseView::RenderDelta, 3);
+  check(ui2::UiTableViewData{}, ui2::UiTableView::Build,
+        ui2::UiTableView::RenderDelta, 1);
+}
+
+TEST_CASE("SIP parameter names and ranges fit beside the compact edit hints") {
+  ui2::UiPhraseViewData data{};
+  data.editColumn = 3;
+  data.enterDigitFocus = true;
+  data.rows[0][2] = "SIP";
+  for (auto instrument : {fx::Instrument::Stack, fx::Instrument::Chiptune}) {
+    data.fxContext.instrument = instrument;
+    for (std::uint8_t index = 0;
+         fx::InstrumentParameter(instrument, index) != nullptr; ++index) {
+      std::array<char, 5> value{};
+      std::snprintf(value.data(), value.size(), "%02X40", index);
+      data.rows[0][3] = value.data();
+      ui2::UiPalette palette;
+      ui2::UiFrameScene scene;
+      REQUIRE(ui2::UiPhraseView::Build(data, palette, scene) ==
+              ui2::UiBuildStatus::Built);
+      const auto *name =
+          FindTextCommand(scene.bottom.Stream(),
+                          fx::InstrumentParameter(instrument, index)->name);
+      REQUIRE(name != nullptr);
+      CHECK(name->bounds.x + name->bounds.width <= 170);
+      for (const auto &command : scene.bottom.Stream().commands) {
+        if (command.bounds.x < 176)
+          CHECK(command.bounds.x + command.bounds.width <= 170);
+      }
+    }
+  }
+}
+
+TEST_CASE(
+    "FX parameter help decodes fields using the active instrument and page") {
+  ui2::UiFrameScene scene;
+  const auto build = [&](std::string_view command, std::string_view value,
+                         fx::Context context, std::uint8_t digit) {
+    const ui2::UiFxParameterAdjustment adjustment(command, value, context,
+                                                  digit);
+    REQUIRE(ui2::UiChromeRenderer::BuildBottom(
+                {.kind = ui2::UiBottomBarKind::AdjustmentLegend,
+                 .adjustment = adjustment.model},
+                scene.bottom) == ui2::UiBuildStatus::Built);
+  };
+  const auto text = [&](std::string_view label) {
+    const auto *command = FindTextCommand(scene.bottom.Stream(), label);
+    REQUIRE(command != nullptr);
+    return command;
+  };
+  build("VOL", "0180", {fx::Instrument::Sample}, 0);
+  CHECK(text("Speed 01")->color ==
+        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextColored));
+  CHECK(text("Volume 80")->color ==
+        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextNormal));
+  build("VOL", "0180", {fx::Instrument::Sample}, 3);
+  CHECK(text("Volume 80")->color ==
+        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextColored));
+  build("VOL", "0180", {fx::Instrument::Midi}, 3);
+  CHECK(text("/ CC 7 = 64")->bounds.y == 227);
+  build("VOL", "0180", {fx::Instrument::Stack}, 0);
+  CHECK(text("/ Unused digit")->bounds.y == 227);
+  build("MCC", "FF80", {fx::Instrument::Midi}, 2);
+  CHECK(text("CC FF")->bounds.y == 213);
+  CHECK(text("/ MIDI 127")->bounds.y == 213);
+  CHECK(text("/ MIDI 0")->bounds.y == 227);
+  build("TPO", "0078", {}, 3);
+  CHECK(text("/ 120 BPM")->bounds.y == 227);
+  build("TPO", "0191", {}, 0);
+  CHECK(text("/ 400 BPM")->bounds.y == 227);
+  build("DLY", "000F", {}, 3);
+  CHECK(text("/ 16 ticks")->bounds.y == 227);
+  build("HOP", "12F3", {fx::Instrument::Sample, true}, 0);
+  CHECK(text("Repeat 12")->bounds.y == 213);
+  CHECK(text("Step 3")->bounds.y == 227);
+  build("HOP", "12F3", {fx::Instrument::Sample, false}, 0);
+  CHECK(text("/ Unused digit")->bounds.y == 227);
+  build("CSH", "01F3", {fx::Instrument::Chiptune}, 0);
+  CHECK(text("/ Unused digit")->bounds.y == 227);
+  build("CSH", "01F3", {fx::Instrument::Sample}, 0);
+  CHECK(text("Drive 01")->bounds.y == 213);
+  CHECK(text("Crush 3")->bounds.y == 227);
+  build("PAN", "007F", {fx::Instrument::Sample}, 3);
+  CHECK(text("/ Center")->bounds.y == 227);
+  build("PAN", "0080", {fx::Instrument::Stack}, 3);
+  CHECK(text("/ Center")->bounds.y == 227);
+  build("CHB", "C047", {fx::Instrument::Stack}, 0);
+  CHECK(text("-4")->color ==
+        static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextColored));
+  build("ARP", "0470", {fx::Instrument::Sample}, 3);
+  CHECK(text("-")->bounds.y == 227);
+  build("GOF", "1234", {fx::Instrument::Opal}, 0);
+  CHECK(text("No parameter")->bounds.y == 227);
+  build("MCC", "1234", {fx::Instrument::Sample}, 0);
+  CHECK(text("Not Supported")->bounds.y == 213);
+  CHECK(text("On This Instrument")->bounds.y == 227);
+  build("---", "1234", {}, 0);
+  CHECK(text("DIGIT")->bounds.y == 220);
+}
+
+TEST_CASE("Every FX parameter layout fits beside its two-row edit controls") {
+  for (const auto &command : fx::commands) {
+    if (command.id == FourCC::InstrumentCommandNone)
+      continue;
+    for (int instrument = 0; instrument <= int(fx::Instrument::Chiptune);
+         ++instrument) {
+      for (bool table : {false, true}) {
+        for (auto value : {"0000", "0180", "7FFF", "FFFF"}) {
+          for (std::uint8_t digit = 0; digit < 4; ++digit) {
+            CAPTURE(command.name);
+            CAPTURE(instrument);
+            CAPTURE(table);
+            CAPTURE(value);
+            CAPTURE(digit);
+            const ui2::UiFxParameterAdjustment adjustment(
+                command.name, value,
+                {static_cast<fx::Instrument>(instrument), table}, digit);
+            REQUIRE(adjustment.model.context != nullptr);
+            ui2::UiFrameScene scene;
+            REQUIRE(ui2::UiChromeRenderer::BuildBottom(
+                        {.kind = ui2::UiBottomBarKind::AdjustmentLegend,
+                         .adjustment = adjustment.model},
+                        scene.bottom) == ui2::UiBuildStatus::Built);
+            for (const auto &item : scene.bottom.Stream().commands) {
+              CHECK(item.bounds.x >= 0);
+              CHECK(item.bounds.x + item.bounds.width <= 231);
+              if (item.bounds.x < 176)
+                CHECK(item.bounds.x + item.bounds.width <= 170);
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+TEST_CASE(
+    "FX edit help repaints when fields values commands and support change") {
+  const auto check = [](auto data, auto build, auto renderDelta) {
+    data.editColumn = 3;
+    data.rows[0][2] = "VOL";
+    data.rows[0][3] = "0180";
+    data.fxContext.instrument = fx::Instrument::Sample;
+    data.enterDigitFocus = true;
+    for (int step = 0; step < 7; ++step) {
+      auto next = data;
+      switch (step) {
+      case 0:
+        next.editDigit = 1;
+        break;
+      case 1:
+        next.rows[0][3] = "0280";
+        break;
+      case 2:
+        next.rows[0][2] = "CHB";
+        next.rows[0][3] = "C047";
+        next.fxContext.instrument = fx::Instrument::Stack;
+        break;
+      case 3:
+        next.editDigit = 2;
+        break;
+      case 4:
+        next.fxContext.instrument = fx::Instrument::Sample;
+        break;
+      case 5:
+        next.rows[0][2] = "---";
+        break;
+      case 6:
+        next.enterDigitFocus = false;
+        break;
+      }
+      CheckDeltaMatchesFullFrame(data, next, build, renderDelta);
+      data = next;
+    }
+  };
+  check(ui2::UiPhraseViewData{}, ui2::UiPhraseView::Build,
+        ui2::UiPhraseView::RenderDelta);
+  check(ui2::UiTableViewData{}, ui2::UiTableView::Build,
+        ui2::UiTableView::RenderDelta);
 }
 
 TEST_CASE("Device navigation shows highlighted Project instead of battery") {

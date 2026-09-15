@@ -8,6 +8,7 @@
 
 #include "UI2/Render/UiFrameRenderer.h"
 #include "UI2/Text/UiFont5x7.h"
+#include "UI2/Views/Tracker/UiFxParameterAdjustment.h"
 #include "UI2/Views/Tracker/UiFxSelector.h"
 #include "UI2/Views/Tracker/UiTrackerGridMetrics.h"
 
@@ -266,6 +267,12 @@ void UiPhraseView::RenderDelta(const UiPhraseViewData &previous,
       previous.adjustmentFocus != current.adjustmentFocus ||
       previous.customNote != current.customNote ||
       previous.enterDigitFocus != current.enterDigitFocus ||
+      previous.editDigit != current.editDigit ||
+      previous.fxContext != current.fxContext ||
+      (current.enterDigitFocus && current.editRow < current.rows.size() &&
+       (previous.editRow != current.editRow ||
+        previous.editColumn != current.editColumn ||
+        previous.rows[current.editRow] != current.rows[current.editRow])) ||
       previous.selectionActive != current.selectionActive ||
       previous.selectionNextExpansionAll != current.selectionNextExpansionAll ||
       previous.clipboardReady != current.clipboardReady ||
@@ -320,8 +327,12 @@ UiBuildStatus UiPhraseView::Build(const UiPhraseViewData &data, UiPalette &,
                                                      .coarseStep = 16};
   const UiAdjustmentLegendModel customNoteAdjustment{.fineStep = 1,
                                                      .coarseStep = 10};
-  const UiAdjustmentLegendModel parameterAdjustment{.fineLabel = "DIGIT",
-                                                    .coarseLabel = "VALUE"};
+  const bool parameterCell =
+      data.editRow < data.rows.size() && IsParameterColumn(data.editColumn);
+  const UiFxParameterAdjustment parameterAdjustment{
+      parameterCell ? data.rows[data.editRow][data.editColumn - 1U] : "",
+      parameterCell ? data.rows[data.editRow][data.editColumn] : "",
+      data.fxContext, data.editDigit};
   const UiBottomBarModel *cursorContext =
       !data.numberFocus && data.cursorBottom.kind != UiBottomBarKind::Hidden
           ? &data.cursorBottom
@@ -332,7 +343,7 @@ UiBuildStatus UiPhraseView::Build(const UiPhraseViewData &data, UiPalette &,
       .cursorContext = cursorContext,
       .enterHeldTracks = &editTracks,
       .enterHeldAdjustment =
-          data.enterDigitFocus ? &parameterAdjustment
+          data.enterDigitFocus ? &parameterAdjustment.model
           : data.adjustmentFocus && data.editColumn <= 1U
               ? (data.editColumn == 0U
                      ? (data.customNote ? &customNoteAdjustment

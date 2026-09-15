@@ -8,6 +8,7 @@
 
 #include "UI2/Render/UiFrameRenderer.h"
 #include "UI2/Text/UiFont5x7.h"
+#include "UI2/Views/Tracker/UiFxParameterAdjustment.h"
 #include "UI2/Views/Tracker/UiFxSelector.h"
 #include "UI2/Views/Tracker/UiTrackerGridMetrics.h"
 
@@ -254,6 +255,12 @@ void UiTableView::RenderDelta(const UiTableViewData &previous,
       previous.bottomTrackInkVisible != current.bottomTrackInkVisible ||
       previous.adjustmentFocus != current.adjustmentFocus ||
       previous.enterDigitFocus != current.enterDigitFocus ||
+      previous.editDigit != current.editDigit ||
+      previous.fxContext != current.fxContext ||
+      (current.enterDigitFocus && current.editRow < current.rows.size() &&
+       (previous.editRow != current.editRow ||
+        previous.editColumn != current.editColumn ||
+        previous.rows[current.editRow] != current.rows[current.editRow])) ||
       previous.selectionActive != current.selectionActive ||
       previous.selectionNextExpansionAll != current.selectionNextExpansionAll ||
       previous.clipboardReady != current.clipboardReady ||
@@ -300,8 +307,13 @@ UiBuildStatus UiTableView::Build(const UiTableViewData &data, UiPalette &,
   tracks.trackSelectionRect = data.bottomTrackVisualRect;
   tracks.trackSelectionOverride = data.bottomTrackVisualOverride;
   tracks.trackInkVisible = data.bottomTrackInkVisible;
-  const UiAdjustmentLegendModel parameterAdjustment{.fineLabel = "DIGIT",
-                                                    .coarseLabel = "VALUE"};
+  const bool parameterCell = data.editRow < data.rows.size() &&
+                             data.editColumn < kColumnX.size() &&
+                             IsParameterColumn(data.editColumn);
+  const UiFxParameterAdjustment parameterAdjustment{
+      parameterCell ? data.rows[data.editRow][data.editColumn - 1U] : "",
+      parameterCell ? data.rows[data.editRow][data.editColumn] : "",
+      data.fxContext, data.editDigit};
   const UiBottomBarModel *cursorContext =
       !data.numberFocus && data.cursorBottom.kind != UiBottomBarKind::Hidden
           ? &data.cursorBottom
@@ -312,7 +324,7 @@ UiBuildStatus UiTableView::Build(const UiTableViewData &data, UiPalette &,
       .cursorContext = cursorContext,
       .enterHeldTracks = &tracks,
       .enterHeldAdjustment =
-          data.enterDigitFocus ? &parameterAdjustment : nullptr,
+          data.enterDigitFocus ? &parameterAdjustment.model : nullptr,
       .selectionActive = data.selectionActive,
       .selectionNextExpansionAll = data.selectionNextExpansionAll,
       .clipboardReady = data.clipboardReady,

@@ -150,6 +150,8 @@ struct UiAdjustmentLegendModel {
   std::string_view fineLabel{};
   std::string_view coarseLabel{};
   bool showCoarse = true;
+  // Optional two-line context stays visible beside compact adjustment hints.
+  const UiContextBarModel *context = nullptr;
 };
 
 struct UiRgbBarModel {
