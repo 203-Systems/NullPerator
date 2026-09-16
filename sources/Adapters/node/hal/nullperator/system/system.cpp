@@ -127,6 +127,10 @@ uint16_t ReadIOExpander() {
   return g_ioExpanderReady ? g_ioExpander.Read() : 0;
 }
 
+bool ReadIOExpanderChecked(uint16_t &value) {
+  return g_ioExpanderReady && g_ioExpander.ReadChecked(value);
+}
+
 bool WriteIOExpander(uint16_t value) {
   return !g_ioExpanderReady || g_ioExpander.Write(value);
 }

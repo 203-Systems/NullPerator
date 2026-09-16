@@ -104,8 +104,19 @@ uint8_t GetBatteryPercentage() {
   return static_cast<uint8_t>(std::lround(percentage));
 }
 
+bool ReadChargingState(bool &charging) {
+  uint16_t level = 0;
+  if (!NullperatorHAL::System::ReadIOExpanderChecked(level))
+    return false;
+
+  // LGS4084H CHRG is active-low. Input::Init only inverts button pins, not
+  // CHRG/FULL, so this bit still represents the physical charging signal.
+  charging = (level & (1U << PCA_BTN_CHRG)) == 0;
+  return true;
+}
+
 bool IsCharging() {
-  const uint16_t level = NullperatorHAL::System::ReadIOExpander();
-  return (level & (1U << PCA_BTN_CHRG)) != 0;
+  bool charging = false;
+  return ReadChargingState(charging) && charging;
 }
 } // namespace NullperatorHAL::Power

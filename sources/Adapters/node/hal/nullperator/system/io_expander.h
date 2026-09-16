@@ -34,6 +34,9 @@ public:
 
   void Attach(i2c_master_dev_handle_t deviceHandle);
   uint16_t Read();
+  // Fresh input sample, without the button-read cache. Leaves value unchanged
+  // when the device is unavailable or this transaction fails.
+  bool ReadChecked(uint16_t &value) const;
   bool Write(uint16_t value);
   bool Write(Port port, Level level);
   bool SetPolarity(uint16_t value);

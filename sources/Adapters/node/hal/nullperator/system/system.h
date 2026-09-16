@@ -10,6 +10,7 @@ void EnterDeepSleep();
 
 i2c_master_bus_handle_t GetI2CBus();
 uint16_t ReadIOExpander();
+bool ReadIOExpanderChecked(uint16_t &value);
 bool WriteIOExpander(uint16_t value);
 bool WriteIOExpanderPin(uint8_t pin, bool high);
 bool SetIOExpanderPolarity(uint16_t value);

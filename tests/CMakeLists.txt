@@ -464,6 +464,21 @@ target_include_directories(node_ui2_input_mailbox_tests PRIVATE
 target_compile_definitions(node_ui2_input_mailbox_tests PRIVATE HOST_TEST)
 add_test(NAME node_ui2_input_mailbox COMMAND node_ui2_input_mailbox_tests)
 
+add_executable(node_power_tests
+  test_main.cpp
+  node_power_tests.cpp
+  ../sources/Adapters/node/hal/nullperator/power/power.cpp
+  ../sources/Adapters/node/hal/nullperator/system/io_expander.cpp
+)
+target_include_directories(node_power_tests PRIVATE
+  ${CMAKE_CURRENT_LIST_DIR}/node_power_stubs
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Externals
+  ${CMAKE_CURRENT_LIST_DIR}/../sources
+  ${CMAKE_CURRENT_LIST_DIR}/../sources/Adapters/node/hal/nullperator
+)
+target_compile_definitions(node_power_tests PRIVATE HOST_TEST)
+add_test(NAME node_power COMMAND node_power_tests)
+
 # Product artifact gates run their parsers as normal host tests so malformed
 # inputs, forbidden UI2 artifacts, and memory-budget boundaries fail closed.
 find_package(Python3 COMPONENTS Interpreter QUIET)

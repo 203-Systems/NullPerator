@@ -137,7 +137,8 @@ unsigned long NodeUi2System::GetClock() { return Millis(); }
 
 void NodeUi2System::GetBatteryState(BatteryState &state) {
   const float voltage = NullperatorHAL::Power::GetBatteryVoltage();
-  if (voltage <= 0.0F) {
+  bool charging = false;
+  if (voltage <= 0.0F || !NullperatorHAL::Power::ReadChargingState(charging)) {
     state = {.percentage = 0U,
              .voltage_mv = 0U,
              .temperature_c = 0,
@@ -150,7 +151,7 @@ void NodeUi2System::GetBatteryState(BatteryState &state) {
       .percentage = NullperatorHAL::Power::GetBatteryPercentage(),
       .voltage_mv = static_cast<std::uint16_t>(std::lround(voltage * 1000.0F)),
       .temperature_c = 0,
-      .charging = NullperatorHAL::Power::IsCharging(),
+      .charging = charging,
       .error = false,
   };
 }

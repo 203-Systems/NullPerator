@@ -39,6 +39,22 @@ uint16_t IOExpander::Read() {
   return stable;
 }
 
+bool IOExpander::ReadChecked(uint16_t &value) const {
+  if (deviceHandle_ == nullptr)
+    return false;
+
+  const uint8_t reg = kInputPort0;
+  uint8_t bytes[2]{};
+  // Keep both data and status local: the input task can read the same device
+  // concurrently. A later successful read must not mask this read's failure.
+  if (i2c_master_transmit_receive(deviceHandle_, &reg, sizeof(reg), bytes,
+                                  sizeof(bytes), 1000) != ESP_OK)
+    return false;
+
+  value = static_cast<uint16_t>(bytes[0] | (uint16_t{bytes[1]} << 8U));
+  return true;
+}
+
 bool IOExpander::Write(uint16_t value) {
   output_ = value;
   return WriteOutput();
