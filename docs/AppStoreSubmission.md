@@ -1,6 +1,6 @@
 # NullPerator App Store submission draft
 
-Last updated: 2026-09-03
+Last updated: 2026-09-16
 
 This file is a working submission sheet. Copy the approved values into App Store Connect before TestFlight or App Review submission.
 
@@ -8,14 +8,22 @@ This file is a working submission sheet. Copy the approved values into App Store
 
 - App name: `NullPerator`
 - Bundle ID: `io.203systems.nullperator`
-- Version: `0.1`
-- Build: `1`
+- Version: `0.1.1`
+- Build: `3`
 - Primary category: Music
 - Secondary category: Utilities (optional)
 - Copyright: `© 2026 203 Electronics LLC`
 - Export compliance: The app does not use non-exempt encryption (`ITSAppUsesNonExemptEncryption = false`). Reconfirm this if networking or cryptography is added.
 
 ## Store copy (English draft)
+
+### What's New in 0.1.1
+
+- Added the Chiptune instrument and new commands for Chiptune, Stack, and Sample instruments.
+- Reorganized the FX selector by command group, with instrument support indicators and contextual parameter help.
+- Improved sample importing, recording, editing, slicing, and playback controls.
+- Improved compatibility with other audio and MIDI apps, and reduced recording clicks.
+- Fixed Large UI layouts and refined instrument pages and navigation.
 
 ### Subtitle (30 characters maximum)
 
