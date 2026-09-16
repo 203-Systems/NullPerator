@@ -83,7 +83,14 @@ esp_err_t init_io_expander() {
   }
 
   g_ioExpander.Attach(g_ioExpanderDev);
-  g_ioExpander.Write(NullperatorHAL::System::IOExpander::kAllHigh);
+  // The expander can retain output directions across an MCU-only USB reset.
+  // Preload inactive audio controls instead of briefly enabling the PA.
+  constexpr uint16_t safeOutputs =
+      NullperatorHAL::System::IOExpander::kAllHigh &
+      ~((1U << PCA_PA_CTRL) | (1U << PCA_AUDIO_MUX_SEL));
+  if (!g_ioExpander.Write(safeOutputs)) {
+    return g_ioExpander.GetI2cError();
+  }
   g_ioExpanderReady = true;
   ESP_LOGI(TAG, "IO expander initialized at 0x%02X", detectedAddr);
   return ESP_OK;
