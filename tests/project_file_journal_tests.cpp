@@ -9,8 +9,8 @@
 namespace {
 
 constexpr project_file_journal::Paths kPaths{
-    "/projects/demo/lgptsav.dat", "/projects/demo/lgptsav.tmp",
-    "/projects/demo/lgptsav.bak"};
+    "/projects/demo/npsong.dat", "/projects/demo/npsong.tmp",
+    "/projects/demo/npsong.bak"};
 
 class JournalFileSystem {
 public:

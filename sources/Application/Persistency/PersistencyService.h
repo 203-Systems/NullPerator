@@ -48,12 +48,19 @@ enum PersistencyResult {
 // created by older firmware can ever collide with transaction directories.
 #define SAVE_AS_STAGE_PREFIX ".picotracker-saveas-stage."
 #define SAVE_AS_BACKUP_PREFIX ".picotracker-saveas-backup."
-#define PROJECT_DATA_FILE "lgptsav.dat"
-#define PROJECT_DATA_TEMP_FILE "lgptsav.tmp"
-#define PROJECT_DATA_BACKUP_FILE "lgptsav.bak"
+#define PROJECT_DATA_FILE "npsong.dat"
+#define PROJECT_DATA_TEMP_FILE "npsong.tmp"
+#define PROJECT_DATA_BACKUP_FILE "npsong.bak"
+#define LEGACY_PROJECT_DATA_FILE "lgptsav.dat"
+#define LEGACY_PROJECT_DATA_TEMP_FILE "lgptsav.tmp"
+#define LEGACY_PROJECT_DATA_BACKUP_FILE "lgptsav.bak"
 #define AUTO_SAVE_FILENAME "autosave.dat"
 #define AUTO_SAVE_TEMP_FILENAME "autosave.tmp"
 #define AUTO_SAVE_BACKUP_FILENAME "autosave.bak"
+
+namespace project_file_journal {
+struct Paths;
+}
 
 class TrackerApplicationSession;
 #ifdef HOST_TEST
@@ -180,6 +187,8 @@ private:
                                                 bool allowStaging);
   [[nodiscard]] bool RecoverBaseJournal_(const char *projectName,
                                          bool allowStaging);
+  [[nodiscard]] const project_file_journal::Paths &
+  BaseFilesForRead_(const char *projectName);
   [[nodiscard]] bool RecoverAutosaveJournal_(const char *projectName,
                                              bool allowStaging);
   PersistencyResult LoadProjectFile_(const char *path);

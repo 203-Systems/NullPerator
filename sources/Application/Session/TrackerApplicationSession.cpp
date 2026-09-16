@@ -47,10 +47,13 @@ TrackerApplicationSession::LoadResult TrackerApplicationSession::LoadProject(
   FileSystem *fileSystem = FileSystem::GetInstance();
   constexpr const char *stagingProjectPath =
       PROJECTS_DIR "/" UNNAMED_PROJECT_NAME "/" PROJECT_DATA_FILE;
+  constexpr const char *stagingLegacyProjectPath =
+      PROJECTS_DIR "/" UNNAMED_PROJECT_NAME "/" LEGACY_PROJECT_DATA_FILE;
   constexpr const char *stagingAutosavePath =
       PROJECTS_DIR "/" UNNAMED_PROJECT_NAME "/" AUTO_SAVE_FILENAME;
   const bool stagingPayloadExists =
       stagingProject && (fileSystem->exists(stagingProjectPath) ||
+                         fileSystem->exists(stagingLegacyProjectPath) ||
                          fileSystem->exists(stagingAutosavePath));
   // Validate a pre-existing project before resetting the live model. This is
   // intentionally a second parse: PersistencyService::Load performs the real

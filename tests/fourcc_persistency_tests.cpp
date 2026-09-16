@@ -886,7 +886,7 @@ TEST_CASE("Song and Groove semantic restore rejects unsafe indexes and rolls "
                             "><DATA VALUE=\"" + std::to_string(value) +
                             "\" LENGTH=\"1\"/></" + field +
                             "></SONG></PICOTRACKER>";
-    fixture.Write((std::string("projects/") + project + "/lgptsav.dat").c_str(),
+    fixture.Write((std::string("projects/") + project + "/npsong.dat").c_str(),
                   xml.c_str());
     CHECK(service.Load(project) == PERSIST_LOAD_FAILED);
     REQUIRE(service.RestoreLoadRollback() == PERSIST_LOADED);
@@ -899,14 +899,14 @@ TEST_CASE("Song and Groove semantic restore rejects unsafe indexes and rolls "
 
   rejectSong("BADINST", "INSTRUMENTS", MAX_INSTRUMENT_COUNT);
 
-  fixture.Write("projects/INST3F/lgptsav.dat",
+  fixture.Write("projects/INST3F/npsong.dat",
                 "<PICOTRACKER><SONG><INSTRUMENTS><DATA VALUE=\"63\" "
                 "LENGTH=\"1\"/></INSTRUMENTS></SONG></PICOTRACKER>");
   CHECK(service.Load("INST3F") == PERSIST_LOADED);
   CHECK(song.phrase_.instr_[0] == MAX_INSTRUMENT_COUNT - 1U);
   REQUIRE(service.RestoreLoadRollback() == PERSIST_LOADED);
 
-  fixture.Write("projects/CHAINFE/lgptsav.dat",
+  fixture.Write("projects/CHAINFE/npsong.dat",
                 "<PICOTRACKER><SONG><CHAINS><DATA VALUE=\"254\" "
                 "LENGTH=\"1\"/></CHAINS></SONG></PICOTRACKER>");
   CHECK(service.Load("CHAINFE") == PERSIST_LOADED);
@@ -914,7 +914,7 @@ TEST_CASE("Song and Groove semantic restore rejects unsafe indexes and rolls "
   CHECK(song.phrase_.IsUsed(0xFEU));
   REQUIRE(service.RestoreLoadRollback() == PERSIST_LOADED);
 
-  fixture.Write("projects/SONGFE/lgptsav.dat",
+  fixture.Write("projects/SONGFE/npsong.dat",
                 "<PICOTRACKER><SONG><SONG><DATA VALUE=\"254\" "
                 "LENGTH=\"1\"/></SONG></SONG></PICOTRACKER>");
   CHECK(service.Load("SONGFE") == PERSIST_LOADED);
@@ -922,7 +922,7 @@ TEST_CASE("Song and Groove semantic restore rejects unsafe indexes and rolls "
   CHECK(song.chain_.IsUsed(0xFEU));
   REQUIRE(service.RestoreLoadRollback() == PERSIST_LOADED);
 
-  fixture.Write("projects/BADGROOVE/lgptsav.dat",
+  fixture.Write("projects/BADGROOVE/npsong.dat",
                 "<PICOTRACKER><GROOVES><DATA><DATA>00</DATA></DATA>"
                 "</GROOVES></PICOTRACKER>");
   CHECK(service.Load("BADGROOVE") == PERSIST_LOAD_FAILED);
@@ -942,7 +942,7 @@ TEST_CASE("PicoTracker 2.0 groove zero tail restores as empty steps") {
   groove->Clear();
 
   fixture.Write(
-      "projects/LEGACY-GROOVE/lgptsav.dat",
+      "projects/LEGACY-GROOVE/npsong.dat",
       "<PICOTRACKER><GROOVES><DATA><DATA>06060000000000000000000000000000"
       "</DATA></DATA></GROOVES></PICOTRACKER>");
   REQUIRE(service.Load("LEGACY-GROOVE") == PERSIST_LOADED);
@@ -964,7 +964,7 @@ TEST_CASE("serialized load rollback recovers state after semantic failure") {
   state.value = 0x2AU;
   REQUIRE(service.SaveLoadRollback() == PERSIST_SAVED);
 
-  fixture.Write("projects/BAD/lgptsav.dat",
+  fixture.Write("projects/BAD/npsong.dat",
                 "<PICOTRACKER><TRANSACTION-STATE><VALUE>"
                 "<DATA VALUE=\"7\" LENGTH=\"2\"/>"
                 "</VALUE></TRANSACTION-STATE></PICOTRACKER>");
@@ -1027,7 +1027,7 @@ TEST_CASE("Save As directory scan failure preserves the existing target") {
   PersistencyService &service = TestPersistencyService();
   fixture.Write("projects/SOURCE/samples/kick.wav", "new-kick");
   fixture.Write("projects/TARGET/samples/kick.wav", "old-kick");
-  fixture.Write("projects/TARGET/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/TARGET/npsong.dat", "<PICOTRACKER/>");
   FaultInjectFileSystem failingFileSystem(fixture.Root());
   FileSystem::Install(&failingFileSystem);
   // First checked scan recovers stale transaction directories; the second is
@@ -1036,7 +1036,7 @@ TEST_CASE("Save As directory scan failure preserves the existing target") {
 
   CHECK(service.Save("TARGET", "SOURCE", true) == PERSIST_ERROR);
   CHECK(fixture.Read("projects/TARGET/samples/kick.wav") == "old-kick");
-  CHECK(fixture.Read("projects/TARGET/lgptsav.dat") == "<PICOTRACKER/>");
+  CHECK(fixture.Read("projects/TARGET/npsong.dat") == "<PICOTRACKER/>");
   CHECK_FALSE(fixture.Exists("projects/.picotracker-saveas-stage.TARGET"));
   CHECK_FALSE(fixture.Exists("projects/.picotracker-saveas-backup.TARGET"));
 }
@@ -1048,7 +1048,7 @@ TEST_CASE("Save As may copy from the internal untitled staging project") {
 
   CHECK(service.Save("RENAMED", UNNAMED_PROJECT_NAME, true) == PERSIST_SAVED);
   CHECK(fixture.Read("projects/RENAMED/samples/kick.wav") == "sample-bytes");
-  CHECK(fixture.Exists("projects/RENAMED/lgptsav.dat"));
+  CHECK(fixture.Exists("projects/RENAMED/npsong.dat"));
 }
 
 TEST_CASE("Save As overwrite atomically replaces the complete sample set") {
@@ -1057,12 +1057,12 @@ TEST_CASE("Save As overwrite atomically replaces the complete sample set") {
   fixture.Write("projects/SOURCE/samples/kick.wav", "new-kick");
   fixture.Write("projects/TARGET/samples/kick.wav", "old-kick");
   fixture.Write("projects/TARGET/samples/stale.wav", "must-disappear");
-  fixture.Write("projects/TARGET/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/TARGET/npsong.dat", "<PICOTRACKER/>");
 
   CHECK(service.Save("TARGET", "SOURCE", true) == PERSIST_SAVED);
   CHECK(fixture.Read("projects/TARGET/samples/kick.wav") == "new-kick");
   CHECK_FALSE(fixture.Exists("projects/TARGET/samples/stale.wav"));
-  CHECK(fixture.Exists("projects/TARGET/lgptsav.dat"));
+  CHECK(fixture.Exists("projects/TARGET/npsong.dat"));
   CHECK_FALSE(fixture.Exists("projects/.picotracker-saveas-stage.TARGET"));
   CHECK_FALSE(fixture.Exists("projects/.picotracker-saveas-backup.TARGET"));
 }
@@ -1072,14 +1072,14 @@ TEST_CASE("Save As install failure restores the original target") {
   PersistencyService &service = TestPersistencyService();
   fixture.Write("projects/SOURCE/samples/kick.wav", "new-kick");
   fixture.Write("projects/TARGET/samples/kick.wav", "old-kick");
-  fixture.Write("projects/TARGET/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/TARGET/npsong.dat", "<PICOTRACKER/>");
   FaultInjectFileSystem failingFileSystem(fixture.Root());
   FileSystem::Install(&failingFileSystem);
   failingFileSystem.FailNextMoveTo("/projects/TARGET");
 
   CHECK(service.Save("TARGET", "SOURCE", true) == PERSIST_ERROR);
   CHECK(fixture.Read("projects/TARGET/samples/kick.wav") == "old-kick");
-  CHECK(fixture.Read("projects/TARGET/lgptsav.dat") == "<PICOTRACKER/>");
+  CHECK(fixture.Read("projects/TARGET/npsong.dat") == "<PICOTRACKER/>");
   CHECK_FALSE(fixture.Exists("projects/.picotracker-saveas-stage.TARGET"));
   CHECK_FALSE(fixture.Exists("projects/.picotracker-saveas-backup.TARGET"));
 }
@@ -1089,11 +1089,11 @@ TEST_CASE("Save As boot recovery rolls back an uninstalled stage") {
   PersistencyService &service = TestPersistencyService();
   fixture.Write("projects/.picotracker-saveas-stage.TARGET/samples/kick.wav",
                 "new");
-  fixture.Write("projects/.picotracker-saveas-stage.TARGET/lgptsav.dat",
+  fixture.Write("projects/.picotracker-saveas-stage.TARGET/npsong.dat",
                 "<PICOTRACKER/>");
   fixture.Write("projects/.picotracker-saveas-backup.TARGET/samples/kick.wav",
                 "old");
-  fixture.Write("projects/.picotracker-saveas-backup.TARGET/lgptsav.dat",
+  fixture.Write("projects/.picotracker-saveas-backup.TARGET/npsong.dat",
                 "<PICOTRACKER/>");
   char project[MAX_PROJECT_NAME_LENGTH + 1U]{};
 
@@ -1106,9 +1106,9 @@ TEST_CASE("Save As boot recovery rolls back an uninstalled stage") {
 TEST_CASE("Save As boot recovery prefers backup over a corrupt new target") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
-  fixture.Write("projects/TARGET/lgptsav.dat", "<PICOTRACKER>");
+  fixture.Write("projects/TARGET/npsong.dat", "<PICOTRACKER>");
   fixture.Write("projects/TARGET/samples/kick.wav", "corrupt-new");
-  fixture.Write("projects/.picotracker-saveas-backup.TARGET/lgptsav.dat",
+  fixture.Write("projects/.picotracker-saveas-backup.TARGET/npsong.dat",
                 "<PICOTRACKER/>");
   fixture.Write("projects/.picotracker-saveas-backup.TARGET/samples/kick.wav",
                 "old");
@@ -1129,7 +1129,7 @@ TEST_CASE("internal untitled save path preserves the public name boundary") {
   CHECK(service.Save(UNNAMED_PROJECT_NAME, "", false) == PERSIST_ERROR);
   CHECK(PersistencyServiceTestPeer::SaveStaging(service) == PERSIST_SAVED);
   CHECK(PersistencyServiceTestPeer::SaveStagingState(service) == PERSIST_SAVED);
-  CHECK(fixture.Exists("projects/.untitled/lgptsav.dat"));
+  CHECK(fixture.Exists("projects/.untitled/npsong.dat"));
   CHECK(fixture.Read(".current") == UNNAMED_PROJECT_NAME);
 }
 
@@ -1137,13 +1137,13 @@ TEST_CASE(
     "untitled boot recovery rolls back a complete pre-commit replacement") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
-  fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/.untitled/npsong.dat", "<PICOTRACKER/>");
   fixture.Write("projects/.untitled/samples/identity.wav", "old-session");
   bool hadPrevious = false;
   REQUIRE(PersistencyServiceTestPeer::BeginStagingReplacement(service,
                                                               hadPrevious));
   REQUIRE(hadPrevious);
-  fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/.untitled/npsong.dat", "<PICOTRACKER/>");
   fixture.Write("projects/.untitled/samples/identity.wav", "new-session");
   // Simulate power loss after the new directory is complete, but before
   // Session commits its durable replacement phase.
@@ -1161,15 +1161,15 @@ TEST_CASE("named project is restored when untitled phase loses power with old "
           "staging") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
-  fixture.Write("projects/A/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/A/npsong.dat", "<PICOTRACKER/>");
   fixture.Write(".current", "A");
-  fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/.untitled/npsong.dat", "<PICOTRACKER/>");
   fixture.Write("projects/.untitled/samples/identity.wav", "old-staging");
   bool hadPrevious = false;
   REQUIRE(PersistencyServiceTestPeer::BeginStagingReplacement(
       service, hadPrevious, "A"));
   REQUIRE(hadPrevious);
-  fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/.untitled/npsong.dat", "<PICOTRACKER/>");
   fixture.Write("projects/.untitled/samples/identity.wav", "new-candidate");
   REQUIRE(PersistencyServiceTestPeer::SaveStagingTransactionState(
               service, "A") == PERSIST_SAVED);
@@ -1190,13 +1190,13 @@ TEST_CASE("named project is restored when untitled phase loses power with old "
 TEST_CASE("named project is restored when empty untitled phase loses power") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
-  fixture.Write("projects/A/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/A/npsong.dat", "<PICOTRACKER/>");
   fixture.Write(".current", "A");
   bool hadPrevious = true;
   REQUIRE(PersistencyServiceTestPeer::BeginStagingReplacement(
       service, hadPrevious, "A"));
   REQUIRE_FALSE(hadPrevious);
-  fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/.untitled/npsong.dat", "<PICOTRACKER/>");
   fixture.Write("projects/.untitled/samples/identity.wav", "new-candidate");
   REQUIRE(PersistencyServiceTestPeer::SaveStagingTransactionState(
               service, "A") == PERSIST_SAVED);
@@ -1217,13 +1217,13 @@ TEST_CASE(
     "empty-stage rollback keeps pending until candidate deletion succeeds") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
-  fixture.Write("projects/A/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/A/npsong.dat", "<PICOTRACKER/>");
   fixture.Write(".current", "A");
   bool hadPrevious = true;
   REQUIRE(PersistencyServiceTestPeer::BeginStagingReplacement(
       service, hadPrevious, "A"));
   REQUIRE_FALSE(hadPrevious);
-  fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/.untitled/npsong.dat", "<PICOTRACKER/>");
   fixture.Write("projects/.untitled/samples/identity.wav", "candidate");
   REQUIRE(PersistencyServiceTestPeer::SaveStagingTransactionState(
               service, "A") == PERSIST_SAVED);
@@ -1253,7 +1253,7 @@ TEST_CASE(
   REQUIRE(PersistencyServiceTestPeer::BeginStagingReplacement(service,
                                                               hadPrevious, ""));
   REQUIRE_FALSE(hadPrevious);
-  fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/.untitled/npsong.dat", "<PICOTRACKER/>");
   fixture.Write("projects/.untitled/samples/identity.wav", "candidate");
 
   FaultInjectFileSystem failingFileSystem(fixture.Root());
@@ -1273,14 +1273,14 @@ TEST_CASE(
 TEST_CASE("committed untitled survives pending marker cleanup failure") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
-  fixture.Write("projects/A/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/A/npsong.dat", "<PICOTRACKER/>");
   fixture.Write(".current", "A");
-  fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/.untitled/npsong.dat", "<PICOTRACKER/>");
   fixture.Write("projects/.untitled/samples/identity.wav", "old-staging");
   bool hadPrevious = false;
   REQUIRE(PersistencyServiceTestPeer::BeginStagingReplacement(
       service, hadPrevious, "A"));
-  fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/.untitled/npsong.dat", "<PICOTRACKER/>");
   fixture.Write("projects/.untitled/samples/identity.wav", "new-committed");
   REQUIRE(PersistencyServiceTestPeer::SaveStagingTransactionState(
               service, "A") == PERSIST_SAVED);
@@ -1310,13 +1310,13 @@ TEST_CASE(
     "untitled boot recovery keeps a committed replacement before cleanup") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
-  fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/.untitled/npsong.dat", "<PICOTRACKER/>");
   fixture.Write("projects/.untitled/samples/identity.wav", "old-session");
   bool hadPrevious = false;
   REQUIRE(PersistencyServiceTestPeer::BeginStagingReplacement(service,
                                                               hadPrevious));
   REQUIRE(hadPrevious);
-  fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/.untitled/npsong.dat", "<PICOTRACKER/>");
   fixture.Write("projects/.untitled/samples/identity.wav", "new-session");
   // Force cleanup to be deferred after the durable COMMITTED phase.
   FaultInjectFileSystem failingFileSystem(fixture.Root());
@@ -1343,15 +1343,15 @@ TEST_CASE("corrupt committed untitled restores named pointer before directory "
           "rollback") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
-  fixture.Write("projects/A/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/A/npsong.dat", "<PICOTRACKER/>");
   fixture.Write(".current", "A");
-  fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/.untitled/npsong.dat", "<PICOTRACKER/>");
   fixture.Write("projects/.untitled/samples/identity.wav", "old-staging");
   bool hadPrevious = false;
   REQUIRE(PersistencyServiceTestPeer::BeginStagingReplacement(
       service, hadPrevious, "A"));
   REQUIRE(hadPrevious);
-  fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER>");
+  fixture.Write("projects/.untitled/npsong.dat", "<PICOTRACKER>");
   fixture.Write("projects/.untitled/samples/identity.wav", "corrupt-new");
   REQUIRE(PersistencyServiceTestPeer::SaveStagingTransactionState(
               service, "A") == PERSIST_SAVED);
@@ -1386,13 +1386,13 @@ TEST_CASE("corrupt committed untitled restores named pointer before directory "
 TEST_CASE("corrupt committed empty-stage untitled returns to named project") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
-  fixture.Write("projects/A/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/A/npsong.dat", "<PICOTRACKER/>");
   fixture.Write(".current", "A");
   bool hadPrevious = true;
   REQUIRE(PersistencyServiceTestPeer::BeginStagingReplacement(
       service, hadPrevious, "A"));
   REQUIRE_FALSE(hadPrevious);
-  fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER>");
+  fixture.Write("projects/.untitled/npsong.dat", "<PICOTRACKER>");
   REQUIRE(PersistencyServiceTestPeer::SaveStagingTransactionState(
               service, "A") == PERSIST_SAVED);
   fixture.Write(&STAGING_TRANSACTION_COMMIT_FILE[1], "COMMITTED");
@@ -1414,7 +1414,7 @@ TEST_CASE(
   REQUIRE(PersistencyServiceTestPeer::BeginStagingReplacement(service,
                                                               hadPrevious, ""));
   REQUIRE_FALSE(hadPrevious);
-  fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER>");
+  fixture.Write("projects/.untitled/npsong.dat", "<PICOTRACKER>");
   REQUIRE(PersistencyServiceTestPeer::SaveStagingTransactionState(
               service, "") == PERSIST_SAVED);
   fixture.Write(&STAGING_TRANSACTION_COMMIT_FILE[1], "COMMITTED");
@@ -1434,15 +1434,15 @@ TEST_CASE("semantic-invalid committed untitled keeps rollback until Session "
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
   TransactionByteState state;
-  fixture.Write("projects/A/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/A/npsong.dat", "<PICOTRACKER/>");
   fixture.Write(".current", "A");
-  fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/.untitled/npsong.dat", "<PICOTRACKER/>");
   fixture.Write("projects/.untitled/samples/identity.wav", "old-staging");
   bool hadPrevious = false;
   REQUIRE(PersistencyServiceTestPeer::BeginStagingReplacement(
       service, hadPrevious, "A"));
   REQUIRE(hadPrevious);
-  fixture.Write("projects/.untitled/lgptsav.dat",
+  fixture.Write("projects/.untitled/npsong.dat",
                 "<PICOTRACKER><TRANSACTION-STATE><VALUE>"
                 "<DATA VALUE=\"7\" LENGTH=\"2\"/>"
                 "</VALUE></TRANSACTION-STATE></PICOTRACKER>");
@@ -1475,14 +1475,14 @@ TEST_CASE(
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
   TransactionByteState state;
-  fixture.Write("projects/A/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/A/npsong.dat", "<PICOTRACKER/>");
   fixture.Write(".current", "A");
-  fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/.untitled/npsong.dat", "<PICOTRACKER/>");
   fixture.Write("projects/.untitled/samples/identity.wav", "old-staging");
   bool hadPrevious = false;
   REQUIRE(PersistencyServiceTestPeer::BeginStagingReplacement(
       service, hadPrevious, "A"));
-  fixture.Write("projects/.untitled/lgptsav.dat",
+  fixture.Write("projects/.untitled/npsong.dat",
                 "<PICOTRACKER><TRANSACTION-STATE><VALUE>"
                 "<DATA>2A</DATA>"
                 "</VALUE></TRANSACTION-STATE></PICOTRACKER>");
@@ -1509,16 +1509,16 @@ TEST_CASE(
     "forced untitled purge removes an interrupted replacement completely") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
-  fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/.untitled/npsong.dat", "<PICOTRACKER/>");
   fixture.Write("projects/.untitled/samples/identity.wav", "old-session");
   bool hadPrevious = false;
   REQUIRE(PersistencyServiceTestPeer::BeginStagingReplacement(service,
                                                               hadPrevious));
   REQUIRE(hadPrevious);
-  fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/.untitled/npsong.dat", "<PICOTRACKER/>");
   fixture.Write("projects/.untitled/samples/identity.wav", "new-session");
-  fixture.Write("projects/A/lgptsav.dat", "<PICOTRACKER/>");
-  fixture.Write("projects/B/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/A/npsong.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/B/npsong.dat", "<PICOTRACKER/>");
   fixture.Write(".current.tmp", "B");
   fixture.Write(".current.bak", "A");
   fixture.Write(".current.bak.tmp", "A");
@@ -1543,13 +1543,13 @@ TEST_CASE(
     "interrupted forced untitled purge resumes instead of restoring backup") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
-  fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/.untitled/npsong.dat", "<PICOTRACKER/>");
   fixture.Write("projects/.untitled/samples/identity.wav", "old-session");
   bool hadPrevious = false;
   REQUIRE(PersistencyServiceTestPeer::BeginStagingReplacement(service,
                                                               hadPrevious));
   REQUIRE(hadPrevious);
-  fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/.untitled/npsong.dat", "<PICOTRACKER/>");
   fixture.Write("projects/.untitled/samples/identity.wav", "new-session");
   FaultInjectFileSystem failingFileSystem(fixture.Root());
   FileSystem::Install(&failingFileSystem);
@@ -1576,20 +1576,20 @@ TEST_CASE("invalid current marker reaches missing untitled first-boot create") {
   REQUIRE(service.LoadCurrentProjectName(project) == PERSIST_LOADED);
   CHECK(std::string(project) == UNNAMED_PROJECT_NAME);
   const bool stagingPayloadExists =
-      fixture.Exists("projects/.untitled/lgptsav.dat") ||
+      fixture.Exists("projects/.untitled/npsong.dat") ||
       fixture.Exists("projects/.untitled/autosave.dat");
   CHECK_FALSE(stagingPayloadExists);
   CHECK_FALSE(tracker_session_detail::ShouldPreflightProjectLoad(
       false, true, stagingPayloadExists));
   CHECK(service.CreateProject() == PERSIST_SAVED);
-  CHECK(fixture.Exists("projects/.untitled/lgptsav.dat"));
+  CHECK(fixture.Exists("projects/.untitled/npsong.dat"));
 }
 
 TEST_CASE(
     "missing current marker preserves an existing valid untitled project") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
-  fixture.Write("projects/.untitled/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/.untitled/npsong.dat", "<PICOTRACKER/>");
   fixture.Write("projects/.untitled/samples/identity.wav", "keep-session");
   char project[MAX_PROJECT_NAME_LENGTH + 1U]{};
 
@@ -1604,13 +1604,13 @@ TEST_CASE("invalid current marker recovers untitled base journal before boot") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
   fixture.Write(".current", "MISSING");
-  fixture.Write("projects/.untitled/lgptsav.bak", "<PICOTRACKER/>");
+  fixture.Write("projects/.untitled/npsong.bak", "<PICOTRACKER/>");
   char project[MAX_PROJECT_NAME_LENGTH + 1U]{};
 
   REQUIRE(service.LoadCurrentProjectName(project) == PERSIST_LOADED);
   CHECK(std::string(project) == UNNAMED_PROJECT_NAME);
-  CHECK(fixture.Exists("projects/.untitled/lgptsav.dat"));
-  CHECK_FALSE(fixture.Exists("projects/.untitled/lgptsav.bak"));
+  CHECK(fixture.Exists("projects/.untitled/npsong.dat"));
+  CHECK_FALSE(fixture.Exists("projects/.untitled/npsong.bak"));
   CHECK(tracker_session_detail::ShouldPreflightProjectLoad(false, true, true));
 }
 
@@ -1620,13 +1620,13 @@ TEST_CASE("legacy project resembling old transaction prefix survives boot") {
   constexpr const char *legacyName = ".saveas-stage.X";
   static_assert(std::char_traits<char>::length(legacyName) <=
                 MAX_PROJECT_NAME_LENGTH);
-  fixture.Write("projects/.saveas-stage.X/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/.saveas-stage.X/npsong.dat", "<PICOTRACKER/>");
   fixture.Write(".current", legacyName);
   char project[MAX_PROJECT_NAME_LENGTH + 1U]{};
 
   CHECK(service.LoadCurrentProjectName(project) == PERSIST_LOADED);
   CHECK(std::string(project) == legacyName);
-  CHECK(fixture.Exists("projects/.saveas-stage.X/lgptsav.dat"));
+  CHECK(fixture.Exists("projects/.saveas-stage.X/npsong.dat"));
 }
 
 TEST_CASE(
@@ -1656,11 +1656,11 @@ TEST_CASE("semantic-invalid base destination retains and can promote backup") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
   TransactionByteState state;
-  fixture.Write("projects/PROJECT/lgptsav.dat",
+  fixture.Write("projects/PROJECT/npsong.dat",
                 "<PICOTRACKER><TRANSACTION-STATE><VALUE>"
                 "<DATA VALUE=\"7\" LENGTH=\"2\"/>"
                 "</VALUE></TRANSACTION-STATE></PICOTRACKER>");
-  fixture.Write("projects/PROJECT/lgptsav.bak",
+  fixture.Write("projects/PROJECT/npsong.bak",
                 "<PICOTRACKER><TRANSACTION-STATE><VALUE>"
                 "<DATA>2A</DATA>"
                 "</VALUE></TRANSACTION-STATE></PICOTRACKER>");
@@ -1668,10 +1668,10 @@ TEST_CASE("semantic-invalid base destination retains and can promote backup") {
   // Structural preflight accepts the destination but must not finalize the
   // only previous generation before semantic restore.
   REQUIRE(service.Validate("PROJECT") == PERSIST_LOADED);
-  CHECK(fixture.Exists("projects/PROJECT/lgptsav.bak"));
+  CHECK(fixture.Exists("projects/PROJECT/npsong.bak"));
   state.value = 0U;
   CHECK(service.Load("PROJECT") == PERSIST_LOAD_FAILED);
-  CHECK(fixture.Exists("projects/PROJECT/lgptsav.bak"));
+  CHECK(fixture.Exists("projects/PROJECT/npsong.bak"));
 
   // Session performs a full model reset at this boundary, then loads and
   // promotes the semantic-good backup transactionally.
@@ -1681,7 +1681,7 @@ TEST_CASE("semantic-invalid base destination retains and can promote backup") {
   CHECK(state.value == 0x2AU);
   REQUIRE(PersistencyServiceTestPeer::PromoteJournalBackup(service, "PROJECT",
                                                            false));
-  CHECK_FALSE(fixture.Exists("projects/PROJECT/lgptsav.bak"));
+  CHECK_FALSE(fixture.Exists("projects/PROJECT/npsong.bak"));
   state.value = 0U;
   REQUIRE(service.Load("PROJECT") == PERSIST_LOADED);
   CHECK(state.value == 0x2AU);
@@ -1692,7 +1692,7 @@ TEST_CASE(
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
   TransactionByteState state;
-  fixture.Write("projects/PROJECT/lgptsav.dat",
+  fixture.Write("projects/PROJECT/npsong.dat",
                 "<PICOTRACKER><TRANSACTION-STATE><VALUE>"
                 "<DATA>11</DATA>"
                 "</VALUE></TRANSACTION-STATE></PICOTRACKER>");
@@ -1747,6 +1747,227 @@ TEST_CASE("autosave journal is synced and leaves no visible siblings") {
   CHECK(state.value == 0x33U);
 }
 
+TEST_CASE("autosave changes only the sidecar and explicit save uses npsong") {
+  for (const char *baseName : {"npsong.dat", "lgptsav.dat"}) {
+    CAPTURE(baseName);
+    FourCCXmlFixture fixture;
+    PersistencyService &service = TestPersistencyService();
+    TransactionByteState state;
+    const std::string basePath = std::string("projects/PROJECT/") + baseName;
+    constexpr const char *original =
+        "<PICOTRACKER><TRANSACTION-STATE><VALUE><DATA>11</DATA>"
+        "</VALUE></TRANSACTION-STATE></PICOTRACKER>";
+    fixture.Write(basePath.c_str(), original);
+
+    for (unsigned char revision : {0x22U, 0x33U}) {
+      state.value = revision;
+      REQUIRE(service.AutoSaveProjectData("PROJECT") == PERSIST_SAVED);
+      CHECK(fixture.Read(basePath.c_str()) == original);
+      CHECK(fixture.Exists("projects/PROJECT/autosave.dat"));
+      CHECK_FALSE(fixture.Exists("projects/PROJECT/autosave.tmp"));
+      CHECK_FALSE(fixture.Exists("projects/PROJECT/autosave.bak"));
+      state.value = 0U;
+      REQUIRE(service.Load("PROJECT") == PERSIST_LOADED);
+      CHECK(state.value == revision);
+      CHECK(fixture.Read(basePath.c_str()) == original);
+    }
+
+    // Discarding recovery returns to the untouched manual save.
+    REQUIRE(service.ClearAutosave("PROJECT"));
+    state.value = 0U;
+    REQUIRE(service.Load("PROJECT") == PERSIST_LOADED);
+    CHECK(state.value == 0x11U);
+    const bool legacy = std::strcmp(baseName, "lgptsav.dat") == 0;
+    if (legacy)
+      CHECK_FALSE(fixture.Exists("projects/PROJECT/npsong.dat"));
+
+    state.value = 0x44U;
+    REQUIRE(service.AutoSaveProjectData("PROJECT") == PERSIST_SAVED);
+    state.value = 0x55U;
+    REQUIRE(service.Save("PROJECT", "", false) == PERSIST_SAVED);
+    CHECK(fixture.Exists("projects/PROJECT/npsong.dat"));
+    CHECK_FALSE(fixture.Exists("projects/PROJECT/autosave.dat"));
+    CHECK_FALSE(fixture.Exists("projects/PROJECT/npsong.tmp"));
+    CHECK_FALSE(fixture.Exists("projects/PROJECT/npsong.bak"));
+    if (legacy)
+      CHECK(fixture.Read(basePath.c_str()) == original);
+    else
+      CHECK_FALSE(fixture.Exists("projects/PROJECT/lgptsav.dat"));
+    state.value = 0U;
+    REQUIRE(service.Load("PROJECT") == PERSIST_LOADED);
+    CHECK(state.value == 0x55U);
+  }
+}
+
+TEST_CASE("failed autosave preserves both manual files and previous recovery") {
+  FourCCXmlFixture fixture;
+  PersistencyService &service = TestPersistencyService();
+  TransactionByteState state;
+  fixture.Write("projects/PROJECT/npsong.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/PROJECT/lgptsav.dat", "<PICOTRACKER />");
+  state.value = 0x22U;
+  REQUIRE(service.AutoSaveProjectData("PROJECT") == PERSIST_SAVED);
+  const std::string recovery = fixture.Read("projects/PROJECT/autosave.dat");
+  FaultInjectFileSystem failingFileSystem(fixture.Root());
+  FileSystem::Install(&failingFileSystem);
+  failingFileSystem.FailNextSync("/projects/PROJECT/autosave.tmp");
+
+  state.value = 0x33U;
+  CHECK(service.AutoSaveProjectData("PROJECT") == PERSIST_ERROR);
+  CHECK(fixture.Read("projects/PROJECT/npsong.dat") == "<PICOTRACKER/>");
+  CHECK(fixture.Read("projects/PROJECT/lgptsav.dat") == "<PICOTRACKER />");
+  CHECK(fixture.Read("projects/PROJECT/autosave.dat") == recovery);
+  CHECK_FALSE(fixture.Exists("projects/PROJECT/autosave.tmp"));
+  state.value = 0U;
+  REQUIRE(service.Load("PROJECT") == PERSIST_LOADED);
+  CHECK(state.value == 0x22U);
+}
+
+TEST_CASE("npsong data and recovery journals take precedence over legacy") {
+  for (const char *newName : {"npsong.dat", "npsong.tmp", "npsong.bak"}) {
+    CAPTURE(newName);
+    FourCCXmlFixture fixture;
+    PersistencyService &service = TestPersistencyService();
+    TransactionByteState state;
+    constexpr const char *legacy =
+        "<PICOTRACKER><TRANSACTION-STATE><VALUE><DATA>11</DATA>"
+        "</VALUE></TRANSACTION-STATE></PICOTRACKER>";
+    fixture.Write("projects/PROJECT/lgptsav.dat", legacy);
+    fixture.Write("projects/PROJECT/lgptsav.bak", legacy);
+    const std::string newPath = std::string("projects/PROJECT/") + newName;
+    fixture.Write(newPath.c_str(),
+                  "<PICOTRACKER><TRANSACTION-STATE><VALUE><DATA>22</DATA>"
+                  "</VALUE></TRANSACTION-STATE></PICOTRACKER>");
+
+    REQUIRE(service.Validate("PROJECT") == PERSIST_LOADED);
+    REQUIRE(service.Load("PROJECT") == PERSIST_LOADED);
+    CHECK(state.value == 0x22U);
+    REQUIRE(PersistencyServiceTestPeer::FinalizeJournal(service, "PROJECT",
+                                                       false));
+    CHECK(fixture.Exists("projects/PROJECT/npsong.dat"));
+    CHECK_FALSE(fixture.Exists("projects/PROJECT/npsong.tmp"));
+    CHECK_FALSE(fixture.Exists("projects/PROJECT/npsong.bak"));
+    CHECK(fixture.Read("projects/PROJECT/lgptsav.dat") == legacy);
+    CHECK(fixture.Read("projects/PROJECT/lgptsav.bak") == legacy);
+  }
+}
+
+TEST_CASE("corrupt npsong does not silently revert to an old legacy save") {
+  FourCCXmlFixture fixture;
+  PersistencyService &service = TestPersistencyService();
+  fixture.Write("projects/PROJECT/npsong.dat", "<PICOTRACKER>");
+  fixture.Write("projects/PROJECT/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/PROJECT/lgptsav.bak", "<PICOTRACKER/>");
+
+  CHECK(service.Validate("PROJECT") == PERSIST_LOAD_FAILED);
+  CHECK(service.Load("PROJECT") == PERSIST_LOAD_FAILED);
+  CHECK(PersistencyServiceTestPeer::LoadJournalBackup(service, "PROJECT",
+                                                     false) ==
+        PERSIST_LOAD_FAILED);
+  CHECK(fixture.Read("projects/PROJECT/lgptsav.dat") == "<PICOTRACKER/>");
+  CHECK(fixture.Exists("projects/PROJECT/lgptsav.bak"));
+}
+
+TEST_CASE("legacy-only projects and journals load without migration") {
+  for (const char *legacyName : {"lgptsav.dat", "lgptsav.tmp", "lgptsav.bak"}) {
+    CAPTURE(legacyName);
+    FourCCXmlFixture fixture;
+    PersistencyService &service = TestPersistencyService();
+    TransactionByteState state;
+    const std::string path = std::string("projects/PROJECT/") + legacyName;
+    fixture.Write(path.c_str(),
+                  "<PICOTRACKER><TRANSACTION-STATE><VALUE><DATA>2A</DATA>"
+                  "</VALUE></TRANSACTION-STATE></PICOTRACKER>");
+    fixture.Write(".current", "PROJECT");
+    char project[MAX_PROJECT_NAME_LENGTH + 1U]{};
+
+    REQUIRE(service.LoadCurrentProjectName(project) == PERSIST_LOADED);
+    CHECK(std::string(project) == "PROJECT");
+    REQUIRE(service.Load(project) == PERSIST_LOADED);
+    CHECK(state.value == 0x2AU);
+    CHECK(fixture.Exists("projects/PROJECT/lgptsav.dat"));
+    CHECK_FALSE(fixture.Exists("projects/PROJECT/npsong.dat"));
+    CHECK_FALSE(fixture.Exists("projects/PROJECT/lgptsav.tmp"));
+    CHECK_FALSE(fixture.Exists("projects/PROJECT/lgptsav.bak"));
+  }
+}
+
+TEST_CASE("incomplete first npsong journal does not hide the legacy base") {
+  FourCCXmlFixture fixture;
+  PersistencyService &service = TestPersistencyService();
+  TransactionByteState state;
+  fixture.Write("projects/PROJECT/lgptsav.dat",
+                "<PICOTRACKER><TRANSACTION-STATE><VALUE><DATA>2A</DATA>"
+                "</VALUE></TRANSACTION-STATE></PICOTRACKER>");
+  fixture.Write("projects/PROJECT/npsong.tmp", "<PICOTRACKER>");
+  fixture.Write("projects/PROJECT/npsong.bak", "");
+
+  REQUIRE(service.Validate("PROJECT") == PERSIST_LOADED);
+  REQUIRE(service.Load("PROJECT") == PERSIST_LOADED);
+  CHECK(state.value == 0x2AU);
+  CHECK_FALSE(fixture.Exists("projects/PROJECT/npsong.dat"));
+}
+
+TEST_CASE("legacy untitled survives boot recovery without a current marker") {
+  FourCCXmlFixture fixture;
+  PersistencyService &service = TestPersistencyService();
+  TransactionByteState state;
+  fixture.Write("projects/.untitled/lgptsav.bak",
+                "<PICOTRACKER><TRANSACTION-STATE><VALUE><DATA>2A</DATA>"
+                "</VALUE></TRANSACTION-STATE></PICOTRACKER>");
+  char project[MAX_PROJECT_NAME_LENGTH + 1U]{};
+
+  REQUIRE(service.LoadCurrentProjectName(project) == PERSIST_LOADED);
+  CHECK(std::string(project) == UNNAMED_PROJECT_NAME);
+  REQUIRE(PersistencyServiceTestPeer::LoadStaging(service) == PERSIST_LOADED);
+  CHECK(state.value == 0x2AU);
+  CHECK(fixture.Exists("projects/.untitled/lgptsav.dat"));
+  CHECK_FALSE(fixture.Exists("projects/.untitled/npsong.dat"));
+}
+
+TEST_CASE("legacy semantic backup still promotes within its own journal") {
+  FourCCXmlFixture fixture;
+  PersistencyService &service = TestPersistencyService();
+  TransactionByteState state;
+  fixture.Write("projects/PROJECT/lgptsav.dat",
+                "<PICOTRACKER><TRANSACTION-STATE><VALUE>"
+                "<DATA VALUE=\"7\" LENGTH=\"2\"/>"
+                "</VALUE></TRANSACTION-STATE></PICOTRACKER>");
+  fixture.Write("projects/PROJECT/lgptsav.bak",
+                "<PICOTRACKER><TRANSACTION-STATE><VALUE><DATA>2A</DATA>"
+                "</VALUE></TRANSACTION-STATE></PICOTRACKER>");
+
+  REQUIRE(service.Validate("PROJECT") == PERSIST_LOADED);
+  CHECK(service.Load("PROJECT") == PERSIST_LOAD_FAILED);
+  CHECK(fixture.Exists("projects/PROJECT/lgptsav.bak"));
+  state.value = 0U;
+  REQUIRE(PersistencyServiceTestPeer::LoadJournalBackup(service, "PROJECT",
+                                                       false) == PERSIST_LOADED);
+  CHECK(state.value == 0x2AU);
+  REQUIRE(PersistencyServiceTestPeer::PromoteJournalBackup(service, "PROJECT",
+                                                          false));
+  REQUIRE(PersistencyServiceTestPeer::FinalizeJournal(service, "PROJECT",
+                                                     false));
+  CHECK_FALSE(fixture.Exists("projects/PROJECT/lgptsav.bak"));
+  CHECK_FALSE(fixture.Exists("projects/PROJECT/npsong.dat"));
+}
+
+TEST_CASE("failed first npsong save preserves legacy and autosave files") {
+  FourCCXmlFixture fixture;
+  PersistencyService &service = TestPersistencyService();
+  fixture.Write("projects/PROJECT/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/PROJECT/autosave.dat", "<PICOTRACKER />");
+  FaultInjectFileSystem failingFileSystem(fixture.Root());
+  FileSystem::Install(&failingFileSystem);
+  failingFileSystem.FailNextSync("/projects/PROJECT/npsong.tmp");
+
+  CHECK(service.Save("PROJECT", "", false) == PERSIST_ERROR);
+  CHECK(fixture.Read("projects/PROJECT/lgptsav.dat") == "<PICOTRACKER/>");
+  CHECK(fixture.Read("projects/PROJECT/autosave.dat") == "<PICOTRACKER />");
+  CHECK_FALSE(fixture.Exists("projects/PROJECT/npsong.dat"));
+  CHECK_FALSE(fixture.Exists("projects/PROJECT/npsong.tmp"));
+}
+
 TEST_CASE("explicit save reports an autosave deletion failure") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
@@ -1756,7 +1977,7 @@ TEST_CASE("explicit save reports an autosave deletion failure") {
   failingFileSystem.FailNextDelete("/projects/PROJECT/autosave.dat");
 
   CHECK(service.Save("PROJECT", "", false) == PERSIST_ERROR);
-  CHECK(fixture.Exists("projects/PROJECT/lgptsav.dat"));
+  CHECK(fixture.Exists("projects/PROJECT/npsong.dat"));
   CHECK(fixture.Exists("projects/PROJECT/autosave.dat"));
 }
 
@@ -1764,7 +1985,7 @@ TEST_CASE("autosave clear keeps destination when stale backup cleanup fails") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
   TransactionByteState state;
-  fixture.Write("projects/PROJECT/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/PROJECT/npsong.dat", "<PICOTRACKER/>");
   fixture.Write("projects/PROJECT/autosave.dat",
                 "<PICOTRACKER><TRANSACTION-STATE><VALUE>"
                 "<DATA>2A</DATA>"
@@ -1794,30 +2015,30 @@ TEST_CASE("autosave clear keeps destination when stale backup cleanup fails") {
 TEST_CASE("normal save install failure restores the previous base") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
-  fixture.Write("projects/PROJECT/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/PROJECT/npsong.dat", "<PICOTRACKER/>");
   FaultInjectFileSystem failingFileSystem(fixture.Root());
   FileSystem::Install(&failingFileSystem);
   // Fail POSIX replace and then the FAT-style temp install; rollback is the
   // third move to this destination and is allowed through.
-  failingFileSystem.FailNextMoveTo("/projects/PROJECT/lgptsav.dat", 2U);
+  failingFileSystem.FailNextMoveTo("/projects/PROJECT/npsong.dat", 2U);
 
   CHECK(service.Save("PROJECT", "", false) == PERSIST_ERROR);
-  CHECK(fixture.Read("projects/PROJECT/lgptsav.dat") == "<PICOTRACKER/>");
-  CHECK_FALSE(fixture.Exists("projects/PROJECT/lgptsav.tmp"));
-  CHECK_FALSE(fixture.Exists("projects/PROJECT/lgptsav.bak"));
+  CHECK(fixture.Read("projects/PROJECT/npsong.dat") == "<PICOTRACKER/>");
+  CHECK_FALSE(fixture.Exists("projects/PROJECT/npsong.tmp"));
+  CHECK_FALSE(fixture.Exists("projects/PROJECT/npsong.bak"));
 }
 
 TEST_CASE("normal save sync failure preserves the previous base") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
-  fixture.Write("projects/PROJECT/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/PROJECT/npsong.dat", "<PICOTRACKER/>");
   FaultInjectFileSystem failingFileSystem(fixture.Root());
   FileSystem::Install(&failingFileSystem);
-  failingFileSystem.FailNextSync("/projects/PROJECT/lgptsav.tmp");
+  failingFileSystem.FailNextSync("/projects/PROJECT/npsong.tmp");
 
   CHECK(service.Save("PROJECT", "", false) == PERSIST_ERROR);
-  CHECK(fixture.Read("projects/PROJECT/lgptsav.dat") == "<PICOTRACKER/>");
-  CHECK_FALSE(fixture.Exists("projects/PROJECT/lgptsav.tmp"));
+  CHECK(fixture.Read("projects/PROJECT/npsong.dat") == "<PICOTRACKER/>");
+  CHECK_FALSE(fixture.Exists("projects/PROJECT/npsong.tmp"));
 }
 
 TEST_CASE("project state replacement is synced and preserves old state on "
@@ -1853,7 +2074,7 @@ TEST_CASE("project state close failure preserves the previous marker") {
 TEST_CASE("project state loader recovers the FAT replacement journal") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
-  fixture.Write("projects/OLD/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/OLD/npsong.dat", "<PICOTRACKER/>");
   fixture.Write(".current.bak", "OLD");
   char project[MAX_PROJECT_NAME_LENGTH + 1U]{};
 
@@ -1866,8 +2087,8 @@ TEST_CASE("project state loader recovers the FAT replacement journal") {
 TEST_CASE("project state loader prefers synced temp and retains FAT backup") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
-  fixture.Write("projects/OLD/lgptsav.dat", "<PICOTRACKER/>");
-  fixture.Write("projects/NEW/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/OLD/npsong.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/NEW/npsong.dat", "<PICOTRACKER/>");
   // Power loss after current(old)->backup and before temp(new)->current.
   fixture.Write(".current.bak", "OLD");
   fixture.Write(".current.tmp", "NEW");
@@ -1883,8 +2104,8 @@ TEST_CASE("project state loader prefers synced temp and retains FAT backup") {
 TEST_CASE("project state loader falls back when temp install itself fails") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
-  fixture.Write("projects/OLD/lgptsav.dat", "<PICOTRACKER/>");
-  fixture.Write("projects/NEW/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/OLD/npsong.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/NEW/npsong.dat", "<PICOTRACKER/>");
   fixture.Write(".current.bak", "OLD");
   fixture.Write(".current.tmp", "NEW");
   FaultInjectFileSystem failingFileSystem(fixture.Root());
@@ -1901,7 +2122,7 @@ TEST_CASE("project state loader falls back when temp install itself fails") {
 TEST_CASE("project state loader promotes a synced first-save temp") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
-  fixture.Write("projects/FIRST/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/FIRST/npsong.dat", "<PICOTRACKER/>");
   fixture.Write(".current.tmp", "FIRST");
   char project[MAX_PROJECT_NAME_LENGTH + 1U]{};
 
@@ -1914,8 +2135,8 @@ TEST_CASE("project state loader promotes a synced first-save temp") {
 TEST_CASE("project state validation recovers a pointer to a valid backup") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
-  fixture.Write("projects/BAD/lgptsav.dat", "<PICOTRACKER>");
-  fixture.Write("projects/GOOD/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/BAD/npsong.dat", "<PICOTRACKER>");
+  fixture.Write("projects/GOOD/npsong.dat", "<PICOTRACKER/>");
   fixture.Write(".current", "BAD");
   fixture.Write(".current.bak", "GOOD");
   char project[MAX_PROJECT_NAME_LENGTH + 1U]{};
@@ -1930,11 +2151,11 @@ TEST_CASE("semantic current failure retains and exposes previous marker") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
   TransactionByteState state;
-  fixture.Write("projects/BAD/lgptsav.dat",
+  fixture.Write("projects/BAD/npsong.dat",
                 "<PICOTRACKER><TRANSACTION-STATE><VALUE>"
                 "<DATA VALUE=\"7\" LENGTH=\"2\"/>"
                 "</VALUE></TRANSACTION-STATE></PICOTRACKER>");
-  fixture.Write("projects/GOOD/lgptsav.dat",
+  fixture.Write("projects/GOOD/npsong.dat",
                 "<PICOTRACKER><TRANSACTION-STATE><VALUE>"
                 "<DATA>2A</DATA>"
                 "</VALUE></TRANSACTION-STATE></PICOTRACKER>");
@@ -1960,8 +2181,8 @@ TEST_CASE(
     "semantic fallback never deletes its only good marker before promote") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
-  fixture.Write("projects/BAD/lgptsav.dat", "<PICOTRACKER/>");
-  fixture.Write("projects/GOOD/lgptsav.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/BAD/npsong.dat", "<PICOTRACKER/>");
+  fixture.Write("projects/GOOD/npsong.dat", "<PICOTRACKER/>");
   fixture.Write(".current", "BAD");
   fixture.Write(".current.bak", "GOOD");
   FaultInjectFileSystem failingFileSystem(fixture.Root());

@@ -24,6 +24,40 @@
 #include "PersistencyPaths.h"
 using namespace PersistencyPaths;
 
+namespace {
+
+constexpr project_file_journal::Paths kBaseFiles{
+    PROJECT_DATA_FILE, PROJECT_DATA_TEMP_FILE, PROJECT_DATA_BACKUP_FILE};
+constexpr project_file_journal::Paths kLegacyBaseFiles{
+    LEGACY_PROJECT_DATA_FILE, LEGACY_PROJECT_DATA_TEMP_FILE,
+    LEGACY_PROJECT_DATA_BACKUP_FILE};
+constexpr project_file_journal::Paths kAutosaveFiles{
+    AUTO_SAVE_FILENAME, AUTO_SAVE_TEMP_FILENAME, AUTO_SAVE_BACKUP_FILENAME};
+
+} // namespace
+
+// Read/recovery compatibility only: all explicit saves use kBaseFiles. A valid
+// new journal also takes precedence after power loss. An incomplete first-save
+// journal must not hide the legacy base, but an installed npsong.dat (even if
+// corrupt) is authoritative and must never silently revert to lgptsav.dat.
+const project_file_journal::Paths &
+PersistencyService::BaseFilesForRead_(const char *projectName) {
+  FileSystem *fs = FileSystem::GetInstance();
+  char path[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
+  if (BuildProjectFilePath(path, projectName, kBaseFiles.destination) &&
+      fs->exists(path)) {
+    return kBaseFiles;
+  }
+  const char *filenames[] = {kBaseFiles.backup, kBaseFiles.temporary};
+  for (const char *filename : filenames) {
+    if (BuildProjectFilePath(path, projectName, filename) && fs->exists(path) &&
+        ValidateProjectFile_(path) == PERSIST_LOADED) {
+      return kBaseFiles;
+    }
+  }
+  return kLegacyBaseFiles;
+}
+
 PersistencyService::PersistencyService()
     : Service(FourCC::ServicePersistency){};
 
@@ -433,10 +467,10 @@ PersistencyResult PersistencyService::SaveProjectData(const char *projectName,
   if (!IsSafeProjectName_(projectName, allowStaging))
     return PERSIST_ERROR;
 
+  // Autosave is a recovery sidecar, never a write to either base filename.
+  const auto &files = autosave ? kAutosaveFiles : kBaseFiles;
   const PersistencyResult result = SaveProjectFileAtomically_(
-      projectName, autosave ? AUTO_SAVE_FILENAME : PROJECT_DATA_FILE,
-      autosave ? AUTO_SAVE_TEMP_FILENAME : PROJECT_DATA_TEMP_FILE,
-      autosave ? AUTO_SAVE_BACKUP_FILENAME : PROJECT_DATA_BACKUP_FILE,
+      projectName, files.destination, files.temporary, files.backup,
       allowStaging);
   if (result != PERSIST_SAVED || autosave)
     return result;
@@ -549,9 +583,11 @@ bool PersistencyService::RecoverAutosaveJournal_(const char *projectName,
 
 bool PersistencyService::RecoverBaseJournal_(const char *projectName,
                                              bool allowStaging) {
-  return RecoverProjectFileJournal_(projectName, PROJECT_DATA_FILE,
-                                    PROJECT_DATA_TEMP_FILE,
-                                    PROJECT_DATA_BACKUP_FILE, allowStaging);
+  if (!IsSafeProjectName_(projectName, allowStaging))
+    return false;
+  const auto &files = BaseFilesForRead_(projectName);
+  return RecoverProjectFileJournal_(projectName, files.destination,
+                                    files.temporary, files.backup, allowStaging);
 }
 
 PersistencyResult PersistencyService::SaveLoadRollback() {
@@ -598,7 +634,8 @@ PersistencyResult PersistencyService::Validate_(const char *projectName,
   char autosavePath[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
   char basePath[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
   if (!BuildProjectFilePath(autosavePath, projectName, AUTO_SAVE_FILENAME) ||
-      !BuildProjectFilePath(basePath, projectName, PROJECT_DATA_FILE)) {
+      !BuildProjectFilePath(basePath, projectName,
+                            BaseFilesForRead_(projectName).destination)) {
     return PERSIST_LOAD_FAILED;
   }
   FileSystem *fs = FileSystem::GetInstance();
@@ -650,7 +687,8 @@ PersistencyResult PersistencyService::LoadBase_(const char *projectName,
     return PERSIST_LOAD_FAILED;
   }
   char basePath[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
-  if (!BuildProjectFilePath(basePath, projectName, PROJECT_DATA_FILE))
+  if (!BuildProjectFilePath(basePath, projectName,
+                            BaseFilesForRead_(projectName).destination))
     return PERSIST_LOAD_FAILED;
   return LoadProjectFile_(basePath);
 }
@@ -659,10 +697,9 @@ PersistencyResult PersistencyService::LoadProjectJournalBackup_(
     const char *projectName, bool autosave, bool allowStaging) {
   if (!IsSafeProjectName_(projectName, allowStaging))
     return PERSIST_LOAD_FAILED;
+  const auto &files = autosave ? kAutosaveFiles : BaseFilesForRead_(projectName);
   char backupPath[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
-  if (!BuildProjectFilePath(backupPath, projectName,
-                            autosave ? AUTO_SAVE_BACKUP_FILENAME
-                                     : PROJECT_DATA_BACKUP_FILE)) {
+  if (!BuildProjectFilePath(backupPath, projectName, files.backup)) {
     return PERSIST_LOAD_FAILED;
   }
   FileSystem *fs = FileSystem::GetInstance();
@@ -678,18 +715,13 @@ bool PersistencyService::PromoteProjectJournalBackup_(const char *projectName,
                                                       bool allowStaging) {
   if (!IsSafeProjectName_(projectName, allowStaging))
     return false;
+  const auto &files = autosave ? kAutosaveFiles : BaseFilesForRead_(projectName);
   char destinationPath[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
   char tempPath[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
   char backupPath[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
-  if (!BuildProjectFilePath(destinationPath, projectName,
-                            autosave ? AUTO_SAVE_FILENAME
-                                     : PROJECT_DATA_FILE) ||
-      !BuildProjectFilePath(tempPath, projectName,
-                            autosave ? AUTO_SAVE_TEMP_FILENAME
-                                     : PROJECT_DATA_TEMP_FILE) ||
-      !BuildProjectFilePath(backupPath, projectName,
-                            autosave ? AUTO_SAVE_BACKUP_FILENAME
-                                     : PROJECT_DATA_BACKUP_FILE)) {
+  if (!BuildProjectFilePath(destinationPath, projectName, files.destination) ||
+      !BuildProjectFilePath(tempPath, projectName, files.temporary) ||
+      !BuildProjectFilePath(backupPath, projectName, files.backup)) {
     return false;
   }
   const project_file_journal::Paths paths{destinationPath, tempPath,
@@ -705,18 +737,13 @@ bool PersistencyService::FinalizeProjectJournal_(const char *projectName,
                                                  bool allowStaging) {
   if (!IsSafeProjectName_(projectName, allowStaging))
     return false;
+  const auto &files = autosave ? kAutosaveFiles : BaseFilesForRead_(projectName);
   char destinationPath[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
   char tempPath[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
   char backupPath[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
-  if (!BuildProjectFilePath(destinationPath, projectName,
-                            autosave ? AUTO_SAVE_FILENAME
-                                     : PROJECT_DATA_FILE) ||
-      !BuildProjectFilePath(tempPath, projectName,
-                            autosave ? AUTO_SAVE_TEMP_FILENAME
-                                     : PROJECT_DATA_TEMP_FILE) ||
-      !BuildProjectFilePath(backupPath, projectName,
-                            autosave ? AUTO_SAVE_BACKUP_FILENAME
-                                     : PROJECT_DATA_BACKUP_FILE)) {
+  if (!BuildProjectFilePath(destinationPath, projectName, files.destination) ||
+      !BuildProjectFilePath(tempPath, projectName, files.temporary) ||
+      !BuildProjectFilePath(backupPath, projectName, files.backup)) {
     return false;
   }
   const project_file_journal::Paths paths{destinationPath, tempPath,
