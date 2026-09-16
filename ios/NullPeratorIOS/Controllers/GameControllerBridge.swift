@@ -94,14 +94,16 @@ final class GameControllerBridge {
         // Bind Start/Select from the physical profile as well. Compact
         // controllers often expose these buttons there but omit them from
         // `microGamepad` entirely.
+        // iOS tracker layout: Menu = Shift, Options/Share = Play. Keep this
+        // separate from the browser's standard Gamepad button-index mapping.
         bindSystemButton(
             controller.physicalInputProfile.buttons[GCInputButtonMenu],
-            action: "play",
+            action: "shift",
             source: "start/menu"
         )
         let select = controller.physicalInputProfile.buttons[GCInputButtonOptions]
             ?? controller.physicalInputProfile.buttons[GCInputButtonShare]
-        bindSystemButton(select, action: "shift", source: "select/options/share")
+        bindSystemButton(select, action: "play", source: "select/options/share")
     }
 
     private func bindSystemButton(
