@@ -1,6 +1,7 @@
 #include "doctest/doctest.h"
 
 #include "Services/Audio/AudioMixer.h"
+#include "Application/Instruments/GBEngine.h"
 
 #include <algorithm>
 #include <array>
@@ -28,6 +29,53 @@ private:
 };
 
 } // namespace
+
+TEST_CASE("Calibrated GB voices mix without wrap and respect master headroom") {
+  struct GBModule final : AudioModule {
+    gb::Voice voice;
+    std::array<fixed, 256> last{};
+    bool Render(fixed *buffer, int count) override {
+      for (int i = 0; i < count; ++i)
+        voice.sample(&last[2 * i], &last[2 * i + 1]);
+      std::copy_n(last.data(), count * 2, buffer);
+      return true;
+    }
+  };
+  for (int tracks : {4, 8}) {
+    for (fixed gain : {FP_ONE / 8, fl2fp(.36f), FP_ONE}) {
+      CAPTURE(tracks);
+      CAPTURE(gain);
+      AudioMixer::Workspace workspace;
+      AudioMixer mixer("GB level", &workspace);
+      std::array<GBModule, 8> voices;
+      for (int i = 0; i < tracks; ++i) {
+        voices[i].voice.volume = tracks == 4 ? 128 : 255;
+        voices[i].voice.envelope = 0xF0;
+        voices[i].voice.trigger(69, true);
+        REQUIRE(mixer.AddModule(voices[i]));
+      }
+      mixer.SetVolume(gain);
+      std::array<fixed, 256> output{};
+      for (int block = 0; block < 32; ++block) {
+        REQUIRE(mixer.Render(output.data(), 128));
+        for (int i = 0; i < int(output.size()); ++i) {
+          std::int64_t sum = 0;
+          for (int track = 0; track < tracks; ++track)
+            sum += voices[track].last[i];
+          const auto expected = std::clamp<std::int64_t>(
+              (sum * gain) >> FIXED_SHIFT,
+              std::numeric_limits<fixed>::min(),
+              std::numeric_limits<fixed>::max());
+          CHECK(output[i] == expected);
+          // Four default-volume voices at Master 60, or eight full-volume
+          // voices with 1/8 gain, must also fit the final 16-bit output.
+          if ((tracks == 4 && gain == fl2fp(.36f)) || gain == FP_ONE / 8)
+            CHECK(std::abs(std::int64_t(output[i])) < std::int64_t(32767) * FP_ONE);
+        }
+      }
+    }
+  }
+}
 
 TEST_CASE("AudioMixer reports stereo peak magnitudes in channel order") {
   AudioMixer mixer("test");

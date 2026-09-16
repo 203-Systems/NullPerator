@@ -3,6 +3,7 @@
 
 #include "Externals/copingSynth/ChiptuneInstrument/ChiptuneTables.h"
 #include "Foundation/Types/Fixed.h"
+#include "Foundation/Types/SynthLevel.h"
 #include <algorithm>
 #include <array>
 #include <cstdint>
@@ -249,7 +250,7 @@ struct Voice {
     const int32_t value =
         kind == Kind::Wave && !waveLevel
             ? 0
-            : highPass * volume * 32;
+            : highPass * volume * SynthLevel::GbQ8Gain;
     *left = static_cast<int32_t>(
         (int64_t(value) * std::min(255, 2 * int(pan))) / 255);
     *right = static_cast<int32_t>(

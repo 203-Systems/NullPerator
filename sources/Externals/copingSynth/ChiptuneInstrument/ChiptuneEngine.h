@@ -9,6 +9,7 @@
 #pragma once
 
 #include "Foundation/Types/Fixed.h"
+#include "Foundation/Types/SynthLevel.h"
 #include <algorithm>
 #include <cstdint>
 
@@ -407,6 +408,8 @@ typedef struct voice_t {
       // sample *= drive;
     }
 
+    // Calibrate after bitcrush, preserving its existing quantization steps.
+    centered = SynthLevel::Coping(centered);
     // apply panning
     *left = (centered / 256) * gain.left;
     *right = (centered / 256) * gain.right;

@@ -524,6 +524,7 @@ target_sources(picoTracker_tests PRIVATE
   ui2_instrument_parameter_tests.cpp
   coping_instrument_tests.cpp
   gb_instrument_tests.cpp
+  synth_level_tests.cpp
   instrument_bank_allocation_tests.cpp
   ../sources/Application/Instruments/InstrumentBank.cpp
   ../sources/Application/Instruments/NoneInstrument.cpp

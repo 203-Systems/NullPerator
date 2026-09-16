@@ -10,6 +10,7 @@
 
 #include "../EnvelopeGenerators.h"
 #include "Foundation/Types/Fixed.h"
+#include "Foundation/Types/SynthLevel.h"
 #include "StackWavetables.generated.h"
 #include <cstdint>
 
@@ -160,7 +161,7 @@ typedef struct stack_voice_t {
   void command_pitch(uint8_t duration, int8_t semitones, bool legato) {
     if (legato && semitones == 0 && previousFrequency > 0) {
       pitchFactor = static_cast<int32_t>(std::clamp<int64_t>(
-          (int64_t(previousFrequency) * 65536) / std::max(1, base_frequency[0]),
+          (int64_t(previousFrequency) * 65536) / std::max<int32_t>(1, base_frequency[0]),
           1, INT32_MAX));
       slide_to(65536, duration);
     } else {
@@ -299,8 +300,9 @@ typedef struct stack_voice_t {
       // sample *= drive;
     }
 
-    // Match Sample PAN: 00 right, FF left. Preserve the old centered output
-    // bit-for-bit when no pan command is present.
+    sample = SynthLevel::Stack(sample);
+    // Match Sample PAN direction: 00 right, FF left. Center adds no further
+    // attenuation after the shared output calibration.
     if (panPosition == 128) {
       *left = *right = sample;
     } else {

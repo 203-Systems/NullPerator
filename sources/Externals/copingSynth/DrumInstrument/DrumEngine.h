@@ -9,6 +9,7 @@
 #pragma once
 
 #include "Foundation/Types/Fixed.h"
+#include "Foundation/Types/SynthLevel.h"
 #include <cstdint>
 
 #include <algorithm>
@@ -94,7 +95,9 @@ typedef struct drum_voice_t {
   // implementation ------------------------------------------------------------
 
   inline uint16_t get_glitch() {
-    glitch = (glitch * 1664525) + 1013904223;
+    // The LCG deliberately wraps; integer promotion to signed int would make
+    // this overflow undefined once character modulation advances the seed.
+    glitch = static_cast<uint16_t>(uint32_t(glitch) * 1664525U + 1013904223U);
     return glitch;
   }
 
@@ -220,7 +223,8 @@ typedef struct drum_voice_t {
     }
 
     // apply panning
-    *left = *right = int32_t(sample) - int32_t((HALF_SAMPLE_LEVEL >> 8) * level);
+    *left = *right = SynthLevel::Coping(
+        int32_t(sample) - int32_t((HALF_SAMPLE_LEVEL >> 8) * level));
   }
 
   inline void note_on(unsigned char note, uint8_t inVolume, bool retrigger, const drum_parameters_t inParameters,
