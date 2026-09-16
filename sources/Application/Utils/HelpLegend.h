@@ -6,148 +6,116 @@
  *
  * This file is part of the picoTracker firmware
  */
+#pragma once
 
-#include <cstdio>
-#include <cstring>
+#include "Foundation/Types/FxCommands.h"
+#include <array>
 
-// CAUTION: all strings must fit in the line length limits!
-// First line is max 31 - MAX_BATTERY_GAUGE_WIDTH, second line is max 31
-// chars
-static char **getHelpLegend(FourCC command) {
-  static char *result[2];
-  result[1] = (char *)("                               ");
+// Phrase flow and instrument handlers do not interpret every byte alike.
+// Dashes mark unused digits. Keep both lines within the help bar's 31 columns.
+inline std::array<const char *, 2> getHelpLegend(FourCC command,
+                                                 fx::Context context = {}) {
+  const bool midi = context.instrument == fx::Instrument::Midi;
+  const bool sample = context.instrument == fx::Instrument::Sample;
+  const bool chip = context.instrument == fx::Instrument::Chiptune;
+  const bool stack = context.instrument == fx::Instrument::Stack;
+  const bool drum = context.instrument == fx::Instrument::Drum;
+  const bool synth = stack || chip;
+  const bool unknown = context.instrument == fx::Instrument::Unknown;
   switch (command) {
   case FourCC::InstrumentCommandNone:
-    result[0] = (char *)("No command");
-    result[1] = (char *)("clear the FX command");
-    break;
+    return {"No command", "clear the FX command"};
   case FourCC::InstrumentCommandKill:
-    result[0] = (char *)("KILl: --bb");
-    result[1] = (char *)("stop playing after bb ticks");
-    break;
+    return {"KILl: --bb", "stop playing after bb ticks"};
   case FourCC::InstrumentCommandLoopOfset:
-    result[0] = (char *)("Loop OFset: aaaa");
-    result[1] = (char *)("Shift loop start & end values aaaa");
-    break;
+    return {"Loop Offset: aaaa", "shift loop by aaaa samples"};
   case FourCC::InstrumentCommandArpeggiator:
-    result[0] = (char *)("ARPeggio: abcd");
-    result[1] = (char *)("Cycle thru relative pitch abcd");
-    break;
+    return {"Arpeggio: abcd", "base note + offsets a b c d"};
   case FourCC::InstrumentCommandVolume:
-    result[0] = (char *)("VOLume: aabb");
-    result[1] = (char *)("reach volume bb at speed aa");
-    break;
+    if (midi)
+      return {"Volume: --bb", "send MIDI CC 7 = bb/2"};
+    if (drum || stack)
+      return {"Volume: --bb", "set volume bb immediately"};
+    if (chip)
+      return {"Volume: aabb", "volume bb, time aa x 10ms"};
+    return {"Volume: aabb", sample ? "volume bb, time aa x 4 ticks"
+                                   : "volume bb; aa is per engine"};
   case FourCC::InstrumentCommandVelocity:
-    result[0] = (char *)("VELocity: --bb");
-    result[1] = (char *)("send MIDI velocity cmd bb");
-    break;
+    return {"Velocity: --bb", "MIDI note velocity bb (7bit)"};
   case FourCC::InstrumentCommandPitchSlide:
-    result[0] = (char *)("Pitch SLide: aabb");
-    result[1] = (char *)("speed aa, slide to pitch bb");
-    break;
+    return {"Pitch Slide: aabb", midi    ? "speed aa, MIDI bend bb"
+                                 : synth ? "pitch bb, time aa x 10ms"
+                                         : "speed aa, signed pitch bb"};
   case FourCC::InstrumentCommandHop:
-    result[0] = (char *)("Hop: aabb");
-    result[1] = (char *)("hop to bb aa times");
-    break;
+    return context.table
+               ? std::array<const char *, 2>{"Hop: aa-b",
+                                             "hop to b aa times (00=loop)"}
+               : std::array<const char *, 2>{"Hop: ---b",
+                                             "jump to step b; no repeat count"};
   case FourCC::InstrumentCommandLegato:
-    result[0] = (char *)("Legato: aabb");
-    result[1] = (char *)("slide to pitch bb at speed aa");
-    break;
+    return {"Legato: aabb", midi    ? "speed aa, curved MIDI bend bb"
+                            : synth ? "pitch bb, time aa x 10ms"
+                                    : "speed aa, pitch bb (00=prev)"};
   case FourCC::InstrumentCommandRetrigger:
-    result[0] = (char *)("Retrigger: aabb");
-    result[1] = (char *)("SAMPL:bb loop+aa ofst, MIDI:bb");
-    break;
+    return {midi ? "Retrigger: --bb" : "Retrigger: aabb",
+            midi      ? "repeat each bb ticks (00=off)"
+            : unknown ? "repeat bb; aa is per engine"
+                      : "repeat bb, offset aa (ticks)"};
   case FourCC::InstrumentCommandTempo:
-    result[0] = (char *)("Tempo: aabb");
-    result[1] = (char *)("set tempo to hex value aabb");
-    break;
+    return {"Tempo: aaaa", "hex BPM, clamped to 60-400"};
   case FourCC::InstrumentCommandMidiCC:
-    result[0] = (char *)("MIDI CC: aabb");
-    result[1] = (char *)("CC message aa value bb");
-    break;
+    return {"MIDI CC: aabb", "CC number aa, value bb (7bit)"};
   case FourCC::InstrumentCommandMidiPC:
-    result[0] = (char *)("MIDI PC: --bb");
-    result[1] = (char *)("send program change bb");
-    break;
+    return {"MIDI PC: --bb", "send program change bb (7bit)"};
   case FourCC::InstrumentCommandPlayOfset:
-    result[0] = (char *)("Play OFfset: aabb");
-    result[1] = (char *)("jmp abs aa & mv rel signed bb");
-    break;
+    return {"Play Offset: aabb", "abs aa, rel signed bb (/256)"};
   case FourCC::InstrumentCommandFilterResonance:
-    result[0] = (char *)("FiLTer & Res: aabb");
-    result[1] = (char *)("speed aa, resonance bb");
-    break;
+    return {"Resonance: aabb", "resonance bb, time aa x 4 ticks"};
   case FourCC::InstrumentCommandLowPassFilter:
-    result[0] = (char *)("FiLTeR: aabb");
-    result[1] = (char *)("cutoff aa, resonance bb");
-    break;
+    return {"Filter: aabb", "cutoff aa, resonance bb"};
   case FourCC::InstrumentCommandTable:
-    result[0] = (char *)("TaBLe: --bb");
-    result[1] = (char *)("run table bb");
-    break;
+    return {"Table: --bb", "run table bb"};
   case FourCC::InstrumentCommandCrush:
-    result[0] = (char *)("Drive & Crush: aa-b");
-    result[1] = (char *)("drive aa crush -b");
-    break;
+    return {synth || drum ? "Crush: ---b" : "Drive & Crush: aa-b",
+            synth || drum ? "set crush b (0=off)"
+            : sample      ? "drive aa, crush b (0=keep)"
+                          : "crush b; drive aa is per engine"};
   case FourCC::InstrumentCommandFilterCut:
-    result[0] = (char *)("Filter CuToff: aabb");
-    result[1] = (char *)("speed aa, target cutoff bb");
-    break;
+    return {"Cutoff: aabb", "cutoff bb, time aa x 4 ticks"};
   case FourCC::InstrumentCommandPan:
-    result[0] = (char *)("PAN: aabb");
-    result[1] = (char *)("speed aa, value bb (00 right)");
-    break;
+    return {"Pan: aabb", sample  ? "pan bb, time aa x 4 ticks"
+                         : synth ? "pan bb, step aa per 10ms"
+                                 : "pan bb; aa is per engine"};
   case FourCC::InstrumentCommandGroove:
-    result[0] = (char *)("GRooVe: aabb");
-    result[1] = (char *)("set bb (aa > 0,set all tracks)");
-    break;
+    return {context.table ? "Groove: --bb" : "Groove: aabb",
+            context.table ? "table groove bb (low 5 bits)"
+                          : "groove bb; aa>0 for all tracks"};
   case FourCC::InstrumentCommandInstrumentRetrigger:
-    result[0] = (char *)("Instrument ReTrig: --bb");
-    result[1] = (char *)("retrigger & transpose by bb");
-    break;
+    return {"Instrument Retrigger: --bb", "retrigger, signed transpose bb"};
   case FourCC::InstrumentCommandPitchFineTune:
-    result[0] = (char *)("Pitch Fine Tune: aabb");
-    result[1] = (char *)("speed aa, tune bb (~+/-1 st)");
-    break;
+    return {"Fine Tune: aabb",
+            synth ? "tune bb, time aa x 10ms" : "speed aa, tune bb (~+/-1 st)"};
   case FourCC::InstrumentCommandDelay:
-    result[0] = (char *)("Delay: ---b");
-    result[1] = (char *)("delay b+1 ticks");
-    break;
+    return {"Delay: ---b", "delay note by b ticks"};
   case FourCC::InstrumentCommandStop:
-    result[0] = (char *)("Stop: ----");
-    result[1] = (char *)("stop table playback");
-    break;
+    return {"Stop: ----", "stop table playback"};
   case FourCC::InstrumentCommandGateOff:
-    result[0] = (char *)("Gate Off: ----");
-    result[1] = (char *)("release gate (synth only)");
-    break;
+    return {"Gate Off: ----", drum || chip ? "stop the voice"
+                              : unknown    ? "release or stop, per instrument"
+                                           : "release the synth envelope"};
   case FourCC::InstrumentCommandSetInstrumentParameter:
-    result[0] = (char *)("SIP: aabb");
-    result[1] = (char *)("parameter aa, value bb");
-    break;
+    return {"SIP: aabb", "parameter aa, value bb"};
   case FourCC::InstrumentCommandChordUp:
-    result[0] = (char *)("Chord Up: abcd");
-    result[1] = (char *)("Stack offsets +a +b +c +d");
-    break;
+    return {"Chord Up: abcd", "Stack offsets +a +b +c +d"};
   case FourCC::InstrumentCommandChordDown:
-    result[0] = (char *)("Chord Down: abcd");
-    result[1] = (char *)("Stack offsets -a -b -c -d");
-    break;
+    return {"Chord Down: abcd", "Stack offsets -a -b -c -d"};
   case FourCC::InstrumentCommandChordBidirectional:
-    result[0] = (char *)("Chord Both: abcd");
-    result[1] = (char *)("signed offsets: 8..F = -8..-1");
-    break;
+    return {"Chord Both: abcd", "signed offsets: 8..F = -8..-1"};
   case FourCC::InstrumentCommandVibrato:
-    result[0] = (char *)("Vibrato: aabb");
-    result[1] = (char *)("rate aa, depth bb (00 stops)");
-    break;
+    return {"Vibrato: aabb", "rate aa, depth bb (bb=00 off)"};
   case FourCC::InstrumentCommandMidiChord:
-    result[0] = (char *)("MIDI Chord:abcd");
-    result[1] = (char *)("send rel notes:+a,+b,+c,+d");
-    break;
+    return {"MIDI Chord: abcd", "scale offsets a b c d (0=skip)"};
   default:
-    result[0] = result[1] = (char *)("");
-    break;
+    return {"", ""};
   }
-  return result;
 }

@@ -170,9 +170,9 @@ void CaptureHelp(FourCC command, ushort value, fx::Context context,
     }
     return;
   }
-  char **legend = getHelpLegend(command);
-  const char *title = legend == nullptr ? nullptr : legend[0];
-  const char *detail = legend == nullptr ? nullptr : legend[1];
+  const auto legend = getHelpLegend(command, context);
+  const char *title = legend[0];
+  const char *detail = legend[1];
   const char *colon = title == nullptr ? nullptr : std::strchr(title, ':');
   if (colon == nullptr) {
     CopyUpper(lead, title);

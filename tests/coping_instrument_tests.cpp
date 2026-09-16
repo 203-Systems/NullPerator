@@ -55,6 +55,32 @@ TEST_CASE_TEMPLATE("Table KIL schedules voice termination without dispatching "
   }
 }
 
+TEST_CASE("Table HOP uses aa as the repeat count and only the last digit as "
+          "its target") {
+  Table table;
+  table.cmd1_[0] = FourCC::InstrumentCommandHop;
+  table.param1_[0] = 0x02A5; // Two jumps to row 5; A is unused.
+  table.cmd1_[5] = FourCC::InstrumentCommandHop;
+  table.param1_[5] = 0x0000; // Return to the counted HOP.
+  table.cmd1_[1] = FourCC::InstrumentCommandKill;
+  table.param1_[1] = 0x007B; // Observable fall-through after two repeats.
+  TablePlayback playback;
+  playback.Init(0);
+  for (int visit = 0; visit < 5; ++visit) {
+    TablePlayerChange change{-1, -1};
+    CHECK(playback.ProcessLocalCommand(0, table.cmd1_, table.param1_, change));
+    CHECK(change.timeToLive_ == (visit == 4 ? 0x7C : -1));
+  }
+  table.param1_[0] =
+      0x00A5; // Zero count keeps jumping without falling through.
+  playback.Init(0);
+  for (int visit = 0; visit < 20; ++visit) {
+    TablePlayerChange change{-1, -1};
+    CHECK(playback.ProcessLocalCommand(0, table.cmd1_, table.param1_, change));
+    CHECK(change.timeToLive_ == -1);
+  }
+}
+
 TEST_CASE("Table STP can stop safely from any command column") {
   ScopedTableGroove groove;
   for (int column = 0; column < TABLE_COLUMNS; ++column) {

@@ -5,6 +5,7 @@
 #include "Application/UI2/Ui2NotePresentation.h"
 #include "Application/UI2/Ui2SampleAdapters.h"
 #include "Application/UI2/Ui2VuMapping.h"
+#include "Application/Utils/HelpLegend.h"
 #include "UI2/Animation/UiMotionTrack.h"
 #include "UI2/Chrome/UiBarResolver.h"
 #include "UI2/Chrome/UiChromeRenderer.h"
@@ -5635,7 +5636,7 @@ TEST_CASE(
     return command;
   };
   build("VOL", "0180", {fx::Instrument::Sample}, 0);
-  CHECK(text("Speed 01")->color ==
+  CHECK(text("Time 01")->color ==
         static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextColored));
   CHECK(text("Volume 80")->color ==
         static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextNormal));
@@ -5655,7 +5656,7 @@ TEST_CASE(
   build("TPO", "0191", {}, 0);
   CHECK(text("/ 400 BPM")->bounds.y == 227);
   build("DLY", "000F", {}, 3);
-  CHECK(text("/ 16 ticks")->bounds.y == 227);
+  CHECK(text("/ 15 ticks")->bounds.y == 227);
   build("HOP", "12F3", {fx::Instrument::Sample, true}, 0);
   CHECK(text("Repeat 12")->bounds.y == 213);
   CHECK(text("Step 3")->bounds.y == 227);
@@ -5682,6 +5683,101 @@ TEST_CASE(
   CHECK(text("On This Instrument")->bounds.y == 227);
   build("---", "1234", {}, 0);
   CHECK(text("DIGIT")->bounds.y == 220);
+}
+
+TEST_CASE(
+    "FX legends and edit fields agree on unused digits for each context") {
+  for (const auto &entry : fx::commands) {
+    if (entry.id == FourCC::InstrumentCommandNone)
+      continue;
+    for (int instrument = 0; instrument <= int(fx::Instrument::Chiptune);
+         ++instrument) {
+      for (bool table : {false, true}) {
+        const fx::Context context{static_cast<fx::Instrument>(instrument),
+                                  table};
+        if (!fx::Available(entry, context))
+          continue;
+        const auto help = getHelpLegend(entry.id, context);
+        const std::string_view title(help[0]);
+        const auto format = title.substr(title.find(": ") + 2);
+        CAPTURE(entry.name);
+        CAPTURE(instrument);
+        CAPTURE(table);
+        REQUIRE(format.size() == 4);
+        CHECK(title.size() <= 31);
+        CHECK(std::string_view(help[1]).size() <= 31);
+        for (std::uint8_t digit = 0; digit < 4; ++digit) {
+          const ui2::UiFxParameterAdjustment adjustment(entry.name, "2A75",
+                                                        context, digit);
+          ui2::UiFrameScene scene;
+          REQUIRE(ui2::UiChromeRenderer::BuildBottom(
+                      {.kind = ui2::UiBottomBarKind::AdjustmentLegend,
+                       .adjustment = adjustment.model},
+                      scene.bottom) == ui2::UiBuildStatus::Built);
+          const bool unused = FindTextCommand(scene.bottom.Stream(),
+                                              "/ Unused digit") != nullptr;
+          if (format == "----")
+            CHECK(FindTextCommand(scene.bottom.Stream(), "No parameter") !=
+                  nullptr);
+          else
+            CHECK(unused == (format[digit] == '-'));
+        }
+      }
+    }
+  }
+}
+
+TEST_CASE(
+    "Unused FX digits never replace the actual target shown in the help bar") {
+  const auto check = [](std::string_view command, fx::Context context,
+                        std::uint8_t digit, std::string_view target) {
+    const ui2::UiFxParameterAdjustment adjustment(command, "2A75", context,
+                                                  digit);
+    ui2::UiFrameScene scene;
+    REQUIRE(ui2::UiChromeRenderer::BuildBottom(
+                {.kind = ui2::UiBottomBarKind::AdjustmentLegend,
+                 .adjustment = adjustment.model},
+                scene.bottom) == ui2::UiBuildStatus::Built);
+    const auto *value = FindTextCommand(scene.bottom.Stream(), target);
+    REQUIRE(value != nullptr);
+    CHECK(value->color ==
+          static_cast<ui2::PaletteIndex>(ui2::UiColorToken::TextNormal));
+    CHECK(FindTextCommand(scene.bottom.Stream(), "/ Unused digit") != nullptr);
+  };
+  for (std::uint8_t digit : {0, 1, 2}) {
+    check("HOP", {}, digit, "5");
+    check("DLY", {}, digit, "5");
+    check("CSH", {fx::Instrument::Chiptune}, digit, "5");
+  }
+  for (std::uint8_t digit : {0, 1}) {
+    check("VOL", {fx::Instrument::Midi}, digit, "75");
+    check("KIL", {}, digit, "75");
+    check("IRT", {fx::Instrument::Sample, true}, digit, "75");
+  }
+  check("HOP", {fx::Instrument::Sample, true}, 2, "Step 5");
+  check("CSH", {fx::Instrument::Sample}, 2, "Crush 5");
+}
+
+TEST_CASE(
+    "FX legends distinguish table flow and each instrument's parameter bytes") {
+  const auto legend = [](FourCC command, fx::Context context) {
+    return std::string_view(getHelpLegend(command, context)[0]);
+  };
+  CHECK(legend(FourCC::InstrumentCommandHop, {}) == "Hop: ---b");
+  CHECK(legend(FourCC::InstrumentCommandHop, {fx::Instrument::Sample, true}) ==
+        "Hop: aa-b");
+  CHECK(legend(FourCC::InstrumentCommandGroove,
+               {fx::Instrument::Sample, true}) == "Groove: --bb");
+  CHECK(legend(FourCC::InstrumentCommandGroove, {}) == "Groove: aabb");
+  for (auto instrument :
+       {fx::Instrument::Midi, fx::Instrument::Drum, fx::Instrument::Stack})
+    CHECK(legend(FourCC::InstrumentCommandVolume, {instrument}) ==
+          "Volume: --bb");
+  CHECK(legend(FourCC::InstrumentCommandRetrigger, {fx::Instrument::Midi}) ==
+        "Retrigger: --bb");
+  CHECK(std::string_view(getHelpLegend(FourCC::InstrumentCommandVolume,
+                                       {fx::Instrument::Midi})[1]) ==
+        "send MIDI CC 7 = bb/2");
 }
 
 TEST_CASE("Every FX parameter layout fits beside its two-row edit controls") {

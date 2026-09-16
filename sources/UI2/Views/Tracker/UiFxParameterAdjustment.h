@@ -65,8 +65,12 @@ public:
           context.instrument == fx::Instrument::Stack)
         Single("Volume", 2, 2, midi ? Format(4, "CC 7 = %u", lo / 2) : "00-FF");
       else
-        Pair({context.instrument == fx::Instrument::Chiptune ? "Time" : "Speed",
-              0, 2, unknown ? "Per engine" : "00=instant"},
+        Pair({"Time", 0, 2,
+              unknown   ? "Per engine"
+              : hi == 0 ? "Instant"
+              : context.instrument == fx::Instrument::Chiptune
+                  ? Format(4, "%u ms", hi * 10)
+                  : Format(4, "%u ticks", hi * 4)},
              {"Volume", 2, 2, "00-FF"});
       break;
     case FourCC::InstrumentCommandMidiCC:
@@ -80,19 +84,29 @@ public:
       Single("Velocity", 2, 2, Format(4, "MIDI %u", lo & 127));
       break;
     case FourCC::InstrumentCommandVibrato:
-      Pair({"Rate", 0, 2, "00-FF"}, {"Depth", 2, 2, lo == 0 ? "Off" : "00-FF"});
+      Pair({"Rate", 0, 2, hi == 0 ? "Off" : "00-FF"},
+           {"Depth", 2, 2, lo == 0 ? "Off" : "00-FF"});
       break;
     case FourCC::InstrumentCommandFilterCut:
-      Pair({"Speed", 0, 2, "00=instant"}, {"Cutoff", 2, 2, "00-FF"});
+      Pair({"Time", 0, 2, hi == 0 ? "Instant" : Format(4, "%u ticks", hi * 4)},
+           {"Cutoff", 2, 2, "00-FF"});
       break;
     case FourCC::InstrumentCommandFilterResonance:
-      Pair({"Speed", 0, 2, "00=instant"}, {"Resonance", 2, 2, "00-FF"});
+      Pair({"Time", 0, 2, hi == 0 ? "Instant" : Format(4, "%u ticks", hi * 4)},
+           {"Resonance", 2, 2, "00-FF"});
       break;
     case FourCC::InstrumentCommandLowPassFilter:
       Pair({"Cutoff", 0, 2, "00-FF"}, {"Resonance", 2, 2, "00-FF"});
       break;
     case FourCC::InstrumentCommandPan:
-      Pair({"Speed", 0, 2, "00=instant"},
+      Pair({synth     ? "Step"
+            : unknown ? "Timing"
+                      : "Time",
+            0, 2,
+            unknown   ? "Per engine"
+            : hi == 0 ? "Instant"
+            : synth   ? "per 10ms"
+                      : Format(4, "%u ticks", hi * 4)},
            {"Pan", 2, 2,
             lo == 0                       ? "Right"
             : unknown                     ? "Per engine"
@@ -102,7 +116,10 @@ public:
       break;
     case FourCC::InstrumentCommandPitchSlide:
     case FourCC::InstrumentCommandLegato:
-      Pair({synth ? "Time" : "Speed", 0, 2, "00-FF"},
+      Pair({synth ? "Time" : "Speed", 0, 2,
+            hi == 0 ? "Instant"
+            : synth ? Format(5, "%u ms", hi * 10)
+                    : "00-FF"},
            {midi ? "Bend" : "Pitch", 2, 2,
             unknown ? "Per engine"
             : midi  ? "00-FF"
@@ -113,7 +130,10 @@ public:
     case FourCC::InstrumentCommandPitchFineTune: {
       // Sample historically treats 80 as +1; the synth engines use -1.
       const int amount = !synth && !unknown && lo == 128 ? 128 : signedLo;
-      Pair({synth ? "Time" : "Speed", 0, 2, "00-FF"},
+      Pair({synth ? "Time" : "Speed", 0, 2,
+            hi == 0 ? "Instant"
+            : synth ? Format(5, "%u ms", hi * 10)
+                    : "00-FF"},
            {"Tune", 2, 2,
             unknown ? "Per engine" : Format(4, "%+d/128 st", amount)});
       break;
@@ -132,7 +152,8 @@ public:
       if (midi)
         Single("Retrigger", 2, 2, lo == 0 ? "Off" : Format(4, "%u ticks", lo));
       else
-        Pair({"Offset", 0, 2, unknown ? "Per engine" : "00-FF"},
+        Pair({"Offset", 0, 2,
+              unknown ? "Per engine" : Format(5, "%u ticks", hi)},
              {"Repeat", 2, 2, lo == 0 ? "Off" : Format(4, "%u ticks", lo)});
       break;
     case FourCC::InstrumentCommandPlayOfset:
@@ -149,7 +170,7 @@ public:
              Format(4, "%u BPM", std::clamp<unsigned>(raw_, 60, 400)));
       break;
     case FourCC::InstrumentCommandDelay:
-      Single("Note delay", 3, 1, Format(4, "%u ticks", (lo & 15) + 1));
+      Single("Note delay", 3, 1, Format(4, "%u ticks", lo & 15));
       break;
     case FourCC::InstrumentCommandKill:
       Single("Stop after", 2, 2, Format(4, "%u ticks", lo));
@@ -159,7 +180,7 @@ public:
       break;
     case FourCC::InstrumentCommandHop:
       if (context.table)
-        Pair({"Repeat", 0, 2, hi == 0 ? "Always" : "00-FF"},
+        Pair({"Repeat", 0, 2, hi == 0 ? "Always" : Format(4, "%u times", hi)},
              {"Step", 3, 1, "0-F"});
       else
         Single("Jump to step", 3, 1, "0-F");
@@ -231,24 +252,22 @@ private:
               std::string_view detail) {
     Title(title);
     const bool active = digit_ >= start && digit_ < start + count;
-    if (!active) {
-      start = digit_;
-      count = 1;
+    // Keep the actual parameter value visible even on an unused digit. Showing
+    // the focused nibble here would mislabel it as the jump/volume/etc. value.
+    if (!active)
       detail = "Unused digit";
-    }
     context_.secondLineCount = 2;
     context_.secondLine[0] = {value_.substr(start, count),
-                              UiColorToken::TextColored};
+                              active ? UiColorToken::TextColored
+                                     : UiColorToken::TextNormal};
     context_.secondLine[1] = {
         Format(3, "/ %.*s", int(detail.size()), detail.data()),
         UiColorToken::TextDim};
   }
 
   void Pair(Field hi, Field lo) {
-    if (!hi.Contains(digit_) && !lo.Contains(digit_)) {
-      Single("Parameter", 4, 0, "");
-      return;
-    }
+    if (!hi.Contains(digit_) && !lo.Contains(digit_))
+      lo.detail = "Unused digit";
     const auto fieldText = [&](std::size_t index, const Field &field) {
       return Format(index, "%.*s %.*s", int(field.name.size()),
                     field.name.data(), int(field.count),
