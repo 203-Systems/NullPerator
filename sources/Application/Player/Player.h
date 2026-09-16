@@ -13,6 +13,7 @@
 #include "Externals/etl/include/etl/string.h"
 #include "Foundation/Observable.h"
 #include "Foundation/T_Singleton.h"
+#include "PhraseNoteTrigger.h"
 #include "PlayerAudioActivity.h"
 #include "PlayerAudioReadiness.h"
 #include "PlayerMixer.h"
@@ -209,7 +210,7 @@ private:
   QueueingMode liveQueueingMode_[SONG_CHANNEL_COUNT];
   unsigned char liveQueueChainPosition_[SONG_CHANNEL_COUNT];
   unsigned int timeToLive_[SONG_CHANNEL_COUNT];
-  unsigned int timeToStart_[SONG_CHANNEL_COUNT];
+  PhraseNoteTrigger noteTrigger_[SONG_CHANNEL_COUNT];
 
   // All producers are serialized by MixerService's existing mutex. UI and
   // diagnostics never take that audio-path lock; they validate an atomic-word

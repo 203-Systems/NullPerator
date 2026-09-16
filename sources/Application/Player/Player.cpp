@@ -200,7 +200,7 @@ void Player::Start(PlayMode mode, bool forceSongMode, MixerServiceMode msmMode,
   for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {
     mixer_.StopChannel(i);
     timeToLive_[i] = 0;
-    timeToStart_[i] = 0;
+    noteTrigger_[i].Reset();
     TablePlayback &tpb = TablePlayback::GetTablePlayback(i);
     TablePlayback &atp = TablePlayback::GetAutomationPlayback(i);
     tpb.Stop();
@@ -303,6 +303,7 @@ void Player::Stop() {
 void Player::StopLocked() {
   for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {
     mixer_.StopChannel(i);
+    noteTrigger_[i].Reset();
     TablePlayback::GetTablePlayback(i).Stop();
     TablePlayback::GetAutomationPlayback(i).Stop();
   }
@@ -726,11 +727,13 @@ void Player::Update(Observable &o, I_ObservableData *d) {
     }
 
     for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {
-      if (timeToStart_[i] > 0) {
-        if (--timeToStart_[i] == 0) {
-          playCursorPosition(i);
-        }
-      }
+      noteTrigger_[i].Tick(
+          [&]() { playCursorPosition(i); },
+          [&](ushort volume) {
+            if (auto *instrument = mixer_.GetInstrument(i))
+              instrument->ProcessCommand(i, FourCC::InstrumentCommandVolume,
+                                         volume);
+          });
     }
 
     // Process commands in current phrase
@@ -814,7 +817,8 @@ void Player::ProcessCommands() {
           // if there's any command to trigger, first pass it on the player
           // then pass it on to the instrument
 
-          if (cc != FourCC::InstrumentCommandNone) {
+          if (cc != FourCC::InstrumentCommandNone &&
+              !noteTrigger_[i].Defers(cc)) {
             if (!ProcessChannelCommand(i, cc, param)) {
               I_Instrument *instrument = mixer_.GetInstrument(i);
               if (instrument) {
@@ -831,7 +835,8 @@ void Player::ProcessCommands() {
           // if there's any command to trigger, first pass it on the player
           // then pass it on to the instrument
 
-          if (cc != FourCC::InstrumentCommandNone) {
+          if (cc != FourCC::InstrumentCommandNone &&
+              !noteTrigger_[i].Defers(cc)) {
             if (!ProcessChannelCommand(i, cc, param)) {
               I_Instrument *instrument = mixer_.GetInstrument(i);
               if (instrument) {
@@ -971,28 +976,17 @@ void Player::updatePhrasePos(int pos, int channel) {
   const int phraseStep = player_storage::PhraseStepOffset(phrase, pos);
   if (phraseStep < 0) {
     viewData_->phrasePlayPos_[channel] = -1;
-    timeToStart_[channel] = 0;
+    noteTrigger_[channel].Reset();
     return;
   }
 
   viewData_->phrasePlayPos_[channel] = pos;
 
-  // See if we need to delay the trigger
-  timeToStart_[channel] = 1;
-
-  // Check both param colum 1 & 2
-
-  FourCC cc = viewData_->song_->phrase_.cmd1_[phraseStep];
-  if (cc == FourCC::InstrumentCommandDelay) {
-    ushort param = viewData_->song_->phrase_.param1_[phraseStep];
-    timeToStart_[channel] = (param & 0x0F) + 1;
-  }
-
-  cc = viewData_->song_->phrase_.cmd2_[phraseStep];
-  if (cc == FourCC::InstrumentCommandDelay) {
-    ushort param = viewData_->song_->phrase_.param2_[phraseStep];
-    timeToStart_[channel] = (param & 0x0F) + 1;
-  }
+  const Phrase &phraseData = viewData_->song_->phrase_;
+  noteTrigger_[channel].Schedule(
+      phraseData.note_[phraseStep], phraseData.cmd1_[phraseStep],
+      phraseData.param1_[phraseStep], phraseData.cmd2_[phraseStep],
+      phraseData.param2_[phraseStep]);
 }
 
 void Player::playCursorPosition(int channel) {

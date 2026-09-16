@@ -523,6 +523,7 @@ target_sources(picoTracker_tests PRIVATE
   instrument_export_transaction_tests.cpp
   ui2_instrument_parameter_tests.cpp
   coping_instrument_tests.cpp
+  player_note_trigger_tests.cpp
   gb_instrument_tests.cpp
   synth_level_tests.cpp
   instrument_bank_allocation_tests.cpp
