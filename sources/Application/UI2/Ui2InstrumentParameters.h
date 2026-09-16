@@ -237,6 +237,42 @@ inline constexpr std::array<Ui2InstrumentParameterDescriptor, 14>
                   Ui2InstrumentValueFormat::Boolean)};
 static_assert(kChiptuneParameters.size() <= kUiInstrumentMaximumFields);
 
+inline constexpr std::array<Ui2InstrumentParameterDescriptor, 8> kGBPulseParameters{
+        Parameter("DUTY", FourCC::GBDuty, 0, 3, 1, 1, 68, 0, Ui2InstrumentValueFormat::Choice, true),
+        Parameter("TRANSPOSE", FourCC::GBTranspose, -24, 24, 1, 16, 78, 3, Ui2InstrumentValueFormat::Decimal),
+        Parameter("VOLUME", FourCC::GBVolume, 0, 255, 1, 16, 88, 2, Ui2InstrumentValueFormat::Hex),
+        Parameter("ENVELOPE", FourCC::GBEnvelope, 0, 255, 1, 16, 98, 2, Ui2InstrumentValueFormat::Hex, false, false, true, FourCC::Default, false, Ui2InstrumentSubfieldMode::HexDigit),
+        Parameter("LENGTH /256S", FourCC::GBLength, 0, 64, 1, 16, 108, 2, Ui2InstrumentValueFormat::Hex),
+        Parameter("SWEEP", FourCC::GBSweep, 0, 127, 1, 16, 118, 2, Ui2InstrumentValueFormat::Hex),
+        Parameter("TABLE", FourCC::GBTable, 0, TABLE_COUNT - 1, 1, 16, 128, 2, Ui2InstrumentValueFormat::OffHex, false, true),
+        Parameter("AUTOMATION", FourCC::GBTableAuto, 0, 1, 1, 1, 138, 0, Ui2InstrumentValueFormat::Boolean),
+};
+inline constexpr std::array<Ui2InstrumentParameterDescriptor, 6> kGBNoiseParameters{
+        Parameter("SHAPE (NR43)", FourCC::GBNoise, 0, 255, 1, 16, 68, 2, Ui2InstrumentValueFormat::Hex, false, false, true, FourCC::Default, false, Ui2InstrumentSubfieldMode::HexDigit),
+        Parameter("VOLUME", FourCC::GBVolume, 0, 255, 1, 16, 78, 2, Ui2InstrumentValueFormat::Hex),
+        Parameter("ENVELOPE", FourCC::GBEnvelope, 0, 255, 1, 16, 88, 2, Ui2InstrumentValueFormat::Hex, false, false, true, FourCC::Default, false, Ui2InstrumentSubfieldMode::HexDigit),
+        Parameter("LENGTH /256S", FourCC::GBLength, 0, 64, 1, 16, 98, 2, Ui2InstrumentValueFormat::Hex),
+        Parameter("TABLE", FourCC::GBTable, 0, TABLE_COUNT - 1, 1, 16, 108, 2, Ui2InstrumentValueFormat::OffHex, false, true),
+        Parameter("AUTOMATION", FourCC::GBTableAuto, 0, 1, 1, 1, 118, 0, Ui2InstrumentValueFormat::Boolean),
+};
+inline constexpr std::array<Ui2InstrumentParameterDescriptor, 14> kGBWaveParameters{
+        Parameter("OUTPUT LEVEL", FourCC::GBWaveLevel, 0, 3, 1, 1, 68, 0, Ui2InstrumentValueFormat::Choice, true),
+        Parameter("TRANSPOSE", FourCC::GBTranspose, -24, 24, 1, 16, 78, 3, Ui2InstrumentValueFormat::Decimal),
+        Parameter("VOLUME", FourCC::GBVolume, 0, 255, 1, 16, 88, 2, Ui2InstrumentValueFormat::Hex),
+        Parameter("LENGTH /256S", FourCC::GBLength, 0, 256, 1, 16, 98, 3, Ui2InstrumentValueFormat::Hex, false, false, true, FourCC::Default, false, Ui2InstrumentSubfieldMode::HexDigit),
+        Parameter("00-03", FourCC::GBWave0, 0, 0xFFFF, 1, 16, 108, 4, Ui2InstrumentValueFormat::Hex, false, false, true, FourCC::Default, false, Ui2InstrumentSubfieldMode::HexDigit),
+        Parameter("04-07", FourCC::GBWave1, 0, 0xFFFF, 1, 16, 118, 4, Ui2InstrumentValueFormat::Hex, false, false, true, FourCC::Default, false, Ui2InstrumentSubfieldMode::HexDigit),
+        Parameter("08-0B", FourCC::GBWave2, 0, 0xFFFF, 1, 16, 128, 4, Ui2InstrumentValueFormat::Hex, false, false, true, FourCC::Default, false, Ui2InstrumentSubfieldMode::HexDigit),
+        Parameter("0C-0F", FourCC::GBWave3, 0, 0xFFFF, 1, 16, 138, 4, Ui2InstrumentValueFormat::Hex, false, false, true, FourCC::Default, false, Ui2InstrumentSubfieldMode::HexDigit),
+        Parameter("10-13", FourCC::GBWave4, 0, 0xFFFF, 1, 16, 148, 4, Ui2InstrumentValueFormat::Hex, false, false, true, FourCC::Default, false, Ui2InstrumentSubfieldMode::HexDigit),
+        Parameter("14-17", FourCC::GBWave5, 0, 0xFFFF, 1, 16, 158, 4, Ui2InstrumentValueFormat::Hex, false, false, true, FourCC::Default, false, Ui2InstrumentSubfieldMode::HexDigit),
+        Parameter("18-1B", FourCC::GBWave6, 0, 0xFFFF, 1, 16, 168, 4, Ui2InstrumentValueFormat::Hex, false, false, true, FourCC::Default, false, Ui2InstrumentSubfieldMode::HexDigit),
+        Parameter("1C-1F", FourCC::GBWave7, 0, 0xFFFF, 1, 16, 178, 4, Ui2InstrumentValueFormat::Hex, false, false, true, FourCC::Default, false, Ui2InstrumentSubfieldMode::HexDigit),
+        Parameter("TABLE", FourCC::GBTable, 0, TABLE_COUNT - 1, 1, 16, 188, 2, Ui2InstrumentValueFormat::OffHex, false, true),
+        Parameter("AUTOMATION", FourCC::GBTableAuto, 0, 1, 1, 1, 198, 0, Ui2InstrumentValueFormat::Boolean),
+};
+static_assert(kGBWaveParameters.size() <= kUiInstrumentMaximumFields);
+
 static_assert(IT_LAST == kUiInstrumentTypeCount);
 
 inline constexpr std::array<Ui2InstrumentParameterDescriptor, 19>
@@ -451,6 +487,9 @@ Ui2InstrumentFieldCount(InstrumentType type) {
     return detail::kStackParameters.size();
   case IT_CHIPTUNE:
     return detail::kChiptuneParameters.size();
+  case IT_GB_WAVE: return detail::kGBWaveParameters.size();
+  case IT_GB_PULSE: return detail::kGBPulseParameters.size();
+  case IT_GB_NOISE: return detail::kGBNoiseParameters.size();
   case IT_NONE:
   case IT_LAST:
     return 0U;
@@ -503,6 +542,15 @@ Ui2InstrumentFieldParameter(InstrumentType type, std::uint8_t index,
   case IT_STACK:
     if (index < detail::kStackParameters.size())
       descriptor = detail::kStackParameters[index];
+    break;
+  case IT_GB_WAVE:
+    if (index < detail::kGBWaveParameters.size()) descriptor = detail::kGBWaveParameters[index];
+    break;
+  case IT_GB_PULSE:
+    if (index < detail::kGBPulseParameters.size()) descriptor = detail::kGBPulseParameters[index];
+    break;
+  case IT_GB_NOISE:
+    if (index < detail::kGBNoiseParameters.size()) descriptor = detail::kGBNoiseParameters[index];
     break;
   case IT_NONE:
   case IT_LAST:

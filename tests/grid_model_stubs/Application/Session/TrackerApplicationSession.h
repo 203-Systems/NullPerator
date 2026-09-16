@@ -34,6 +34,9 @@ enum InstrumentType {
   IT_DRUM,
   IT_STACK,
   IT_CHIPTUNE,
+  IT_GB_WAVE,
+  IT_GB_PULSE,
+  IT_GB_NOISE,
   IT_LAST
 };
 

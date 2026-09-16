@@ -15,6 +15,7 @@
 // standard-library headers above the production persistence headers.
 #include "Adapters/wasm/filesystem/WasmFileSystem.h"
 #include "Application/Instruments/ChiptuneInstrument.h"
+#include "Application/Instruments/GBInstrument.h"
 #include "Application/Instruments/DrumInstrument.h"
 #include "Application/Instruments/InstrumentBank.h"
 #include "Application/Instruments/InstrumentBankRestorePolicy.h"
@@ -2248,12 +2249,17 @@ TEST_CASE("Instrument service exports a validated pti and preserves overwrite "
 
 TEST_CASE_TEMPLATE(
     "Coping instrument parameters survive validated file export and import",
-    Synth, DrumInstrument, StackInstrument, ChiptuneInstrument) {
+    Synth, DrumInstrument, StackInstrument, ChiptuneInstrument,
+    GBWaveInstrument, GBPulseInstrument, GBNoiseInstrument) {
   FourCCXmlFixture fixture;
   fixture.MakeDirectory("instruments");
   auto &service = TestPersistencyService();
   Synth source, restored;
   source.SetName("New synth");
+  if (source.GetType() == IT_GB_WAVE) {
+    source.FindVariable(FourCC::GBWave0)->SetInt(0xF018);
+    source.FindVariable(FourCC::GBWave7)->SetInt(0xACEF);
+  }
   source.Variables()->front()->SetInt(source.GetType() == IT_CHIPTUNE ? 3
                                                                       : 123);
   REQUIRE(service.ExportInstrument(
@@ -2266,7 +2272,8 @@ TEST_CASE_TEMPLATE(
 }
 
 TEST_CASE_TEMPLATE("Full 64-slot synth banks round trip over occupied banks",
-                   Synth, DrumInstrument, StackInstrument, ChiptuneInstrument) {
+                   Synth, DrumInstrument, StackInstrument, ChiptuneInstrument,
+                   GBWaveInstrument, GBPulseInstrument, GBNoiseInstrument) {
   FourCCXmlFixture fixture;
   InstrumentBank source, restored;
   Synth prototype;

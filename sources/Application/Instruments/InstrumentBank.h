@@ -15,6 +15,7 @@
 #include "Application/Persistency/Persistent.h"
 #include "ChiptuneInstrument.h"
 #include "DrumInstrument.h"
+#include "GBInstrument.h"
 #include "Externals/etl/include/etl/array.h"
 #include "NoneInstrument.h"
 #include "StackInstrument.h"
@@ -91,6 +92,10 @@ private:
   TrackVoicePool<coping::chip::voice_t> chiptuneVoices_;
   TrackVoicePool<drum_voice_t> drumVoices_;
   TrackVoicePool<stack_voice_t> stackVoices_;
+  // One lazily allocated pool shared across all three GB types, including
+  // staged replacements. Never allocate a voice from the audio callback.
+  TrackVoicePool<gb::Voice> *gbVoices_ = nullptr;
+  unsigned gbUsers_ = 0;
   etl::array<I_Instrument *, MAX_INSTRUMENT_COUNT> instruments_;
   std::array<std::uint32_t, MAX_INSTRUMENT_COUNT> generations_{};
   NoneInstrument none_ = NoneInstrument();

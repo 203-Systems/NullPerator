@@ -317,6 +317,25 @@ struct FourCC {
     ChiptuneTable = 233,
     ChiptuneTableAuto = 234,
 
+    GBVolume = 235,
+    GBTranspose = 236,
+    GBTable = 237,
+    GBTableAuto = 238,
+    GBLength = 239,
+    GBDuty = 240,
+    GBEnvelope = 241,
+    GBSweep = 242,
+    GBNoise = 243,
+    GBWaveLevel = 244,
+    GBWave0 = 245,
+    GBWave1 = 246,
+    GBWave2 = 247,
+    GBWave3 = 248,
+    GBWave4 = 249,
+    GBWave5 = 250,
+    GBWave6 = 251,
+    GBWave7 = 252,
+
     Default = 255, // "    "
   };
   ETL_DECLARE_ENUM_TYPE(FourCC, uint8_t)
@@ -520,6 +539,25 @@ struct FourCC {
   ETL_ENUM_TYPE(ChiptuneSweepAmount, "CHIPTUNESWEEPAMOUNT")
   ETL_ENUM_TYPE(ChiptuneTable, "CHIPTUNETABLE")
   ETL_ENUM_TYPE(ChiptuneTableAuto, "CHIPTUNETABLEAUTO")
+
+  ETL_ENUM_TYPE(GBVolume, "GBVOLUME")
+  ETL_ENUM_TYPE(GBTranspose, "GBTRANSPOSE")
+  ETL_ENUM_TYPE(GBTable, "GBTABLE")
+  ETL_ENUM_TYPE(GBTableAuto, "GBTABLEAUTO")
+  ETL_ENUM_TYPE(GBLength, "GBLENGTH")
+  ETL_ENUM_TYPE(GBDuty, "GBDUTY")
+  ETL_ENUM_TYPE(GBEnvelope, "GBENVELOPE")
+  ETL_ENUM_TYPE(GBSweep, "GBSWEEP")
+  ETL_ENUM_TYPE(GBNoise, "GBNOISE")
+  ETL_ENUM_TYPE(GBWaveLevel, "GBWAVELEVEL")
+  ETL_ENUM_TYPE(GBWave0, "GBWAVE0")
+  ETL_ENUM_TYPE(GBWave1, "GBWAVE1")
+  ETL_ENUM_TYPE(GBWave2, "GBWAVE2")
+  ETL_ENUM_TYPE(GBWave3, "GBWAVE3")
+  ETL_ENUM_TYPE(GBWave4, "GBWAVE4")
+  ETL_ENUM_TYPE(GBWave5, "GBWAVE5")
+  ETL_ENUM_TYPE(GBWave6, "GBWAVE6")
+  ETL_ENUM_TYPE(GBWave7, "GBWAVE7")
 
   ETL_ENUM_TYPE(Default, "   ")
   ETL_END_ENUM_TYPE

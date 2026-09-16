@@ -47,7 +47,7 @@ public:
     const int signedLo = lo >= 128 ? int(lo) - 256 : int(lo);
     const bool midi = context.instrument == fx::Instrument::Midi;
     const bool synth = context.instrument == fx::Instrument::Stack ||
-                       context.instrument == fx::Instrument::Chiptune;
+                       context.instrument == fx::Instrument::Chiptune || fx::IsGB(context.instrument);
     const bool unknown = context.instrument == fx::Instrument::Unknown;
     switch (entry->id) {
     case FourCC::InstrumentCommandSetInstrumentParameter:
@@ -62,7 +62,7 @@ public:
       break;
     case FourCC::InstrumentCommandVolume:
       if (midi || context.instrument == fx::Instrument::Drum ||
-          context.instrument == fx::Instrument::Stack)
+          context.instrument == fx::Instrument::Stack || fx::IsGB(context.instrument))
         Single("Volume", 2, 2, midi ? Format(4, "CC 7 = %u", lo / 2) : "00-FF");
       else
         Pair({"Time", 0, 2,

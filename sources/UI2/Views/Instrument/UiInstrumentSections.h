@@ -16,7 +16,10 @@ enum class UiInstrumentKind : std::uint8_t {
   Opal,
   Drum,
   Stack,
-  Chiptune
+  Chiptune,
+  GBWave,
+  GBPulse,
+  GBNoise
 };
 
 inline constexpr std::int16_t kUiInstrumentOperatorHeaderY = 120;
@@ -49,6 +52,12 @@ inline constexpr std::array<UiInstrumentSection, 5> kChiptuneSections{
      {"VIBRATO", 8},
      {"SWEEP", 10},
      {"MODULATION", 12}}};
+inline constexpr std::array<UiInstrumentSection, 3> kGBPulseSections{{
+    {"OSCILLATOR", 0}, {"ENVELOPE & SWEEP", 3}, {"MODULATION", 6}}};
+inline constexpr std::array<UiInstrumentSection, 3> kGBNoiseSections{{
+    {"NOISE", 0}, {"ENVELOPE", 2}, {"MODULATION", 4}}};
+inline constexpr std::array<UiInstrumentSection, 3> kGBWaveSections{{
+    {"OSCILLATOR", 0}, {"WAVE RAM (4 SAMPLES / ROW)", 4}, {"MODULATION", 12}}};
 } // namespace detail
 
 [[nodiscard]] constexpr std::span<const UiInstrumentSection>
@@ -61,6 +70,9 @@ UiInstrumentSections(UiInstrumentKind kind) {
   case UiInstrumentKind::Stack: return detail::kStackSections;
   case UiInstrumentKind::Chiptune:
     return detail::kChiptuneSections;
+  case UiInstrumentKind::GBWave: return detail::kGBWaveSections;
+  case UiInstrumentKind::GBPulse: return detail::kGBPulseSections;
+  case UiInstrumentKind::GBNoise: return detail::kGBNoiseSections;
   // OPAL retains its general/operator layout; NONE has no parameters.
   case UiInstrumentKind::Opal:
   case UiInstrumentKind::None: return {};

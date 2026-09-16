@@ -28,10 +28,14 @@ enum InstrumentType {
   IT_DRUM,
   IT_STACK,
   IT_CHIPTUNE,
+  IT_GB_WAVE,
+  IT_GB_PULSE,
+  IT_GB_NOISE,
   IT_LAST
 };
 static const char *InstrumentTypeNames[IT_LAST] = {
-    "NONE", "SAMPLE", "MIDI", "SID", "OPAL", "DRUM", "STACK", "CHIPTUNE"};
+    "NONE", "SAMPLE", "MIDI", "SID", "OPAL", "DRUM", "STACK", "CHIPTUNE",
+    "GB-WAVE", "GB-PULSE", "GB-NOISE"};
 
 class I_Instrument : public VariableContainer,
                      public Observable,

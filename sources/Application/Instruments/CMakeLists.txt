@@ -3,6 +3,7 @@ add_library(application_instruments
   DrumInstrument.cpp
   StackInstrument.cpp
   ChiptuneInstrument.cpp
+  GBInstrument.cpp
   Filters.cpp
   I_Instrument.cpp
   InstrumentBank.cpp

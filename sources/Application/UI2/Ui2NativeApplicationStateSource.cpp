@@ -747,7 +747,11 @@ UiApplicationActivityState Ui2NativeApplicationStateSource::CaptureInstrument(
         state.fieldOptions = UiInstrumentFieldOptions::OpalKeyscale;
         break;
       case Ui2InstrumentValueFormat::Choice:
-        if (activeDescriptor.primary == FourCC::ChiptuneWave) {
+        if (activeDescriptor.primary == FourCC::GBDuty) {
+          state.fieldOptions = UiInstrumentFieldOptions::GBDuty;
+        } else if (activeDescriptor.primary == FourCC::GBWaveLevel) {
+          state.fieldOptions = UiInstrumentFieldOptions::GBWaveLevel;
+        } else if (activeDescriptor.primary == FourCC::ChiptuneWave) {
           state.fieldOptions = UiInstrumentFieldOptions::ChiptuneWave;
         } else if (activeDescriptor.primary == FourCC::StackWave) {
           state.fieldOptions = UiInstrumentFieldOptions::StackWave;

@@ -196,6 +196,25 @@ I_Instrument *InstrumentBank::allocateInstrument(Args &&...args) {
 }
 
 I_Instrument *InstrumentBank::createInstrument(InstrumentType type) {
+  if (type == IT_GB_WAVE || type == IT_GB_PULSE || type == IT_GB_NOISE) {
+    if (!gbVoices_) {
+      if (!allocator_.allocate || !allocator_.release) return nullptr;
+      void *storage = allocator_.allocate(sizeof(TrackVoicePool<gb::Voice>));
+      if (!storage) return nullptr;
+      gbVoices_ = std::construct_at(static_cast<TrackVoicePool<gb::Voice> *>(storage));
+    }
+    I_Instrument *result = type == IT_GB_WAVE
+        ? allocateInstrument<GBWaveInstrument>(gbVoices_)
+        : type == IT_GB_PULSE ? allocateInstrument<GBPulseInstrument>(gbVoices_)
+                              : allocateInstrument<GBNoiseInstrument>(gbVoices_);
+    if (result) ++gbUsers_;
+    else if (!gbUsers_) {
+      std::destroy_at(gbVoices_);
+      allocator_.release(gbVoices_);
+      gbVoices_ = nullptr;
+    }
+    return result;
+  }
   switch (type) {
   case IT_DRUM:
     return allocateInstrument<DrumInstrument>(&drumVoices_);
@@ -267,8 +286,14 @@ void InstrumentBank::cancelReplacement(Replacement &replacement) {
 void InstrumentBank::destroyInstrument(I_Instrument *instrument) {
   if (instrument == nullptr || instrument == &none_)
     return;
+  const auto type = instrument->GetType();
   std::destroy_at(instrument);
   allocator_.release(instrument);
+  if ((type == IT_GB_WAVE || type == IT_GB_PULSE || type == IT_GB_NOISE) && --gbUsers_ == 0) {
+    std::destroy_at(gbVoices_);
+    allocator_.release(gbVoices_);
+    gbVoices_ = nullptr;
+  }
 }
 
 void InstrumentBank::releaseInstrument(unsigned short id) {

@@ -9,7 +9,7 @@
 #include <cstdint>
 
 namespace ui2 {
-inline constexpr std::uint8_t kUiInstrumentTypeCount = 8U;
+inline constexpr std::uint8_t kUiInstrumentTypeCount = 11U;
 
 // The legacy Sample instrument exposes at most twenty focusable parameter
 // rows. Keeping that exact upper bound gives UI2 full data parity without a

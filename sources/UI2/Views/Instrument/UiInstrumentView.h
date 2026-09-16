@@ -51,6 +51,8 @@ enum class UiInstrumentFieldOptions : std::uint8_t {
   OpalKeyscale,
   StackWave,
   ChiptuneWave,
+  GBDuty,
+  GBWaveLevel,
 };
 
 struct UiInstrumentField {

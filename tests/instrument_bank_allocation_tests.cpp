@@ -25,11 +25,39 @@ void Free(void *ptr) {
 InstrumentBank::Allocator allocator{Allocate, Free};
 } // namespace
 
+TEST_CASE("GB lazy pool failure and staged replacement are transactional") {
+  InstrumentBank bank(allocator);
+  CHECK(live.empty());
+  REQUIRE(bank.GetNextAndAssignID(IT_STACK, 0) == 0);
+  auto *original = bank.GetInstrument(0);
+  InstrumentBank::Replacement replacement;
+  for (int failure : {0, 1}) {
+    failAfter = failure;
+    CHECK_FALSE(bank.BeginReplacement(0, IT_GB_WAVE, replacement));
+    CHECK(bank.GetInstrument(0) == original);
+    CHECK(live.size() == 1);
+  }
+  failAfter = -1;
+  REQUIRE(bank.BeginReplacement(0, IT_GB_WAVE, replacement));
+  CHECK(live.size() == 3); // old preset, candidate, shared GB pool
+  replacement.Cancel();
+  CHECK(live.size() == 1);
+  REQUIRE(bank.GetNextAndAssignID(IT_GB_PULSE, 1) == 1);
+  REQUIRE(bank.BeginReplacement(1, IT_GB_NOISE, replacement));
+  bank.releaseInstrument(1); // staged GB candidate keeps the pool alive
+  CHECK(live.size() == 3);
+  CHECK_FALSE(replacement.Commit());
+  replacement.Cancel();
+  CHECK(live.size() == 1);
+  bank.Reset();
+  CHECK(live.empty());
+}
+
 TEST_CASE(
     "Real bank allocates all 64 slots as any type and releases on reset") {
   for (int type = IT_SAMPLE; type < IT_LAST; ++type) {
     CAPTURE(type);
-    const unsigned poolCount = 0;
+    const unsigned poolCount = type >= IT_GB_WAVE ? 1 : 0;
     InstrumentBank bank(allocator);
     CHECK(live.empty());
     for (int round = 0; round < 3; ++round) {

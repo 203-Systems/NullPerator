@@ -1,4 +1,5 @@
 #include "Application/Instruments/ChiptuneInstrument.h"
+#include "Application/Instruments/GBInstrument.h"
 #include "Application/Instruments/DrumInstrument.h"
 #include "Application/Instruments/InstrumentBankRestorePolicy.h"
 #include "Application/Instruments/MidiInstrument.h"
@@ -24,7 +25,8 @@ struct ScopedTableGroove {
 
 TEST_CASE_TEMPLATE("Table KIL schedules voice termination without dispatching "
                    "an immediate kill",
-                   Synth, DrumInstrument, StackInstrument, ChiptuneInstrument) {
+                   Synth, DrumInstrument, StackInstrument, ChiptuneInstrument,
+                   GBWaveInstrument, GBPulseInstrument, GBNoiseInstrument) {
   ScopedTableGroove groove;
   for (int column = 0; column < TABLE_COLUMNS; ++column) {
     for (const bool automated : {false, true}) {
@@ -135,7 +137,8 @@ TEST_CASE(
 
 TEST_CASE_TEMPLATE(
     "Coping instruments isolate voices and preserve block continuity", Synth,
-    DrumInstrument, StackInstrument, ChiptuneInstrument) {
+    DrumInstrument, StackInstrument, ChiptuneInstrument,
+    GBWaveInstrument, GBPulseInstrument, GBNoiseInstrument) {
   Synth whole, split;
   std::array<fixed, 2048> a{}, b{};
   CHECK_FALSE(whole.Render(0, a.data(), 1024, false));

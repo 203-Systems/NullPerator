@@ -20,7 +20,8 @@ inline std::array<const char *, 2> getHelpLegend(FourCC command,
   const bool chip = context.instrument == fx::Instrument::Chiptune;
   const bool stack = context.instrument == fx::Instrument::Stack;
   const bool drum = context.instrument == fx::Instrument::Drum;
-  const bool synth = stack || chip;
+  const bool gb = fx::IsGB(context.instrument);
+  const bool synth = stack || chip || gb;
   const bool unknown = context.instrument == fx::Instrument::Unknown;
   switch (command) {
   case FourCC::InstrumentCommandNone:
@@ -34,7 +35,7 @@ inline std::array<const char *, 2> getHelpLegend(FourCC command,
   case FourCC::InstrumentCommandVolume:
     if (midi)
       return {"Volume: --bb", "send MIDI CC 7 = bb/2"};
-    if (drum || stack)
+    if (drum || stack || gb)
       return {"Volume: --bb", "set volume bb immediately"};
     if (chip)
       return {"Volume: aabb", "volume bb, time aa x 10ms"};
@@ -100,7 +101,7 @@ inline std::array<const char *, 2> getHelpLegend(FourCC command,
   case FourCC::InstrumentCommandStop:
     return {"Stop: ----", "stop table playback"};
   case FourCC::InstrumentCommandGateOff:
-    return {"Gate Off: ----", drum || chip ? "stop the voice"
+    return {"Gate Off: ----", drum || chip || gb ? "stop the voice"
                               : unknown    ? "release or stop, per instrument"
                                            : "release the synth envelope"};
   case FourCC::InstrumentCommandSetInstrumentParameter:
