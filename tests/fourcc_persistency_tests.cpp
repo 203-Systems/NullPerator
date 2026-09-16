@@ -16,6 +16,7 @@
 #include "Adapters/wasm/filesystem/WasmFileSystem.h"
 #include "Application/Instruments/ChiptuneInstrument.h"
 #include "Application/Instruments/DrumInstrument.h"
+#include "Application/Instruments/InstrumentBank.h"
 #include "Application/Instruments/InstrumentBankRestorePolicy.h"
 #include "Application/Instruments/SampleInstrumentParameterLimits.h"
 #include "Application/Instruments/StackInstrument.h"
@@ -400,13 +401,13 @@ public:
 private:
   etl::vector<Variable *, 7> variables_;
   InstrumentType type_;
-  Variable sidOsc_;
-  Variable sidWave_;
-  Variable sidSync_;
-  Variable opalAlgorithm_;
-  Variable opalFeedback_;
-  Variable midiChannel_;
-  Variable table_;
+  OwnedVariable sidOsc_;
+  OwnedVariable sidWave_;
+  OwnedVariable sidSync_;
+  OwnedVariable opalAlgorithm_;
+  OwnedVariable opalFeedback_;
+  OwnedVariable midiChannel_;
+  OwnedVariable table_;
 };
 
 void LoadCommandElement(const char *file, FourCC *commands, std::size_t count) {
@@ -444,11 +445,11 @@ void AppendHexByte(std::string &xml, std::uint8_t byte) {
 struct ProjectRestoreTargets {
   static constexpr const char *ScaleChoices[2] = {"Chromatic", "Major"};
   static constexpr const char *RootChoices[2] = {"C", "C#"};
-  Variable tempo{FourCC::VarTempo, 138};
-  Variable preview{FourCC::VarPreviewVolume, 60};
-  Variable scale{FourCC::VarScale, ScaleChoices, 2, 0};
-  Variable root{FourCC::VarScaleRoot, RootChoices, 2, 0};
-  Variable wrap{FourCC::VarWrap, false};
+  OwnedVariable tempo{FourCC::VarTempo, 138};
+  OwnedVariable preview{FourCC::VarPreviewVolume, 60};
+  OwnedVariable scale{FourCC::VarScale, ScaleChoices, 2, 0};
+  OwnedVariable root{FourCC::VarScaleRoot, RootChoices, 2, 0};
+  OwnedVariable wrap{FourCC::VarWrap, false};
 };
 
 Variable *ResolveProjectRestoreTarget(void *context, const char *name) {
@@ -2264,6 +2265,72 @@ TEST_CASE_TEMPLATE(
     CHECK((*source.Variables())[i]->GetString() == (*restored.Variables())[i]->GetString());
 }
 
+TEST_CASE_TEMPLATE("Full 64-slot synth banks round trip over occupied banks",
+                   Synth, DrumInstrument, StackInstrument, ChiptuneInstrument) {
+  FourCCXmlFixture fixture;
+  InstrumentBank source, restored;
+  Synth prototype;
+  for (int slot = 0; slot < MAX_INSTRUMENT_COUNT; ++slot) {
+    REQUIRE(source.GetNextAndAssignID(prototype.GetType(), slot) == slot);
+    REQUIRE(restored.GetNextAndAssignID(IT_MIDI, slot) == slot);
+    auto *instrument = source.GetInstrument(slot);
+    instrument->SetName("Round trip");
+    instrument->Variables()->front()->SetInt(
+        prototype.GetType() == IT_CHIPTUNE ? slot % 4 : slot);
+  }
+  {
+    auto file = FileSystem::GetInstance()->Open("/bank.xml", "w");
+    REQUIRE(static_cast<bool>(file));
+    tinyxml2::XMLPrinter printer(file.get());
+    source.Save(&printer);
+    REQUIRE(file->Sync());
+  }
+  PersistencyDocument document;
+  REQUIRE(document.Load("/bank.xml"));
+  REQUIRE(document.FirstChild());
+  REQUIRE(restored.Restore(&document));
+  REQUIRE_FALSE(document.HadError());
+  for (int slot = 0; slot < MAX_INSTRUMENT_COUNT; ++slot) {
+    auto *expected = source.GetInstrument(slot);
+    auto *actual = restored.GetInstrument(slot);
+    REQUIRE(actual->GetType() == expected->GetType());
+    CHECK(actual->GetUserSetName() == expected->GetUserSetName());
+    REQUIRE(actual->Variables()->size() == expected->Variables()->size());
+    for (std::size_t i = 0; i < expected->Variables()->size(); ++i)
+      CHECK((*actual->Variables())[i]->GetString() ==
+            (*expected->Variables())[i]->GetString());
+  }
+}
+
+TEST_CASE("Real bank restore rolls back every candidate on a late duplicate") {
+  FourCCXmlFixture fixture;
+  std::string xml = "<INSTRUMENTBANK>";
+  const char *hex = "0123456789ABCDEF";
+  InstrumentBank bank;
+  std::array<I_Instrument *, MAX_INSTRUMENT_COUNT> original{};
+  for (int slot = 0; slot < MAX_INSTRUMENT_COUNT; ++slot) {
+    REQUIRE(bank.GetNextAndAssignID(IT_CHIPTUNE, slot) == slot);
+    original[slot] = bank.GetInstrument(slot);
+    original[slot]->FindVariable(FourCC::ChiptuneVolume)->SetInt(slot);
+    xml += "<INSTRUMENT ID=\"";
+    xml += hex[slot >> 4];
+    xml += hex[slot & 15];
+    xml += "\" TYPE=\"DRUM\"/>";
+  }
+  xml += "<INSTRUMENT ID=\"00\" TYPE=\"DRUM\"/></INSTRUMENTBANK>";
+  fixture.Write("duplicate.xml", xml.c_str());
+  PersistencyDocument document;
+  REQUIRE(document.Load("/duplicate.xml"));
+  REQUIRE(document.FirstChild());
+  REQUIRE(bank.Restore(&document));
+  REQUIRE(document.HadError());
+  for (int slot = 0; slot < MAX_INSTRUMENT_COUNT; ++slot) {
+    CHECK(bank.GetInstrument(slot) == original[slot]);
+    CHECK(original[slot]->FindVariable(FourCC::ChiptuneVolume)->GetInt() ==
+          slot);
+  }
+}
+
 TEST_CASE("Stack rejects out of range persisted parameters atomically") {
   FourCCXmlFixture fixture;
   fixture.MakeDirectory("instruments");
@@ -2457,12 +2524,12 @@ TEST_CASE(
   CHECK_FALSE(policy.Reserve(0U, IT_MIDI));
 }
 
-TEST_CASE("Instrument bank restore policy rejects fixed-pool exhaustion") {
+TEST_CASE("Instrument bank restore policy rejects logical slot exhaustion") {
   InstrumentBankRestorePolicy samplePolicy;
   for (std::uint8_t index = 0U; index < MAX_SAMPLEINSTRUMENT_COUNT; ++index)
     CHECK(samplePolicy.Reserve(index, IT_SAMPLE));
   CHECK_FALSE(samplePolicy.Reserve(MAX_SAMPLEINSTRUMENT_COUNT, IT_SAMPLE));
-  CHECK(samplePolicy.Reserve(MAX_SAMPLEINSTRUMENT_COUNT, IT_MIDI));
+  CHECK_FALSE(samplePolicy.Reserve(MAX_INSTRUMENT_COUNT, IT_MIDI));
 
   InstrumentBankRestorePolicy policy;
   for (std::uint8_t index = 0U; index < MAX_SIDINSTRUMENT_COUNT; ++index)

@@ -5,24 +5,38 @@
 #include "ChiptuneInstrument.h"
 #include <algorithm>
 
-ChiptuneInstrument::ChiptuneInstrument()
+namespace {
+const Variable::Descriptor kChiptuneParameters[] = {
+    {FourCC::ChiptuneWave, coping::chip::chiptune_waveforms,
+     coping::chip::numWaveforms, coping::chip::defaultWaveform},
+    {FourCC::ChiptuneTranspose, 0},
+    {FourCC::ChiptuneVolume, 128},
+    {FourCC::ChiptuneBurst, VAR_OFF},
+    {FourCC::ChiptuneArpSpeed, 18},
+    {FourCC::ChiptuneLength, VAR_OFF},
+    {FourCC::ChiptuneAttack, 0},
+    {FourCC::ChiptuneDecay, 128},
+    {FourCC::ChiptuneVibratoDelay, 64},
+    {FourCC::ChiptuneVibratoDepth, 7},
+    {FourCC::ChiptuneSweepTime, 0},
+    {FourCC::ChiptuneSweepAmount, 0},
+    {FourCC::ChiptuneTable, VAR_OFF},
+    {FourCC::ChiptuneTableAuto, false},
+};
+} // namespace
+
+ChiptuneInstrument::ChiptuneInstrument(
+    TrackVoicePool<coping::chip::voice_t> *voices)
     : I_Instrument(&variables_),
       parameters_{
-          Variable(FourCC::ChiptuneWave, coping::chip::chiptune_waveforms,
-                   coping::chip::numWaveforms, coping::chip::defaultWaveform),
-          Variable(FourCC::ChiptuneTranspose, 0),
-          Variable(FourCC::ChiptuneVolume, 128),
-          Variable(FourCC::ChiptuneBurst, VAR_OFF),
-          Variable(FourCC::ChiptuneArpSpeed, 18),
-          Variable(FourCC::ChiptuneLength, VAR_OFF),
-          Variable(FourCC::ChiptuneAttack, 0),
-          Variable(FourCC::ChiptuneDecay, 128),
-          Variable(FourCC::ChiptuneVibratoDelay, 64),
-          Variable(FourCC::ChiptuneVibratoDepth, 7),
-          Variable(FourCC::ChiptuneSweepTime, 0),
-          Variable(FourCC::ChiptuneSweepAmount, 0),
-          Variable(FourCC::ChiptuneTable, VAR_OFF),
-          Variable(FourCC::ChiptuneTableAuto, false)} {
+          Variable(kChiptuneParameters[0]),  Variable(kChiptuneParameters[1]),
+          Variable(kChiptuneParameters[2]),  Variable(kChiptuneParameters[3]),
+          Variable(kChiptuneParameters[4]),  Variable(kChiptuneParameters[5]),
+          Variable(kChiptuneParameters[6]),  Variable(kChiptuneParameters[7]),
+          Variable(kChiptuneParameters[8]),  Variable(kChiptuneParameters[9]),
+          Variable(kChiptuneParameters[10]), Variable(kChiptuneParameters[11]),
+          Variable(kChiptuneParameters[12]), Variable(kChiptuneParameters[13])},
+      voices_(voices) {
   tableState_.Reset();
   for (auto &parameter : parameters_)
     variables_.push_back(&parameter);
@@ -30,16 +44,16 @@ ChiptuneInstrument::ChiptuneInstrument()
 
 void ChiptuneInstrument::OnStart() {
   tableState_.Reset();
-  for (auto &voice : voices_)
-    voice.stop();
+  voices_.Reset();
 }
 void ChiptuneInstrument::Stop(int channel) {
   if (channel >= 0 && channel < SONG_CHANNEL_COUNT)
-    voices_[channel].stop();
+    voices_.Stop(channel);
 }
 bool ChiptuneInstrument::Start(int channel, unsigned char note,
                                bool retrigger) {
-  if (channel < 0 || channel >= SONG_CHANNEL_COUNT || note > HIGHEST_NOTE)
+  if (!voices_.IsValid() || channel < 0 || channel >= SONG_CHANNEL_COUNT ||
+      note > HIGHEST_NOTE)
     return false;
   const auto byte = [&](int i) {
     return std::clamp(parameters_[i].GetInt(), 0, 255);
@@ -58,11 +72,11 @@ bool ChiptuneInstrument::Start(int channel, unsigned char note,
   params.vibratoDepth = byte(9);
   params.sweepTime = byte(10);
   params.sweepAmount = std::clamp(parameters_[11].GetInt(), -127, 127);
-  voices_[channel].note_on(note, 255, retrigger, params);
+  voices_.Acquire(channel).note_on(note, 255, retrigger, params);
   return true;
 }
 bool ChiptuneInstrument::Render(int channel, fixed *buffer, int size, bool) {
-  if (!buffer || size <= 0 || channel < 0 || channel >= SONG_CHANNEL_COUNT)
+  if (!buffer || size <= 0 || !voices_.Owns(channel))
     return false;
   auto &voice = voices_[channel];
   if (voice.wave == coping::chip::waveNone)
@@ -73,7 +87,7 @@ bool ChiptuneInstrument::Render(int channel, fixed *buffer, int size, bool) {
 }
 void ChiptuneInstrument::ProcessCommand(int channel, FourCC command,
                                         ushort value) {
-  if (channel < 0 || channel >= SONG_CHANNEL_COUNT)
+  if (!voices_.Owns(channel))
     return;
   auto &voice = voices_[channel];
   const uint8_t hi = value >> 8, lo = value & 0xFF;

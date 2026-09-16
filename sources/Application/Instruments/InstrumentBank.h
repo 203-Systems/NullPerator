@@ -15,22 +15,24 @@
 #include "Application/Persistency/Persistent.h"
 #include "ChiptuneInstrument.h"
 #include "DrumInstrument.h"
-#include "Externals/etl/include/etl/pool.h"
-#include "MidiInstrument.h"
+#include "Externals/etl/include/etl/array.h"
 #include "NoneInstrument.h"
-#include "OpalInstrument.h"
-#include "SIDInstrument.h"
-#include "SampleInstrument.h"
 #include "StackInstrument.h"
+#include "System/Memory/Memory.h"
 
 #define NO_MORE_INSTRUMENT 0x100
 
 class InstrumentBank : public Persistent {
 public:
-  // Fixed-capacity staging handle used when an existing slot must be replaced
-  // transactionally.  The candidate lives in the bank's normal type pool but
+  struct Allocator {
+    void *(*allocate)(std::size_t) = PlatformMemory::AllocateBulk;
+    void (*release)(void *) = PlatformMemory::FreeBulk;
+  };
+
+  // Staging handle used when an existing slot must be replaced
+  // transactionally. The candidate has its own allocation and
   // is not visible through InstrumentsList() until Commit().  Destroying an
-  // uncommitted handle returns that candidate to its pool, so parse/restore
+  // uncommitted handle frees that candidate, so parse/restore
   // failures cannot mutate or release the instrument currently in the slot.
   class Replacement {
   public:
@@ -50,9 +52,13 @@ public:
     I_Instrument *candidate_ = nullptr;
     I_Instrument *original_ = nullptr;
     unsigned short slot_ = NO_MORE_INSTRUMENT;
+    std::uint32_t generation_ = 0;
   };
 
   InstrumentBank();
+  explicit InstrumentBank(Allocator allocator);
+  InstrumentBank(const InstrumentBank &) = delete;
+  InstrumentBank &operator=(const InstrumentBank &) = delete;
   ~InstrumentBank();
   void Reset();
   void AssignDefaults();
@@ -78,18 +84,16 @@ private:
   void destroyInstrument(I_Instrument *instrument);
   bool commitReplacement(Replacement &replacement);
   void cancelReplacement(Replacement &replacement);
+  template <typename T, typename... Args>
+  I_Instrument *allocateInstrument(Args &&...args);
 
+  Allocator allocator_;
+  TrackVoicePool<coping::chip::voice_t> chiptuneVoices_;
+  TrackVoicePool<drum_voice_t> drumVoices_;
+  TrackVoicePool<stack_voice_t> stackVoices_;
   etl::array<I_Instrument *, MAX_INSTRUMENT_COUNT> instruments_;
-  etl::pool<SampleInstrument, MAX_SAMPLEINSTRUMENT_COUNT> sampleInstrumentPool_;
-  etl::pool<MidiInstrument, MAX_MIDIINSTRUMENT_COUNT> midiInstrumentPool_;
-  etl::pool<SIDInstrument, MAX_SIDINSTRUMENT_COUNT> sidInstrumentPool_;
-  etl::pool<OpalInstrument, MAX_OPALINSTRUMENT_COUNT> opalInstrumentPool_;
-  etl::pool<DrumInstrument, MAX_DRUMINSTRUMENT_COUNT> drumInstrumentPool_;
-  etl::pool<StackInstrument, MAX_STACKINSTRUMENT_COUNT> stackInstrumentPool_;
-  etl::pool<ChiptuneInstrument, MAX_CHIPTUNEINSTRUMENT_COUNT>
-      chiptuneInstrumentPool_;
+  std::array<std::uint32_t, MAX_INSTRUMENT_COUNT> generations_{};
   NoneInstrument none_ = NoneInstrument();
-  unsigned short sidOscCount = 0;
 };
 
 #endif

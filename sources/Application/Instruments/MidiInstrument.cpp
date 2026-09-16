@@ -19,13 +19,22 @@
 
 MidiService *MidiInstrument::svc_ = 0;
 
+namespace {
+const Variable::Descriptor kMidiParameters[] = {
+    {FourCC::MidiInstrumentChannel, 0},
+    {FourCC::MidiInstrumentNoteLength, 0},
+    {FourCC::MidiInstrumentVolume, 255},
+    {FourCC::MidiInstrumentTable, VAR_OFF},
+    {FourCC::MidiInstrumentTableAutomation, false},
+    {FourCC::MidiInstrumentProgram, VAR_OFF},
+};
+} // namespace
+
 MidiInstrument::MidiInstrument()
-    : I_Instrument(&variables_), channel_(FourCC::MidiInstrumentChannel, 0),
-      noteLen_(FourCC::MidiInstrumentNoteLength, 0),
-      volume_(FourCC::MidiInstrumentVolume, 255),
-      table_(FourCC::MidiInstrumentTable, VAR_OFF),
-      tableAuto_(FourCC::MidiInstrumentTableAutomation, false),
-      program_(FourCC::MidiInstrumentProgram, VAR_OFF) {
+    : I_Instrument(&variables_), channel_(kMidiParameters[0]),
+      noteLen_(kMidiParameters[1]), volume_(kMidiParameters[2]),
+      table_(kMidiParameters[3]), tableAuto_(kMidiParameters[4]),
+      program_(kMidiParameters[5]) {
 
   for (auto &notes : lastNotes_) {
     notes.fill(NO_NOTE);
@@ -51,7 +60,9 @@ bool MidiInstrument::Init() {
   return true;
 };
 
-void MidiInstrument::OnStart() {
+void MidiInstrument::OnStart() { OnStart(true, true); }
+
+void MidiInstrument::OnStart(bool sendProgram, bool sendVolume) {
   tableState_.Reset();
 
   // Send program change message at the start of playback
@@ -59,14 +70,14 @@ void MidiInstrument::OnStart() {
 
   // Only send program change if a valid program is set
   // 0x80 is used to indicate "OFF"
-  if (program != VAR_OFF && program >= 0 && program <= 0x7F) {
+  if (sendProgram && program != VAR_OFF && program >= 0 && program <= 0x7F) {
     SendProgramChange(channel_.GetInt(), program);
   }
 
   MidiMessage msg;
   // send instrument volume for this midi channel when it's not zero
   int volume = volume_.GetInt();
-  if (volume > 0) {
+  if (sendVolume && volume > 0) {
     msg.status_ = MidiMessage::MIDI_CONTROL_CHANGE + channel_.GetInt();
     msg.data1_ = MidiCC::CC_VOLUME;
     msg.data2_ = volume / 2;

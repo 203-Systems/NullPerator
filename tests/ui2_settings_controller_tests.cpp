@@ -68,10 +68,9 @@ struct FakeSongTransport {
   bool running = false;
 };
 
-class CountingFontVariable final : public Variable {
+class CountingFontVariable final : public OwnedVariable {
 public:
-  CountingFontVariable()
-      : Variable(FourCC::VarUIFont, kNames, 3, 0) {}
+  CountingFontVariable() : OwnedVariable(FourCC::VarUIFont, kNames, 3, 0) {}
 
   void Reset() override {
     ++resetCalls;
@@ -685,7 +684,7 @@ TEST_CASE("UI2 Font text case wraps at the shared domain boundary") {
 
 TEST_CASE("UI2 Font workflow fails BROWSE closed and restores DEFAULT") {
   using namespace ui2;
-  Variable textCase(FourCC::VarUITextCase, 1);
+  OwnedVariable textCase(FourCC::VarUITextCase, 1);
   CHECK(Ui2ExecuteFontCommand(
             {.type = Ui2FontCommandType::SetTextCase, .value = 2U},
             &textCase) == Ui2FontWorkflowResult::TextCaseChanged);
@@ -714,7 +713,7 @@ TEST_CASE("UI2 Font workflow fails BROWSE closed and restores DEFAULT") {
   CHECK(font.GetInt() == 0);
   CHECK(font.resetCalls == 1);
 
-  Variable unrelated(FourCC::VarUITextCase, 2);
+  OwnedVariable unrelated(FourCC::VarUITextCase, 2);
   CHECK(Ui2ExecuteFontCommand({.type = Ui2FontCommandType::RestoreDefault},
                               &unrelated) ==
         Ui2FontWorkflowResult::ConfigUnavailable);

@@ -7,6 +7,7 @@
 #include "Application/UI2/Ui2TrackerSessionModelPort.h"
 
 #include "Application/Instruments/CommandList.h"
+#include "Application/Instruments/SampleInstrument.h"
 #include "Application/Model/Scale.h"
 #include "Application/Model/Table.h"
 #include "Application/Player/Player.h"

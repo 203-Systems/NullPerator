@@ -68,12 +68,12 @@ private:
 
   braids::MacroOscillatorShape osc_shape_;
 
-  Variable shape_;
-  Variable timbre_;
-  Variable color_;
-  Variable attack_;
-  Variable decay_;
-  Variable signature_;
+  OwnedVariable shape_;
+  OwnedVariable timbre_;
+  OwnedVariable color_;
+  OwnedVariable attack_;
+  OwnedVariable decay_;
+  OwnedVariable signature_;
 
   uint16_t gain_lp_ = 0;
   uint16_t remain_;

@@ -116,8 +116,8 @@ TEST_CASE("FourCC wrapper preserves identifiers at and above bit seven") {
 }
 
 TEST_CASE("VariableContainer finds variables with high FourCC identifiers") {
-  Variable outputVolume(FourCC::VarOutputVolume, 40);
-  Variable textCase(FourCC::VarUITextCase, 0);
+  OwnedVariable outputVolume(FourCC::VarOutputVolume, 40);
+  OwnedVariable textCase(FourCC::VarUITextCase, 0);
   etl::vector<Variable *, 2> variables;
   variables.push_back(&outputVolume);
   variables.push_back(&textCase);
@@ -129,7 +129,7 @@ TEST_CASE("VariableContainer finds variables with high FourCC identifiers") {
 }
 
 TEST_CASE("float variables format their integer part without float printf") {
-  Variable value(FourCC::VarTempo, 12.75F);
+  OwnedVariable value(FourCC::VarTempo, 12.75F);
   CHECK(std::strcmp(value.GetString().c_str(), "12") == 0);
 
   value.SetFloat(-3.5F, false);

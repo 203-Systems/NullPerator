@@ -213,7 +213,8 @@ renderParams SampleInstrument::renderParams_[SONG_CHANNEL_COUNT];
 
 #define SHOULD_KILL_CLICKS false
 
-signed char SampleInstrument::lastMidiNote_[SONG_CHANNEL_COUNT];
+signed char SampleInstrument::lastMidiNote_[SONG_CHANNEL_COUNT] = {
+    -1, -1, -1, -1, -1, -1, -1, -1};
 
 #define KRATE_SAMPLE_COUNT 100
 
@@ -229,32 +230,39 @@ constexpr uint32_t SampleChannelBit(int channel) {
 }
 } // namespace
 
+namespace {
+const Variable::Descriptor kSampleParameters[] = {
+    {FourCC::SampleInstrumentVolume, 0x80},
+    {FourCC::SampleInstrumentInterpolation, interpolationTypes, 2, 0},
+    {FourCC::SampleInstrumentCrush, 16},
+    {FourCC::SampleInstrumentCrushVolume, 0xFF},
+    {FourCC::SampleInstrumentDownsample, 0},
+    {FourCC::SampleInstrumentRootNote, 60},
+    {FourCC::SampleInstrumentFineTune, 0x7F},
+    {FourCC::SampleInstrumentPan, 0x7F},
+    {FourCC::SampleInstrumentFilterCutOff, 0xFF},
+    {FourCC::SampleInstrumentFilterResonance, 0x00},
+    {FourCC::SampleInstrumentFilterType, 0x00},
+    {FourCC::SampleInstrumentFilterMode, filterMode, 3, 0},
+    {FourCC::SampleInstrumentLoopMode, loopTypes, SILM_LAST, 0},
+    {FourCC::SampleInstrumentTable, -1},
+    {FourCC::SampleInstrumentTableAutomation, false},
+};
+} // namespace
+
 SampleInstrument::SampleInstrument()
     : I_Instrument(&variables_), sample_(FourCC::SampleInstrumentSample),
-      volume_(FourCC::SampleInstrumentVolume, 0x80),
-      interpolation_(FourCC::SampleInstrumentInterpolation, interpolationTypes,
-                     2, 0),
-      crush_(FourCC::SampleInstrumentCrush, 16),
-      drive_(FourCC::SampleInstrumentCrushVolume, 0xFF),
-      downsample_(FourCC::SampleInstrumentDownsample, 0),
-      rootNote_(FourCC::SampleInstrumentRootNote, 60),
-      fineTune_(FourCC::SampleInstrumentFineTune, 0x7F),
-      pan_(FourCC::SampleInstrumentPan, 0x7F),
-      cutoff_(FourCC::SampleInstrumentFilterCutOff, 0xFF),
-      reso_(FourCC::SampleInstrumentFilterResonance, 0x00),
-      filterMix_(FourCC::SampleInstrumentFilterType, 0x00),
-      filterMode_(FourCC::SampleInstrumentFilterMode, filterMode, 3, 0),
+      volume_(kSampleParameters[0]), interpolation_(kSampleParameters[1]),
+      crush_(kSampleParameters[2]), drive_(kSampleParameters[3]),
+      downsample_(kSampleParameters[4]), rootNote_(kSampleParameters[5]),
+      fineTune_(kSampleParameters[6]), pan_(kSampleParameters[7]),
+      cutoff_(kSampleParameters[8]), reso_(kSampleParameters[9]),
+      filterMix_(kSampleParameters[10]), filterMode_(kSampleParameters[11]),
       start_(FourCC::SampleInstrumentStart, 0),
-      loopMode_(FourCC::SampleInstrumentLoopMode, loopTypes, SILM_LAST, 0),
+      loopMode_(kSampleParameters[12]),
       loopStart_(FourCC::SampleInstrumentLoopStart, 0),
-      loopEnd_(FourCC::SampleInstrumentEnd, 0),
-      table_(FourCC::SampleInstrumentTable, -1),
-      tableAuto_(FourCC::SampleInstrumentTableAutomation, false) {
-
-  // Initialize MIDI notes
-  for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {
-    SampleInstrument::lastMidiNote_[i] = -1;
-  }
+      loopEnd_(FourCC::SampleInstrumentEnd, 0), table_(kSampleParameters[13]),
+      tableAuto_(kSampleParameters[14]) {
 
   // Initialize instruments settings
   source_ = 0;

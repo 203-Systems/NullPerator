@@ -76,6 +76,7 @@ add_executable(picoTracker_tests
   ../sources/Application/Instruments/StackInstrument.cpp
   ../sources/Application/Instruments/ChiptuneInstrument.cpp
   ../sources/Application/Instruments/SampleInstrument.cpp
+  ../sources/Application/Instruments/SampleVariable.cpp
   ../sources/Application/Instruments/SIDInstrument.cpp
   ../sources/Externals/cRSID/SID.cpp
   ../sources/Externals/braids/analog_oscillator.cc
@@ -521,6 +522,10 @@ target_sources(picoTracker_tests PRIVATE
   instrument_export_transaction_tests.cpp
   ui2_instrument_parameter_tests.cpp
   coping_instrument_tests.cpp
+  instrument_bank_allocation_tests.cpp
+  ../sources/Application/Instruments/InstrumentBank.cpp
+  ../sources/Application/Instruments/NoneInstrument.cpp
+  ../sources/Adapters/common/memory/Memory.cpp
   ui2_project_render_controller_tests.cpp
   firmware_lifecycle_tests.cpp
   ../sources/Application/Session/FirmwareLifecycleController.cpp

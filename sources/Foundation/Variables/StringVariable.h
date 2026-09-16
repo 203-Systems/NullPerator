@@ -15,10 +15,11 @@
 // Lightweight string-capable variable without heap allocations.
 // Stores string data in an internal ETL string buffer.
 template <size_t MaxLen = MAX_VARIABLE_STRING_LENGTH>
-class StringVariable : public Variable {
+class StringVariable : public OwnedVariable {
 public:
-  explicit StringVariable(FourCC id, const char *value = "") : Variable(id, 0) {
-    type_ = STRING;
+  explicit StringVariable(FourCC id, const char *value = "")
+      : OwnedVariable(id, 0) {
+    ownedDescriptor_.type = STRING;
     stringValue_ = &storage_;
     setStringValue(value ? value : "");
     defaultValue_ = storage_;
@@ -44,7 +45,7 @@ class StringWatchedVariable : public WatchedVariable {
 public:
   explicit StringWatchedVariable(FourCC id, const char *value = "")
       : WatchedVariable(id, false) {
-    type_ = STRING;
+    ownedDescriptor_.type = STRING;
     stringValue_ = &storage_;
     setStringValue(value ? value : "");
     defaultValue_ = storage_;

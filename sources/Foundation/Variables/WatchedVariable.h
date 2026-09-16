@@ -13,7 +13,7 @@
 #include "Foundation/Observable.h"
 #include "Variable.h"
 
-class WatchedVariable : public Variable, public Observable {
+class WatchedVariable : public OwnedVariable, public Observable {
 public:
   WatchedVariable(FourCC id, int value = 0);
   WatchedVariable(FourCC id, bool value);

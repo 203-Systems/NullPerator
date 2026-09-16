@@ -11,17 +11,19 @@
 
 bool WatchedVariable::enabled_ = true;
 
-WatchedVariable::WatchedVariable(FourCC id, int value) : Variable(id, value) {
+WatchedVariable::WatchedVariable(FourCC id, int value)
+    : OwnedVariable(id, value) {
   updating_ = false;
 };
 
-WatchedVariable::WatchedVariable(FourCC id, bool value) : Variable(id, value) {
+WatchedVariable::WatchedVariable(FourCC id, bool value)
+    : OwnedVariable(id, value) {
   updating_ = false;
 };
 
 WatchedVariable::WatchedVariable(FourCC id, const char *const *list, int size,
                                  int index)
-    : Variable(id, list, size, index) {
+    : OwnedVariable(id, list, size, index) {
   updating_ = false;
 }
 
@@ -31,7 +33,7 @@ void WatchedVariable::onChange() {
     SetChanged();
     // Cast the FourCC value to I_ObservableData* as done in other parts of the
     // codebase
-    NotifyObservers((I_ObservableData *)(uintptr_t)id_);
+    NotifyObservers((I_ObservableData *)(uintptr_t)GetID());
     updating_ = false;
   }
 };

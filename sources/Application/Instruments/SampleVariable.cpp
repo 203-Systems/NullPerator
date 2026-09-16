@@ -13,8 +13,8 @@
 SampleVariable::SampleVariable(FourCC id) : WatchedVariable(id, 0, 0, -1) {
   SamplePool *pool = SamplePool::GetInstance();
   if (pool != nullptr) {
-    list_.char_ = pool->GetNameList();
-    listSize_ = pool->GetNameListSize();
+    ownedDescriptor_.list = pool->GetNameList();
+    ownedDescriptor_.listSize = pool->GetNameListSize();
     pool->AddObserver(*this);
   }
 };
@@ -71,8 +71,8 @@ void SampleVariable::Update(Observable &o, I_ObservableData *d) {
   // For inserts, just refresh list pointers below
   // indices remain valid since imports append at the end
   SamplePool *pool = (SamplePool *)&o;
-  list_.char_ = pool->GetNameList();
-  listSize_ = pool->GetNameListSize();
+  ownedDescriptor_.list = pool->GetNameList();
+  ownedDescriptor_.listSize = pool->GetNameListSize();
 
   // A WAV that was absent during project restore can be imported later. Reuse
   // normal name resolution so the instrument becomes playable without losing

@@ -22,10 +22,7 @@
 static_assert(SONG_CHANNEL_COUNT == midi_queue_budget::kTrackerChannelCount,
               "MIDI queue budget must cover every tracker channel");
 static_assert(MIDI_MAX_MESG_QUEUE >=
-                  midi_queue_budget::kRealtimeMessages +
-                      MAX_MIDIINSTRUMENT_COUNT *
-                          midi_queue_budget::kSetupMessagesPerInstrument +
-                      midi_queue_budget::kTransportMessages,
+                  midi_queue_budget::kInstrumentSetupMessages,
               "MIDI queue budget must cover instrument setup at player start");
 
 // Constants for MIDI pitch bend.
@@ -64,6 +61,9 @@ public:
   virtual etl::string<MAX_INSTRUMENT_NAME_LENGTH> GetDefaultName();
 
   virtual void OnStart();
+  // Bank startup coalesces duplicate channel setup while resetting every
+  // preset's playback state. Direct callers retain the normal setup behavior.
+  void OnStart(bool sendProgram, bool sendVolume);
 
   virtual int GetTable();
   virtual bool GetTableAutomation();

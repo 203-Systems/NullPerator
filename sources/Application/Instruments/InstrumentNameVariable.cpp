@@ -10,8 +10,8 @@
 #include "InstrumentNameVariable.h"
 
 InstrumentNameVariable::InstrumentNameVariable(I_Instrument *instrument)
-    : Variable(FourCC::InstrumentName, 0), instrument_(instrument) {
-  type_ = STRING;
+    : OwnedVariable(FourCC::InstrumentName, 0), instrument_(instrument) {
+  ownedDescriptor_.type = STRING;
   // Initialize with the instrument's user-set name only, not the display name
   // This ensures we don't automatically populate the name field with the sample
   // filename

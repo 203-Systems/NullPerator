@@ -32,26 +32,38 @@ static const char *kslValues[4] = {"0", "1.5", "3", "6"};
 static const unsigned int noteFNumbers[] = {342, 363, 385, 408, 432, 458,
                                             485, 514, 544, 577, 611, 647};
 
+namespace {
+const Variable::Descriptor kOpalParameters[] = {
+    {FourCC::OPALInstrumentAlgorithm, algorithms,
+     static_cast<int>(std::size(algorithms)), 0},
+    {FourCC::OPALInstrumentFeedback, 0},
+    {FourCC::OPALInstrumentDeepTremeloVibrato, 0},
+    {FourCC::OPALInstrumentOp1Level, 0x17},
+    {FourCC::OPALInstrumentOp1Multiplier, 0x1},
+    {FourCC::OPALInstrumentOp1ADSR, 0xF1C8},
+    {FourCC::OPALInstrumentOp1WaveShape, waveShapes, 8, 0},
+    {FourCC::OPALInstrumentOp1TremVibSusKSR, 0},
+    {FourCC::OPALInstrumentOp1KeyScaleLevel, kslValues, 4, 0x1},
+    {FourCC::OPALInstrumentOp2Level, 0},
+    {FourCC::OPALInstrumentOp2Multiplier, 0x1},
+    {FourCC::OPALInstrumentOp2ADSR, 0xF1D8},
+    {FourCC::OPALInstrumentOp2WaveShape, waveShapes, 8, 0},
+    {FourCC::OPALInstrumentOp2TremVibSusKSR, 0x2},
+    {FourCC::OPALInstrumentOp2KeyScaleLevel, kslValues, 4, 0},
+};
+} // namespace
+
 OpalInstrument::OpalInstrument()
-    : I_Instrument(&variables_),
-      algorithm_(FourCC::OPALInstrumentAlgorithm, algorithms,
-                 static_cast<int>(std::size(algorithms)), 0),
-      feedback_(FourCC::OPALInstrumentFeedback, 0),
-      deepTremeloVibrato_(FourCC::OPALInstrumentDeepTremeloVibrato, 0),
-      op1Level_(FourCC::OPALInstrumentOp1Level, 0x17),
-      op1Multiplier_(FourCC::OPALInstrumentOp1Multiplier, 0x1),
-      op1ADSR_(FourCC::OPALInstrumentOp1ADSR, 0xF1C8),
-      op1WaveShape_(FourCC::OPALInstrumentOp1WaveShape, waveShapes, 8, 0),
-      op1TremVibSusKSR_(FourCC::OPALInstrumentOp1TremVibSusKSR, 0),
-      op1KeyScaleLevel_(FourCC::OPALInstrumentOp1KeyScaleLevel, kslValues, 4,
-                        0x1),
-      op2Level_(FourCC::OPALInstrumentOp2Level, 0),
-      op2Multiplier_(FourCC::OPALInstrumentOp2Multiplier, 0x1),
-      op2ADSR_(FourCC::OPALInstrumentOp2ADSR, 0xF1D8),
-      op2WaveShape_(FourCC::OPALInstrumentOp2WaveShape, waveShapes, 8, 0),
-      op2TremVibSusKSR_(FourCC::OPALInstrumentOp2TremVibSusKSR, 0x2),
-      op2KeyScaleLevel_(FourCC::OPALInstrumentOp2KeyScaleLevel, kslValues, 4,
-                        0) {
+    : I_Instrument(&variables_), algorithm_(kOpalParameters[0]),
+      feedback_(kOpalParameters[1]), deepTremeloVibrato_(kOpalParameters[2]),
+      op1Level_(kOpalParameters[3]), op1Multiplier_(kOpalParameters[4]),
+      op1ADSR_(kOpalParameters[5]), op1WaveShape_(kOpalParameters[6]),
+      op1TremVibSusKSR_(kOpalParameters[7]),
+      op1KeyScaleLevel_(kOpalParameters[8]), op2Level_(kOpalParameters[9]),
+      op2Multiplier_(kOpalParameters[10]), op2ADSR_(kOpalParameters[11]),
+      op2WaveShape_(kOpalParameters[12]),
+      op2TremVibSusKSR_(kOpalParameters[13]),
+      op2KeyScaleLevel_(kOpalParameters[14]) {
 
   // name_ is now an etl::string in the base class, not a Variable
   variables_.insert(variables_.end(), &algorithm_);

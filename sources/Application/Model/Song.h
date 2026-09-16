@@ -17,27 +17,19 @@
 #define SONG_CHANNEL_COUNT 8
 #define SONG_ROW_COUNT 128
 
-#define MAX_SAMPLEINSTRUMENT_COUNT 0x20
-#define MAX_SIDINSTRUMENT_COUNT 0x03
-#define MAX_MIDIINSTRUMENT_COUNT 0x10
-#define MAX_OPALINSTRUMENT_COUNT 0x03
-#define MAX_DRUMINSTRUMENT_COUNT 0x04
-#define MAX_STACKINSTRUMENT_COUNT 0x04
-#define MAX_CHIPTUNEINSTRUMENT_COUNT 0x02
-
-// Provide 64 type-independent instrument slots (00-3F). The fixed pools above
-// independently limit how many instruments of each type may exist at the same
-// time.
+// Any of the 64 slots can hold any instrument type. Objects are allocated only
+// when assigned; these aliases are bounds, not separately reserved pools.
 #define MAX_INSTRUMENT_COUNT 0x40
+#define MAX_SAMPLEINSTRUMENT_COUNT MAX_INSTRUMENT_COUNT
+#define MAX_SIDINSTRUMENT_COUNT MAX_INSTRUMENT_COUNT
+#define MAX_MIDIINSTRUMENT_COUNT MAX_INSTRUMENT_COUNT
+#define MAX_OPALINSTRUMENT_COUNT MAX_INSTRUMENT_COUNT
+#define MAX_DRUMINSTRUMENT_COUNT MAX_INSTRUMENT_COUNT
+#define MAX_STACKINSTRUMENT_COUNT MAX_INSTRUMENT_COUNT
+#define MAX_CHIPTUNEINSTRUMENT_COUNT MAX_INSTRUMENT_COUNT
 
 static_assert(MAX_INSTRUMENT_COUNT <= 0xFF,
               "instrument slots must fit persisted one-byte references");
-static_assert(MAX_SAMPLEINSTRUMENT_COUNT + MAX_MIDIINSTRUMENT_COUNT +
-                      MAX_SIDINSTRUMENT_COUNT + MAX_OPALINSTRUMENT_COUNT +
-                      MAX_DRUMINSTRUMENT_COUNT + MAX_STACKINSTRUMENT_COUNT +
-                      MAX_CHIPTUNEINSTRUMENT_COUNT <=
-                  MAX_INSTRUMENT_COUNT,
-              "instrument type pools must fit the logical slot bank");
 
 #define HIGHEST_NOTE 119
 #define NOTE_OFF 0xFE

@@ -34,29 +34,40 @@ SIDInstrument *SIDInstrument::SID1RenderMaster = 0;
 cRSID SIDInstrument::sid2_(44100);
 SIDInstrument *SIDInstrument::SID2RenderMaster = 0;
 
-Variable SIDInstrument::fltcut1_(FourCC::SIDInstrument1FilterCut, 0x1FF);
-Variable SIDInstrument::fltres1_(FourCC::SIDInstrument1FilterResonance, 0x0);
-Variable SIDInstrument::fltmode1_(FourCC::SIDInstrument1FilterMode,
-                                  sidFilterModeText, DFM_LAST, 0x0);
-Variable SIDInstrument::vol1_(FourCC::SIDInstrument1Volume, 0xF);
+OwnedVariable SIDInstrument::fltcut1_(FourCC::SIDInstrument1FilterCut, 0x1FF);
+OwnedVariable SIDInstrument::fltres1_(FourCC::SIDInstrument1FilterResonance,
+                                      0x0);
+OwnedVariable SIDInstrument::fltmode1_(FourCC::SIDInstrument1FilterMode,
+                                       sidFilterModeText, DFM_LAST, 0x0);
+OwnedVariable SIDInstrument::vol1_(FourCC::SIDInstrument1Volume, 0xF);
 
-Variable SIDInstrument::fltcut2_(FourCC::SIDInstrument2FilterCut, 0x1FF);
-Variable SIDInstrument::fltres2_(FourCC::SIDInstrument2FilterResonance, 0x0);
-Variable SIDInstrument::fltmode2_(FourCC::SIDInstrument2FilterMode,
-                                  sidFilterModeText, DFM_LAST, 0x0);
-Variable SIDInstrument::vol2_(FourCC::SIDInstrument2Volume, 0xF);
+OwnedVariable SIDInstrument::fltcut2_(FourCC::SIDInstrument2FilterCut, 0x1FF);
+OwnedVariable SIDInstrument::fltres2_(FourCC::SIDInstrument2FilterResonance,
+                                      0x0);
+OwnedVariable SIDInstrument::fltmode2_(FourCC::SIDInstrument2FilterMode,
+                                       sidFilterModeText, DFM_LAST, 0x0);
+OwnedVariable SIDInstrument::vol2_(FourCC::SIDInstrument2Volume, 0xF);
+
+namespace {
+const Variable::Descriptor kSIDParameters[] = {
+    {FourCC::SIDInstrumentPulseWidth, 0x800},
+    {FourCC::SIDInstrumentWaveform, sidWaveformText, DWF_LAST, 0x1},
+    {FourCC::SIDInstrumentVSync, false},
+    {FourCC::SIDInstrumentRingModulator, false},
+    {FourCC::SIDInstrumentADSR, 0x2282},
+    {FourCC::SIDInstrumentFilterOn, false},
+    {FourCC::SIDInstrumentTable, -1},
+    {FourCC::SIDInstrumentTableAutomation, false},
+    {FourCC::SIDInstrumentOSCNumber, 0},
+};
+} // namespace
 
 SIDInstrument::SIDInstrument(SIDInstrumentInstance chip)
-    : I_Instrument(&variables_), chip_(chip),
-      vpw_(FourCC::SIDInstrumentPulseWidth, 0x800),
-      vwf_(FourCC::SIDInstrumentWaveform, sidWaveformText, DWF_LAST, 0x1),
-      vsync_(FourCC::SIDInstrumentVSync, false),
-      vring_(FourCC::SIDInstrumentRingModulator, false),
-      vadsr_(FourCC::SIDInstrumentADSR, 0x2282),
-      vfon_(FourCC::SIDInstrumentFilterOn, false),
-      table_(FourCC::SIDInstrumentTable, -1),
-      tableAuto_(FourCC::SIDInstrumentTableAutomation, false),
-      osc_(FourCC::SIDInstrumentOSCNumber, 0) {
+    : I_Instrument(&variables_), chip_(chip), vpw_(kSIDParameters[0]),
+      vwf_(kSIDParameters[1]), vsync_(kSIDParameters[2]),
+      vring_(kSIDParameters[3]), vadsr_(kSIDParameters[4]),
+      vfon_(kSIDParameters[5]), table_(kSIDParameters[6]),
+      tableAuto_(kSIDParameters[7]), osc_(kSIDParameters[8]) {
 
   // name_ is now an etl::string in the base class, not a Variable
   variables_.insert(variables_.end(), &vpw_);
@@ -79,7 +90,13 @@ SIDInstrument::SIDInstrument(SIDInstrumentInstance chip)
   variables_.insert(variables_.end(), &vol2_);
 }
 
-SIDInstrument::~SIDInstrument(){};
+SIDInstrument::~SIDInstrument() {
+  // An instrument can now be retired independently of the chip emulator.
+  if (SID1RenderMaster == this)
+    SID1RenderMaster = nullptr;
+  if (SID2RenderMaster == this)
+    SID2RenderMaster = nullptr;
+}
 
 bool SIDInstrument::Init() {
   tableState_.Reset();

@@ -16,43 +16,16 @@
 #include <stdlib.h>
 #include <string.h>
 
-Variable::Variable(FourCC id, float value) : id_(id) {
-  value_.float_ = value;
-  defaultValue_.float_ = value;
-  type_ = FLOAT;
-};
-
-Variable::Variable(FourCC id, int value) : id_(id) {
-  value_.int_ = value;
-  defaultValue_.int_ = value;
-  type_ = INT;
-};
-
-Variable::Variable(FourCC id, bool value) : id_(id) {
-  value_.bool_ = value;
-  defaultValue_.bool_ = value;
-  type_ = BOOL;
-};
-
-Variable::Variable(FourCC id, const char *const *list, int size, int index)
-    : id_(id) {
-  list_.char_ = list;
-  listSize_ = size;
-  value_.index_ = index;
-  defaultValue_.index_ = index;
-  type_ = CHAR_LIST;
-};
-
 Variable::~Variable(){};
 
-Variable::Type Variable::GetType() { return type_; };
+Variable::Type Variable::GetType() { return descriptor_->type; };
 
-FourCC Variable::GetID() { return id_; };
+FourCC Variable::GetID() { return descriptor_->id; };
 
-const char *Variable::GetName() { return FourCC(id_).c_str(); };
+const char *Variable::GetName() { return FourCC(descriptor_->id).c_str(); };
 
 void Variable::SetFloat(float value, bool notify) {
-  switch (type_) {
+  switch (descriptor_->type) {
   case FLOAT:
     value_.float_ = value;
     break;
@@ -77,7 +50,7 @@ void Variable::SetFloat(float value, bool notify) {
 };
 
 void Variable::SetInt(int value, bool notify) {
-  switch (type_) {
+  switch (descriptor_->type) {
   case FLOAT:
     value_.float_ = float(value);
     break;
@@ -102,7 +75,7 @@ void Variable::SetInt(int value, bool notify) {
 };
 
 void Variable::SetBool(bool value, bool notify) {
-  switch (type_) {
+  switch (descriptor_->type) {
   case FLOAT:
     value_.float_ = float(value);
     break;
@@ -125,7 +98,7 @@ void Variable::SetBool(bool value, bool notify) {
 };
 
 float Variable::GetFloat() {
-  switch (type_) {
+  switch (descriptor_->type) {
   case FLOAT:
     return value_.float_;
   case INT:
@@ -141,7 +114,7 @@ float Variable::GetFloat() {
 };
 
 int Variable::GetInt() {
-  switch (type_) {
+  switch (descriptor_->type) {
   case FLOAT:
     return int(value_.float_);
   case INT:
@@ -157,7 +130,7 @@ int Variable::GetInt() {
 };
 
 bool Variable::GetBool() {
-  switch (type_) {
+  switch (descriptor_->type) {
   case FLOAT:
     return bool(value_.float_ != 0);
   case INT:
@@ -174,7 +147,7 @@ bool Variable::GetBool() {
 
 void Variable::SetString(const char *string, bool notify) {
   NAssert(string);
-  switch (type_) {
+  switch (descriptor_->type) {
   case FLOAT:
     value_.float_ = float(atof(string));
     break;
@@ -189,9 +162,9 @@ void Variable::SetString(const char *string, bool notify) {
     break;
   case CHAR_LIST:
     value_.index_ = -1;
-    for (int i = 0; i < listSize_; i++) {
-      if (list_.char_[i]) {
-        if (strcasecmp(string, list_.char_[i]) == 0) {
+    for (int i = 0; i < descriptor_->listSize; i++) {
+      if (descriptor_->list[i]) {
+        if (strcasecmp(string, descriptor_->list[i]) == 0) {
           value_.index_ = i;
           break;
         }
@@ -206,7 +179,7 @@ void Variable::SetString(const char *string, bool notify) {
 
 etl::string<MAX_VARIABLE_STRING_LENGTH> Variable::GetString() {
   char buf[MAX_VARIABLE_STRING_LENGTH];
-  switch (type_) {
+  switch (descriptor_->type) {
   // !!! NOTE !!! we don't want to enable nanoprintf's float support so we just
   // cast to int here because we don't really display floats anyway
   case FLOAT:
@@ -224,10 +197,10 @@ etl::string<MAX_VARIABLE_STRING_LENGTH> Variable::GetString() {
     }
     return "";
   case CHAR_LIST:
-    if ((value_.index_ < 0) || (value_.index_ >= listSize_)) {
+    if ((value_.index_ < 0) || (value_.index_ >= descriptor_->listSize)) {
       return "";
     } else {
-      return list_.char_[value_.index_];
+      return descriptor_->list[value_.index_];
     }
     break;
   };
@@ -236,38 +209,51 @@ etl::string<MAX_VARIABLE_STRING_LENGTH> Variable::GetString() {
 };
 
 void Variable::CopyFrom(Variable &other) {
-  type_ = other.type_;
-  value_ = other.value_;
-  list_ = other.list_;
-  listSize_ = other.listSize_;
-  onChange();
+  // Copy values, not identity/defaults or another object's mutable metadata.
+  switch (GetType()) {
+  case STRING:
+    SetString(other.GetString().c_str());
+    break;
+  case FLOAT:
+    SetFloat(other.GetFloat());
+    break;
+  case BOOL:
+    SetBool(other.GetBool());
+    break;
+  case CHAR_LIST:
+    SetString(other.GetString().c_str());
+    break;
+  case INT:
+    SetInt(other.GetInt());
+    break;
+  }
 }
 
 const char *const *Variable::GetListPointer() {
-  NAssert(type_ == CHAR_LIST);
-  return list_.char_;
+  NAssert(descriptor_->type == CHAR_LIST);
+  return descriptor_->list;
 };
 
 uint8_t Variable::GetListSize() {
-  NAssert(type_ == CHAR_LIST);
-  return listSize_;
+  NAssert(descriptor_->type == CHAR_LIST);
+  return descriptor_->listSize;
 };
 
 void Variable::Reset() {
 
-  switch (type_) {
+  switch (descriptor_->type) {
 
   case FLOAT:
-    value_.float_ = defaultValue_.float_;
+    value_.float_ = descriptor_->initial.float_;
     break;
   case INT:
-    value_.int_ = defaultValue_.int_;
+    value_.int_ = descriptor_->initial.int_;
     break;
   case BOOL:
-    value_.bool_ = defaultValue_.bool_;
+    value_.bool_ = descriptor_->initial.bool_;
     break;
   case CHAR_LIST:
-    value_.index_ = defaultValue_.index_;
+    value_.index_ = descriptor_->initial.index_;
     break;
   case STRING:
     // TODO: Check if this may be needed in the future, not used at this time
@@ -283,15 +269,15 @@ void Variable::setStringValue(const char *value) {
 }
 
 bool Variable::IsModified() {
-  switch (type_) {
+  switch (descriptor_->type) {
   case FLOAT:
-    return value_.float_ != defaultValue_.float_;
+    return value_.float_ != descriptor_->initial.float_;
   case INT:
-    return value_.int_ != defaultValue_.int_;
+    return value_.int_ != descriptor_->initial.int_;
   case BOOL:
-    return value_.bool_ != defaultValue_.bool_;
+    return value_.bool_ != descriptor_->initial.bool_;
   case CHAR_LIST:
-    return value_.index_ != defaultValue_.index_;
+    return value_.index_ != descriptor_->initial.index_;
   case STRING:
     // For string types, just compare against empty string
     return (stringValue_ != nullptr) && (stringValue_->size() > 0);

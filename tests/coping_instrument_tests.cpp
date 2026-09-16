@@ -103,6 +103,8 @@ TEST_CASE("Table STP can stop safely from any command column") {
 TEST_CASE(
     "Table MIDI KIL preserves the scheduled delay and still forwards VOL") {
   ScopedTableGroove groove;
+  static MidiService service;
+  MidiService::Install(&service);
   struct ObservedMidi : MidiInstrument {
     int kills = 0;
     int volumes = 0;
@@ -167,14 +169,15 @@ TEST_CASE("Stack GateOff releases the voice") {
   CHECK_FALSE(synth.Render(0, buffer.data(), 256, false));
 }
 
-TEST_CASE("Drum and Stack have independent fixed restore capacities") {
-  InstrumentBankRestorePolicy policy;
-  for (int i = 0; i < MAX_DRUMINSTRUMENT_COUNT; ++i)
-    CHECK(policy.Reserve(i, IT_DRUM));
-  CHECK_FALSE(policy.Reserve(MAX_DRUMINSTRUMENT_COUNT, IT_DRUM));
-  for (int i = 0; i < MAX_STACKINSTRUMENT_COUNT; ++i)
-    CHECK(policy.Reserve(MAX_DRUMINSTRUMENT_COUNT + i, IT_STACK));
-  CHECK_FALSE(policy.Reserve(MAX_DRUMINSTRUMENT_COUNT + MAX_STACKINSTRUMENT_COUNT, IT_STACK));
+TEST_CASE("Every instrument type may use all 64 restore slots") {
+  for (int type = IT_SAMPLE; type < IT_LAST; ++type) {
+    InstrumentBankRestorePolicy policy;
+    for (int slot = 0; slot < MAX_INSTRUMENT_COUNT; ++slot)
+      CHECK(policy.Reserve(slot, static_cast<InstrumentType>(type)));
+    CHECK_FALSE(policy.Reserve(MAX_INSTRUMENT_COUNT,
+                               static_cast<InstrumentType>(type)));
+    CHECK_FALSE(policy.Reserve(0, static_cast<InstrumentType>(type)));
+  }
 }
 
 TEST_CASE_TEMPLATE(
@@ -248,14 +251,11 @@ TEST_CASE("Drum note presentation and editing keep the legacy stored octave") {
   CHECK(std::string_view(text.data()) == "OFF");
 }
 
-TEST_CASE(
-    "Chiptune reserves two slots without affecting existing type capacities") {
+TEST_CASE("Mixed instrument types share the logical slot limit") {
   InstrumentBankRestorePolicy policy;
-  CHECK(policy.Reserve(0, IT_CHIPTUNE));
-  CHECK(policy.Reserve(1, IT_CHIPTUNE));
-  CHECK_FALSE(policy.Reserve(2, IT_CHIPTUNE));
-  CHECK(policy.Reserve(2, IT_STACK));
-  CHECK(policy.Reserve(3, IT_DRUM));
+  for (int slot = 0; slot < MAX_INSTRUMENT_COUNT; ++slot)
+    CHECK(policy.Reserve(slot, slot < 40 ? IT_CHIPTUNE : IT_SAMPLE));
+  CHECK_FALSE(policy.Reserve(40, IT_DRUM));
 }
 
 TEST_CASE_TEMPLATE("SIP changes the playing voice and resets on a fresh note",

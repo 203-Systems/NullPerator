@@ -65,7 +65,8 @@ protected:
   const char *importName;
 
 private:
-  etl::vector<I_Observer *, MAX_SAMPLEINSTRUMENT_COUNT> observers_;
+  // A full-bank restore stages 64 candidates before releasing the old bank.
+  etl::vector<I_Observer *, MAX_INSTRUMENT_COUNT * 2> observers_;
 };
 
 #endif

@@ -31,6 +31,12 @@ inline constexpr std::size_t kMidiProtocolChannelCount = 16U;
 inline constexpr std::size_t kRealtimeMessages = 1U;
 inline constexpr std::size_t kTransportMessages = 1U;
 inline constexpr std::size_t kSetupMessagesPerInstrument = 2U;
+// At transport start the bank retains the last program and volume for each
+// MIDI channel. More presets must not multiply all 20 realtime ring buffers.
+inline constexpr std::size_t kInstrumentSetupMessages =
+    kRealtimeMessages +
+    kMidiProtocolChannelCount * kSetupMessagesPerInstrument +
+    kTransportMessages;
 inline constexpr std::size_t kPlaybackStartMessages =
     kRealtimeMessages + kFullNoteBatch + kTransportMessages;
 inline constexpr std::size_t kPlaybackStopMessages =

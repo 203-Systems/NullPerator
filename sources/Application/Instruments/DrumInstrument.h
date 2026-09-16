@@ -8,6 +8,7 @@
 #include "Externals/copingSynth/DrumInstrument/DrumEngine.h"
 #include "Externals/etl/include/etl/vector.h"
 #include "I_Instrument.h"
+#include "TrackVoices.h"
 #include <array>
 
 class DrumInstrument final : public I_Instrument {
@@ -33,9 +34,9 @@ public:
     result = static_cast<unsigned char>((note / 12) * 12 + slot);
     return true;
   }
-  DrumInstrument();
-  bool Init() override { return true; }
-  bool IsInitialized() override { return true; }
+  explicit DrumInstrument(TrackVoicePool<drum_voice_t> *voices = nullptr);
+  bool Init() override { return voices_.IsValid(); }
+  bool IsInitialized() override { return voices_.IsValid(); }
   bool IsEmpty() override { return false; }
   InstrumentType GetType() override { return IT_DRUM; }
   bool Start(int channel, unsigned char note, bool retrigger = true) override;
@@ -52,5 +53,5 @@ public:
 private:
   etl::vector<Variable *, 13> variables_;
   std::array<Variable, 13> parameters_;
-  std::array<drum_voice_t, SONG_CHANNEL_COUNT> voices_{};
+  TrackVoices<drum_voice_t> voices_;
 };

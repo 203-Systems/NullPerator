@@ -5,22 +5,35 @@
 #include "StackInstrument.h"
 #include <algorithm>
 
-StackInstrument::StackInstrument()
+namespace {
+const Variable::Descriptor kStackParameters[] = {
+    {FourCC::StackSpread, 0},
+    {FourCC::StackWave, stackWaveNames, stackNumWaveforms, stackWaveSaw},
+    {FourCC::StackTranspose, 0},
+    {FourCC::StackTable, VAR_OFF},
+    {FourCC::StackTableAuto, false},
+    {FourCC::StackAttack, 0},
+    {FourCC::StackDecay, 0},
+    {FourCC::StackSustain, 255},
+    {FourCC::StackRelease, 0},
+    {FourCC::StackVolume, 128},
+    {FourCC::StackBrightness, 12},
+    {FourCC::StackGlide, 0},
+    {FourCC::StackChord, 0x047C},
+};
+} // namespace
+
+StackInstrument::StackInstrument(TrackVoicePool<stack_voice_t> *voices)
     : I_Instrument(&variables_),
-      parameters_{Variable(FourCC::StackSpread, 0),
-                  Variable(FourCC::StackWave, stackWaveNames, stackNumWaveforms,
-                           stackWaveSaw),
-                  Variable(FourCC::StackTranspose, 0),
-                  Variable(FourCC::StackTable, VAR_OFF),
-                  Variable(FourCC::StackTableAuto, false),
-                  Variable(FourCC::StackAttack, 0),
-                  Variable(FourCC::StackDecay, 0),
-                  Variable(FourCC::StackSustain, 255),
-                  Variable(FourCC::StackRelease, 0),
-                  Variable(FourCC::StackVolume, 128),
-                  Variable(FourCC::StackBrightness, 12),
-                  Variable(FourCC::StackGlide, 0),
-                  Variable(FourCC::StackChord, 0x047C)} {
+      parameters_{
+          Variable(kStackParameters[0]),  Variable(kStackParameters[1]),
+          Variable(kStackParameters[2]),  Variable(kStackParameters[3]),
+          Variable(kStackParameters[4]),  Variable(kStackParameters[5]),
+          Variable(kStackParameters[6]),  Variable(kStackParameters[7]),
+          Variable(kStackParameters[8]),  Variable(kStackParameters[9]),
+          Variable(kStackParameters[10]), Variable(kStackParameters[11]),
+          Variable(kStackParameters[12])},
+      voices_(voices) {
   tableState_.Reset();
   for (auto &parameter : parameters_)
     variables_.push_back(&parameter);
@@ -28,17 +41,17 @@ StackInstrument::StackInstrument()
 
 void StackInstrument::OnStart() {
   tableState_.Reset();
-  for (auto &voice : voices_)
-    voice.stop();
+  voices_.Reset();
 }
 
 void StackInstrument::Stop(int channel) {
   if (channel >= 0 && channel < SONG_CHANNEL_COUNT)
-    voices_[channel].stop();
+    voices_.Stop(channel);
 }
 
 bool StackInstrument::Start(int channel, unsigned char note, bool retrigger) {
-  if (channel < 0 || channel >= SONG_CHANNEL_COUNT || note > HIGHEST_NOTE)
+  if (!voices_.IsValid() || channel < 0 || channel >= SONG_CHANNEL_COUNT ||
+      note > HIGHEST_NOTE)
     return false;
   stack_parameters_t params{};
   params.spread = std::clamp(parameters_[0].GetInt(), 0, 255);
@@ -51,7 +64,7 @@ bool StackInstrument::Start(int channel, unsigned char note, bool retrigger) {
   params.volume = std::clamp(parameters_[9].GetInt(), 0, 255);
   params.brightness = std::clamp(parameters_[10].GetInt(), 0, 12);
   params.glide = std::clamp(parameters_[11].GetInt(), 0, 255);
-  auto &voice = voices_[channel];
+  auto &voice = voices_.Acquire(channel);
   voice.note_on(note, 255, retrigger, params);
   const unsigned chord = parameters_[12].GetInt();
   voice.set_chord((chord >> 12) & 15, (chord >> 8) & 15, (chord >> 4) & 15,
@@ -61,7 +74,7 @@ bool StackInstrument::Start(int channel, unsigned char note, bool retrigger) {
 
 bool StackInstrument::Render(int channel, fixed *buffer, int size,
                              bool updateTick) {
-  if (!buffer || size <= 0 || channel < 0 || channel >= SONG_CHANNEL_COUNT)
+  if (!buffer || size <= 0 || !voices_.Owns(channel))
     return false;
   auto &voice = voices_[channel];
   if (voice.wave == stackWaveNone)
@@ -75,7 +88,7 @@ bool StackInstrument::Render(int channel, fixed *buffer, int size,
 
 void StackInstrument::ProcessCommand(int channel, FourCC command,
                                      ushort value) {
-  if (channel < 0 || channel >= SONG_CHANNEL_COUNT)
+  if (!voices_.Owns(channel))
     return;
   auto &voice = voices_[channel];
   const uint8_t hi = value >> 8, lo = value & 0xFF;

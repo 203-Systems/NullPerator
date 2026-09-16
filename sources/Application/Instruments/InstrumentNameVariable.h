@@ -16,7 +16,7 @@
 
 // A special Variable class that bridges between UITextField and I_Instrument's
 // name_ field
-class InstrumentNameVariable : public Variable, public Observable {
+class InstrumentNameVariable : public OwnedVariable, public Observable {
 public:
   InstrumentNameVariable(I_Instrument *instrument);
   virtual ~InstrumentNameVariable();

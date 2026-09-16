@@ -71,24 +71,24 @@ private:
   unsigned int tempoTapCount_;
   // variables
   WatchedVariable tempo_;
-  Variable masterVolume_;
+  OwnedVariable masterVolume_;
   // Individual channel volume variables instead of using an array
   // as initialization of such a large array causes in constructors causes stack
   // overflow issues
-  Variable channelVolume1_;
-  Variable channelVolume2_;
-  Variable channelVolume3_;
-  Variable channelVolume4_;
-  Variable channelVolume5_;
-  Variable channelVolume6_;
-  Variable channelVolume7_;
-  Variable channelVolume8_;
-  Variable wrap_;
-  Variable transpose_;
-  Variable scale_;
-  Variable scaleRoot_;
+  OwnedVariable channelVolume1_;
+  OwnedVariable channelVolume2_;
+  OwnedVariable channelVolume3_;
+  OwnedVariable channelVolume4_;
+  OwnedVariable channelVolume5_;
+  OwnedVariable channelVolume6_;
+  OwnedVariable channelVolume7_;
+  OwnedVariable channelVolume8_;
+  OwnedVariable wrap_;
+  OwnedVariable transpose_;
+  OwnedVariable scale_;
+  OwnedVariable scaleRoot_;
   StringWatchedVariable<MAX_PROJECT_NAME_LENGTH> projectName_;
-  Variable previewVolume_;
+  OwnedVariable previewVolume_;
 };
 
 #endif

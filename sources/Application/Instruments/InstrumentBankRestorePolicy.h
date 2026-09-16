@@ -72,9 +72,9 @@ inline bool DecodeInstrumentBankType(const char *text, InstrumentType &type) {
   return false;
 }
 
-// Tracks all slots and fixed-pool demand before any candidate is committed to
-// the visible bank. It keeps malformed, duplicate, or over-capacity project
-// payloads fail-closed without allocating on the ESP32 restore path.
+// Validates logical slots before any candidate is committed to the visible
+// bank. Types share the same 64 slots; allocation failures are handled by the
+// bank's transactional replacement path, not by per-type quotas here.
 class InstrumentBankRestorePolicy {
 public:
   bool Reserve(std::uint8_t slot, InstrumentType type) {
@@ -82,12 +82,7 @@ public:
         seen_[slot]) {
       return false;
     }
-    const std::uint8_t capacity = Capacity(type);
-    const std::size_t typeIndex = static_cast<std::size_t>(type);
-    if (capacity == 0U || counts_[typeIndex] >= capacity)
-      return false;
     seen_[slot] = true;
-    ++counts_[typeIndex];
     return true;
   }
 
@@ -96,29 +91,5 @@ public:
   }
 
 private:
-  static constexpr std::uint8_t Capacity(InstrumentType type) {
-    switch (type) {
-    case IT_SAMPLE:
-      return MAX_SAMPLEINSTRUMENT_COUNT;
-    case IT_MIDI:
-      return MAX_MIDIINSTRUMENT_COUNT;
-    case IT_SID:
-      return MAX_SIDINSTRUMENT_COUNT;
-    case IT_OPAL:
-      return MAX_OPALINSTRUMENT_COUNT;
-    case IT_DRUM:
-      return MAX_DRUMINSTRUMENT_COUNT;
-    case IT_STACK:
-      return MAX_STACKINSTRUMENT_COUNT;
-    case IT_CHIPTUNE:
-      return MAX_CHIPTUNEINSTRUMENT_COUNT;
-    case IT_NONE:
-    case IT_LAST:
-      break;
-    }
-    return 0U;
-  }
-
   std::array<bool, MAX_INSTRUMENT_COUNT> seen_{};
-  std::array<std::uint8_t, IT_LAST> counts_{};
 };

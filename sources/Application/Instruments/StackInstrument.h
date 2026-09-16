@@ -8,13 +8,14 @@
 #include "Externals/copingSynth/StackInstrument/StackEngine.h"
 #include "Externals/etl/include/etl/vector.h"
 #include "I_Instrument.h"
+#include "TrackVoices.h"
 #include <array>
 
 class StackInstrument final : public I_Instrument {
 public:
-  StackInstrument();
-  bool Init() override { return true; }
-  bool IsInitialized() override { return true; }
+  explicit StackInstrument(TrackVoicePool<stack_voice_t> *voices = nullptr);
+  bool Init() override { return voices_.IsValid(); }
+  bool IsInitialized() override { return voices_.IsValid(); }
   bool IsEmpty() override { return false; }
   InstrumentType GetType() override { return IT_STACK; }
   bool Start(int channel, unsigned char note, bool retrigger = true) override;
@@ -32,5 +33,5 @@ private:
   TableSaveState tableState_{};
   etl::vector<Variable *, 13> variables_;
   std::array<Variable, 13> parameters_;
-  std::array<stack_voice_t, SONG_CHANNEL_COUNT> voices_{};
+  TrackVoices<stack_voice_t> voices_;
 };

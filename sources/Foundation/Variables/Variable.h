@@ -23,11 +23,42 @@ public:
   enum Type { INT, FLOAT, BOOL, CHAR_LIST, STRING };
 
 public:
-  Variable(FourCC id, int value = 0);
-  Variable(FourCC id, float value = 0.0f);
-  Variable(FourCC id, bool value = false);
-  Variable(FourCC id, const char *value) = delete; // Use StringVariable
-  Variable(FourCC id, const char *const *list, int size, int index = -1);
+  union Value {
+    int int_;
+    float float_;
+    bool bool_;
+    int index_;
+    constexpr Value(int value) : int_(value) {}
+    constexpr Value(float value) : float_(value) {}
+    constexpr Value(bool value) : bool_(value) {}
+  };
+
+  // Immutable descriptions belong to the parameter schema, not each preset.
+  struct Descriptor {
+    FourCC id;
+    Type type;
+    Value initial;
+    const char *const *list = nullptr;
+    uint8_t listSize = 0;
+    constexpr Descriptor(FourCC id, int value = 0)
+        : id(id), type(INT), initial(value) {}
+    constexpr Descriptor(FourCC id, float value)
+        : id(id), type(FLOAT), initial(value) {}
+    constexpr Descriptor(FourCC id, bool value)
+        : id(id), type(BOOL), initial(value) {}
+    constexpr Descriptor(FourCC id, const char *const *list, int size,
+                         int index = -1)
+        : id(id), type(CHAR_LIST), initial(index), list(list), listSize(size) {
+      initial.index_ = index;
+    }
+    Descriptor(FourCC, const char *) = delete;
+  };
+
+  explicit Variable(const Descriptor &descriptor)
+      : Variable(&descriptor, descriptor.initial) {}
+  Variable(Descriptor &&) = delete; // Never retain a temporary schema.
+  Variable(const Variable &) = delete;
+  Variable &operator=(const Variable &) = delete;
 
   virtual ~Variable();
 
@@ -56,29 +87,30 @@ protected:
   virtual void onChange(){};
   void setStringValue(const char *value);
 
-  FourCC id_;
-  Type type_;
-
-  union {
-    int int_;
-    float float_;
-    bool bool_;
-    int index_;
-  } value_;
-
-  union {
-    int int_;
-    float float_;
-    bool bool_;
-    int index_;
-  } defaultValue_;
-
-  union {
-    const char *const *char_;
-  } list_;
-
+  Variable(const Descriptor *descriptor, Value value)
+      : value_(value), descriptor_(descriptor) {}
+  Value value_;
+  const Descriptor *descriptor_;
   etl::istring *stringValue_ = nullptr;
+};
 
-  uint8_t listSize_;
+// Runtime-defined variables (configuration, strings and mutable sample lists)
+// retain an inline descriptor. Instrument presets use shared const schemas.
+class OwnedVariable : public Variable {
+public:
+  explicit OwnedVariable(FourCC id, int value = 0)
+      : OwnedVariable(Descriptor(id, value)) {}
+  OwnedVariable(FourCC id, float value)
+      : OwnedVariable(Descriptor(id, value)) {}
+  OwnedVariable(FourCC id, bool value) : OwnedVariable(Descriptor(id, value)) {}
+  OwnedVariable(FourCC id, const char *const *list, int size, int index = -1)
+      : OwnedVariable(Descriptor(id, list, size, index)) {}
+  OwnedVariable(FourCC, const char *) = delete;
+
+protected:
+  explicit OwnedVariable(Descriptor descriptor)
+      : Variable(&ownedDescriptor_, descriptor.initial),
+        ownedDescriptor_(descriptor) {}
+  Descriptor ownedDescriptor_;
 };
 #endif

@@ -1,6 +1,7 @@
 #include "doctest/doctest.h"
 #include "sample_instrument_test_peer.h"
 
+#include "Application/Instruments/InstrumentBank.h"
 #include "Application/Instruments/MacroInstrument.h"
 #include "Application/Instruments/MidiInstrument.h"
 #include "Application/Instruments/OpalInstrument.h"
@@ -31,29 +32,6 @@ struct MacroInstrumentTestPeer {
   }
 };
 
-// SampleVariable normally follows the platform SamplePool. These lifecycle
-// tests bind a fixed SoundSource directly and keep only the variable contract.
-SampleVariable::SampleVariable(FourCC id) : WatchedVariable(id, 0) {}
-SampleVariable::~SampleVariable() = default;
-void SampleVariable::SetInt(int value, bool notify) {
-  binding_.Clear();
-  Variable::SetInt(value, notify);
-}
-void SampleVariable::SetString(const char *value, bool notify) {
-  Variable::SetString(value, notify);
-}
-etl::string<MAX_VARIABLE_STRING_LENGTH> SampleVariable::GetString() {
-  return Variable::GetString();
-}
-void SampleVariable::Reset() {
-  binding_.Clear();
-  Variable::Reset();
-}
-void SampleVariable::Update(Observable &observable, I_ObservableData *data) {
-  (void)observable;
-  (void)data;
-}
-
 namespace {
 std::array<SoundSource *, MAX_SAMPLES> availableSampleSources{};
 std::size_t availableSampleSourceCount = 0;
@@ -76,6 +54,11 @@ SoundSource *SamplePool::GetSource(uint32_t index) {
 }
 int SamplePool::GetNameListSize() {
   return static_cast<int>(availableSampleSourceCount);
+}
+char **SamplePool::GetNameList() {
+  static char first[] = "first.wav", second[] = "second.wav";
+  static char *names[MAX_SAMPLES] = {first, second};
+  return names;
 }
 void SamplePool::PurgeSample(int index, const char *projectName) {
   (void)index;
@@ -571,14 +554,87 @@ TEST_CASE("MIDI queue budget retains the full playback stop tail") {
              MidiMessage::UNUSED_BYTE);
 
   REQUIRE(stopQueue.size() == midi_queue_budget::kPlaybackStopMessages);
-  CHECK(stopQueue.size() == MIDI_MAX_MESG_QUEUE);
-  CHECK(stopQueue.full());
+  CHECK(stopQueue.size() <= MIDI_MAX_MESG_QUEUE);
+  CHECK(MIDI_MAX_MESG_QUEUE >= midi_queue_budget::kInstrumentSetupMessages);
   CHECK(stopQueue[midi_queue_budget::kRealtimeMessages].status_ ==
         MidiMessage::MIDI_NOTE_OFF);
   const std::size_t cleanupStart =
       midi_queue_budget::kRealtimeMessages + midi_queue_budget::kFullNoteBatch;
   CHECK(stopQueue[cleanupStart].data1_ == MidiCC::CC_ALL_NOTES_OFF);
   CHECK(stopQueue.back().status_ == MidiMessage::MIDI_STOP);
+}
+
+TEST_CASE("64 MIDI presets preserve final channel setup without queue growth") {
+  InstallFakeMidiService();
+  InstrumentBank bank;
+  for (int slot = 0; slot < MAX_INSTRUMENT_COUNT; ++slot) {
+    REQUIRE(bank.GetNextAndAssignID(IT_MIDI, slot) == slot);
+    auto *instrument = bank.GetInstrument(slot);
+    instrument->FindVariable(FourCC::MidiInstrumentChannel)->SetInt(slot % 16);
+    instrument->FindVariable(FourCC::MidiInstrumentProgram)->SetInt(slot);
+    instrument->FindVariable(FourCC::MidiInstrumentVolume)->SetInt(slot * 2);
+  }
+  // OFF/zero do not overwrite earlier setup, and PC/volume are independent.
+  bank.GetInstrument(63)
+      ->FindVariable(FourCC::MidiInstrumentProgram)
+      ->SetInt(VAR_OFF);
+  bank.GetInstrument(62)->FindVariable(FourCC::MidiInstrumentVolume)->SetInt(0);
+  capturedMidiMessages.clear();
+  bank.OnStart();
+  REQUIRE(capturedMidiMessages.size() == 32);
+  CHECK(capturedMidiMessages.size() + 2 <= MIDI_MAX_MESG_QUEUE);
+  std::array<int, 16> programs{}, volumes{};
+  for (const auto &message : capturedMidiMessages) {
+    const int channel = message.status_ & 15;
+    if ((message.status_ & 0xF0) == MidiMessage::MIDI_PROGRAM_CHANGE)
+      programs[channel] = message.data1_;
+    else if ((message.status_ & 0xF0) == MidiMessage::MIDI_CONTROL_CHANGE)
+      volumes[channel] = message.data2_;
+    else
+      FAIL("Unexpected MIDI startup message");
+  }
+  for (int channel = 0; channel < 16; ++channel) {
+    CHECK(programs[channel] == (channel == 15 ? 47 : 48 + channel));
+    CHECK(volumes[channel] == (channel == 14 ? 46 : 48 + channel));
+  }
+}
+
+TEST_CASE("Sample observers support 64 live plus 64 staged replacements") {
+  FixedMonoSource first, second;
+  FakeSamplePoolScope poolScope(first, second);
+  auto *pool = SamplePool::GetInstance();
+  InstrumentBank bank;
+  for (int round = 0; round < 3; ++round) {
+    for (int slot = 0; slot < MAX_INSTRUMENT_COUNT; ++slot)
+      REQUIRE(bank.GetNextAndAssignID(IT_SAMPLE, slot) == slot);
+    REQUIRE(pool->CountObservers() == MAX_INSTRUMENT_COUNT);
+    {
+      std::array<InstrumentBank::Replacement, MAX_INSTRUMENT_COUNT> staged;
+      for (int slot = 0; slot < MAX_INSTRUMENT_COUNT; ++slot)
+        REQUIRE(bank.BeginReplacement(slot, IT_SAMPLE, staged[slot]));
+      REQUIRE(pool->CountObservers() == MAX_INSTRUMENT_COUNT * 2);
+      for (int slot = 0; slot < MAX_INSTRUMENT_COUNT; ++slot)
+        REQUIRE(staged[slot].Commit());
+    }
+    REQUIRE(pool->CountObservers() == MAX_INSTRUMENT_COUNT);
+    auto *sample =
+        bank.GetInstrument(0)->FindVariable(FourCC::SampleInstrumentSample);
+    sample->SetString("missing.wav");
+    bank.releaseInstrument(1);
+    REQUIRE(bank.Clone(0) == 1);
+    CHECK(bank.GetInstrument(1)
+              ->FindVariable(FourCC::SampleInstrumentSample)
+              ->GetString() == "missing.wav");
+    sample->SetInt(1);
+    SamplePoolEvent deleted;
+    deleted.type_ = SPET_DELETE;
+    deleted.index_ = 0;
+    pool->SetChanged();
+    pool->NotifyObservers(&deleted);
+    CHECK(sample->GetInt() == 0);
+    bank.Reset();
+    CHECK(pool->CountObservers() == 0);
+  }
 }
 
 TEST_CASE("MIDI instant pitch bend emits once for targets above 127") {
@@ -927,22 +983,22 @@ TEST_CASE("UI2 Instrument TABLE activation allocates only Sample and MIDI "
   using namespace ui2;
 
   TableHolder tables;
-  Variable sampleTable(FourCC::SampleInstrumentTable, VAR_OFF);
+  OwnedVariable sampleTable(FourCC::SampleInstrumentTable, VAR_OFF);
   const auto sampleDescriptor = Ui2InstrumentFieldParameter(IT_SAMPLE, 17U);
   REQUIRE(Ui2AllocateInstrumentTable(sampleDescriptor, sampleTable, tables));
   CHECK(sampleTable.GetInt() == 0);
 
-  Variable midiTable(FourCC::MidiInstrumentTable, VAR_OFF);
+  OwnedVariable midiTable(FourCC::MidiInstrumentTable, VAR_OFF);
   const auto midiDescriptor = Ui2InstrumentFieldParameter(IT_MIDI, 5U);
   REQUIRE(Ui2AllocateInstrumentTable(midiDescriptor, midiTable, tables));
   CHECK(midiTable.GetInt() == 1);
 
-  Variable automation(FourCC::MidiInstrumentTableAutomation, 0);
+  OwnedVariable automation(FourCC::MidiInstrumentTableAutomation, 0);
   CHECK_FALSE(Ui2AllocateInstrumentTable(
       Ui2InstrumentFieldParameter(IT_MIDI, 4U), automation, tables));
   CHECK(automation.GetInt() == 0);
 
-  Variable wrongVariable(FourCC::SampleInstrumentVolume, 0x7F);
+  OwnedVariable wrongVariable(FourCC::SampleInstrumentVolume, 0x7F);
   CHECK_FALSE(
       Ui2AllocateInstrumentTable(sampleDescriptor, wrongVariable, tables));
   CHECK(wrongVariable.GetInt() == 0x7F);

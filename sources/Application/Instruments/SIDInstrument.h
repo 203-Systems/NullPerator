@@ -132,17 +132,17 @@ private:
   Variable osc_; // 0, 1 or 2
 
   // all these settings are shared by all oscillators on a single SID Chip
-  static Variable fltcut1_;
-  static Variable fltcut2_;
+  static OwnedVariable fltcut1_;
+  static OwnedVariable fltcut2_;
   Variable *fltcut_;
-  static Variable fltres1_;
-  static Variable fltres2_;
+  static OwnedVariable fltres1_;
+  static OwnedVariable fltres2_;
   Variable *fltres_;
-  static Variable fltmode1_;
-  static Variable fltmode2_;
+  static OwnedVariable fltmode1_;
+  static OwnedVariable fltmode2_;
   Variable *fltmode_;
-  static Variable vol1_;
-  static Variable vol2_;
+  static OwnedVariable vol1_;
+  static OwnedVariable vol2_;
   Variable *vol_;
 };
 

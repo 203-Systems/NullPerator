@@ -8,13 +8,15 @@
 #include "Externals/copingSynth/ChiptuneInstrument/ChiptuneEngine.h"
 #include "Externals/etl/include/etl/vector.h"
 #include "I_Instrument.h"
+#include "TrackVoices.h"
 #include <array>
 
 class ChiptuneInstrument final : public I_Instrument {
 public:
-  ChiptuneInstrument();
-  bool Init() override { return true; }
-  bool IsInitialized() override { return true; }
+  explicit ChiptuneInstrument(
+      TrackVoicePool<coping::chip::voice_t> *voices = nullptr);
+  bool Init() override { return voices_.IsValid(); }
+  bool IsInitialized() override { return voices_.IsValid(); }
   bool IsEmpty() override { return false; }
   InstrumentType GetType() override { return IT_CHIPTUNE; }
   bool Start(int channel, unsigned char note, bool retrigger = true) override;
@@ -32,5 +34,5 @@ private:
   TableSaveState tableState_{};
   etl::vector<Variable *, 14> variables_;
   std::array<Variable, 14> parameters_;
-  std::array<coping::chip::voice_t, SONG_CHANNEL_COUNT> voices_{};
+  TrackVoices<coping::chip::voice_t> voices_;
 };
