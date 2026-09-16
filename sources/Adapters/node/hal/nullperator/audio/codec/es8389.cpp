@@ -18,8 +18,8 @@ constexpr uint32_t CODEC_SAMPLE_RATE = 44100;
 constexpr uint8_t CODEC_CHANNELS = 2;
 constexpr uint8_t CODEC_BITS_PER_SAMPLE = 16;
 
-constexpr uint8_t ADC_ONBOARD_MIC = 0x8A;
-constexpr uint8_t ADC_EARPHONE_MIC = 0x85;
+constexpr uint8_t ADC1_ANALOG_ENABLE = 0x8A;
+constexpr uint8_t ADC2_ANALOG_ENABLE = 0x85;
 constexpr uint8_t ADC_LINE_IN = 0x8F;
 constexpr uint8_t ADC_MODE_NORMAL = 0x00;
 constexpr uint8_t ADC_MODE_ADC1_TO_BOTH = 0x10;
@@ -44,6 +44,15 @@ esp_err_t write_reg(uint8_t reg, uint8_t value) {
     return ESP_FAIL;
   }
   return ESP_CODEC_DEV_OK;
+}
+
+esp_err_t set_serial_mute(uint8_t reg, bool muted) {
+  int value = 0;
+  if (esp_codec_dev_read_reg(s_codecOutDev, reg, &value) != ESP_CODEC_DEV_OK) {
+    return ESP_FAIL;
+  }
+  return write_reg(reg, static_cast<uint8_t>((value & ~0x03) |
+                                           (muted ? 0x03 : 0x00)));
 }
 
 esp_err_t init_volume_dev(i2s_chan_handle_t txChan, i2s_chan_handle_t rxChan) {
@@ -140,14 +149,16 @@ esp_err_t configure_adc_input_path(Audio::InputMode_t inputMode) {
     inputActive = false;
     break;
   case Audio::INPUT_ONBOARD_MIC:
-    adcMode = ADC_MODE_ADC1_TO_BOTH;
-    adcEnable = ADC_ONBOARD_MIC;
-    pga1 = PGA_INPUT1_SINGLE_ENDED;
+    // V4-production: MIC1 -> C61 -> RIN1 (pin 23 / ADC2).
+    adcMode = ADC_MODE_ADC2_TO_BOTH;
+    adcEnable = ADC2_ANALOG_ENABLE;
+    pga2 = PGA_INPUT1_SINGLE_ENDED;
     break;
   case Audio::INPUT_EARPHONE_MIC:
-    adcMode = ADC_MODE_ADC2_TO_BOTH;
-    adcEnable = ADC_EARPHONE_MIC;
-    pga2 = PGA_INPUT1_SINGLE_ENDED;
+    // Headset microphone -> C60 -> LIN1 (pin 24 / ADC1).
+    adcMode = ADC_MODE_ADC1_TO_BOTH;
+    adcEnable = ADC1_ANALOG_ENABLE;
+    pga1 = PGA_INPUT1_SINGLE_ENDED;
     break;
   case Audio::INPUT_LINE_IN:
     adcEnable = ADC_LINE_IN;
@@ -199,13 +210,18 @@ esp_err_t SyncState(Audio::OutputMode_t outputMode,
       (outputMode != Audio::OUTPUT_OFF) || (inputMode != Audio::INPUT_OFF);
   bool outputActive = outputMode != Audio::OUTPUT_OFF;
 
-  int codecRet = esp_codec_dev_set_out_mute(s_codecOutDev, !outputActive);
-  if (codecRet != ESP_CODEC_DEV_OK) {
-    ESP_LOGE(TAG, "Failed to set codec mute state: %d", codecRet);
-    return ESP_FAIL;
+  // The bundled ES8389 driver's set_mute callback writes ADC register 0x20.
+  // Control DAC and ADC serial mutes independently, preserving word length.
+  esp_err_t ret = set_serial_mute(0x40, !outputActive);
+  if (ret != ESP_OK) {
+    return ret;
+  }
+  ret = set_serial_mute(0x20, inputMode == Audio::INPUT_OFF);
+  if (ret != ESP_OK) {
+    return ret;
   }
 
-  esp_err_t ret = configure_adc_input_path(inputMode);
+  ret = configure_adc_input_path(inputMode);
   if (ret != ESP_OK) {
     return ret;
   }
