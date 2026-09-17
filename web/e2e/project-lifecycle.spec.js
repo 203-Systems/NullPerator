@@ -46,7 +46,7 @@ async function chord(page, modifier, key) {
 
 async function projectExists(page, projectName) {
   return page.evaluate(
-    (name) => globalThis.__picoTrackerStorageTest.exists(`/data/projects/${name}/lgptsav.dat`),
+    (name) => globalThis.__picoTrackerStorageTest.exists(`/data/projects/${name}/npsong.dat`),
     projectName,
   )
 }
