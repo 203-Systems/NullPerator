@@ -34,8 +34,8 @@
 #include "System/System/System.h"
 
 #include <algorithm>
-#include <cstdio>
 #include <cctype>
+#include <cstdio>
 #include <cstring>
 
 namespace ui2 {
@@ -494,7 +494,8 @@ void Ui2TrackerApplication::TickSampleEditorApply() {
 
 void Ui2TrackerApplication::RequestSampleEditorBack(TrackerAction trigger) {
   StopSamplePreview();
-  if (samples_.transaction.HasWorkingCopy() || samples_.editor.HasRangeEdits() ||
+  if (samples_.transaction.HasWorkingCopy() ||
+      samples_.editor.HasRangeEdits() ||
       samples_.returnPage == UiApplicationPage::Record) {
     samples_.editor.RequestDiscardConfirmation(trigger);
     return;
@@ -513,11 +514,14 @@ void Ui2TrackerApplication::SaveSampleAs(const char *name) {
       std::tolower(static_cast<unsigned char>(name[length - 2U])) == 'a' &&
       std::tolower(static_cast<unsigned char>(name[length - 1U])) == 'v')
     length -= 4U;
-  std::snprintf(leaf.data(), leaf.size(), "%.*s.wav", static_cast<int>(length), name);
+  std::snprintf(leaf.data(), leaf.size(), "%.*s.wav", static_cast<int>(length),
+                name);
   std::array<char, PFILENAME_SIZE> destination{};
-  std::snprintf(destination.data(), destination.size(), "/samples/%s", leaf.data());
+  std::snprintf(destination.data(), destination.size(), "/samples/%s",
+                leaf.data());
   Ui2ProjectSamplePath projectPath{};
-  if (length == 0U || !Ui2BuildProjectSamplePath(session_.ProjectName(), leaf.data(), projectPath)) {
+  if (length == 0U || !Ui2BuildProjectSamplePath(session_.ProjectName(),
+                                                 leaf.data(), projectPath)) {
     ShowFeedbackError("INVALID SAMPLE NAME");
     return;
   }
@@ -528,8 +532,9 @@ void Ui2TrackerApplication::SaveSampleAs(const char *name) {
     bool Add(const char *name, PicoFileType, uint64_t) override {
       const char *a = name;
       const char *b = leaf_;
-      while (*a && *b && std::tolower(static_cast<unsigned char>(*a)) ==
-                             std::tolower(static_cast<unsigned char>(*b))) {
+      while (*a && *b &&
+             std::tolower(static_cast<unsigned char>(*a)) ==
+                 std::tolower(static_cast<unsigned char>(*b))) {
         ++a;
         ++b;
       }
@@ -537,13 +542,15 @@ void Ui2TrackerApplication::SaveSampleAs(const char *name) {
       return !found;
     }
     bool found = false;
+
   private:
     const char *leaf_;
   } scan(leaf.data());
   std::array<char, PFILENAME_SIZE> projectDirectory{};
   std::snprintf(projectDirectory.data(), projectDirectory.size(), "%s/%s/%s",
                 PROJECTS_DIR, session_.ProjectName(), PROJECT_SAMPLES_DIR);
-  for (const char *directory : std::array<const char *, 2>{"/samples", projectDirectory.data()}) {
+  for (const char *directory :
+       std::array<const char *, 2>{"/samples", projectDirectory.data()}) {
     if (!fs->exists(directory))
       continue;
     if (!fs->listPathChecked(directory, scan, nullptr, false, true)) {
@@ -561,8 +568,13 @@ void Ui2TrackerApplication::SaveSampleAs(const char *name) {
     }
   }
   constexpr const char *staging = "/samples/.recording-save.pending";
+  // Unedited takes have no working copy yet. Save the original recording;
+  // after an edit, preserve the latest transactional working generation.
+  const char *source = samples_.transaction.HasWorkingCopy()
+                           ? samples_.transaction.WorkingPath()
+                           : samples_.transaction.DestinationPath();
   if ((!fs->exists("/samples") && !fs->makeDir("/samples")) ||
-      !fs->CopyFile(samples_.transaction.WorkingPath(), staging)) {
+      !fs->CopyFile(source, staging)) {
     (void)fs->DeleteFile(staging);
     ShowFeedbackError("SAMPLE SAVE FAILED");
     return;
@@ -584,7 +596,8 @@ void Ui2TrackerApplication::SaveSampleAs(const char *name) {
     return;
   }
   const char *error = nullptr;
-  const bool loaded = ImportSampleToCurrentInstrument(destination.data(), error);
+  const bool loaded =
+      ImportSampleToCurrentInstrument(destination.data(), error);
   const bool recording = samples_.returnPage == UiApplicationPage::Record;
   if (ActivatePage(UiApplicationPage::Instrument) && recording)
     (void)fs->DeleteFile(RECORDINGS_DIR "/" RECORDING_FILENAME);
@@ -643,7 +656,8 @@ void Ui2TrackerApplication::ExecuteSampleEditor(
   case Ui2SampleEditorCommandType::RequestDiscard:
     if (samples_.returnPage == UiApplicationPage::Record) {
       if (ActivatePage(UiApplicationPage::Instrument))
-        (void)FileSystem::GetInstance()->DeleteFile(RECORDINGS_DIR "/" RECORDING_FILENAME);
+        (void)FileSystem::GetInstance()->DeleteFile(RECORDINGS_DIR
+                                                    "/" RECORDING_FILENAME);
     } else {
       (void)ActivatePage(samples_.returnPage);
     }
@@ -686,20 +700,29 @@ void Ui2TrackerApplication::ExecuteSampleEditor(
       if (samples_.returnPage == UiApplicationPage::Record) {
         std::snprintf(draft.data(), draft.size(), "Recording");
       } else {
-        const char *leaf = std::strrchr(samples_.transaction.DestinationPath(), '/');
-        leaf = leaf == nullptr ? samples_.transaction.DestinationPath() : leaf + 1;
+        const char *leaf =
+            std::strrchr(samples_.transaction.DestinationPath(), '/');
+        leaf =
+            leaf == nullptr ? samples_.transaction.DestinationPath() : leaf + 1;
         const char *extension = std::strrchr(leaf, '.');
-        const int length = extension == nullptr ? std::strlen(leaf) : extension - leaf;
-        std::snprintf(draft.data(), draft.size(), "%.*s-copy", std::min(length, 15), leaf);
+        const int length =
+            extension == nullptr ? std::strlen(leaf) : extension - leaf;
+        std::snprintf(draft.data(), draft.size(), "%.*s-copy",
+                      std::min(length, 15), leaf);
       }
-      rename_.Begin(draft.data(), 20U, [](const char *name) {
-        if (name == nullptr || name[0] == '\0' || name[0] == '.')
-          return false;
-        for (const unsigned char *p = reinterpret_cast<const unsigned char *>(name); *p; ++p)
-          if (*p < 32U || std::strchr("/\\:*?\"<>|", *p) != nullptr)
-            return false;
-        return name[std::strlen(name) - 1U] != ' ';
-      }, TrackerAction::Enter);
+      rename_.Begin(
+          draft.data(), 20U,
+          [](const char *name) {
+            if (name == nullptr || name[0] == '\0' || name[0] == '.')
+              return false;
+            for (const unsigned char *p =
+                     reinterpret_cast<const unsigned char *>(name);
+                 *p; ++p)
+              if (*p < 32U || std::strchr("/\\:*?\"<>|", *p) != nullptr)
+                return false;
+            return name[std::strlen(name) - 1U] != ' ';
+          },
+          TrackerAction::Enter);
       break;
     }
 
@@ -727,19 +750,17 @@ void Ui2TrackerApplication::ExecuteSampleEditor(
       break;
     }
 
-    (void)
-        Ui2SampleEditorSaveWorkflow::PrepareFollowUp(
-            result,
-            false,
-            samples_.returnPage == UiApplicationPage::Browser &&
-                samples_.browser.Active(),
-            [this, &destination]() {
-              // Promotion recreates the directory entry. Restore the edited
-              // leaf before SAVE&LOAD import or return-page rendering can
-              // observe stale FAT indexes and metadata.
-              (void)samples_.browser.RefreshCurrentDirectoryAndSelect(
-                  destination.data());
-            });
+    (void)Ui2SampleEditorSaveWorkflow::PrepareFollowUp(
+        result, false,
+        samples_.returnPage == UiApplicationPage::Browser &&
+            samples_.browser.Active(),
+        [this, &destination]() {
+          // Promotion recreates the directory entry. Restore the edited
+          // leaf before SAVE&LOAD import or return-page rendering can
+          // observe stale FAT indexes and metadata.
+          (void)samples_.browser.RefreshCurrentDirectoryAndSelect(
+              destination.data());
+        });
     const bool projectPool = command.projectPool;
     (void)ActivatePage(samples_.returnPage);
     if (projectPool) {
