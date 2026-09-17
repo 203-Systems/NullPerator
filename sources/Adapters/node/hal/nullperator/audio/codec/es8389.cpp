@@ -51,8 +51,8 @@ esp_err_t set_serial_mute(uint8_t reg, bool muted) {
   if (esp_codec_dev_read_reg(s_codecOutDev, reg, &value) != ESP_CODEC_DEV_OK) {
     return ESP_FAIL;
   }
-  return write_reg(reg, static_cast<uint8_t>((value & ~0x03) |
-                                           (muted ? 0x03 : 0x00)));
+  return write_reg(
+      reg, static_cast<uint8_t>((value & ~0x03) | (muted ? 0x03 : 0x00)));
 }
 
 esp_err_t init_volume_dev(i2s_chan_handle_t txChan, i2s_chan_handle_t rxChan) {
