@@ -6,11 +6,11 @@ sound-device, folder, or MIDI checks. Run local commands serially:
 ```sh
 cmake -S tests -B build-host -DCMAKE_BUILD_TYPE=Release
 cmake --build build-host --parallel 1
-./build-host/picoTracker_tests
+ctest --test-dir build-host --output-on-failure
 CMAKE_BUILD_PARALLEL_LEVEL=1 tools/build-wasm.sh Release
 cd web
 pnpm exec vitest run --maxWorkers=1
-pnpm exec playwright test --workers=1
+pnpm exec playwright test --workers=1 --grep-invert @visual
 pnpm build
 pnpm verify:dist
 ```
@@ -53,8 +53,8 @@ The test validates hashes before use and restores only the minimal valid
 `lgptsav.dat`, and `AKWF_0906.wav`. It intentionally does not import the full
 factory tree, which contains nested/duplicate project and sample directories.
 The gate proves the C++ model loaded the named project, tempo, and sample; starts
-and stops the real player through C; edits and saves tempo through the fixed
-NullPerator `WASD / JK / XC` controls; then verifies the result after both
+and stops the real player through X; edits and saves tempo through the fixed
+NullPerator `WASD / JK / CX` controls; then verifies the result after both
 runtime restart and full page reload. The Save check first observes the real
 C++ file mutation generation, waits for that exact IDBFS durability fence, and
 does not invoke the test fixture's force-flush helper. If
@@ -97,14 +97,11 @@ folder path, MIDI device, start/end time, and tester. Do not mark an item from a
 mocked/headless result.
 
 - [ ] Enter, draw, and operate every current PicoTracker view and modal.
-- [ ] Exercise every action from its default keyboard mapping and virtual button;
-      verify fixed NullPerator WASD/JK/XC keys, chords, two simultaneous
-      touches, and blur/cancel release. Verify C taps as PLAY before 500 ms,
-      holds as NAV at or beyond 500 ms, and becomes NAV immediately when
-      chorded. Verify input order: X then C holds ALT+PLAY for as long as C is
-      down (a third key,
-      including EDIT, cancels PLAY), while C then X
-      remains NAV+ALT.
+- [ ] Exercise every action from its default keyboard mapping and virtual button:
+      WASD = directions, J = Option, K = Enter, C = Shift, X = Play.
+      Check held-Enter edits, Shift+direction navigation, Shift+Play transport,
+      Option+direction track/number changes, two simultaneous touches, and
+      release on blur/cancel. There is no legacy delayed Play/NAV key mode.
 - [ ] At 44.1 kHz output, play known material continuously with correct pitch and
       duration; repeat at 48 kHz and inspect underrun and callback
       processing-deadline-miss counters.

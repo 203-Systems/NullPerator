@@ -4,6 +4,25 @@ Deploy the complete contents of `web/dist` at one origin. No application
 backend, CDN package, MatrixOS checkout, or external runtime asset is required.
 Run `pnpm verify:dist` immediately before publishing.
 
+## GitHub Actions deployment gate
+
+The `WASM workbench` workflow runs host CTest targets before compiling the
+Release WASM. It then runs browser unit tests, non-visual Playwright acceptance,
+and the static distribution verifier. A failed early host build means the run
+has not compiled or deployed the Web app, even if iOS and ESP32 checks pass.
+
+Only a successful **push to main** reaches the Vercel production steps.
+Pull-request, branch, and manually dispatched runs can validate the build
+without publishing it. The Vercel build packages the WASM produced in that
+same job; do not substitute a stale local loader/WASM pair.
+
+If a check fails, open the first failing step rather than inferring a WASM
+compiler error from the workflow name. Host tests must include their own
+standard-library headers; a transitive include available on macOS may be
+absent on Linux. Use clang-format 17 for the formatting gate. Protect embedded
+JavaScript inside Emscripten macros with `clang-format off/on` where needed:
+the C++ formatter can split JavaScript `=>` tokens and break WASM linking.
+
 ## Required response behavior
 
 Every response in the workbench origin must include:

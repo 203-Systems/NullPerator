@@ -64,3 +64,22 @@ See the [iOS build guide](../ios/README.md) for runtime details.
   editing semantics.
 - Add focused host tests for model, workflow, persistence, and input changes.
 - Run the native layout Playwright suite for shared mobile UI changes.
+
+## Instrument memory and voice ownership
+
+The bank has 64 logical slots, not fixed per-type preset pools. `NONE` slots
+share an empty instrument. Creating or replacing a preset allocates only the
+chosen type; transactional replacement publishes it after validation succeeds.
+Handle allocation failure without overwriting the existing slot.
+
+Drum, Stack, and Chiptune each use bank-owned, per-track voice storage instead
+of an eight-voice array inside every preset. The three GB types share a single
+per-track pool allocated when the first GB preset is created and freed after
+the last one is removed. These allocations happen outside the audio callback.
+Respect `TrackVoicePool` ownership when rendering, applying FX, or stopping a
+voice; a replaced preset must not affect the new owner on that track.
+
+This removes preset quotas, not engine constraints: SID still shares one
+three-oscillator chip, OPAL remains monophonic per preset, MIDI has 16 protocol
+channels, and the song still has eight tracks. Test clone/import/load failures
+as well as creating many presets of the same type.

@@ -19,11 +19,12 @@ NullPerator builds on the open-source picoTracker project and is developed by
 
 ## Features
 
-- Eight song tracks with 256 chains, 128 phrases, and 32 tables
-- Sample, MIDI, SID, OPAL, and Macro instruments
+- Eight song tracks with 255 chains, 255 phrases, and 32 tables
+- 64 freely assignable instrument slots: Sample, MIDI, SID, OPAL, Drum, Stack,
+  Chiptune, GB-Wave, GB-Pulse, and GB-Noise
 - 44.1 kHz stereo audio engine
 - Fast editing through physical controllers or on-screen controls
-- Project autosave, sample import, and offline local storage
+- Separate project autosaves, sample import, and offline local storage
 - Shared 240×240 UI2 tracker interface across hardware, iOS, and the web
 
 ## Supported targets

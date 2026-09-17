@@ -50,5 +50,6 @@ servers provide the required cross-origin isolation headers. Opening
 will not run pthread-enabled WASM.
 
 Build identity, Emscripten version, and dirty state are visible in the About
-panel. Generated `web/public/wasm` and `web/dist` files must be rebuilt whenever
-native exports or Emscripten link settings change.
+panel. Rebuild `web/public/wasm` after any native C++ change, including synths,
+effects, persistence, or UI2 geometry. Then rebuild `web/dist`. Running only
+`pnpm build` packages the existing WASM; it does not compile the C++ core.
