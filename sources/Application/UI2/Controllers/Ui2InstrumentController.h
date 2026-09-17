@@ -264,8 +264,9 @@ public:
     sampleLoaded_ = loaded;
     sampleImport_ = canImport;
     sampleRecord_ = canRecord;
-    if (!enabled ||
-        sampleAction_ >= 1U + unsigned(loaded) + unsigned(canImport) + unsigned(canRecord))
+    if (!enabled || sampleAction_ >= 1U + unsigned(loaded) +
+                                         unsigned(canImport) +
+                                         unsigned(canRecord))
       sampleAction_ = 0;
   }
   [[nodiscard]] constexpr std::uint8_t SampleAction() const {
@@ -322,22 +323,20 @@ public:
       return {};
 
     if (action == TrackerAction::Up) {
-      if (cursor_.MovePrevious() &&
-          !Ui2InstrumentCellMode(subfieldMode_))
+      if (cursor_.MovePrevious() && !Ui2InstrumentCellMode(subfieldMode_))
         ResetSubfield();
       return {};
     }
     if (action == TrackerAction::Down) {
-      if (cursor_.MoveNext() &&
-          !Ui2InstrumentCellMode(subfieldMode_))
+      if (cursor_.MoveNext() && !Ui2InstrumentCellMode(subfieldMode_))
         ResetSubfield();
       return {};
     }
     if (sampleActions_ && Cursor().kind == Ui2InstrumentCursorKind::Field &&
         Cursor().index == 0U &&
         (action == TrackerAction::Left || action == TrackerAction::Right)) {
-      const unsigned count =
-          1U + unsigned(sampleLoaded_) + unsigned(sampleImport_) + unsigned(sampleRecord_);
+      const unsigned count = 1U + unsigned(sampleLoaded_) +
+                             unsigned(sampleImport_) + unsigned(sampleRecord_);
       sampleAction_ =
           (sampleAction_ + count + (action == TrackerAction::Right ? 1 : -1)) %
           count;
@@ -502,8 +501,7 @@ private:
       return {};
     }
     if (subfieldMode_ != Ui2InstrumentSubfieldMode::None &&
-        !Ui2InstrumentCellMode(subfieldMode_) &&
-        subfieldCount_ > 0U) {
+        !Ui2InstrumentCellMode(subfieldMode_) && subfieldCount_ > 0U) {
       if (direction == Ui2InstrumentValueDirection::Left) {
         if (subfield_ > 0U)
           --subfield_;

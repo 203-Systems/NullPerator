@@ -15,10 +15,13 @@
 
 namespace ui2 {
 namespace {
-// Table headers align with TYPE's value; numeric cells sit under the middle letter.
+// Table headers align with TYPE's value; numeric cells sit under the middle
+// letter.
 constexpr std::array<std::int16_t, 4> kColumnHeaderX{92, 119, 146, 175};
-constexpr std::array<std::string_view, 4> kDrumHeaders{"PIT", "TUN", "DEC", "WAVE"};
-constexpr std::array<std::string_view, 4> kSidEnvelopeHeaders{"ATK", "DEC", "SUS", "REL"};
+constexpr std::array<std::string_view, 4> kDrumHeaders{"PIT", "TUN", "DEC",
+                                                       "WAVE"};
+constexpr std::array<std::string_view, 4> kSidEnvelopeHeaders{"ATK", "DEC",
+                                                              "SUS", "REL"};
 bool SidEnvelopeField(const UiInstrumentViewData &data, std::uint8_t index) {
   return data.kind == UiInstrumentKind::Sid && index == 5 &&
          index < data.fieldCount && data.fields[index].value.size() == 4;
@@ -52,10 +55,12 @@ std::string_view ColumnValue(UiInstrumentKind kind, std::string_view value,
 }
 
 constexpr std::array<std::string_view, kUiInstrumentTypeCount> kTypeOptions{
-    "NONE", "SAMPLE", "MIDI", "SID", "OPAL", "DRUM", "STACK", "CHIPTUNE",
-    "GB-WAVE", "GB-PULSE", "GB-NOISE"};
-constexpr std::array<std::string_view, 4> kGBDutyOptions{"12.5%", "25%", "50%", "75%"};
-constexpr std::array<std::string_view, 4> kGBWaveLevelOptions{"MUTE", "100%", "50%", "25%"};
+    "NONE",  "SAMPLE",   "MIDI",    "SID",      "OPAL",    "DRUM",
+    "STACK", "CHIPTUNE", "GB-WAVE", "GB-PULSE", "GB-NOISE"};
+constexpr std::array<std::string_view, 4> kGBDutyOptions{"12.5%", "25%", "50%",
+                                                         "75%"};
+constexpr std::array<std::string_view, 4> kGBWaveLevelOptions{"MUTE", "100%",
+                                                              "50%", "25%"};
 constexpr std::array<std::string_view, 8> kChiptuneWaveOptions{
     "PULSE 12.5", "PULSE 25",  "PULSE 50",      "TRIANGLE 4BIT",
     "NOISE GB7",  "NOISE NES", "NOISE SN76489", "WHITE NOISE"};
@@ -102,8 +107,10 @@ std::span<const std::string_view> OptionsFor(UiInstrumentFieldOptions options) {
     return kChiptuneWaveOptions;
   case UiInstrumentFieldOptions::StackWave:
     return kStackWaveOptions;
-  case UiInstrumentFieldOptions::GBDuty: return kGBDutyOptions;
-  case UiInstrumentFieldOptions::GBWaveLevel: return kGBWaveLevelOptions;
+  case UiInstrumentFieldOptions::GBDuty:
+    return kGBDutyOptions;
+  case UiInstrumentFieldOptions::GBWaveLevel:
+    return kGBWaveLevelOptions;
   case UiInstrumentFieldOptions::None:
     return {};
   }
@@ -117,8 +124,9 @@ std::string_view TypeName(UiInstrumentKind kind) {
 unsigned FocusedOperator(const UiInstrumentViewData &data) {
   if (data.numberFocus || data.selectedOperator >= data.operatorCount)
     return 0;
-  return data.cursor == UiInstrumentCursor::Operator1 ? 1
-         : data.cursor == UiInstrumentCursor::Operator2 ? 2 : 0;
+  return data.cursor == UiInstrumentCursor::Operator1   ? 1
+         : data.cursor == UiInstrumentCursor::Operator2 ? 2
+                                                        : 0;
 }
 
 RectI16 ResolvedCursorRect(const UiInstrumentViewData &data) {
@@ -161,7 +169,6 @@ void DrawSection(UiSceneBuilder<256, 1024> &builder, std::string_view label,
                 static_cast<std::int16_t>(right - 16 - width), 1},
                UiColorToken::CursorRow);
 }
-
 
 struct SelectedValueLayout {
   std::string_view text{};
@@ -215,8 +222,7 @@ bool SelectedSubfield(const UiInstrumentViewData &data,
 }
 
 bool BottomVisible(const UiInstrumentViewData &data) {
-  return data.numberFocus || data.adjustmentFocus ||
-         ColumnCell(data) ||
+  return data.numberFocus || data.adjustmentFocus || ColumnCell(data) ||
          data.cursor == UiInstrumentCursor::Name ||
          data.cursor == UiInstrumentCursor::Type ||
          data.fieldBottom != UiInstrumentFieldBottom::Hidden;
@@ -233,7 +239,7 @@ RectI16 UiInstrumentView::CursorTargetRect(const UiInstrumentViewData &data) {
             static_cast<std::int16_t>(layout.y - 1),
             static_cast<std::int16_t>(
                 (ColumnCell(data) ? UiFont5x7::TextWidth(layout.text.size())
-                                : UiFont5x7::kGlyphWidth) +
+                                  : UiFont5x7::kGlyphWidth) +
                 4),
             9};
   }
@@ -252,8 +258,8 @@ RectI16 UiInstrumentView::CursorTargetRect(const UiInstrumentViewData &data) {
   case UiInstrumentCursor::Operator1:
   case UiInstrumentCursor::Operator2:
     if (data.selectedOperator < data.operatorCount) {
-      const std::int16_t y =
-          static_cast<std::int16_t>(UiInstrumentOperatorRowY(data.selectedOperator) - 1);
+      const std::int16_t y = static_cast<std::int16_t>(
+          UiInstrumentOperatorRowY(data.selectedOperator) - 1);
       return {static_cast<std::int16_t>(
                   data.cursor == UiInstrumentCursor::Operator1 ? 139 : 185),
               y, 40, 9};
@@ -272,7 +278,8 @@ std::int16_t UiInstrumentView::ContentBottom(const UiInstrumentViewData &data) {
         std::max(bottom, static_cast<std::int16_t>(data.fields[index].y + 8));
   }
   for (std::uint8_t index = 0; index < data.operatorCount; ++index) {
-    bottom = std::max(bottom, static_cast<std::int16_t>(UiInstrumentOperatorRowY(index) + 7));
+    bottom = std::max(
+        bottom, static_cast<std::int16_t>(UiInstrumentOperatorRowY(index) + 7));
   }
   return bottom;
 }
@@ -286,15 +293,15 @@ std::int16_t UiInstrumentView::RevealCursor(std::int16_t currentOffset,
     for (const auto &section : UiInstrumentSections(data.kind)) {
       if (section.firstField != data.selectedField)
         continue;
-      const auto sectionY = static_cast<std::int16_t>(
-          data.fields[data.selectedField].y - 12);
+      const auto sectionY =
+          static_cast<std::int16_t>(data.fields[data.selectedField].y - 12);
       target.height += target.y - sectionY;
       target.y = sectionY;
       break;
     }
   }
-  return UiVerticalList::Reveal(currentOffset, target, 34,
-                                viewportBottom, ContentBottom(data));
+  return UiVerticalList::Reveal(currentOffset, target, 34, viewportBottom,
+                                ContentBottom(data));
 }
 
 RectI16 UiInstrumentView::FieldDamageRect(std::int16_t y) {
@@ -349,7 +356,8 @@ void UiInstrumentView::RenderDelta(const UiInstrumentViewData &previous,
       (previous.selectedSubfield != current.selectedSubfield ||
        previous.cursor != current.cursor ||
        previous.selectedField != current.selectedField))
-    render(contentRect(FieldDamageRect(current.fields[columnHeaderField].y - 12)));
+    render(
+        contentRect(FieldDamageRect(current.fields[columnHeaderField].y - 12)));
 
   const RectI16 oldCursor = contentRect(ResolvedCursorRect(previous));
   const RectI16 newCursor = contentRect(ResolvedCursorRect(current));
@@ -370,12 +378,11 @@ void UiInstrumentView::RenderDelta(const UiInstrumentViewData &previous,
   for (std::uint8_t index = 0; !contentRedrawn && index < current.operatorCount;
        ++index) {
     if (previous.operators[index] != current.operators[index]) {
-      render(contentRect(
-          FieldDamageRect(UiInstrumentOperatorRowY(index))));
+      render(contentRect(FieldDamageRect(UiInstrumentOperatorRowY(index))));
     }
   }
   if ((ColumnCell(current) && previous.fields[current.selectedField] !=
-                                current.fields[current.selectedField]) ||
+                                  current.fields[current.selectedField]) ||
       previous.selectedSubfield != current.selectedSubfield ||
       previous.enterSubfieldFocus != current.enterSubfieldFocus ||
       previous.cursor != current.cursor ||
@@ -553,7 +560,8 @@ UiBuildStatus UiInstrumentView::Build(const UiInstrumentViewData &data,
                     : UiColorToken::TextNormal,
                 data.fields[index].userData);
     }
-    DrawSection(builder, "OPERATOR SETTINGS", kUiInstrumentOperatorHeaderY, 136);
+    DrawSection(builder, "OPERATOR SETTINGS", kUiInstrumentOperatorHeaderY,
+                136);
     const unsigned focusedOperator = FocusedOperator(data);
     builder.Text("OP 1", 144, kUiInstrumentOperatorHeaderY,
                  focusedOperator == 1 ? UiColorToken::TextColored
@@ -572,16 +580,18 @@ UiBuildStatus UiInstrumentView::Build(const UiInstrumentViewData &data,
       if (section.firstField >= data.fieldCount)
         continue;
       const bool columns = ColumnField(data, section.firstField);
-      const auto headerY = static_cast<std::int16_t>(
-          data.fields[section.firstField].y - 12);
+      const auto headerY =
+          static_cast<std::int16_t>(data.fields[section.firstField].y - 12);
       DrawSection(builder, section.title, headerY, columns ? 84 : 231);
       if (columns) {
         const auto &headers = data.kind == UiInstrumentKind::Drum
-                                  ? kDrumHeaders : kSidEnvelopeHeaders;
+                                  ? kDrumHeaders
+                                  : kSidEnvelopeHeaders;
         for (unsigned col = 0; col < kColumnHeaderX.size(); ++col)
           builder.Text(headers[col], kColumnHeaderX[col], headerY,
                        ColumnCell(data) && data.selectedSubfield == col
-                           ? UiColorToken::TextColored : UiColorToken::TextDim);
+                           ? UiColorToken::TextColored
+                           : UiColorToken::TextDim);
       }
     }
     for (std::uint8_t index = 0; index < data.fieldCount; ++index) {
@@ -622,7 +632,7 @@ UiBuildStatus UiInstrumentView::Build(const UiInstrumentViewData &data,
         std::uint8_t textIndex = 0U;
         if (SelectedSubfield(data, layout, textIndex)) {
           builder.Text(ColumnCell(data) ? layout.text
-                                      : layout.text.substr(textIndex, 1),
+                                        : layout.text.substr(textIndex, 1),
                        static_cast<std::int16_t>(
                            layout.x + textIndex * UiFont5x7::kAdvance),
                        layout.y, UiColorToken::TextHighlighted);
@@ -638,8 +648,7 @@ UiBuildStatus UiInstrumentView::Build(const UiInstrumentViewData &data,
       } else if ((data.cursor == UiInstrumentCursor::Operator1 ||
                   data.cursor == UiInstrumentCursor::Operator2) &&
                  data.selectedOperator < data.operatorCount) {
-        const std::int16_t y =
-            UiInstrumentOperatorRowY(data.selectedOperator);
+        const std::int16_t y = UiInstrumentOperatorRowY(data.selectedOperator);
         const UiInstrumentOperatorRow &row =
             data.operators[data.selectedOperator];
         SelectedValueLayout layout;

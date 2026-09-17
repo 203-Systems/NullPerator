@@ -24,12 +24,20 @@ bool GenericIntegerRange(FourCC id, int &minimum, int &maximum) {
   maximum = 0;
   if (id >= FourCC::GBVolume && id <= FourCC::GBWave7) {
     maximum = 255;
-    if (id == FourCC::GBTranspose) { minimum = -24; maximum = 24; }
-    else if (id == FourCC::GBTable) { minimum = VAR_OFF; maximum = TABLE_COUNT - 1; }
-    else if (id == FourCC::GBLength) maximum = 256;
-    else if (id == FourCC::GBSweep) maximum = 127;
-    else if (id == FourCC::GBDuty || id == FourCC::GBWaveLevel) maximum = 3;
-    else if (id >= FourCC::GBWave0) maximum = 0xFFFF;
+    if (id == FourCC::GBTranspose) {
+      minimum = -24;
+      maximum = 24;
+    } else if (id == FourCC::GBTable) {
+      minimum = VAR_OFF;
+      maximum = TABLE_COUNT - 1;
+    } else if (id == FourCC::GBLength)
+      maximum = 256;
+    else if (id == FourCC::GBSweep)
+      maximum = 127;
+    else if (id == FourCC::GBDuty || id == FourCC::GBWaveLevel)
+      maximum = 3;
+    else if (id >= FourCC::GBWave0)
+      maximum = 0xFFFF;
     return true;
   }
   if (id >= FourCC::DrumVoice0 && id <= FourCC::DrumVoice11) {
@@ -133,8 +141,10 @@ bool ValidateGenericInstrumentVariable(Variable &variable, const char *value,
     int minimum = 0;
     int maximum = 0;
     int parsed = 0;
-    if (!GenericIntegerRange(variable.GetID(), minimum, maximum)) return false;
-    if (variable.GetID() == FourCC::GBLength && type != IT_GB_WAVE) maximum = 64;
+    if (!GenericIntegerRange(variable.GetID(), minimum, maximum))
+      return false;
+    if (variable.GetID() == FourCC::GBLength && type != IT_GB_WAVE)
+      maximum = 64;
     return ParsePersistedIntegerAttribute(value, minimum, maximum, parsed);
   }
   case Variable::BOOL:
@@ -289,7 +299,8 @@ void I_Instrument::RestoreContent(PersistencyDocument *doc) {
         }
       }
       if (target != nullptr) {
-        if (!ValidateGenericInstrumentVariable(*target, value.data(), GetType()) ||
+        if (!ValidateGenericInstrumentVariable(*target, value.data(),
+                                               GetType()) ||
             updateCount >= updates.size()) {
           fail();
           return;

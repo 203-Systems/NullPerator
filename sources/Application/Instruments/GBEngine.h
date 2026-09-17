@@ -247,10 +247,9 @@ struct Voice {
     const int32_t input = (integrated * 256) / int(cycles);
     highPass = input - lastInput + (highPass * 65280) / 65536;
     lastInput = input;
-    const int32_t value =
-        kind == Kind::Wave && !waveLevel
-            ? 0
-            : highPass * volume * SynthLevel::GbQ8Gain;
+    const int32_t value = kind == Kind::Wave && !waveLevel
+                              ? 0
+                              : highPass * volume * SynthLevel::GbQ8Gain;
     *left = static_cast<int32_t>(
         (int64_t(value) * std::min(255, 2 * int(pan))) / 255);
     *right = static_cast<int32_t>(

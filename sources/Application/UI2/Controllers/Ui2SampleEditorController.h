@@ -331,7 +331,8 @@ public:
       if (repeatedPress)
         return {};
       if (playing_) {
-        const auto command = MakeCommand(Ui2SampleEditorCommandType::PreviewStop);
+        const auto command =
+            MakeCommand(Ui2SampleEditorCommandType::PreviewStop);
         StopPreview();
         return command;
       }
@@ -394,8 +395,9 @@ public:
 
     if (focus_ == SampleEditorViewUi2Focus::Operation && !enter && !option &&
         (action == TrackerAction::Left || action == TrackerAction::Right)) {
-      operation_ = action == TrackerAction::Left ? Ui2SampleEditorOperation::Trim
-                                                : Ui2SampleEditorOperation::Normalize;
+      operation_ = action == TrackerAction::Left
+                       ? Ui2SampleEditorOperation::Trim
+                       : Ui2SampleEditorOperation::Normalize;
       return {};
     }
 
@@ -478,12 +480,9 @@ public:
 
 private:
   static constexpr std::array<SampleEditorViewUi2Focus, 6> kLibraryFocusOrder{
-      SampleEditorViewUi2Focus::Start,
-      SampleEditorViewUi2Focus::End,
-      SampleEditorViewUi2Focus::Operation,
-      SampleEditorViewUi2Focus::Save,
-      SampleEditorViewUi2Focus::SaveAs,
-      SampleEditorViewUi2Focus::Discard,
+      SampleEditorViewUi2Focus::Start,     SampleEditorViewUi2Focus::End,
+      SampleEditorViewUi2Focus::Operation, SampleEditorViewUi2Focus::Save,
+      SampleEditorViewUi2Focus::SaveAs,    SampleEditorViewUi2Focus::Discard,
   };
 
   static bool IsDirection(TrackerAction action) {

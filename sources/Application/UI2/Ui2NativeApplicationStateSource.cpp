@@ -796,8 +796,7 @@ UiApplicationActivityState Ui2NativeApplicationStateSource::CaptureInstrument(
   if (Ui2InstrumentCellMode(activeSubfields.mode) &&
       cursor.kind == Ui2InstrumentCursorKind::Field) {
     const bool wave = type == IT_DRUM && state.selectedSubfield == 3;
-    state.enterSubfieldFocus =
-        wave && instrument_.EnterSubfieldFocus();
+    state.enterSubfieldFocus = wave && instrument_.EnterSubfieldFocus();
     state.adjustmentFocus =
         !state.numberFocus && !wave &&
         (instrument_.HeldMask() & TrackerActionBit(TrackerAction::Enter)) != 0;
@@ -1196,7 +1195,8 @@ Ui2NativeApplicationStateSource::CaptureRecord(UiRecordFrameState &state) {
   CopyUiText(state.snapshot.source, sources[source]);
   const std::uint32_t elapsedSeconds =
       (IsRecordingActive() || IsSavingRecording())
-          ? GetRecordingElapsedMilliseconds() / 1000U : 0U;
+          ? GetRecordingElapsedMilliseconds() / 1000U
+          : 0U;
   std::snprintf(
       state.snapshot.elapsed.data(), state.snapshot.elapsed.size(), "%02u:%02u",
       static_cast<unsigned>(std::min<std::uint32_t>(elapsedSeconds / 60U, 99U)),

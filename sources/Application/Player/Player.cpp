@@ -727,13 +727,12 @@ void Player::Update(Observable &o, I_ObservableData *d) {
     }
 
     for (int i = 0; i < SONG_CHANNEL_COUNT; i++) {
-      noteTrigger_[i].Tick(
-          [&]() { playCursorPosition(i); },
-          [&](ushort volume) {
-            if (auto *instrument = mixer_.GetInstrument(i))
-              instrument->ProcessCommand(i, FourCC::InstrumentCommandVolume,
-                                         volume);
-          });
+      noteTrigger_[i].Tick([&]() { playCursorPosition(i); },
+                           [&](ushort volume) {
+                             if (auto *instrument = mixer_.GetInstrument(i))
+                               instrument->ProcessCommand(
+                                   i, FourCC::InstrumentCommandVolume, volume);
+                           });
     }
 
     // Process commands in current phrase

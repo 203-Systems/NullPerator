@@ -147,13 +147,14 @@ UiBuildStatus UiSampleEditorView::Build(const UiSampleEditorViewData &data,
   scene.bottomVisible = true;
   scene.topBackground = UiColorToken::SurfaceTopBar;
   scene.bottomBackground = UiColorToken::SurfaceBottomBar;
-  const UiTopBarModel top{.title = "SAMPLE EDIT", .power = data.power, .backNavigation = true};
+  const UiTopBarModel top{
+      .title = "SAMPLE EDIT", .power = data.power, .backNavigation = true};
   const UiBuildStatus topStatus = UiChromeRenderer::BuildTop(top, scene.top);
   if (topStatus != UiBuildStatus::Built)
     return topStatus;
   UiBottomBarModel bottom{.kind = data.bottomActionCount == 0U
-                                     ? UiBottomBarKind::Hidden
-                                     : UiBottomBarKind::Actions};
+                                      ? UiBottomBarKind::Hidden
+                                      : UiBottomBarKind::Actions};
   scene.bottomVisible = data.bottomActionCount != 0U;
   bottom.actions.actions = data.bottomActions;
   bottom.actions.count = std::min<std::uint8_t>(
@@ -306,7 +307,8 @@ UiBuildStatus UiSampleSlicesView::Build(const UiSampleSlicesViewData &data,
   scene.bottomVisible = true;
   scene.topBackground = UiColorToken::SurfaceTopBar;
   scene.bottomBackground = UiColorToken::SurfaceBottomBar;
-  const UiTopBarModel top{.title = "SLICES", .power = data.power, .backNavigation = true};
+  const UiTopBarModel top{
+      .title = "SLICES", .power = data.power, .backNavigation = true};
   const UiBuildStatus topStatus = UiChromeRenderer::BuildTop(top, scene.top);
   if (topStatus != UiBuildStatus::Built)
     return topStatus;
@@ -328,9 +330,9 @@ UiBuildStatus UiSampleSlicesView::Build(const UiSampleSlicesViewData &data,
     }
   } else if (data.cursor == UiSampleSlicesCursor::Zoom) {
     static constexpr std::array<std::string_view, 17> zoomOptions{
-        "1X", "2X", "4X", "8X", "16X", "32X", "64X", "128X",
-        "256X", "512X", "1024X", "2048X", "4096X", "8192X",
-        "16384X", "32768X", "65536X"};
+        "1X",    "2X",    "4X",     "8X",     "16X",   "32X",
+        "64X",   "128X",  "256X",   "512X",   "1024X", "2048X",
+        "4096X", "8192X", "16384X", "32768X", "65536X"};
     bottom.kind = UiBottomBarKind::Selector;
     bottom.selector.options = std::span{zoomOptions}.first(
         std::min<std::size_t>(data.maxZoomLevel + 1U, zoomOptions.size()));

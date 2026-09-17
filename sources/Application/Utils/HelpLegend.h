@@ -102,8 +102,8 @@ inline std::array<const char *, 2> getHelpLegend(FourCC command,
     return {"Stop: ----", "stop table playback"};
   case FourCC::InstrumentCommandGateOff:
     return {"Gate Off: ----", drum || chip || gb ? "stop the voice"
-                              : unknown    ? "release or stop, per instrument"
-                                           : "release the synth envelope"};
+                              : unknown ? "release or stop, per instrument"
+                                        : "release the synth envelope"};
   case FourCC::InstrumentCommandSetInstrumentParameter:
     return {"SIP: aabb", "parameter aa, value bb"};
   case FourCC::InstrumentCommandChordUp:

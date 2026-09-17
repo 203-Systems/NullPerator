@@ -36,7 +36,7 @@ struct SampleImportResult {
 
 class System : public T_Factory<System> {
 
-public:                                 // Override in implementation
+public: // Override in implementation
   virtual bool CanImportSample() const { return false; }
   virtual bool RequestSampleImport(const char *projectName) { return false; }
   virtual SampleImportResult PollSampleImport() { return {}; }

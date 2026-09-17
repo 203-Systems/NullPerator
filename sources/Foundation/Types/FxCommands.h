@@ -26,7 +26,8 @@ enum class Instrument : uint8_t {
   GBNoise
 };
 constexpr bool IsGB(Instrument instrument) {
-  return instrument == Instrument::GBWave || instrument == Instrument::GBPulse || instrument == Instrument::GBNoise;
+  return instrument == Instrument::GBWave ||
+         instrument == Instrument::GBPulse || instrument == Instrument::GBNoise;
 }
 
 struct Context {
@@ -45,7 +46,8 @@ inline constexpr auto opal = Bit(Instrument::Opal);
 inline constexpr auto drum = Bit(Instrument::Drum);
 inline constexpr auto stack = Bit(Instrument::Stack);
 inline constexpr auto chip = Bit(Instrument::Chiptune);
-inline constexpr auto gbTone = Bit(Instrument::GBWave) | Bit(Instrument::GBPulse);
+inline constexpr auto gbTone =
+    Bit(Instrument::GBWave) | Bit(Instrument::GBPulse);
 inline constexpr auto gbAll = gbTone | Bit(Instrument::GBNoise);
 
 enum Page : uint8_t { Neither = 0, Phrase = 1, Table = 2, Both = 3 };
@@ -68,7 +70,8 @@ struct Command {
 // groups these entries without changing command IDs or project data.
 inline constexpr std::array<Command, 32> commands{{
     {FourCC::InstrumentCommandNone, "---", 0, Both},
-    {FourCC::InstrumentCommandArpeggiator, "ARP", sample | stack | chip | gbTone},
+    {FourCC::InstrumentCommandArpeggiator, "ARP",
+     sample | stack | chip | gbTone},
     {FourCC::InstrumentCommandChordBidirectional, "CHB", stack, Neither,
      Group::Synth},
     {FourCC::InstrumentCommandChordDown, "CHD", stack, Neither, Group::Synth},
@@ -80,23 +83,27 @@ inline constexpr std::array<Command, 32> commands{{
      Group::Sample},
     {FourCC::InstrumentCommandFilterResonance, "FRS", sample, Neither,
      Group::Sample},
-    {FourCC::InstrumentCommandGateOff, "GOF", sid | opal | drum | stack | chip | gbAll},
+    {FourCC::InstrumentCommandGateOff, "GOF",
+     sid | opal | drum | stack | chip | gbAll},
     {FourCC::InstrumentCommandGroove, "GRV", 0, Both},
     {FourCC::InstrumentCommandHop, "HOP", 0, Both},
     {FourCC::InstrumentCommandInstrumentRetrigger, "IRT", 0, Table},
     {FourCC::InstrumentCommandKill, "KIL", 0, Both},
-    {FourCC::InstrumentCommandLegato, "LEG", sample | midi | stack | chip | gbTone},
+    {FourCC::InstrumentCommandLegato, "LEG",
+     sample | midi | stack | chip | gbTone},
     {FourCC::InstrumentCommandLoopOfset, "LOF", sample, Neither, Group::Sample},
     {FourCC::InstrumentCommandMidiCC, "MCC", midi, Neither, Group::Midi},
     {FourCC::InstrumentCommandMidiChord, "MCH", midi, Neither, Group::Midi},
     {FourCC::InstrumentCommandMidiPC, "MPC", midi, Neither, Group::Midi},
     {FourCC::InstrumentCommandPan, "PAN", sample | stack | chip | gbAll},
-    {FourCC::InstrumentCommandPitchFineTune, "PFT", sample | stack | chip | gbTone},
+    {FourCC::InstrumentCommandPitchFineTune, "PFT",
+     sample | stack | chip | gbTone},
     {FourCC::InstrumentCommandPlayOfset, "POF", sample, Neither, Group::Sample},
-    {FourCC::InstrumentCommandPitchSlide, "PSL", sample | midi | stack | chip | gbTone},
+    {FourCC::InstrumentCommandPitchSlide, "PSL",
+     sample | midi | stack | chip | gbTone},
     {FourCC::InstrumentCommandRetrigger, "RTG", sample | midi},
-    {FourCC::InstrumentCommandSetInstrumentParameter, "SIP", stack | chip | gbAll,
-     Neither, Group::Synth},
+    {FourCC::InstrumentCommandSetInstrumentParameter, "SIP",
+     stack | chip | gbAll, Neither, Group::Synth},
     {FourCC::InstrumentCommandStop, "STP", 0, Table},
     {FourCC::InstrumentCommandTable, "TBL", 0, Phrase},
     {FourCC::InstrumentCommandTempo, "TPO", 0, Phrase},
@@ -125,9 +132,9 @@ inline bool Available(FourCC id, Context context) {
   return false;
 }
 constexpr std::string_view InstrumentName(Instrument instrument) {
-  constexpr std::array names{"--",   "NONE", "SAMPLE", "MIDI",    "SID",
-                             "OPAL", "DRUM", "STACK",  "CHIPTUNE",
-                             "GB-WAVE", "GB-PULSE", "GB-NOISE"};
+  constexpr std::array names{"--",       "NONE",    "SAMPLE",   "MIDI",
+                             "SID",      "OPAL",    "DRUM",     "STACK",
+                             "CHIPTUNE", "GB-WAVE", "GB-PULSE", "GB-NOISE"};
   return names[static_cast<unsigned>(instrument)];
 }
 
@@ -160,19 +167,27 @@ inline constexpr std::array<ParameterInfo, 12> chipParameters{
      {"Vibrato Depth", "00-FF"},
      {"Sweep Time", "00-FF"},
      {"Sweep Amount", "Signed byte"}}};
-inline constexpr std::array<ParameterInfo, 6> gbPulseParameters{{
-    {"Duty", "00-03"}, {"Transpose", "Signed -24..24"}, {"Volume", "00-FF"},
-    {"Length", "00 off; 01-40 /256s"}, {"Envelope", "NR12: VVVVDPPP"}, {"Sweep", "NR10: 0PPPDSSS"}}};
-inline constexpr std::array<ParameterInfo, 5> gbNoiseParameters{{
-    {"Noise shape", "NR43: SSSSWDDD"}, {"", ""}, {"Volume", "00-FF"},
-    {"Length", "00 off; 01-40 /256s"}, {"Envelope", "NR42: VVVVDPPP"}}};
+inline constexpr std::array<ParameterInfo, 6> gbPulseParameters{
+    {{"Duty", "00-03"},
+     {"Transpose", "Signed -24..24"},
+     {"Volume", "00-FF"},
+     {"Length", "00 off; 01-40 /256s"},
+     {"Envelope", "NR12: VVVVDPPP"},
+     {"Sweep", "NR10: 0PPPDSSS"}}};
+inline constexpr std::array<ParameterInfo, 5> gbNoiseParameters{
+    {{"Noise shape", "NR43: SSSSWDDD"},
+     {"", ""},
+     {"Volume", "00-FF"},
+     {"Length", "00 off; 01-40 /256s"},
+     {"Envelope", "NR42: VVVVDPPP"}}};
 inline constexpr auto gbWaveParameters = [] {
   std::array<ParameterInfo, 48> result{};
   result[0] = {"Output level", "0 mute; 1/2/3=100/50/25%"};
   result[1] = {"Transpose", "Signed -24..24"};
   result[2] = {"Volume", "00-FF"};
   result[3] = {"Length", "00 off; bb /256s"};
-  for (unsigned i = 0x10; i <= 0x2F; ++i) result[i] = {"Wave sample", "0-F; aa-10 = sample index"};
+  for (unsigned i = 0x10; i <= 0x2F; ++i)
+    result[i] = {"Wave sample", "0-F; aa-10 = sample index"};
   return result;
 }();
 constexpr const ParameterInfo *InstrumentParameter(Instrument instrument,
@@ -181,9 +196,14 @@ constexpr const ParameterInfo *InstrumentParameter(Instrument instrument,
     return &stackParameters[index];
   if (instrument == Instrument::Chiptune && index < chipParameters.size())
     return &chipParameters[index];
-  if (instrument == Instrument::GBPulse && index < gbPulseParameters.size()) return &gbPulseParameters[index];
-  if (instrument == Instrument::GBNoise && index < gbNoiseParameters.size() && index != 1) return &gbNoiseParameters[index];
-  if (instrument == Instrument::GBWave && index < gbWaveParameters.size() && (index < 4 || index >= 0x10)) return &gbWaveParameters[index];
+  if (instrument == Instrument::GBPulse && index < gbPulseParameters.size())
+    return &gbPulseParameters[index];
+  if (instrument == Instrument::GBNoise && index < gbNoiseParameters.size() &&
+      index != 1)
+    return &gbNoiseParameters[index];
+  if (instrument == Instrument::GBWave && index < gbWaveParameters.size() &&
+      (index < 4 || index >= 0x10))
+    return &gbWaveParameters[index];
   return nullptr;
 }
 

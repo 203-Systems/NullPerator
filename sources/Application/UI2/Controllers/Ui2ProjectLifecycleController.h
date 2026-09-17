@@ -303,8 +303,8 @@ private:
     if (actionCount_ <= 1U)
       return;
     const int count = actionCount_;
-    selectedAction_ = static_cast<std::uint8_t>(
-        std::clamp<int>(static_cast<int>(selectedAction_) + delta, 0, count - 1));
+    selectedAction_ = static_cast<std::uint8_t>(std::clamp<int>(
+        static_cast<int>(selectedAction_) + delta, 0, count - 1));
   }
 
   Ui2ProjectLifecycleCommand

@@ -4,11 +4,11 @@
 #include "Services/Audio/MonoPcmCapture.h"
 
 #include <TargetConditionals.h>
-#include <os/log.h>
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <os/log.h>
 #include <span>
 #include <thread>
 
@@ -224,15 +224,16 @@ void IOSAudioDriver::LogInputCaptureStats() const {
 void IOSAudioDriver::FormatInputCaptureStats(std::span<char> output) const {
   if (output.empty())
     return;
-  std::snprintf(output.data(), output.size(),
-                "frames=%zu max_block=%u errors=%u last_error=%d missing=%u "
-                "short_blocks=%u short_frames=%u invalid_floats=%u "
-                "clipped=%u discontinuities=%u\n",
-                CapturedInputFrames(), inputLargestBlock_.load(),
-                inputRenderErrors_.load(), static_cast<int>(inputLastError_.load()),
-                inputMissingFrames_.load(), inputShortBlocks_.load(),
-                inputShortFrames_.load(), inputInvalidFloats_.load(),
-                inputClippedSamples_.load(), inputTimelineDiscontinuities_.load());
+  std::snprintf(
+      output.data(), output.size(),
+      "frames=%zu max_block=%u errors=%u last_error=%d missing=%u "
+      "short_blocks=%u short_frames=%u invalid_floats=%u "
+      "clipped=%u discontinuities=%u\n",
+      CapturedInputFrames(), inputLargestBlock_.load(),
+      inputRenderErrors_.load(), static_cast<int>(inputLastError_.load()),
+      inputMissingFrames_.load(), inputShortBlocks_.load(),
+      inputShortFrames_.load(), inputInvalidFloats_.load(),
+      inputClippedSamples_.load(), inputTimelineDiscontinuities_.load());
 }
 
 OSStatus IOSAudioDriver::Render(void *context,
@@ -308,13 +309,14 @@ void IOSAudioDriver::PullInput(AudioUnitRenderActionFlags *flags,
   AudioUnitRenderActionFlags inputFlags = 0;
   const OSStatus status =
       AudioUnitRender(unit_, &inputFlags, timestamp, 1U, frames, &input);
-  const bool silent = status == noErr &&
-                      (inputFlags & kAudioUnitRenderAction_OutputIsSilence) != 0;
+  const bool silent =
+      status == noErr &&
+      (inputFlags & kAudioUnitRenderAction_OutputIsSilence) != 0;
   std::span<const float> source;
   if (status == noErr && !silent && input.mBuffers[0].mData != nullptr)
     source = {static_cast<const float *>(input.mBuffers[0].mData),
-              std::min<std::size_t>(frames,
-                  input.mBuffers[0].mDataByteSize / sizeof(float))};
+              std::min<std::size_t>(frames, input.mBuffers[0].mDataByteSize /
+                                                sizeof(float))};
   // With rate conversion, a successful RemoteIO render can return fewer
   // valid frames than requested. Concatenate those frames; padding the tail
   // introduced periodic one-sample zeros (clicks) into the saved recording.
@@ -388,9 +390,11 @@ bool IOSAudioDriver::ConfigureInput(bool enabled) noexcept {
                                    kAudioUnitScope_Output, 1, &format,
                                    sizeof(format)) == noErr;
     UInt32 allocate = 1U;
-    success = AudioUnitSetProperty(unit_, kAudioUnitProperty_ShouldAllocateBuffer,
-                                   kAudioUnitScope_Output, 1, &allocate,
-                                   sizeof(allocate)) == noErr && success;
+    success =
+        AudioUnitSetProperty(unit_, kAudioUnitProperty_ShouldAllocateBuffer,
+                             kAudioUnitScope_Output, 1, &allocate,
+                             sizeof(allocate)) == noErr &&
+        success;
   }
   success = AudioUnitInitialize(unit_) == noErr && success;
   if (restart)

@@ -155,16 +155,18 @@ struct UiSampleEditorControllerState {
       data.bottomActionCount = 1;
       data.bottomActive = 0;
     } else if (capture.focus == SampleEditorViewUi2Focus::Operation ||
-        capture.focus == SampleEditorViewUi2Focus::Apply) {
+               capture.focus == SampleEditorViewUi2Focus::Apply) {
       data.bottomActions = {"TRIM", "NORMALIZE", {}, {}};
       data.bottomActionCount = 2;
-      data.bottomActive = detail::SampleCStringView(capture.operation) == "TRIM" ? 0U : 1U;
+      data.bottomActive =
+          detail::SampleCStringView(capture.operation) == "TRIM" ? 0U : 1U;
     } else if (capture.focus == SampleEditorViewUi2Focus::Save ||
                capture.focus == SampleEditorViewUi2Focus::Discard ||
                capture.focus == SampleEditorViewUi2Focus::SaveAs) {
-      data.bottomActions = capture.fileMutationAvailable
-                               ? std::array<std::string_view, 4>{"SAVE", "SAVE AS", {}, {}}
-                               : std::array<std::string_view, 4>{"DISCARD", {}, {}, {}};
+      data.bottomActions =
+          capture.fileMutationAvailable
+              ? std::array<std::string_view, 4>{"SAVE", "SAVE AS", {}, {}}
+              : std::array<std::string_view, 4>{"DISCARD", {}, {}, {}};
       data.bottomActionCount = capture.fileMutationAvailable ? 2U : 1U;
     } else {
       data.bottomActions = {};
@@ -317,8 +319,7 @@ struct UiSampleSlicesControllerState {
   bool operator==(const UiSampleSlicesControllerState &other) const {
     return detail::EqualSlicesCapture(capture, other.capture) &&
            enterHeld == other.enterHeld && markers == other.markers &&
-           help == other.help &&
-           cursorVisualRect == other.cursorVisualRect &&
+           help == other.help && cursorVisualRect == other.cursorVisualRect &&
            cursor == other.cursor && power == other.power &&
            markerCount == other.markerCount &&
            bottomActive == other.bottomActive &&

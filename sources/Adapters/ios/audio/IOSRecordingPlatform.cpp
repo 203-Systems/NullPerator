@@ -107,8 +107,10 @@ void FinishCaptureAndSave() {
     if (FileSystem *fs = FileSystem::GetInstance()) {
       std::array<char, 384> text{};
       driver->FormatInputCaptureStats(text);
-      if (auto file = fs->Open(RECORDINGS_DIR "/.capture-diagnostics.txt", "wb")) {
-        (void)file->Write(text.data(), 1, static_cast<int>(std::strlen(text.data())));
+      if (auto file =
+              fs->Open(RECORDINGS_DIR "/.capture-diagnostics.txt", "wb")) {
+        (void)file->Write(text.data(), 1,
+                          static_cast<int>(std::strlen(text.data())));
         (void)file->Sync();
       }
     }

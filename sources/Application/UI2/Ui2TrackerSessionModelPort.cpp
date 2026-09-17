@@ -383,9 +383,15 @@ fx::Context Ui2TrackerSessionModelPort::FxContext(Ui2TrackerPage page,
   case IT_CHIPTUNE:
     context.instrument = fx::Instrument::Chiptune;
     break;
-  case IT_GB_WAVE: context.instrument = fx::Instrument::GBWave; break;
-  case IT_GB_PULSE: context.instrument = fx::Instrument::GBPulse; break;
-  case IT_GB_NOISE: context.instrument = fx::Instrument::GBNoise; break;
+  case IT_GB_WAVE:
+    context.instrument = fx::Instrument::GBWave;
+    break;
+  case IT_GB_PULSE:
+    context.instrument = fx::Instrument::GBPulse;
+    break;
+  case IT_GB_NOISE:
+    context.instrument = fx::Instrument::GBNoise;
+    break;
   default:
     break;
   }
