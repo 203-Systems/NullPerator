@@ -143,7 +143,10 @@ UiBuildStatus UiChromeRenderer::BuildTop(const UiTopBarModel &model,
   scene.Clear();
   BarBuilder builder(scene);
   const std::uint8_t titleScale =
-      (model.title.size() <= 7 || model.title == "FX SELECT" || model.title == "SAMPLE EDIT") ? 2 : 1;
+      (model.title.size() <= 7 || model.title == "FX SELECT" ||
+       model.title == "SAMPLE EDIT")
+          ? 2
+          : 1;
   builder.Text(model.title, 9, 10, UiColorToken::TextNormal, titleScale);
   if (!model.meta.empty()) {
     const std::int16_t metaX =
@@ -333,7 +336,8 @@ RectI16 UiChromeRenderer::MetaTargetRect(const UiTopBarModel &model) {
                              9 +
                              UiFont5x7::TextWidth(model.title.size(),
                                                   (model.title.size() <= 7 ||
-                                                   model.title == "FX SELECT" || model.title == "SAMPLE EDIT")
+                                                   model.title == "FX SELECT" ||
+                                                   model.title == "SAMPLE EDIT")
                                                       ? 2
                                                       : 1) +
                              7);
@@ -347,7 +351,7 @@ RectI16 UiChromeRenderer::BottomTrackTargetRect(std::int8_t track) {
   if (track < 0 || track >= 8)
     return {};
   const std::int16_t center = static_cast<std::int16_t>(15 + track * 30);
-  return {static_cast<std::int16_t>(center - 7), 212, 15, 8};
+  return {static_cast<std::int16_t>(center - 7), 212, 15, 9};
 }
 
 RectI16 UiChromeRenderer::BottomRgbTargetRect(std::uint8_t component,

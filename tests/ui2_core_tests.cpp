@@ -2829,7 +2829,36 @@ TEST_CASE("UI2 Phrase dual cursor animation renders exact visual overrides") {
             {.title = "PHRASE", .meta = "3A", .metaX = 85}) ==
         ui2::RectI16{83, 9, 15, 9});
   CHECK(ui2::UiChromeRenderer::BottomTrackTargetRect(2) ==
-        ui2::RectI16{68, 212, 15, 8});
+        ui2::RectI16{68, 212, 15, 9});
+}
+
+TEST_CASE("UI2 Option track highlight pads the label above and below") {
+  ui2::UiPalette palette;
+  for (std::int8_t track = 0; track < 8; ++track) {
+    CAPTURE(track);
+    auto data = ui2::test::ApprovedPhraseFixture("number");
+    data.selectedTrack = track;
+    ui2::UiFrameScene scene;
+    REQUIRE(ui2::UiPhraseView::Build(data, palette, scene) ==
+            ui2::UiBuildStatus::Built);
+    ui2::UiSurfaceStorage storage;
+    ui2::UiIndexedSurface surface(storage);
+    ui2::UiFrameRenderer::RenderStatic(scene, surface, palette);
+
+    const auto bounds = ui2::UiChromeRenderer::BottomTrackTargetRect(track);
+    CHECK(bounds == ui2::RectI16{static_cast<std::int16_t>(8 + track * 30),
+                                212, 15, 9});
+    // T# occupies y=213..219. Both padding rows must remain cursor fill,
+    // including the formerly missing bottom row, without moving the text.
+    for (int x = bounds.x + 2; x < bounds.Right() - 2; ++x) {
+      CHECK(surface.Pixel(x, 212) ==
+            palette.Index(ui2::UiColorToken::CursorPrimary));
+      CHECK(surface.Pixel(x, 220) ==
+            palette.Index(ui2::UiColorToken::CursorPrimary));
+      CHECK(surface.Pixel(x, 221) !=
+            palette.Index(ui2::UiColorToken::CursorPrimary));
+    }
+  }
 }
 
 TEST_CASE("UI2 Phrase idle is clean and a cursor move stays locally dirty") {
