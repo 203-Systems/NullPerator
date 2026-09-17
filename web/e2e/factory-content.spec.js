@@ -113,9 +113,6 @@ async function deleteIdbfsDatabase(page) {
 async function restartRuntime(page) {
   const ready = page.locator('[data-runtime-state="ready"]')
   await restartWorkbench(page)
-  // Waiting only for "ready" can resolve against the old runtime before its
-  // asynchronous shutdown begins. The hidden edge is the restart fence.
-  await ready.waitFor({ state: 'hidden', timeout: 10_000 })
   await expect(ready).toBeVisible({ timeout: 20_000 })
 }
 

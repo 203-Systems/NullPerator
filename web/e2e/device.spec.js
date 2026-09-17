@@ -18,11 +18,10 @@ test('stops the application thread before restarting the tracker canvas', async 
   const ready = page.locator('[data-runtime-state="ready"]')
   await expect(ready).toBeVisible()
 
+  const oldCanvas = await page.locator('#picotracker-canvas').elementHandle()
   await restartWorkbench(page)
-
-  // A ready-only assertion can resolve against the old runtime before the
-  // queued restart has even entered Stop. Prove both lifecycle edges.
-  await ready.waitFor({ state: 'hidden', timeout: 10_000 })
+  // The completed restart must replace the canvas, not reuse the old Ready.
+  expect(await oldCanvas.evaluate(canvas => canvas.isConnected)).toBe(false)
   await expect(ready).toBeVisible({ timeout: 15_000 })
   await expect(page.locator('#picotracker-canvas')).toHaveAttribute('data-frame-content', 'rendered')
 })

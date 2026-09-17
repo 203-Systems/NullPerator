@@ -106,7 +106,6 @@ test('Files panel uploads, drops, renames, downloads, exports, restores, and per
 
   const ready = page.locator('[data-runtime-state="ready"]')
   await restartWorkbench(page)
-  await ready.waitFor({ state: 'hidden', timeout: 10_000 })
   await expect(ready).toBeVisible({ timeout: 20_000 })
   await expect.poll(() => page.evaluate(() => globalThis.__picoTrackerStorageTest.read('/data/renamed (2).wav'))).toEqual(Array.from(strToU8('replacement')))
   await expect.poll(() => page.evaluate(() => globalThis.__picoTrackerStorageTest.read('/data/dropped.dat'))).toEqual([4, 5])

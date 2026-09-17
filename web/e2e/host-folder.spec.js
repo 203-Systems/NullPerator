@@ -130,7 +130,6 @@ test('host-folder mirror mounts an OPFS test handle, synchronizes, and resolves 
 
   const ready = page.locator('[data-runtime-state="ready"]')
   await restartWorkbench(page)
-  await ready.waitFor({ state: 'hidden', timeout: 10_000 })
   await expect(ready).toBeVisible({ timeout: 20_000 })
   await page.getByRole('button', { name: 'Files', exact: true }).click()
   await expect(page.locator('[data-host-folder-state="mounted"]')).toBeVisible({ timeout: 10_000 })

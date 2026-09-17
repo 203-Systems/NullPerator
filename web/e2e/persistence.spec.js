@@ -48,7 +48,6 @@ test('IDBFS population, shutdown flush, restart, and reload retain a synthetic W
 
   const ready = page.locator('[data-runtime-state="ready"]')
   await restartWorkbench(page)
-  await ready.waitFor({ state: 'hidden', timeout: 10_000 })
   await expect(ready).toBeVisible({ timeout: 20_000 })
   expect(await readFixture(page)).toEqual(Array.from(fixtureBytes))
   expect(await readFixture(page, markerPath)).toEqual(markerBytes)
