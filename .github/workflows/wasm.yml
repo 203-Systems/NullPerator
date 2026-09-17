@@ -83,9 +83,9 @@ jobs:
         working-directory: web
         run: pnpm exec vitest run --pool=forks --maxWorkers=1 --fileParallelism=false
 
-      - name: Install Chrome for Playwright
+      - name: Install matching Chromium for Playwright
         working-directory: web
-        run: pnpm exec playwright install --with-deps chrome
+        run: pnpm exec playwright install --with-deps --no-shell chromium
 
       - name: Run browser acceptance serially
         working-directory: web

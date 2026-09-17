@@ -15,7 +15,9 @@ export default defineConfig({
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
-        channel: 'chrome',
+        // Match the browser revision to the pinned Playwright package. A
+        // floating system Chrome can crash independently of the application.
+        channel: 'chromium',
         launchOptions: { ignoreDefaultArgs: ['--mute-audio'] },
       },
     },

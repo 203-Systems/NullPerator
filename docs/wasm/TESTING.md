@@ -10,13 +10,20 @@ ctest --test-dir build-host --output-on-failure
 CMAKE_BUILD_PARALLEL_LEVEL=1 tools/build-wasm.sh Release
 cd web
 pnpm exec vitest run --maxWorkers=1
+pnpm exec playwright install --no-shell chromium
 pnpm exec playwright test --workers=1 --grep-invert @visual
 pnpm build
 pnpm verify:dist
 ```
 
+Playwright uses its matching Chromium revision in new headless mode, rather
+than a separately updated system Chrome. CI installs the same revision with
+`pnpm exec playwright install --with-deps --no-shell chromium`. Reinstall the
+browser after updating Playwright. Current Chrome and Edge still require the
+manual acceptance checks below.
+
 The normal Playwright audio test verifies the recoverable audio-disabled path.
-On a Chrome/Edge runner with a real audio output, run the strict callback gate:
+On a machine with a real audio output, run the strict callback gate:
 
 ```sh
 cd web
