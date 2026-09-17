@@ -180,25 +180,33 @@ struct ImportMailbox {
   char path[256]{};
 };
 ImportMailbox importMailbox;
-}
+} // namespace
 bool WasmSystem::RequestSampleImport(const char *projectName) {
   importMailbox.status.store(0U, std::memory_order_release);
 #ifdef __EMSCRIPTEN__
-  MAIN_THREAD_EM_ASM({
-    const status = $0;
-    const path = $1;
-    const finish = (result, name) => {
-      if (name) {
-        const bytes = new TextEncoder().encode(name);
-        HEAPU8.set(bytes, path);
-        HEAPU8[path + bytes.length] = 0;
-      }
-      Atomics.store(HEAPU32, status >>> 2, result);
-    };
-    if (!Module.nullPeratorImportSample) { finish(3); return; }
-    Module.nullPeratorImportSample(UTF8ToString($2)).then(
-      name => finish(name ? 1 : 2, name), () => finish(3));
-  }, &importMailbox.status, importMailbox.path, projectName);
+  // JavaScript arrow functions must not be reformatted as C++ operators.
+  // clang-format off
+  MAIN_THREAD_EM_ASM(
+      {
+        const status = $0;
+        const path = $1;
+        const finish = (result, name) => {
+          if (name) {
+            const bytes = new TextEncoder().encode(name);
+            HEAPU8.set(bytes, path);
+            HEAPU8[path + bytes.length] = 0;
+          }
+          Atomics.store(HEAPU32, status >>> 2, result);
+        };
+        if (!Module.nullPeratorImportSample) {
+          finish(3);
+          return;
+        }
+        Module.nullPeratorImportSample(UTF8ToString($2))
+            .then(name => finish(name ? 1 : 2, name), () => finish(3));
+      },
+      &importMailbox.status, importMailbox.path, projectName);
+  // clang-format on
   return true;
 #else
   return false;
@@ -206,7 +214,8 @@ bool WasmSystem::RequestSampleImport(const char *projectName) {
 }
 SampleImportResult WasmSystem::PollSampleImport() {
   SampleImportResult result;
-  result.status = static_cast<SampleImportStatus>(importMailbox.status.load(std::memory_order_acquire));
+  result.status = static_cast<SampleImportStatus>(
+      importMailbox.status.load(std::memory_order_acquire));
   if (result.status == SampleImportStatus::Imported)
     std::snprintf(result.path, sizeof(result.path), "%s", importMailbox.path);
   return result;

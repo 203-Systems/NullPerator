@@ -1,6 +1,8 @@
 #include "Application/Instruments/CommandList.h"
 #include "doctest/doctest.h"
 
+#include <cstdint>
+
 TEST_CASE("Command coarse increments reach and saturate at VOL") {
   auto command = FourCC(FourCC::InstrumentCommandNone);
   for (unsigned step = 0; step < 64; ++step)

@@ -43,6 +43,8 @@ bool StartRecording(const char *filename, std::uint8_t,
   snapshot[1].store(0U, std::memory_order_release);
   snapshot[2].store(0U, std::memory_order_release);
   snapshot[0].store(Requesting, std::memory_order_release);
+  // JavaScript arrow functions must not be reformatted as C++ operators.
+  // clang-format off
   MAIN_THREAD_EM_ASM(
       {
         const base = $0 >>> 2;
@@ -59,6 +61,7 @@ bool StartRecording(const char *filename, std::uint8_t,
       },
       snapshot.data(), filename,
       duration == 0U ? 30000U : std::min(duration, 30000U));
+  // clang-format on
   return true;
 }
 
