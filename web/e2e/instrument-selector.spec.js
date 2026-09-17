@@ -111,3 +111,25 @@ test('a type change and first parameter edit can share one native input batch', 
   await edge(page, 'k', true); await selected(9)
   await edge(page, 'k', false)
 })
+
+test('switching to Sample enables Import within the same native input batch', async ({ page }) => {
+  await page.goto('/?audio=disabled&views-test=1&inputDiagnostics=1')
+  await expect(page.locator('[data-runtime-state="ready"]')).toBeVisible({ timeout: 20_000 })
+  await page.evaluate(() => globalThis.__picoTrackerViewsTest.request(5))
+  await expect.poll(() => page.evaluate(() => globalThis.__picoTrackerViewsTest.current())).toBe(5)
+  await tap(page, 's') // Type row; also grants real user activation for the picker.
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser', { timeout: 5_000 }),
+    page.locator('#picotracker-canvas').evaluate(canvas => {
+      const key = (code, pressed) => canvas.dispatchEvent(new KeyboardEvent(pressed ? 'keydown' : 'keyup', {
+        code, key: code.slice(-1).toLowerCase(), bubbles: true, cancelable: true,
+      }))
+      const tap = code => { key(code, true); key(code, false) }
+      key('KeyK', true); tap('KeyD'); key('KeyK', false) // NONE -> SAMPLE.
+      tap('KeyS') // Sample actions row.
+      tap('KeyD') // BROWSE -> IMPORT, before CaptureInstrument sees the new type.
+      tap('KeyK')
+    }),
+  ])
+  await chooser.setFiles([])
+})

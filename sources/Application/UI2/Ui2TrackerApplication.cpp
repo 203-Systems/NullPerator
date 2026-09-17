@@ -131,7 +131,7 @@ void ConfigureInstrumentSubfields(TrackerApplicationSession &session,
                                   Ui2InstrumentController &controller) {
   // A type selection commits on Enter-up. The next input may be drained in
   // the same frame, before CaptureInstrument has observed the replacement.
-  // Synchronize the rows now so a quick Down reaches the new first parameter.
+  // Synchronize rows and sample actions before the next parameter operation.
   const auto &editor = session.EditorState();
   auto *bank = session.ProjectModel().GetInstrumentBank();
   const auto number = static_cast<std::uint8_t>(editor.currentInstrumentID_);
@@ -140,6 +140,12 @@ void ConfigureInstrumentSubfields(TrackerApplicationSession &session,
   controller.Synchronize(
       number, editor.songX_, {IT_LAST, static_cast<std::uint16_t>(type), true},
       Ui2InstrumentFieldCount(type), Ui2InstrumentOperatorCount(type));
+  const bool sampleLoaded =
+      type == IT_SAMPLE &&
+      static_cast<SampleInstrument *>(instrument)->GetSampleIndex() >= 0;
+  controller.ConfigureSampleActions(type == IT_SAMPLE, sampleLoaded,
+                                    System::GetInstance()->CanImportSample(),
+                                    IsRecordingAvailable());
   const Ui2InstrumentSubfieldSpec spec = Ui2InstrumentSubfields(
       ActiveInstrumentParameter(session, controller.Cursor()));
   controller.ConfigureValueSubfields(spec.mode, spec.count);
