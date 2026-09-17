@@ -368,6 +368,9 @@ test('forced developer mode preserves an explicit disabled preference', async ({
 test('short-screen runtime recovery remains fully visible and restarts in place', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 480 })
   await page.goto('/?audio=disabled&runtime-fail-test=1')
+  // This failure occurs before any user interaction. Activate the browser tab
+  // so the focus assertions test application focus, not headless window state.
+  await page.bringToFront()
 
   const workspace = page.locator('.workspace')
   const recovery = page.locator('[data-recovery-kind="runtime"]')
