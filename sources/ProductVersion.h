@@ -10,8 +10,8 @@
 // project and instrument files.
 namespace nullperator_product {
 
-inline constexpr char Version[] = "0.1.1";
+inline constexpr char Version[] = "0.2";
 // UI branding must not be used as the serialized project version.
-inline constexpr char DisplayVersion[] = "NullPerator 0.1.1";
+inline constexpr char DisplayVersion[] = "NullPerator 0.2";
 
 } // namespace nullperator_product
