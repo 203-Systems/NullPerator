@@ -89,6 +89,10 @@ jobs:
 
       - name: Run browser acceptance serially
         working-directory: web
+        env:
+          # Preserve Chromium process errors when a crash prevents Playwright
+          # from writing its browser trace.
+          DEBUG: pw:browser
         run: pnpm exec playwright test --workers=1 --grep-invert @visual
 
       - name: Build and verify static distribution
