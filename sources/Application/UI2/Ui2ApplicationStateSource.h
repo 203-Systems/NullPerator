@@ -303,6 +303,8 @@ struct UiInstrumentFrameState {
   std::uint8_t nameAction = 0;
   std::int8_t selectedTrack = 0;
   UiInstrumentKind kind = UiInstrumentKind::None;
+  UiInstrumentKind typeCandidate = UiInstrumentKind::None;
+  bool typeSelector = false;
   UiInstrumentCursor cursor = UiInstrumentCursor::None;
   RectI16 cursorVisualRect{};
   RectI16 topMetaVisualRect{};

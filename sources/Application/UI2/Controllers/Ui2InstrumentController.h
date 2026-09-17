@@ -158,6 +158,12 @@ public:
   [[nodiscard]] constexpr Ui2SelectorState TypeSelector() const {
     return typeSelector_;
   }
+  [[nodiscard]] constexpr bool TypeSelectorActive() const {
+    return typeSelectorActive_;
+  }
+  [[nodiscard]] constexpr std::uint8_t TypeCandidate() const {
+    return typeCandidate_;
+  }
   [[nodiscard]] constexpr Ui2InstrumentNameAction NameAction() const {
     return nameAction_;
   }
@@ -172,6 +178,8 @@ public:
     return input_.Mask();
   }
   constexpr void SetNavigationHeld(bool held) {
+    if (held)
+      typeSelectorActive_ = false;
     input_.SetNavigationHeld(held);
   }
   [[nodiscard]] constexpr bool EnterSubfieldFocus() const {
@@ -206,6 +214,7 @@ public:
   constexpr void ReleaseHeldInput() {
     input_ = {};
     valueEditDirty_ = false;
+    typeSelectorActive_ = false;
   }
 
   constexpr void SetStructure(std::uint8_t fieldCount,
@@ -222,6 +231,9 @@ public:
   }
 
   constexpr void SetTypeSelector(Ui2SelectorState selector) {
+    if (selector.count != typeSelector_.count ||
+        selector.current != typeSelector_.current)
+      typeSelectorActive_ = false;
     typeSelector_ = selector;
   }
 
@@ -229,10 +241,12 @@ public:
                              Ui2SelectorState typeSelector,
                              std::uint8_t fieldCount,
                              std::uint8_t operatorCount) {
+    if (number_ != SanitizeNumber(number, instrumentCount_))
+      typeSelectorActive_ = false;
     number_ = SanitizeNumber(number, instrumentCount_);
     selectedTrack_ =
         selectedTrack < TrackCount ? selectedTrack : TrackCount - 1U;
-    typeSelector_ = typeSelector;
+    SetTypeSelector(typeSelector);
     SetStructure(fieldCount, operatorCount);
   }
 
@@ -274,8 +288,39 @@ public:
   }
 
   constexpr Ui2InstrumentCommand Handle(TrackerAction action, bool pressed) {
+    const bool wasHeld = input_.Held(action);
     if (!input_.Update(action, pressed))
       return {};
+    if (pressed && wasHeld && action == TrackerAction::Enter)
+      return {};
+
+    if (typeSelectorActive_) {
+      if (pressed &&
+          (action == TrackerAction::Option || action == TrackerAction::Shift)) {
+        typeSelectorActive_ = false;
+      } else if (!pressed && action == TrackerAction::Enter) {
+        typeSelectorActive_ = false;
+        if (typeCandidate_ != typeSelector_.current) {
+          auto command = MakeCommand(Ui2InstrumentCommandType::SetType);
+          command.value = typeCandidate_;
+          // This command is emitted after release: there is no held trigger
+          // for the lifecycle confirmation dialog to wait for.
+          return command;
+        }
+      } else if (pressed) {
+        const auto direction = DirectionFor(action);
+        const int delta = direction == Ui2InstrumentValueDirection::Left    ? -1
+                          : direction == Ui2InstrumentValueDirection::Right ? 1
+                          : direction == Ui2InstrumentValueDirection::Up    ? -3
+                          : direction == Ui2InstrumentValueDirection::Down  ? 3
+                                                                            : 0;
+        const int next = typeCandidate_ + delta;
+        if (next >= 0 && next < typeSelector_.count &&
+            next < kUiInstrumentTypeCount)
+          typeCandidate_ = static_cast<std::uint8_t>(next);
+      }
+      return {};
+    }
 
     if (!pressed) {
       if (action == TrackerAction::Enter && valueEditDirty_) {
@@ -304,6 +349,12 @@ public:
       if (action == TrackerAction::Enter &&
           input_.Mask() == TrackerActionBit(TrackerAction::Enter)) {
         const Ui2InstrumentCursorPosition cursor = Cursor();
+        if (cursor.kind == Ui2InstrumentCursorKind::Type &&
+            typeSelector_.Valid()) {
+          typeCandidate_ = static_cast<std::uint8_t>(typeSelector_.current);
+          typeSelectorActive_ = true;
+          return {};
+        }
         if (cursor.kind == Ui2InstrumentCursorKind::Name)
           return MakeCommand(NameCommand(nameAction_));
         if (cursor.kind == Ui2InstrumentCursorKind::Field ||
@@ -493,11 +544,6 @@ private:
     if (cursor.kind == Ui2InstrumentCursorKind::Name)
       return {};
     if (cursor.kind == Ui2InstrumentCursorKind::Type) {
-      if (direction == Ui2InstrumentValueDirection::Left ||
-          direction == Ui2InstrumentValueDirection::Right) {
-        return HandleHorizontal(
-            direction == Ui2InstrumentValueDirection::Left ? -1 : 1);
-      }
       return {};
     }
     if (subfieldMode_ != Ui2InstrumentSubfieldMode::None &&
@@ -592,6 +638,8 @@ private:
   Ui2InstrumentNameAction nameAction_ = Ui2InstrumentNameAction::Load;
   bool instrumentWrap_ = true;
   bool valueEditDirty_ = false;
+  bool typeSelectorActive_ = false;
+  std::uint8_t typeCandidate_ = 0;
   bool sampleActions_ = false;
   bool sampleLoaded_ = false;
   bool sampleImport_ = false;

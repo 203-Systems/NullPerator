@@ -129,6 +129,17 @@ ActiveInstrumentParameter(TrackerApplicationSession &session,
 
 void ConfigureInstrumentSubfields(TrackerApplicationSession &session,
                                   Ui2InstrumentController &controller) {
+  // A type selection commits on Enter-up. The next input may be drained in
+  // the same frame, before CaptureInstrument has observed the replacement.
+  // Synchronize the rows now so a quick Down reaches the new first parameter.
+  const auto &editor = session.EditorState();
+  auto *bank = session.ProjectModel().GetInstrumentBank();
+  const auto number = static_cast<std::uint8_t>(editor.currentInstrumentID_);
+  auto *instrument = bank == nullptr ? nullptr : bank->GetInstrument(number);
+  const auto type = instrument == nullptr ? IT_NONE : instrument->GetType();
+  controller.Synchronize(
+      number, editor.songX_, {IT_LAST, static_cast<std::uint16_t>(type), true},
+      Ui2InstrumentFieldCount(type), Ui2InstrumentOperatorCount(type));
   const Ui2InstrumentSubfieldSpec spec = Ui2InstrumentSubfields(
       ActiveInstrumentParameter(session, controller.Cursor()));
   controller.ConfigureValueSubfields(spec.mode, spec.count);

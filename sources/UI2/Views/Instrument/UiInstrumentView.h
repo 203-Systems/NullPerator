@@ -75,6 +75,8 @@ struct UiInstrumentViewData {
   std::string_view elapsed = "00:08";
   std::string_view name = "--";
   UiInstrumentKind kind = UiInstrumentKind::None;
+  UiInstrumentKind typeCandidate = UiInstrumentKind::None;
+  bool typeSelector = false;
   std::array<UiInstrumentField, kUiInstrumentMaximumFields> fields{};
   std::uint8_t fieldCount = 0;
   std::array<UiInstrumentOperatorRow, 6> operators{};

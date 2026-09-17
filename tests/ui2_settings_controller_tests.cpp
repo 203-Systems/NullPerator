@@ -984,17 +984,83 @@ TEST_CASE("UI2 Instrument modal handoff releases its triggering arrow") {
   CHECK(afterModal.value == 3);
 }
 
-TEST_CASE("UI2 Instrument type row rejects field-only vertical edits") {
+TEST_CASE("UI2 Instrument type grid previews row-major choices until release") {
   using namespace ui2;
   Ui2InstrumentController controller;
   Tap(controller, TrackerAction::Down);
   REQUIRE(controller.Cursor().kind == Ui2InstrumentCursorKind::Type);
 
   CHECK_FALSE(controller.Handle(TrackerAction::Enter, true).HasValue());
-  CHECK_FALSE(controller.Handle(TrackerAction::Up, true).HasValue());
-  controller.Handle(TrackerAction::Up, false);
-  CHECK_FALSE(controller.Handle(TrackerAction::Down, true).HasValue());
-  controller.Handle(TrackerAction::Down, false);
+  REQUIRE(controller.TypeSelectorActive());
+  CHECK_FALSE(Tap(controller, TrackerAction::Up).HasValue());
+  CHECK(controller.TypeCandidate() == 0);
+  for (unsigned type = 1; type < kUiInstrumentTypeCount; ++type) {
+    CHECK_FALSE(Tap(controller, TrackerAction::Right).HasValue());
+    CHECK(controller.TypeCandidate() == type);
+    CHECK(controller.TypeSelector().current == 0);
+    // CaptureInstrument synchronizes the original model on every frame.
+    controller.Synchronize(0, 0, {kUiInstrumentTypeCount, 0, true}, 0, 0);
+    CHECK(controller.TypeCandidate() == type);
+    CHECK(controller.TypeSelectorActive());
+  }
+  CHECK_FALSE(Tap(controller, TrackerAction::Right).HasValue());
+  CHECK(controller.TypeCandidate() == 10);
+  CHECK_FALSE(Tap(controller, TrackerAction::Up).HasValue());
+  CHECK(controller.TypeCandidate() == 7);
+  CHECK_FALSE(Tap(controller, TrackerAction::Right).HasValue());
+  CHECK(controller.TypeCandidate() == 8);
+  CHECK_FALSE(Tap(controller, TrackerAction::Down).HasValue());
+  CHECK(controller.TypeCandidate() == 8); // Last row has no third cell.
+  CHECK_FALSE(controller.Handle(TrackerAction::Enter, true).HasValue());
+  CHECK(controller.TypeCandidate() == 8); // Repeat does not reopen/reset.
+  CHECK_FALSE(Tap(controller, TrackerAction::Play).HasValue());
+  const auto commit = controller.Handle(TrackerAction::Enter, false);
+  CHECK(commit.type == Ui2InstrumentCommandType::SetType);
+  CHECK(commit.value == 8);
+  CHECK(commit.direction == Ui2InstrumentValueDirection::None);
+  CHECK_FALSE(controller.TypeSelectorActive());
+  CHECK_FALSE(controller.Handle(TrackerAction::Enter, false).HasValue());
+}
+
+TEST_CASE("UI2 Instrument type grid opens at current type and cancels safely") {
+  using namespace ui2;
+  Ui2InstrumentController controller;
+  Tap(controller, TrackerAction::Down);
+  controller.SetTypeSelector({kUiInstrumentTypeCount, 4, true});
+  controller.Handle(TrackerAction::Enter, true);
+  CHECK(controller.TypeCandidate() == 4);
+  CHECK_FALSE(controller.Handle(TrackerAction::Enter, false).HasValue());
+
+  for (auto cancel : {TrackerAction::Option, TrackerAction::Shift}) {
+    controller.Handle(TrackerAction::Enter, true);
+    Tap(controller, TrackerAction::Down);
+    CHECK(controller.TypeCandidate() == 7);
+    CHECK_FALSE(Tap(controller, cancel).HasValue());
+    CHECK_FALSE(controller.TypeSelectorActive());
+    CHECK_FALSE(controller.Handle(TrackerAction::Enter, false).HasValue());
+    CHECK(controller.TypeSelector().current == 4);
+  }
+  controller.Handle(TrackerAction::Enter, true);
+  Tap(controller, TrackerAction::Right);
+  controller.ReleaseHeldInput();
+  CHECK_FALSE(controller.TypeSelectorActive());
+  CHECK_FALSE(controller.Handle(TrackerAction::Enter, false).HasValue());
+
+  controller.Handle(TrackerAction::Enter, true);
+  Tap(controller, TrackerAction::Right);
+  controller.SetNavigationHeld(true);
+  CHECK_FALSE(controller.TypeSelectorActive());
+  CHECK_FALSE(controller.Handle(TrackerAction::Enter, false).HasValue());
+  controller.SetNavigationHeld(false);
+
+  // Switching slots or loading a different model cancels a stale candidate.
+  controller.Handle(TrackerAction::Enter, true);
+  Tap(controller, TrackerAction::Right);
+  controller.Synchronize(1, 0, {kUiInstrumentTypeCount, 4, true}, 0, 0);
+  CHECK_FALSE(controller.Handle(TrackerAction::Enter, false).HasValue());
+  controller.Handle(TrackerAction::Enter, true);
+  Tap(controller, TrackerAction::Right);
+  controller.Synchronize(1, 0, {kUiInstrumentTypeCount, 2, true}, 0, 0);
   CHECK_FALSE(controller.Handle(TrackerAction::Enter, false).HasValue());
 }
 

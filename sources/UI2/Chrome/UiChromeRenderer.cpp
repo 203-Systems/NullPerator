@@ -144,7 +144,7 @@ UiBuildStatus UiChromeRenderer::BuildTop(const UiTopBarModel &model,
   BarBuilder builder(scene);
   const std::uint8_t titleScale =
       (model.title.size() <= 7 || model.title == "FX SELECT" ||
-       model.title == "SAMPLE EDIT")
+       model.title == "INST SELECT" || model.title == "SAMPLE EDIT")
           ? 2
           : 1;
   builder.Text(model.title, 9, 10, UiColorToken::TextNormal, titleScale);

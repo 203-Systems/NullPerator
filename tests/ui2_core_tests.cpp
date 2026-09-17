@@ -27,6 +27,7 @@
 #include "UI2/Views/Dialog/UiDialogView.h"
 #include "UI2/Views/Font/UiFontView.h"
 #include "UI2/Views/Groove/UiGrooveView.h"
+#include "UI2/Views/Instrument/UiInstrumentTypeSelector.h"
 #include "UI2/Views/Instrument/UiInstrumentView.h"
 #include "UI2/Views/Mixer/UiMixerView.h"
 #include "UI2/Views/Phrase/UiPhraseView.h"
@@ -5988,6 +5989,101 @@ TEST_CASE("Sample endpoints show Edit and the shared digit/value legend") {
     CheckDeltaMatchesFullFrame(idle, held, ui2::UiSampleEditorView::Build, ui2::UiSampleEditorView::RenderDelta);
     CheckDeltaMatchesFullFrame(held, idle, ui2::UiSampleEditorView::Build, ui2::UiSampleEditorView::RenderDelta);
   }
+}
+
+TEST_CASE("Instrument selector matches the approved ungrouped row-major grid") {
+  using namespace ui2;
+  UiPalette palette;
+  UiFrameScene scene;
+  auto data = test::ApprovedInstrumentFixture("sample");
+  data.typeSelector = true;
+  data.typeCandidate = UiInstrumentKind::GBWave;
+  data.scrollOffset = 100;
+  REQUIRE(UiInstrumentView::Build(data, palette, scene) ==
+          UiBuildStatus::Built);
+  const auto *title = FindTextCommand(scene.top.Stream(), "INST SELECT");
+  REQUIRE(title != nullptr);
+  CHECK(title->bounds.height == 14);
+  CHECK(FindTextCommand(scene.top.Stream(), "00") == nullptr);
+  CHECK(scene.contentOffsetY == 0);
+  CHECK(scene.bottomVisible);
+  CHECK(UiInstrumentView::RevealCursor(100, data) == 0);
+  CHECK(UiInstrumentView::CursorTargetRect(data) == RectI16{161, 88, 66, 17});
+  CHECK(scene.content.Stream().commands.size() == 12); // Cursor + 11 labels.
+  for (unsigned i = 0; i < kUiInstrumentTypeCount; ++i) {
+    const auto *label =
+        FindTextCommand(scene.content.Stream(), kUiInstrumentTypeNames[i]);
+    REQUIRE(label != nullptr);
+    CHECK(label->bounds.y == 46 + (i / 3) * 23);
+    CHECK(label->bounds.x + label->bounds.width / 2 == 46 + (i % 3) * 74);
+    CHECK(label->color ==
+          static_cast<PaletteIndex>(i == 8 ? UiColorToken::TextHighlighted
+                                           : UiColorToken::TextNormal));
+  }
+  REQUIRE(FindTextCommand(scene.bottom.Stream(), "GB-WAVE") != nullptr);
+  REQUIRE(FindTextCommand(scene.bottom.Stream(),
+                          "GAME BOY-STYLE CUSTOM 4-BIT WAVES") != nullptr);
+  // Reusing a scene from an unadorned field must restore the help bar.
+  scene.bottomVisible = false;
+  REQUIRE(UiInstrumentView::Build(data, palette, scene) ==
+          UiBuildStatus::Built);
+  CHECK(scene.bottomVisible);
+}
+
+TEST_CASE("Instrument selector descriptions fit within the help bar") {
+  using namespace ui2;
+  UiPalette palette;
+  UiFrameScene scene;
+  auto data = test::ApprovedInstrumentFixture("sample");
+  data.typeSelector = true;
+  for (unsigned i = 0; i < kUiInstrumentTypeCount; ++i) {
+    CAPTURE(kUiInstrumentTypeNames[i]);
+    data.typeCandidate = static_cast<UiInstrumentKind>(i);
+    REQUIRE(UiInstrumentView::Build(data, palette, scene) == UiBuildStatus::Built);
+    const auto *description =
+        FindTextCommand(scene.bottom.Stream(), kUiInstrumentTypeHelp[i]);
+    REQUIRE(description != nullptr);
+    CHECK(description->bounds.x >= 9);
+    CHECK(description->bounds.x + description->bounds.width <= 231);
+    for (const char character : kUiInstrumentTypeHelp[i]) {
+      if (character == ' ')
+        continue;
+      CAPTURE(character);
+      const auto glyph = UiFont5x7::Glyph(character);
+      CHECK(std::any_of(glyph.begin(), glyph.end(),
+                        [](std::uint8_t row) { return row != 0; }));
+    }
+  }
+}
+
+TEST_CASE(
+    "Instrument selector transitions and animated deltas match full frames") {
+  using namespace ui2;
+  auto previous = test::ApprovedInstrumentFixture("sample");
+  auto current = previous;
+  current.typeSelector = true;
+  current.typeCandidate = UiInstrumentKind::Sample;
+  CheckDeltaMatchesFullFrame(previous, current, UiInstrumentView::Build,
+                             UiInstrumentView::RenderDelta);
+  for (unsigned i = 0; i < kUiInstrumentTypeCount; ++i) {
+    previous = current;
+    current.typeCandidate = static_cast<UiInstrumentKind>(i);
+    current.cursorVisualOverride = true;
+    current.cursorVisualRect = {60, 75, 66, 17};
+    current.cursorInkVisible = false;
+    CheckDeltaMatchesFullFrame(previous, current, UiInstrumentView::Build,
+                               UiInstrumentView::RenderDelta);
+    previous = current;
+    current.cursorVisualRect =
+        InstrumentTypeSelectorCursorRect(current.typeCandidate);
+    current.cursorInkVisible = true;
+    CheckDeltaMatchesFullFrame(previous, current, UiInstrumentView::Build,
+                               UiInstrumentView::RenderDelta);
+  }
+  previous = current;
+  current = test::ApprovedInstrumentFixture("sample");
+  CheckDeltaMatchesFullFrame(previous, current, UiInstrumentView::Build,
+                             UiInstrumentView::RenderDelta);
 }
 
 TEST_CASE("Instrument sections stay above their fields and scroll into view") {

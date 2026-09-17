@@ -8,6 +8,7 @@
 
 #include "UI2/Render/UiFrameRenderer.h"
 #include "UI2/Text/UiFont5x7.h"
+#include "UI2/Views/Instrument/UiInstrumentTypeSelector.h"
 
 #include <algorithm>
 #include <array>
@@ -54,9 +55,6 @@ std::string_view ColumnValue(UiInstrumentKind kind, std::string_view value,
              : value.substr(col, 1);
 }
 
-constexpr std::array<std::string_view, kUiInstrumentTypeCount> kTypeOptions{
-    "NONE",  "SAMPLE",   "MIDI",    "SID",      "OPAL",    "DRUM",
-    "STACK", "CHIPTUNE", "GB-WAVE", "GB-PULSE", "GB-NOISE"};
 constexpr std::array<std::string_view, 4> kGBDutyOptions{"12.5%", "25%", "50%",
                                                          "75%"};
 constexpr std::array<std::string_view, 4> kGBWaveLevelOptions{"MUTE", "100%",
@@ -118,7 +116,7 @@ std::span<const std::string_view> OptionsFor(UiInstrumentFieldOptions options) {
 }
 
 std::string_view TypeName(UiInstrumentKind kind) {
-  return kTypeOptions[static_cast<std::size_t>(kind)];
+  return kUiInstrumentTypeNames[static_cast<std::size_t>(kind)];
 }
 
 unsigned FocusedOperator(const UiInstrumentViewData &data) {
@@ -231,6 +229,8 @@ bool BottomVisible(const UiInstrumentViewData &data) {
 } // namespace
 
 RectI16 UiInstrumentView::CursorTargetRect(const UiInstrumentViewData &data) {
+  if (data.typeSelector)
+    return InstrumentTypeSelectorCursorRect(data.typeCandidate);
   SelectedValueLayout layout;
   std::uint8_t textIndex = 0U;
   if (SelectedSubfield(data, layout, textIndex)) {
@@ -286,6 +286,8 @@ std::int16_t UiInstrumentView::ContentBottom(const UiInstrumentViewData &data) {
 
 std::int16_t UiInstrumentView::RevealCursor(std::int16_t currentOffset,
                                             const UiInstrumentViewData &data) {
+  if (data.typeSelector)
+    return 0;
   const std::int16_t viewportBottom = BottomVisible(data) ? 208 : 240;
   auto target = CursorTargetRect(data);
   if (data.cursor == UiInstrumentCursor::Field &&
@@ -311,7 +313,8 @@ RectI16 UiInstrumentView::FieldDamageRect(std::int16_t y) {
 
 bool UiInstrumentView::RequiresFullInvalidation(
     const UiInstrumentViewData &previous, const UiInstrumentViewData &current) {
-  return previous.kind != current.kind ||
+  return previous.typeSelector || current.typeSelector ||
+         previous.kind != current.kind ||
          previous.numberFocus != current.numberFocus ||
          BottomVisible(previous) != BottomVisible(current) ||
          previous.fieldCount != current.fieldCount ||
@@ -416,6 +419,11 @@ void UiInstrumentView::RenderDelta(const UiInstrumentViewData &previous,
 
 UiBuildStatus UiInstrumentView::Build(const UiInstrumentViewData &data,
                                       UiPalette &, UiFrameScene &scene) {
+  if (data.typeSelector)
+    return BuildInstrumentTypeSelector(
+        data.typeCandidate, data.power, data.elapsed, scene,
+        data.cursorVisualRect, data.cursorVisualOverride,
+        data.cursorInkVisible);
   scene.Clear();
   scene.topHeight = 34;
   scene.bottomTop = 208;
@@ -443,7 +451,7 @@ UiBuildStatus UiInstrumentView::Build(const UiInstrumentViewData &data,
     bottom.actions.active = std::min<std::uint8_t>(data.nameAction, 2);
   } else if (data.cursor == UiInstrumentCursor::Type) {
     bottom.kind = UiBottomBarKind::Selector;
-    bottom.selector.options = kTypeOptions;
+    bottom.selector.options = kUiInstrumentTypeNames;
     bottom.selector.current = static_cast<std::uint8_t>(data.kind);
     bottom.selector.wrap = true;
   } else if (ColumnCell(data)) {

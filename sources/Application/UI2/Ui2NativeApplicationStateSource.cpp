@@ -669,6 +669,9 @@ UiApplicationActivityState Ui2NativeApplicationStateSource::CaptureInstrument(
   instrument_.Synchronize(number, editor.songX_,
                           {IT_LAST, static_cast<std::uint16_t>(type), true},
                           state.fieldCount, state.operatorCount);
+  state.typeSelector = instrument_.TypeSelectorActive();
+  state.typeCandidate =
+      static_cast<UiInstrumentKind>(instrument_.TypeCandidate());
   const bool sampleLoaded =
       type == IT_SAMPLE &&
       static_cast<SampleInstrument *>(instrument)->GetSampleIndex() >= 0;

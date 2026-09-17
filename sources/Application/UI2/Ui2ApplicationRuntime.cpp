@@ -895,6 +895,8 @@ UiApplicationRuntime::ViewDataFor(const InstrumentFrameState &state) {
   data.elapsed = state.elapsed.data();
   data.name = state.name.data();
   data.kind = state.kind;
+  data.typeCandidate = state.typeCandidate;
+  data.typeSelector = state.typeSelector;
   data.fieldCount = state.fieldCount;
   for (std::size_t index = 0; index < state.fieldCount; ++index) {
     data.fields[index] = {state.fields[index].label.data(),
@@ -1004,7 +1006,7 @@ UiApplicationRuntime::PresentInstrument(IUiApplicationStateSource &source,
                                             previousScroll);
       cursors_.Snap(UiCursorRole::Content, rebased, nowMs);
     }
-    if (!cursorTargetValid_) {
+    if (!cursorTargetValid_ || current.typeSelector != previous.typeSelector) {
       cursors_.Snap(UiCursorRole::Content, target, nowMs);
       cursorTarget_ = target;
       cursorTargetValid_ = true;
