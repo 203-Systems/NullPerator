@@ -17,6 +17,7 @@
 #include "UI2/Render/UiRgb565Presenter.h"
 #include "UI2/Render/UiVuGradient.h"
 #include "UI2/Scene/UiCommandList.h"
+#include "UI2/Text/UiFont5x7.h"
 #include "UI2/Theme/UiPalette.h"
 #include "UI2/Theme/UiThemeSchema.h"
 #include "UI2/UiEngine.h"
@@ -679,6 +680,28 @@ TEST_CASE("UI2 approved font renders exact 5 by 7 glyphs and clips") {
   CHECK(surface.Pixel(3, 3) == 9);
   CHECK(surface.Pixel(0, 5) == 9);
   CHECK(surface.Pixel(3, 5) == 9);
+}
+
+TEST_CASE("UI2 font renders a visible comma with a descending tail") {
+  constexpr ui2::UiFont5x7::Rows expected{
+      0b00000, 0b00000, 0b00000, 0b00000, 0b00110, 0b00100, 0b01000};
+  CHECK(ui2::UiFont5x7::Glyph(',') == expected);
+  for (const std::uint8_t scale : {1, 2}) {
+    CAPTURE(scale);
+    ui2::UiSurfaceStorage storage;
+    ui2::UiIndexedSurface surface(storage);
+    surface.Clear(0);
+    ui2::UiCommandList<1, 1> commands;
+    REQUIRE(commands.Text({10, 10}, ",", 9, scale));
+    ui2::UiRasterizer::Render(commands.Stream(), surface);
+    for (int y = 0; y < 7 * scale; ++y) {
+      for (int x = 0; x < 6 * scale; ++x) {
+        const bool ink = x < 5 * scale &&
+                         (expected[y / scale] & (1U << (4 - x / scale)));
+        CHECK(surface.Pixel(10 + x, 10 + y) == (ink ? 9 : 0));
+      }
+    }
+  }
 }
 
 TEST_CASE("UI2 animated selections recolor only covered glyph pixels") {
