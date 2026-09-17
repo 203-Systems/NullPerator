@@ -49,12 +49,9 @@ TrackerApplicationSession::LoadResult TrackerApplicationSession::LoadProject(
       PROJECTS_DIR "/" UNNAMED_PROJECT_NAME "/" PROJECT_DATA_FILE;
   constexpr const char *stagingLegacyProjectPath =
       PROJECTS_DIR "/" UNNAMED_PROJECT_NAME "/" LEGACY_PROJECT_DATA_FILE;
-  constexpr const char *stagingAutosavePath =
-      PROJECTS_DIR "/" UNNAMED_PROJECT_NAME "/" AUTO_SAVE_FILENAME;
   const bool stagingPayloadExists =
       stagingProject && (fileSystem->exists(stagingProjectPath) ||
-                         fileSystem->exists(stagingLegacyProjectPath) ||
-                         fileSystem->exists(stagingAutosavePath));
+                         fileSystem->exists(stagingLegacyProjectPath));
   // Validate a pre-existing project before resetting the live model. This is
   // intentionally a second parse: PersistencyService::Load performs the real
   // restore, while this pass guarantees a missing/corrupt selection cannot
@@ -199,50 +196,23 @@ TrackerApplicationSession::LoadResult TrackerApplicationSession::LoadProject(
     Trace::Error("Failed to load sample pool for '%s'", projectName);
     return failAndRollback();
   }
-  bool loadedFromAutosave = false;
-  bool semanticLoaded = persist->Load_(projectName, stagingProject,
-                                       &loadedFromAutosave) == PERSIST_LOADED;
+  bool semanticLoaded =
+      persist->Load_(projectName, stagingProject) == PERSIST_LOADED;
 
   // A structurally valid generation can still fail late semantic restoration
   // after mutating instruments/tables. Never layer another generation onto
   // that partial model: rebuild every model-owned pool before each retry.
-  if (!semanticLoaded && loadedFromAutosave) {
-    Trace::Error("Autosave restore failed for '%s'; retrying backup",
+  if (!semanticLoaded) {
+    Trace::Error("Manual save restore failed for '%s'; retrying backup",
                  projectName);
     resetModel(projectName);
     if (!pool->Load(projectName))
       return failAndRollback();
-    semanticLoaded = persist->LoadProjectJournalBackup_(
-                         projectName, true, stagingProject) == PERSIST_LOADED &&
-                     persist->PromoteProjectJournalBackup_(projectName, true,
-                                                           stagingProject);
-  }
-
-  if (!semanticLoaded) {
-    Trace::Error("Project restore failed for '%s'; retrying base", projectName);
-    resetModel(projectName);
-    if (!pool->Load(projectName))
-      return failAndRollback();
-    loadedFromAutosave = false;
     semanticLoaded =
-        persist->LoadBase_(projectName, stagingProject) == PERSIST_LOADED;
-    if (!semanticLoaded) {
-      Trace::Error("Base restore failed for '%s'; retrying backup",
-                   projectName);
-      resetModel(projectName);
-      if (!pool->Load(projectName))
-        return failAndRollback();
-      semanticLoaded = persist->LoadProjectJournalBackup_(projectName, false,
-                                                          stagingProject) ==
-                           PERSIST_LOADED &&
-                       persist->PromoteProjectJournalBackup_(projectName, false,
-                                                             stagingProject);
-    }
-
-    if (semanticLoaded &&
-        !persist->ClearAutosave_(projectName, stagingProject)) {
-      Trace::Error("Failed to clear rejected autosave for '%s'", projectName);
-    }
+        persist->LoadProjectJournalBackup_(projectName, false,
+                                           stagingProject) == PERSIST_LOADED &&
+        persist->PromoteProjectJournalBackup_(projectName, false,
+                                              stagingProject);
   }
 
   if (!semanticLoaded) {
@@ -276,8 +246,7 @@ TrackerApplicationSession::LoadResult TrackerApplicationSession::LoadProject(
     return failAndRollback();
   }
 
-  if (!persist->FinalizeProjectJournal_(projectName, loadedFromAutosave,
-                                        stagingProject)) {
+  if (!persist->FinalizeProjectJournal_(projectName, false, stagingProject)) {
     // The loaded generation is already known semantic-good. Retaining a
     // journal sibling is safe and lets the next boot retry cleanup.
     Trace::Error("Project journal cleanup deferred for '%s'", projectName);

@@ -32,6 +32,25 @@ delete, ZIP export, and previewed ZIP restore. Archive paths are contained under
 `/data`; absolute paths and parent traversal are rejected. Conflicts require an
 explicit overwrite, skip, or keep-both policy.
 
+## Project save files
+
+A named project lives at `/data/projects/<name>/`. Manual Save and Save As
+write `npsong.dat`; autosave writes the separate recovery file `autosave.dat`.
+Startup and normal project loading read the manual save, `npsong.dat`. If it
+is absent, the loader accepts the legacy main filename `lgptsav.dat`. Autosave
+is not loaded automatically, even when no manual save is available. A corrupt
+existing new main file does not silently select the legacy main or autosave.
+
+The loader still recovers interrupted manual saves from their matching `.tmp`
+and `.bak` journal files. It leaves autosave and its journal untouched. If an
+untitled folder contains only autosave data, startup initializes a blank manual
+save in place and preserves the recovery files and samples.
+
+Manual Save removes the autosave after the main save succeeds and leaves any
+legacy main file unchanged. Keep the complete project folder, samples, and
+transaction sidecars when backing up or investigating recovery. The IDBFS
+durability fence above still applies to both manual saves and autosaves.
+
 ## Optional host-folder mirror
 
 Chrome and Edge can select a local folder using the File System Access API.

@@ -120,10 +120,7 @@ private:
   [[nodiscard]] PersistencyResult Validate_(const char *projectName,
                                             bool allowStaging);
   [[nodiscard]] PersistencyResult Load_(const char *projectName,
-                                        bool allowStaging,
-                                        bool *usedAutosave = nullptr);
-  [[nodiscard]] PersistencyResult LoadBase_(const char *projectName,
-                                            bool allowStaging);
+                                        bool allowStaging);
   [[nodiscard]] PersistencyResult
   LoadProjectJournalBackup_(const char *projectName, bool autosave,
                             bool allowStaging);
@@ -189,8 +186,6 @@ private:
                                          bool allowStaging);
   [[nodiscard]] const project_file_journal::Paths &
   BaseFilesForRead_(const char *projectName);
-  [[nodiscard]] bool RecoverAutosaveJournal_(const char *projectName,
-                                             bool allowStaging);
   PersistencyResult LoadProjectFile_(const char *path);
   bool DeleteDirectoryContents_(uint8_t depth);
   bool DeleteDirectoryTree_(const char *dirname, uint8_t depth);

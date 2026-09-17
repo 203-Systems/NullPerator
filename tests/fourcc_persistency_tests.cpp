@@ -52,11 +52,6 @@ struct PersistencyServiceTestPeer {
                                      previousProjectName);
   }
 
-  static PersistencyResult LoadBase(PersistencyService &service,
-                                    const char *projectName) {
-    return service.LoadBase_(projectName, false);
-  }
-
   static PersistencyResult LoadJournalBackup(PersistencyService &service,
                                              const char *projectName,
                                              bool autosave) {
@@ -1630,7 +1625,7 @@ TEST_CASE("legacy project resembling old transaction prefix survives boot") {
 }
 
 TEST_CASE(
-    "semantic autosave failure requires reset before explicit base load") {
+    "semantic-invalid autosave cannot affect normal manual load") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
   TransactionByteState state;
@@ -1643,13 +1638,11 @@ TEST_CASE(
                 "</VALUE></TRANSACTION-STATE></PICOTRACKER>");
   state.value = 0U;
 
-  CHECK(service.Load("PROJECT") == PERSIST_LOAD_FAILED);
-  // TrackerApplicationSession performs a complete Project/SamplePool/Table
-  // reset at this boundary before using the private base-only load.
-  state.value = 0U;
-  CHECK(PersistencyServiceTestPeer::LoadBase(service, "PROJECT") ==
-        PERSIST_LOADED);
+  const auto recovery = fixture.Read("projects/PROJECT/autosave.dat");
+  CHECK(service.Validate("PROJECT") == PERSIST_LOADED);
+  CHECK(service.Load("PROJECT") == PERSIST_LOADED);
   CHECK(state.value == 0x2AU);
+  CHECK(fixture.Read("projects/PROJECT/autosave.dat") == recovery);
 }
 
 TEST_CASE("semantic-invalid base destination retains and can promote backup") {
@@ -1688,7 +1681,7 @@ TEST_CASE("semantic-invalid base destination retains and can promote backup") {
 }
 
 TEST_CASE(
-    "semantic autosave backup remains available until explicit finalize") {
+    "normal load leaves autosave and its journal untouched") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
   TransactionByteState state;
@@ -1704,31 +1697,106 @@ TEST_CASE(
                 "<PICOTRACKER><TRANSACTION-STATE><VALUE>"
                 "<DATA>22</DATA>"
                 "</VALUE></TRANSACTION-STATE></PICOTRACKER>");
+  fixture.Write("projects/PROJECT/autosave.tmp", "interrupted autosave");
+  const auto recovery = fixture.Read("projects/PROJECT/autosave.dat");
+  const auto backup = fixture.Read("projects/PROJECT/autosave.bak");
 
   state.value = 0U;
+  REQUIRE(service.Validate("PROJECT") == PERSIST_LOADED);
   REQUIRE(service.Load("PROJECT") == PERSIST_LOADED);
-  CHECK(state.value == 0x33U);
-  CHECK(fixture.Exists("projects/PROJECT/autosave.bak"));
-  REQUIRE(
-      PersistencyServiceTestPeer::FinalizeJournal(service, "PROJECT", true));
-  CHECK_FALSE(fixture.Exists("projects/PROJECT/autosave.bak"));
+  CHECK(state.value == 0x11U);
+  CHECK(fixture.Read("projects/PROJECT/autosave.dat") == recovery);
+  CHECK(fixture.Read("projects/PROJECT/autosave.bak") == backup);
+  CHECK(fixture.Read("projects/PROJECT/autosave.tmp") == "interrupted autosave");
 }
 
-TEST_CASE("autosave backup journal is recovered before loading") {
+TEST_CASE("autosave-only journals are not normal load candidates") {
+  for (const char *filename : {"autosave.dat", "autosave.tmp", "autosave.bak"}) {
+    CAPTURE(filename);
+    FourCCXmlFixture fixture;
+    PersistencyService &service = TestPersistencyService();
+    TransactionByteState state;
+    const auto path = std::string("projects/PROJECT/") + filename;
+    constexpr const char *recovery =
+        "<PICOTRACKER><TRANSACTION-STATE><VALUE><DATA>55</DATA>"
+        "</VALUE></TRANSACTION-STATE></PICOTRACKER>";
+    fixture.Write(path.c_str(), recovery);
+    state.value = 0U;
+
+    CHECK(service.Validate("PROJECT") == PERSIST_LOAD_FAILED);
+    CHECK(service.Load("PROJECT") == PERSIST_LOAD_FAILED);
+    CHECK(state.value == 0U);
+    CHECK(fixture.Read(path.c_str()) == recovery);
+    CHECK_FALSE(fixture.Exists("projects/PROJECT/npsong.dat"));
+  }
+}
+
+TEST_CASE("startup chooses the manual save and leaves autosave untouched") {
+  for (const char *baseName : {"npsong.dat", "lgptsav.dat"}) {
+    CAPTURE(baseName);
+    FourCCXmlFixture fixture;
+    PersistencyService &service = TestPersistencyService();
+    TransactionByteState state;
+    fixture.Write(".current", "PROJECT");
+    const auto basePath = std::string("projects/PROJECT/") + baseName;
+    fixture.Write(basePath.c_str(),
+                  "<PICOTRACKER><TRANSACTION-STATE><VALUE><DATA>11</DATA>"
+                  "</VALUE></TRANSACTION-STATE></PICOTRACKER>");
+    state.value = 0x55U;
+    REQUIRE(service.AutoSaveProjectData("PROJECT") == PERSIST_SAVED);
+    const auto recovery = fixture.Read("projects/PROJECT/autosave.dat");
+    state.value = 0U;
+    char project[MAX_PROJECT_NAME_LENGTH + 1U]{};
+
+    REQUIRE(service.LoadCurrentProjectName(project) == PERSIST_LOADED);
+    CHECK(std::string(project) == "PROJECT");
+    REQUIRE(service.Load(project) == PERSIST_LOADED);
+    CHECK(state.value == 0x11U);
+    CHECK(fixture.Read("projects/PROJECT/autosave.dat") == recovery);
+  }
+}
+
+TEST_CASE("autosave-only untitled boot initializes manual save without data loss") {
+  for (const char *filename : {"autosave.dat", "autosave.tmp", "autosave.bak"}) {
+    for (const char *marker : {"", ".untitled", "MISSING"}) {
+      CAPTURE(filename);
+      CAPTURE(marker);
+      FourCCXmlFixture fixture;
+      PersistencyService &service = TestPersistencyService();
+      TransactionByteState state;
+      const auto path = std::string("projects/.untitled/") + filename;
+      constexpr const char *recovery =
+          "<PICOTRACKER><TRANSACTION-STATE><VALUE><DATA>55</DATA>"
+          "</VALUE></TRANSACTION-STATE></PICOTRACKER>";
+      fixture.Write(path.c_str(), recovery);
+      fixture.Write("projects/.untitled/samples/keep.wav", "sample data");
+      if (marker[0] != '\0')
+        fixture.Write(".current", marker);
+      char project[MAX_PROJECT_NAME_LENGTH + 1U]{};
+
+      REQUIRE(service.LoadCurrentProjectName(project) == PERSIST_LOADED);
+      CHECK(std::string(project) == UNNAMED_PROJECT_NAME);
+      CHECK_FALSE(fixture.Exists("projects/.untitled/npsong.dat"));
+      // Session initializes a missing manual save in place, not via New.
+      state.value = 0U;
+      REQUIRE(service.CreateProject() == PERSIST_SAVED);
+      REQUIRE(PersistencyServiceTestPeer::LoadStaging(service) == PERSIST_LOADED);
+      CHECK(state.value == 0U);
+      CHECK(fixture.Read(path.c_str()) == recovery);
+      CHECK(fixture.Read("projects/.untitled/samples/keep.wav") == "sample data");
+    }
+  }
+}
+
+TEST_CASE("startup does not select a named project with only autosave") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
-  TransactionByteState state;
-  fixture.MakeDirectory("projects/PROJECT/samples");
-  state.value = 0x55U;
-  REQUIRE(service.AutoSaveProjectData("PROJECT") == PERSIST_SAVED);
-  std::filesystem::rename(fixture.Root() / "projects/PROJECT/autosave.dat",
-                          fixture.Root() / "projects/PROJECT/autosave.bak");
-  state.value = 0U;
-
-  CHECK(service.Load("PROJECT") == PERSIST_LOADED);
-  CHECK(state.value == 0x55U);
-  CHECK(fixture.Exists("projects/PROJECT/autosave.dat"));
-  CHECK_FALSE(fixture.Exists("projects/PROJECT/autosave.bak"));
+  fixture.Write(".current", "PROJECT");
+  fixture.Write("projects/PROJECT/autosave.dat", "<PICOTRACKER/>");
+  char project[MAX_PROJECT_NAME_LENGTH + 1U]{};
+  REQUIRE(service.LoadCurrentProjectName(project) == PERSIST_LOADED);
+  CHECK(std::string(project) == UNNAMED_PROJECT_NAME);
+  CHECK(fixture.Read("projects/PROJECT/autosave.dat") == "<PICOTRACKER/>");
 }
 
 TEST_CASE("autosave journal is synced and leaves no visible siblings") {
@@ -1743,8 +1811,9 @@ TEST_CASE("autosave journal is synced and leaves no visible siblings") {
   CHECK_FALSE(fixture.Exists("projects/PROJECT/autosave.tmp"));
   CHECK_FALSE(fixture.Exists("projects/PROJECT/autosave.bak"));
   state.value = 0U;
-  CHECK(service.Load("PROJECT") == PERSIST_LOADED);
-  CHECK(state.value == 0x33U);
+  CHECK(service.Load("PROJECT") == PERSIST_LOAD_FAILED);
+  CHECK(state.value == 0U);
+  CHECK(fixture.Exists("projects/PROJECT/autosave.dat"));
 }
 
 TEST_CASE("autosave changes only the sidecar and explicit save uses npsong") {
@@ -1766,13 +1835,15 @@ TEST_CASE("autosave changes only the sidecar and explicit save uses npsong") {
       CHECK(fixture.Exists("projects/PROJECT/autosave.dat"));
       CHECK_FALSE(fixture.Exists("projects/PROJECT/autosave.tmp"));
       CHECK_FALSE(fixture.Exists("projects/PROJECT/autosave.bak"));
+      const auto recovery = fixture.Read("projects/PROJECT/autosave.dat");
       state.value = 0U;
       REQUIRE(service.Load("PROJECT") == PERSIST_LOADED);
-      CHECK(state.value == revision);
+      CHECK(state.value == 0x11U);
       CHECK(fixture.Read(basePath.c_str()) == original);
+      CHECK(fixture.Read("projects/PROJECT/autosave.dat") == recovery);
     }
 
-    // Discarding recovery returns to the untouched manual save.
+    // Discarding recovery does not change which manual save is loaded.
     REQUIRE(service.ClearAutosave("PROJECT"));
     state.value = 0U;
     REQUIRE(service.Load("PROJECT") == PERSIST_LOADED);
@@ -1820,7 +1891,7 @@ TEST_CASE("failed autosave preserves both manual files and previous recovery") {
   CHECK_FALSE(fixture.Exists("projects/PROJECT/autosave.tmp"));
   state.value = 0U;
   REQUIRE(service.Load("PROJECT") == PERSIST_LOADED);
-  CHECK(state.value == 0x22U);
+  CHECK(state.value == 0U);
 }
 
 TEST_CASE("npsong data and recovery journals take precedence over legacy") {
@@ -1852,12 +1923,13 @@ TEST_CASE("npsong data and recovery journals take precedence over legacy") {
   }
 }
 
-TEST_CASE("corrupt npsong does not silently revert to an old legacy save") {
+TEST_CASE("corrupt npsong does not silently revert to legacy or autosave") {
   FourCCXmlFixture fixture;
   PersistencyService &service = TestPersistencyService();
   fixture.Write("projects/PROJECT/npsong.dat", "<PICOTRACKER>");
   fixture.Write("projects/PROJECT/lgptsav.dat", "<PICOTRACKER/>");
   fixture.Write("projects/PROJECT/lgptsav.bak", "<PICOTRACKER/>");
+  fixture.Write("projects/PROJECT/autosave.dat", "<PICOTRACKER />");
 
   CHECK(service.Validate("PROJECT") == PERSIST_LOAD_FAILED);
   CHECK(service.Load("PROJECT") == PERSIST_LOAD_FAILED);
@@ -1866,6 +1938,7 @@ TEST_CASE("corrupt npsong does not silently revert to an old legacy save") {
         PERSIST_LOAD_FAILED);
   CHECK(fixture.Read("projects/PROJECT/lgptsav.dat") == "<PICOTRACKER/>");
   CHECK(fixture.Exists("projects/PROJECT/lgptsav.bak"));
+  CHECK(fixture.Read("projects/PROJECT/autosave.dat") == "<PICOTRACKER />");
 }
 
 TEST_CASE("legacy-only projects and journals load without migration") {
@@ -2002,11 +2075,11 @@ TEST_CASE("autosave clear keeps destination when stale backup cleanup fails") {
   CHECK(fixture.Exists("projects/PROJECT/autosave.dat"));
   CHECK(fixture.Exists("projects/PROJECT/autosave.bak"));
 
-  // Reboot recovery treats the still-present destination as authoritative,
-  // removes the stale backup and never resurrects its older value.
+  // Normal load ignores both autosave generations despite cleanup failure.
   state.value = 0U;
   REQUIRE(service.Load("PROJECT") == PERSIST_LOADED);
-  CHECK(state.value == 0x2AU);
+  CHECK(state.value == 0U);
+  CHECK(fixture.Exists("projects/PROJECT/autosave.bak"));
   REQUIRE(
       PersistencyServiceTestPeer::FinalizeJournal(service, "PROJECT", true));
   CHECK_FALSE(fixture.Exists("projects/PROJECT/autosave.bak"));

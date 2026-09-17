@@ -102,7 +102,11 @@ PersistencyResult PersistencyService::CreateProject() {
   Trace::Log("APPLICATION", "create new project");
   if (CreateProjectDirs_(UNNAMED_PROJECT_NAME) != PERSIST_SAVED)
     return PERSIST_ERROR;
-  return SaveProjectData(UNNAMED_PROJECT_NAME, false, true);
+  // Initializing an empty untitled manual save is not an explicit Save.
+  // Preserve any recovery sidecar left by an earlier session.
+  return SaveProjectFileAtomically_(UNNAMED_PROJECT_NAME, PROJECT_DATA_FILE,
+                                    PROJECT_DATA_TEMP_FILE,
+                                    PROJECT_DATA_BACKUP_FILE, true);
 };
 
 bool PersistencyService::PurgeUnnamedProject() {
@@ -469,16 +473,16 @@ PersistencyResult PersistencyService::SaveProjectData(const char *projectName,
 
   // Autosave is a recovery sidecar, never a write to either base filename.
   const auto &files = autosave ? kAutosaveFiles : kBaseFiles;
-  const PersistencyResult result = SaveProjectFileAtomically_(
-      projectName, files.destination, files.temporary, files.backup,
-      allowStaging);
+  const PersistencyResult result =
+      SaveProjectFileAtomically_(projectName, files.destination,
+                                 files.temporary, files.backup, allowStaging);
   if (result != PERSIST_SAVED || autosave)
     return result;
 
-  // A stale autosave would shadow the newly synced base on next boot.
-  // Deletion failure therefore makes the explicit save incomplete.
+  // An explicit save also retires the previous recovery checkpoint. Report
+  // cleanup failure so the user knows that the stale recovery data remains.
   if (!ClearAutosave_(projectName, allowStaging)) {
-    Trace::Error("PERSISTENCYSERVICE: Explicit save remains shadowed");
+    Trace::Error("PERSISTENCYSERVICE: Explicit save recovery cleanup failed");
     return PERSIST_ERROR;
   }
   return PERSIST_SAVED;
@@ -574,20 +578,14 @@ bool PersistencyService::RecoverProjectFileJournal_(const char *projectName,
       });
 }
 
-bool PersistencyService::RecoverAutosaveJournal_(const char *projectName,
-                                                 bool allowStaging) {
-  return RecoverProjectFileJournal_(projectName, AUTO_SAVE_FILENAME,
-                                    AUTO_SAVE_TEMP_FILENAME,
-                                    AUTO_SAVE_BACKUP_FILENAME, allowStaging);
-}
-
 bool PersistencyService::RecoverBaseJournal_(const char *projectName,
                                              bool allowStaging) {
   if (!IsSafeProjectName_(projectName, allowStaging))
     return false;
   const auto &files = BaseFilesForRead_(projectName);
   return RecoverProjectFileJournal_(projectName, files.destination,
-                                    files.temporary, files.backup, allowStaging);
+                                    files.temporary, files.backup,
+                                    allowStaging);
 }
 
 PersistencyResult PersistencyService::SaveLoadRollback() {
@@ -628,20 +626,14 @@ PersistencyResult PersistencyService::Validate_(const char *projectName,
   if (!IsSafeProjectName_(projectName, allowStaging))
     return PERSIST_LOAD_FAILED;
 
-  if (!RecoverBaseJournal_(projectName, allowStaging) ||
-      !RecoverAutosaveJournal_(projectName, allowStaging))
+  // Normal open validates only the manual save. Autosave and its journal
+  // remain untouched for deliberate recovery, even if no manual save exists.
+  if (!RecoverBaseJournal_(projectName, allowStaging))
     return PERSIST_LOAD_FAILED;
-  char autosavePath[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
   char basePath[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
-  if (!BuildProjectFilePath(autosavePath, projectName, AUTO_SAVE_FILENAME) ||
-      !BuildProjectFilePath(basePath, projectName,
+  if (!BuildProjectFilePath(basePath, projectName,
                             BaseFilesForRead_(projectName).destination)) {
     return PERSIST_LOAD_FAILED;
-  }
-  FileSystem *fs = FileSystem::GetInstance();
-  if (fs->exists(autosavePath) &&
-      ValidateProjectFile_(autosavePath) == PERSIST_LOADED) {
-    return PERSIST_LOADED;
   }
   return ValidateProjectFile_(basePath);
 }
@@ -651,37 +643,7 @@ PersistencyResult PersistencyService::Load(const char *projectName) {
 }
 
 PersistencyResult PersistencyService::Load_(const char *projectName,
-                                            bool allowStaging,
-                                            bool *usedAutosave) {
-  if (usedAutosave != nullptr)
-    *usedAutosave = false;
-  if (!IsSafeProjectName_(projectName, allowStaging))
-    return PERSIST_LOAD_FAILED;
-
-  if (!RecoverBaseJournal_(projectName, allowStaging) ||
-      !RecoverAutosaveJournal_(projectName, allowStaging))
-    return PERSIST_LOAD_FAILED;
-  char autosavePath[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
-  if (!BuildProjectFilePath(autosavePath, projectName, AUTO_SAVE_FILENAME)) {
-    return PERSIST_LOAD_FAILED;
-  }
-  FileSystem *fs = FileSystem::GetInstance();
-  if (fs->exists(autosavePath) &&
-      ValidateProjectFile_(autosavePath) == PERSIST_LOADED) {
-    if (usedAutosave != nullptr)
-      *usedAutosave = true;
-    Trace::Log("PERSISTENCYSERVICE", "using autosave: true");
-    // A semantic restore failure may already have mutated several Persistent
-    // objects. The Session must perform a complete model/pool/table reset
-    // before explicitly calling LoadBase_; never layer base restore here.
-    return LoadProjectFile_(autosavePath);
-  }
-  Trace::Log("PERSISTENCYSERVICE", "using autosave: false");
-  return LoadBase_(projectName, allowStaging);
-}
-
-PersistencyResult PersistencyService::LoadBase_(const char *projectName,
-                                                bool allowStaging) {
+                                            bool allowStaging) {
   if (!IsSafeProjectName_(projectName, allowStaging) ||
       !RecoverBaseJournal_(projectName, allowStaging)) {
     return PERSIST_LOAD_FAILED;
@@ -697,7 +659,8 @@ PersistencyResult PersistencyService::LoadProjectJournalBackup_(
     const char *projectName, bool autosave, bool allowStaging) {
   if (!IsSafeProjectName_(projectName, allowStaging))
     return PERSIST_LOAD_FAILED;
-  const auto &files = autosave ? kAutosaveFiles : BaseFilesForRead_(projectName);
+  const auto &files =
+      autosave ? kAutosaveFiles : BaseFilesForRead_(projectName);
   char backupPath[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
   if (!BuildProjectFilePath(backupPath, projectName, files.backup)) {
     return PERSIST_LOAD_FAILED;
@@ -715,7 +678,8 @@ bool PersistencyService::PromoteProjectJournalBackup_(const char *projectName,
                                                       bool allowStaging) {
   if (!IsSafeProjectName_(projectName, allowStaging))
     return false;
-  const auto &files = autosave ? kAutosaveFiles : BaseFilesForRead_(projectName);
+  const auto &files =
+      autosave ? kAutosaveFiles : BaseFilesForRead_(projectName);
   char destinationPath[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
   char tempPath[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
   char backupPath[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
@@ -737,7 +701,8 @@ bool PersistencyService::FinalizeProjectJournal_(const char *projectName,
                                                  bool allowStaging) {
   if (!IsSafeProjectName_(projectName, allowStaging))
     return false;
-  const auto &files = autosave ? kAutosaveFiles : BaseFilesForRead_(projectName);
+  const auto &files =
+      autosave ? kAutosaveFiles : BaseFilesForRead_(projectName);
   char destinationPath[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
   char tempPath[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
   char backupPath[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
@@ -805,8 +770,28 @@ PersistencyService::LoadCurrentProjectName(char *projectName) {
     // durable marker write failed after a valid untitled project was already
     // saved. Never classify that sole recoverable payload as a fresh-create
     // request: doing so would replace it on the next NewProject transaction.
-    if (Validate_(UNNAMED_PROJECT_NAME, true) != PERSIST_LOADED)
-      return false;
+    if (Validate_(UNNAMED_PROJECT_NAME, true) != PERSIST_LOADED) {
+      // An autosave-only untitled folder must not become an explicit New
+      // request, which replaces the directory. Session can initialize a blank
+      // manual save in place without loading or deleting the recovery files.
+      char path[MAX_PROJECT_SAMPLE_PATH_LENGTH]{};
+      for (const char *filename :
+           {PROJECT_DATA_FILE, LEGACY_PROJECT_DATA_FILE}) {
+        if (!BuildProjectFilePath(path, UNNAMED_PROJECT_NAME, filename))
+          return false;
+        if (fs->exists(path))
+          return false;
+      }
+      bool recoveryExists = false;
+      for (const char *filename : {AUTO_SAVE_FILENAME, AUTO_SAVE_TEMP_FILENAME,
+                                   AUTO_SAVE_BACKUP_FILENAME}) {
+        if (!BuildProjectFilePath(path, UNNAMED_PROJECT_NAME, filename))
+          return false;
+        recoveryExists = recoveryExists || fs->exists(path);
+      }
+      if (!recoveryExists)
+        return false;
+    }
     std::strcpy(projectName, UNNAMED_PROJECT_NAME);
     return true;
   };
@@ -901,12 +886,9 @@ PersistencyService::LoadCurrentProjectName(char *projectName) {
       !fs->DeleteFile(PROJECT_STATE_TEMP_FILE)) {
     Trace::Error("PERSISTENCYSERVICE: Could not delete invalid state temp");
   }
-  // The current marker may itself be corrupt while a synced untitled base or
-  // autosave journal is recoverable. Promote either before Session decides
-  // whether this is the normal first-boot create path; otherwise CreateProject
-  // could overwrite the only recoverable staging payload.
-  if (!RecoverBaseJournal_(UNNAMED_PROJECT_NAME, true) ||
-      !RecoverAutosaveJournal_(UNNAMED_PROJECT_NAME, true))
+  // Recover only the manual-save journal before Session checks for a missing
+  // untitled project. Autosave is never a default-load candidate.
+  if (!RecoverBaseJournal_(UNNAMED_PROJECT_NAME, true))
     return PERSIST_LOAD_FAILED;
   std::strcpy(projectName, UNNAMED_PROJECT_NAME);
   return PERSIST_LOADED;
