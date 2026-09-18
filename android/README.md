@@ -29,7 +29,8 @@ Debug builds use the standard local Android debug key. A distribution build need
 - Recording requests microphone permission only after Record starts. Input closes when recording finishes, the app goes into the background, or audio focus is lost. No input stream is opened just by visiting Record.
 - Android Back sends Shift+Left to the core, including its existing unsaved-edit confirmation.
 - Backgrounding stops playback/recording and flushes settings without replacing the current project or editor. Returning to the app preserves the editing session. Explicitly save the project before closing it or terminating the app.
-- Projects, samples, recordings and settings use app-private storage. Settings → Export Files saves a ZIP of persisted files through the system save dialog. Save your project before exporting. Uninstalling the app removes its private files.
+- Projects, samples, recordings and settings use app-private storage, exposed as **NullPerator** in the system Files app through a DocumentsProvider. Settings → Files opens that folder. You can copy files in and out, create folders, rename files, and delete files using the system file manager. File access is granted through Android’s document picker; the app does not request broad storage access.
+- Settings → Export Backup saves a ZIP of persisted files through the system save dialog. Save your project before managing files or exporting. Choose a destination outside the NullPerator folder. Uninstalling the app removes its private files.
 - Touch and browser-supported keyboard/gamepad controls share the existing Web UI input path.
 
 USB/Bluetooth MIDI routing is not implemented in this first Android host. It is shown as unavailable. Audio devices must support the requested 44.1 kHz shared float streams; incompatible formats fail instead of changing playback pitch or WAV timing. Device-specific latency and microphone behavior still require physical-device testing.
@@ -42,11 +43,19 @@ The host test uses a fake AAudio API to exercise output copying, contiguous micr
 cmake -S android/tests -B android/build/host-tests -DCMAKE_BUILD_TYPE=Debug
 cmake --build android/build/host-tests
 ctest --test-dir android/build/host-tests --output-on-failure
-javac --release 17 -d android/build/java-tests android/app/src/main/java/org/nullperator/app/SampleFiles.java android/tests/java/org/nullperator/app/SampleFilesTest.java
+javac --release 17 -d android/build/java-tests android/app/src/main/java/org/nullperator/app/{SampleFiles,DocumentFiles}.java android/tests/java/org/nullperator/app/{SampleFilesTest,DocumentFilesTest}.java
 java -ea -cp android/build/java-tests org.nullperator.app.SampleFilesTest
+java -ea -cp android/build/java-tests org.nullperator.app.DocumentFilesTest
 cd web
 pnpm exec vitest run tests/androidBridge.test.js tests/nativeRuntime.test.js tests/nativeAppSettings.test.js
 pnpm exec playwright test android-native.spec.js native-layout.spec.js
+```
+
+The device integration suite checks DocumentsProvider create/write/read/rename/delete and rejects traversal outside the library.
+
+```sh
+cd android
+./gradlew :app:connectedDebugAndroidTest
 ```
 
 Before shipping, test on a physical Android device: launch offline; play/stop each synth and a sample; import/cancel/duplicate a WAV; allow/deny mic permission; record and save; background during playback/recording; reconnect headphones; rotate the screen; verify Back warnings, project persistence and ZIP export.

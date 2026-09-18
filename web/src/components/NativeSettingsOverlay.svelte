@@ -37,11 +37,14 @@
   $: pageEyebrow = privacyPage ? 'LEGAL' : midiPage ? 'MIDI' : 'NULLPERATOR'
   $: pageTitle = privacyPage ? 'PRIVACY POLICY' : midiPage ? 'ROUTE MAP' : 'SETTINGS'
 
-  function nativeCommand(command) {
+  async function nativeCommand(command) {
+    feedback = ''
+    try {
     if (command === 'openFiles' && globalThis.__nullPeratorHost?.openFiles) {
-      return globalThis.__nullPeratorHost.openFiles()
+      return await globalThis.__nullPeratorHost.openFiles()
     }
-    return (globalThis.__nullPeratorNativeTransport ?? globalThis.webkit?.messageHandlers?.nullPeratorNative)?.postMessage({ command })
+    return await (globalThis.__nullPeratorNativeTransport ?? globalThis.webkit?.messageHandlers?.nullPeratorNative)?.postMessage({ command })
+    } catch (error) { feedback = error instanceof Error ? error.message : String(error) }
   }
 
   async function reboot() {
@@ -228,10 +231,14 @@
         </button>
 
         <button class="setting-row tappable" type="button" onclick={() => nativeCommand('openFiles')}>
-          <span class="row-copy"><strong>{android ? 'EXPORT FILES' : 'FILES'}</strong><small>{android ? 'Save a ZIP backup to your chosen folder' : 'Open the NullPerator folder in Files'}</small></span>
+          <span class="row-copy"><strong>FILES</strong><small>Open the NullPerator folder in Files</small></span>
           <span class="chevron">›</span>
         </button>
 
+        {#if android}<button class="setting-row tappable" type="button" onclick={() => nativeCommand('exportFiles')}>
+          <span class="row-copy"><strong>EXPORT BACKUP</strong><small>Save your project first, then export a ZIP of saved files</small></span>
+          <span class="chevron">›</span>
+        </button>{/if}
         <button class="setting-row tappable" type="button" onclick={() => nativeCommand('openWiki')}>
           <span class="row-copy"><strong>WIKI</strong><small>Open NullPerator guides and reference</small></span>
           <span class="chevron">↗</span>

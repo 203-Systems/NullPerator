@@ -10,6 +10,7 @@ android {
     ndkVersion '28.0.13004108'
     defaultConfig {
         applicationId 'org.nullperator.app'
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         minSdk 26
         targetSdk 35
         versionCode releaseBuilds[0].toInteger()
@@ -22,7 +23,11 @@ android {
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
     sourceSets { main { assets.srcDir layout.buildDirectory.dir('generated/webAssets') } }
 }
-dependencies { implementation 'androidx.webkit:webkit:1.12.1' }
+dependencies {
+    implementation 'androidx.webkit:webkit:1.12.1'
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+}
 tasks.register('packageWeb', Exec) {
     workingDir rootProject.projectDir.parentFile
     commandLine 'bash', 'android/scripts/package-web.sh', layout.buildDirectory.dir('generated/webAssets').get().asFile.absolutePath

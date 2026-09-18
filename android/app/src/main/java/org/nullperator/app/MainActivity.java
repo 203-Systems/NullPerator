@@ -10,6 +10,8 @@ import android.media.AudioAttributes;
 import android.media.AudioFocusRequest;
 import android.media.AudioManager;
 import android.net.Uri;
+import android.provider.DocumentsContract;
+import android.provider.OpenableColumns;
 import android.os.*;
 import android.util.Base64;
 import android.webkit.*;
@@ -28,7 +30,7 @@ public final class MainActivity extends Activity {
     private static final Handler CORE = new Handler(CORE_THREAD.getLooper());
     private final Handler ui = new Handler(Looper.getMainLooper());
     private WebView web;
-    private boolean foreground, ready;
+    private boolean foreground, ready, focusGranted;
     private volatile boolean destroyed;
     private String importProject = "";
     private AudioManager audioManager;
@@ -40,12 +42,16 @@ public final class MainActivity extends Activity {
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
                 android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::navigateBack);
         }
+        if (state != null) importProject = state.getString("importProject", "");
         audioManager = (AudioManager)getSystemService(AUDIO_SERVICE);
         setVolumeControlStream(AudioManager.STREAM_MUSIC);
         audioFocus = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
             .setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
                 .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
-            .setOnAudioFocusChangeListener(change -> CORE.post(() -> NativeCore.suspend(!foreground || change != AudioManager.AUDIOFOCUS_GAIN))).build();
+            .setOnAudioFocusChangeListener(change -> CORE.post(() -> {
+                focusGranted = change == AudioManager.AUDIOFOCUS_GAIN;
+                if (ready) NativeCore.suspend(!foreground || !focusGranted);
+            })).build();
         web = new WebView(this);
         web.setBackgroundColor(0xff111111);
         web.getSettings().setJavaScriptEnabled(true);
@@ -111,7 +117,7 @@ public final class MainActivity extends Activity {
             CORE.post(() -> NativeCore.battery(percent, charging));
         }
         boolean focus = audioManager.requestAudioFocus(audioFocus) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
-        CORE.post(() -> { foreground = true; NativeCore.permission(permission); if (ready) NativeCore.suspend(!focus); CORE.removeCallbacks(tick); CORE.post(tick); });
+        CORE.post(() -> { foreground = true; focusGranted = focus; NativeCore.permission(permission); if (ready) NativeCore.suspend(!focus); CORE.removeCallbacks(tick); CORE.post(tick); });
         web.onResume();
     }
     @Override protected void onStop() {
@@ -122,6 +128,10 @@ public final class MainActivity extends Activity {
     }
     @Override protected void onDestroy() {
         destroyed = true; CORE.removeCallbacks(tick); web.removeJavascriptInterface("NullPeratorAndroid"); web.destroy(); super.onDestroy();
+    }
+    @Override protected void onSaveInstanceState(Bundle state) {
+        state.putString("importProject", importProject);
+        super.onSaveInstanceState(state);
     }
     @Override public void onRequestPermissionsResult(int request, String[] permissions, int[] results) {
         super.onRequestPermissionsResult(request, permissions, results);
@@ -146,6 +156,14 @@ public final class MainActivity extends Activity {
                 int id = -1;
                 try {
                     JSONObject message = new JSONObject(text); id = message.getInt("id");
+                    String command = message.getString("command");
+                    final int requestId = id;
+                    if (command.equals("openFiles") || command.equals("exportFiles") || command.equals("openWiki")
+                            || command.equals("openDiscord") || command.equals("openPrivacyPolicy") || command.equals("purchaseHardware")) {
+                        ui.post(() -> { try { openExternal(command); reply(requestId, true, null); }
+                            catch (Exception error) { reply(requestId, null, error.getMessage()); } });
+                        return;
+                    }
                     reply(id, command(message), null);
                 } catch (Exception error) { reply(id, null, error.getMessage()); }
             });
@@ -163,11 +181,34 @@ public final class MainActivity extends Activity {
             case "nativeFrame": return frame(message.optInt("after"));
             case "nativeMidiDrain": return new JSONObject().put("packets", new JSONArray()).put("droppedNormal", 0).put("droppedRealtime", 0);
             case "nativeMidiDisconnect": case "nativeMidiOutputConnected": return false;
-            case "openDiscord": ui.post(() -> startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://discord.gg/rRVCBHHPfw")))); return true;
-            case "openWiki": ui.post(() -> startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://np-wiki.203.io")))); return true;
-            case "openFiles": ui.post(() -> startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).setType("application/zip").addCategory(Intent.CATEGORY_OPENABLE).putExtra(Intent.EXTRA_TITLE, "NullPerator-backup.zip"), EXPORT)); return true;
             default: throw new IOException("Command is unavailable on Android: " + message.getString("command"));
         }
+    }
+    private void openExternal(String command) {
+        if (destroyed) return;
+        if (command.equals("openFiles")) {
+            Uri root = DocumentsContract.buildRootUri(TrackerDocumentsProvider.AUTHORITY, DocumentFiles.ROOT);
+            try { startActivity(new Intent(Intent.ACTION_VIEW).setDataAndType(root, "vnd.android.document/root")); }
+            catch (android.content.ActivityNotFoundException error) {
+                startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*")
+                    .addCategory(Intent.CATEGORY_OPENABLE).putExtra(DocumentsContract.EXTRA_INITIAL_URI,
+                        DocumentsContract.buildDocumentUri(TrackerDocumentsProvider.AUTHORITY, DocumentFiles.ROOT)), 4);
+            }
+            return;
+        }
+        if (command.equals("exportFiles")) {
+            startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).setType("application/zip")
+                .addCategory(Intent.CATEGORY_OPENABLE).putExtra(Intent.EXTRA_TITLE, "NullPerator-backup.zip"), EXPORT);
+            return;
+        }
+        String url = switch (command) {
+            case "openWiki" -> "https://np-wiki.203.io";
+            case "openDiscord" -> "https://discord.gg/rRVCBHHPfw";
+            case "openPrivacyPolicy" -> "https://203.io/pages/nullperator-privacy-policy";
+            case "purchaseHardware" -> "https://203.io/products/operator-deposit";
+            default -> throw new IllegalArgumentException("Unknown link");
+        };
+        startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
     }
     private JSONObject frame(int after) throws Exception {
         byte[] data = NativeCore.frame(after);
@@ -202,17 +243,25 @@ public final class MainActivity extends Activity {
             nameSample(data.getData());
         } else if (request == EXPORT && result == RESULT_OK && data != null && data.getData() != null) {
             Uri uri = data.getData();
+            if (TrackerDocumentsProvider.AUTHORITY.equals(uri.getAuthority())) {
+                showError(new IOException("Choose a backup destination outside the NullPerator folder"));
+                return;
+            }
             // Serialize the snapshot with the engine so project writes cannot race it.
             CORE.post(() -> {
                 NativeCore.suspend(true);
-                try (ZipOutputStream zip = new ZipOutputStream(getContentResolver().openOutputStream(uri))) { exportDirectory(getFilesDir(), "", zip); }
+                try (ZipOutputStream zip = new ZipOutputStream(getContentResolver().openOutputStream(uri, "wt"))) { exportDirectory(getFilesDir(), "", zip); }
                 catch (Exception error) { showError(error); }
-                finally { NativeCore.suspend(!foreground); }
+                finally { NativeCore.suspend(!foreground || !focusGranted); }
             });
         }
     }
     private void nameSample(Uri uri) {
-        EditText name = new EditText(this); name.setSingleLine(true); name.setText("Sample"); name.selectAll();
+        String suggested = "Sample";
+        try (var cursor = getContentResolver().query(uri, new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+            if (cursor != null && cursor.moveToFirst()) suggested = cursor.getString(0).replaceFirst("(?i)\\.wav$", "");
+        } catch (Exception ignored) { }
+        EditText name = new EditText(this); name.setSingleLine(true); name.setText(suggested); name.selectAll();
         AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Import WAV").setView(name)
             .setNegativeButton("Cancel", (d,w) -> CORE.post(() -> NativeCore.importResult(2, "")))
             .setPositiveButton("Import", null).setOnCancelListener(d -> CORE.post(() -> NativeCore.importResult(2, ""))).create();
@@ -223,13 +272,23 @@ public final class MainActivity extends Activity {
             File library = new File(getFilesDir(), "samples");
             File project = new File(getFilesDir(), "projects/"+importProject+"/samples");
             if (SampleFiles.exists(library, filename) || SampleFiles.exists(project, filename)) { name.setError("A sample with this name already exists"); return; }
-            dialog.dismiss();
+            name.setEnabled(false);
+            dialog.setCancelable(false);
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(false);
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setEnabled(false);
             new Thread(() -> {
                 try {
                     SampleFiles.importWav(getContentResolver().openInputStream(uri), library, project, filename);
                     CORE.post(() -> NativeCore.importResult(1, "/samples/"+filename));
+                    ui.post(() -> { if (!destroyed) dialog.dismiss(); });
                 } catch (Exception error) {
-                    CORE.post(() -> NativeCore.importResult(3, "")); showError(error);
+                    ui.post(() -> {
+                        if (destroyed) { CORE.post(() -> NativeCore.importResult(3, "")); return; }
+                        name.setEnabled(true); name.setError(error.getMessage());
+                        dialog.setCancelable(true);
+                        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setEnabled(true);
+                        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setEnabled(true);
+                    });
                 }
             }, "WAV import").start();
         }));
@@ -239,6 +298,7 @@ public final class MainActivity extends Activity {
         File[] files = directory.listFiles(); if (files == null) return;
         byte[] buffer = new byte[65536];
         for (File file : files) {
+            if (file.getName().startsWith(".") || java.nio.file.Files.isSymbolicLink(file.toPath())) continue;
             if (file.isDirectory()) { exportDirectory(file, prefix+file.getName()+"/", zip); continue; }
             zip.putNextEntry(new ZipEntry(prefix+file.getName()));
             try (InputStream in = new FileInputStream(file)) { int n; while ((n=in.read(buffer)) != -1) zip.write(buffer,0,n); }

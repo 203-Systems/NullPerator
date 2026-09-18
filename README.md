@@ -32,7 +32,7 @@ NullPerator builds on the open-source picoTracker project and is developed by
 | Target | Runtime | Platform integration |
 | --- | --- | --- |
 | NullPerator for iOS | Native C++ core with a bundled Svelte presentation | Core Audio recording and playback, CoreMIDI, Bluetooth MIDI, GameController, background audio, and Files |
-| NullPerator for Android (experimental) | Native C++ core with bundled Svelte controls | AAudio playback and recording, system WAV picker, local storage and ZIP export; MIDI routing pending |
+| NullPerator for Android (experimental) | Native C++ core with bundled Svelte controls | AAudio playback and recording, system WAV picker and Files integration, ZIP backup; MIDI routing pending |
 | NullPerator hardware | Native C++ firmware | ESP32-S3 hardware, display, controls, audio, MIDI, and storage |
 | WASM workbench | C++ core compiled to WebAssembly | Browser storage, host-folder synchronization, Web MIDI, logs, and tracing |
 
