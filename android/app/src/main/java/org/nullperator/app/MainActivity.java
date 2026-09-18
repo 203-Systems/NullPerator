@@ -157,7 +157,7 @@ public final class MainActivity extends Activity {
                 if (!ready) throw new IOException("Native engine is not ready");
                 return new JSONObject().put("runtime", "native-cpp").put("platform", "android").put("version", 1)
                     .put("appVersion", BuildConfig.VERSION_NAME).put("appBuild", BuildConfig.VERSION_CODE)
-                    .put("nullPeratorVersion", BuildConfig.VERSION_NAME).put("buildHash", NativeCore.buildHash()).put("buildTime", NativeCore.buildTime());
+                    .put("nullPeratorVersion", NativeCore.productVersion()).put("buildHash", NativeCore.buildHash()).put("buildTime", NativeCore.buildTime());
             case "nativeAction": NativeCore.action(message.getInt("action"), message.getBoolean("pressed"), message.optBoolean("repeat")); return true;
             case "nativeReleaseAll": NativeCore.release(); return true;
             case "nativeFrame": return frame(message.optInt("after"));

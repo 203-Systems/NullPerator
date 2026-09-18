@@ -1,4 +1,9 @@
 plugins { id 'com.android.application' }
+// Share the product version and release build with the iOS target.
+def productVersion = (rootProject.file('../sources/ProductVersion.h').text =~ /Version\[\] = "([^"]+)"/)
+if (!productVersion.find()) throw new GradleException('Missing product version')
+def releaseBuilds = (rootProject.file('../ios/NullPeratorIOS.xcodeproj/project.pbxproj').text =~ /CURRENT_PROJECT_VERSION = (\d+);/).collect { it[1] }.unique()
+if (releaseBuilds.size() != 1) throw new GradleException('iOS build numbers must agree')
 android {
     namespace 'org.nullperator.app'
     compileSdk 35
@@ -7,8 +12,8 @@ android {
         applicationId 'org.nullperator.app'
         minSdk 26
         targetSdk 35
-        versionCode 1
-        versionName '0.1.0'
+        versionCode releaseBuilds[0].toInteger()
+        versionName productVersion.group(1)
         ndk { abiFilters 'arm64-v8a', 'x86_64' }
         externalNativeBuild { cmake { cppFlags '-std=c++23'; arguments '-DAndroid=true', '-DANDROID_STL=c++_shared' } }
     }

@@ -6,6 +6,7 @@
 #include "System/System/System.h"
 #include "Application/Audio/RecordingPlatform.h"
 #include <jni.h>
+#include "ProductVersion.h"
 #include <cstring>
 #include <string>
 #include <vector>
@@ -106,4 +107,8 @@ JNI_METHOD(frame) jbyteArray JNICALL Java_org_nullperator_app_NativeCore_frame(J
   }
   auto result = env->NewByteArray(bytes.size());
   env->SetByteArrayRegion(result, 0, bytes.size(), reinterpret_cast<const jbyte *>(bytes.data())); return result;
+}
+
+JNI_METHOD(productVersion) jstring JNICALL Java_org_nullperator_app_NativeCore_productVersion(JNIEnv *env, jclass) {
+  return env->NewStringUTF(nullperator_product::Version);
 }

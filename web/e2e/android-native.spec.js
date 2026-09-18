@@ -12,7 +12,7 @@ for (const viewport of [{ width: 412, height: 915 }, { width: 915, height: 412 }
         const message = JSON.parse(text)
         androidMessages.push(message)
         let result = true
-        if (message.command === 'nativeReady') result = { runtime: 'native-cpp', platform: 'android', appVersion: '0.1.0', appBuild: 1 }
+        if (message.command === 'nativeReady') result = { runtime: 'native-cpp', platform: 'android', appVersion: '0.2', appBuild: 4 }
         if (message.command === 'nativeFrame') result = message.after === 1
           ? { version: 1, changed: false, sequence: 1 }
           : { version: 1, changed: true, sequence: 1, width: 240, height: 240,
@@ -31,6 +31,7 @@ for (const viewport of [{ width: 412, height: 915 }, { width: 915, height: 412 }
     await expect.poll(() => page.evaluate(() => androidMessages.some(m => m.command === 'nativeAction' && m.action === 2 && m.pressed))).toBe(true)
     await page.getByRole('button', { name: 'Open settings' }).click()
     const settings = page.getByRole('dialog', { name: 'SETTINGS' })
+    await expect(settings.getByText('0.2 (4)', { exact: true })).toBeVisible()
     await expect(settings.getByRole('button', { name: /^EXPORT FILES/ })).toBeVisible()
     await settings.getByRole('button', { name: /^EXPORT FILES/ }).click()
     await expect.poll(() => page.evaluate(() => androidMessages.some(m => m.command === 'openFiles'))).toBe(true)

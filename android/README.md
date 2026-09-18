@@ -18,6 +18,8 @@ cd ../android
 
 The build bundles the current Web UI automatically. Install `app/build/outputs/apk/debug/app-debug.apk` with `adb install -r`, or use Android Studio's Run action. Android 8.0 or newer is required. The configured ABIs are arm64-v8a (phones) and x86_64 (emulators).
 
+The application version is read from `sources/ProductVersion.h`; the build number is read from the iOS target’s `CURRENT_PROJECT_VERSION`. Android and iOS therefore display the same release version and build number.
+
 Debug builds use the standard local Android debug key. A distribution build needs your release signing configuration; no release key or credentials belong in this repository.
 
 ## Behavior
