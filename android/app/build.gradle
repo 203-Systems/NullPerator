@@ -1,0 +1,33 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'org.nullperator.app'
+    compileSdk 35
+    ndkVersion '28.0.13004108'
+    defaultConfig {
+        applicationId 'org.nullperator.app'
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName '0.1.0'
+        ndk { abiFilters 'arm64-v8a', 'x86_64' }
+        externalNativeBuild { cmake { cppFlags '-std=c++23'; arguments '-DAndroid=true', '-DANDROID_STL=c++_shared' } }
+    }
+    externalNativeBuild { cmake { path '../../sources/CMakeLists.txt'; version '3.22.1' } }
+    buildFeatures { buildConfig true }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    sourceSets { main { assets.srcDir layout.buildDirectory.dir('generated/webAssets') } }
+}
+dependencies { implementation 'androidx.webkit:webkit:1.12.1' }
+tasks.register('packageWeb', Exec) {
+    workingDir rootProject.projectDir.parentFile
+    commandLine 'bash', 'android/scripts/package-web.sh', layout.buildDirectory.dir('generated/webAssets').get().asFile.absolutePath
+    inputs.dir rootProject.file('../web/src')
+    inputs.dir rootProject.file('../web/public')
+    inputs.file rootProject.file('../web/package.json')
+    inputs.file rootProject.file('../web/pnpm-lock.yaml')
+    inputs.file rootProject.file('../web/vite.config.js')
+    inputs.file rootProject.file('app/src/main/native-bootstrap.js')
+    inputs.file rootProject.file('scripts/package-web.sh')
+    outputs.dir layout.buildDirectory.dir('generated/webAssets')
+}
+tasks.named('preBuild').configure { dependsOn 'packageWeb' }

@@ -25,9 +25,10 @@
   $: midiLabel = midiSnapshot.state === 'ready'
     ? (midiSnapshot.inputConnected || midiSnapshot.outputConnected ? 'Connected' : 'Not connected')
     : midiSnapshot.state === 'idle' ? 'Not connected'
-    : midiSnapshot.state === 'unsupported' ? 'Unavailable on iOS' : midiSnapshot.state
-  $: iosVersion = runtime?.buildMetadata?.iosVersion ?? 'Unknown'
-  $: iosBuild = runtime?.buildMetadata?.iosBuild ?? 'Unknown'
+    : midiSnapshot.state === 'unsupported' ? 'Unavailable on this device' : midiSnapshot.state
+  $: android = runtime?.buildMetadata?.platform === 'android'
+  $: iosVersion = runtime?.buildMetadata?.appVersion ?? runtime?.buildMetadata?.iosVersion ?? 'Unknown'
+  $: iosBuild = runtime?.buildMetadata?.appBuild ?? runtime?.buildMetadata?.iosBuild ?? 'Unknown'
   $: nullPeratorVersion = runtime?.buildMetadata?.nullPeratorVersion ?? 'Unknown'
   $: buildHash = runtime?.buildMetadata?.buildHash ?? 'Unknown'
   $: shortBuildHash = buildHash === 'Unknown' ? buildHash : String(buildHash).slice(0, 8)
@@ -40,7 +41,7 @@
     if (command === 'openFiles' && globalThis.__nullPeratorHost?.openFiles) {
       return globalThis.__nullPeratorHost.openFiles()
     }
-    return globalThis.webkit?.messageHandlers?.nullPeratorNative?.postMessage({ command })
+    return (globalThis.__nullPeratorNativeTransport ?? globalThis.webkit?.messageHandlers?.nullPeratorNative)?.postMessage({ command })
   }
 
   async function reboot() {
@@ -123,7 +124,7 @@
 
       {#if midiPage}
         <div class="midi-page">
-          <button class="bluetooth-row" type="button" onclick={() => nativeCommand('openBluetoothMidi')}>
+          {#if !android}<button class="bluetooth-row" type="button" onclick={() => nativeCommand('openBluetoothMidi')}>
             <span class="bluetooth-mark" aria-hidden="true">
               <svg viewBox="0 0 24 24" focusable="false">
                 <path d="M17.71 7.71 12 2v7.59L7.41 5 6 6.41 11.59 12 6 17.59 7.41 19 12 14.41V22l5.71-5.71L13.41 12l4.3-4.29ZM14 6.83l.88.88-.88.88V6.83Zm0 8.58.88.88-.88.88v-1.76Z" />
@@ -133,6 +134,7 @@
             <span class="chevron">›</span>
           </button>
 
+          {/if}
           <section class="route-map" aria-label="MIDI route map">
             <div class="route-card">
               <div class="route-heading"><strong>INPUT ROUTE</strong><small>External MIDI into NullPerator</small></div>
@@ -189,7 +191,7 @@
 
           <section>
             <strong>ON-DEVICE DATA</strong>
-            <p>Projects, samples, settings, controller mappings, and MIDI route choices are stored locally on your device. Files are shared only when you choose to use the iOS Files app.</p>
+            <p>Projects, samples, settings, controller mappings, and MIDI route choices are stored locally on your device. Files are shared only when you choose to export or share them.</p>
           </section>
 
           <section>
@@ -226,7 +228,7 @@
         </button>
 
         <button class="setting-row tappable" type="button" onclick={() => nativeCommand('openFiles')}>
-          <span class="row-copy"><strong>FILES</strong><small>Open the NullPerator folder in Files</small></span>
+          <span class="row-copy"><strong>{android ? 'EXPORT FILES' : 'FILES'}</strong><small>{android ? 'Save a ZIP backup to your chosen folder' : 'Open the NullPerator folder in Files'}</small></span>
           <span class="chevron">›</span>
         </button>
 
@@ -255,7 +257,7 @@
           <div class="row-copy"><strong>SOFTWARE VERSION</strong><small>Application and firmware builds</small></div>
           <div class="version-side">
             <div class="version-values">
-              <b>iOS</b><span>{iosVersion} ({iosBuild})</span>
+              <b>{android ? 'Android app' : 'iOS'}</b><span>{iosVersion} ({iosBuild})</span>
               <b>NULLPERATOR</b><span>{nullPeratorVersion}</span>
             </div>
             <span class:open={softwareBuildOpen} class="version-disclosure" aria-hidden="true">›</span>

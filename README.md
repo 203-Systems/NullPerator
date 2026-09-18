@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  An eight-track music tracker for NullPerator hardware, iPhone, iPad, and the web.
+  An eight-track music tracker for NullPerator hardware, iPhone, iPad, Android, and the web.
 </p>
 
 NullPerator combines a compact, controller-driven workflow with a shared C++
@@ -25,13 +25,14 @@ NullPerator builds on the open-source picoTracker project and is developed by
 - 44.1 kHz stereo audio engine
 - Fast editing through physical controllers or on-screen controls
 - Separate project autosaves, sample import, and offline local storage
-- Shared 240×240 UI2 tracker interface across hardware, iOS, and the web
+- Shared 240×240 UI2 tracker interface across hardware, iOS, Android, and the web
 
 ## Supported targets
 
 | Target | Runtime | Platform integration |
 | --- | --- | --- |
 | NullPerator for iOS | Native C++ core with a bundled Svelte presentation | Core Audio recording and playback, CoreMIDI, Bluetooth MIDI, GameController, background audio, and Files |
+| NullPerator for Android (experimental) | Native C++ core with bundled Svelte controls | AAudio playback and recording, system WAV picker, local storage and ZIP export; MIDI routing pending |
 | NullPerator hardware | Native C++ firmware | ESP32-S3 hardware, display, controls, audio, MIDI, and storage |
 | WASM workbench | C++ core compiled to WebAssembly | Browser storage, host-folder synchronization, Web MIDI, logs, and tracing |
 
@@ -55,6 +56,19 @@ Select the `NullPeratorIOS` scheme, choose an iPhone, iPad, or simulator, and
 run the app. The Xcode build phase compiles and links the native C++ core.
 
 See the [iOS build and architecture guide](ios/README.md) for runtime details.
+
+## Build NullPerator for Android
+
+Requirements: JDK 17, pnpm, Android SDK 35 and NDK 28. The Gradle build bundles
+the shared Web UI and compiles the native audio/tracker core.
+
+```bash
+cd android
+./gradlew :app:assembleDebug
+```
+
+See the [Android build guide](android/README.md) for SDK setup, installation,
+current limitations and device testing.
 
 ## Run the WASM workbench
 
@@ -100,6 +114,7 @@ Shared changes should also be validated on every affected product target.
 | --- | --- |
 | `sources/` | Shared C++ tracker engine, UI2, services, and platform adapters |
 | `ios/` | Swift and Objective-C++ iOS host, native bridge, resources, and packaging scripts |
+| `android/` | Java Android host, JNI integration, Gradle packaging and adapter tests |
 | `web/` | Shared Svelte presentation and the WASM workbench |
 | `tests/` | Host-side C++ tests |
 | `tools/` | Build, verification, asset, and firmware acceptance utilities |

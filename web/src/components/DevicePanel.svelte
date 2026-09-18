@@ -102,7 +102,7 @@
   function diagnosticsEnabled() { return new URLSearchParams(window.location.search).get('inputDiagnostics') === '1' }
 
   function postNative(command, payload = {}) {
-    return globalThis.webkit?.messageHandlers?.nullPeratorNative?.postMessage({ command, ...payload })
+    return (globalThis.__nullPeratorNativeTransport ?? globalThis.webkit?.messageHandlers?.nullPeratorNative)?.postMessage({ command, ...payload })
   }
   function decodeBase64(value) {
     const binary = atob(String(value ?? ''))

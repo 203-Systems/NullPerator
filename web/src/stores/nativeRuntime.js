@@ -1,7 +1,7 @@
 import { createMidiStore } from './midi.js'
 
 function postNative(command, payload = {}) {
-  const handler = globalThis.webkit?.messageHandlers?.nullPeratorNative
+  const handler = (globalThis.__nullPeratorNativeTransport ?? globalThis.webkit?.messageHandlers?.nullPeratorNative)
   if (!handler) return Promise.reject(new Error('Native core bridge is unavailable'))
   return Promise.resolve(handler.postMessage({ command, ...payload }))
 }
@@ -112,11 +112,14 @@ export function createNativeRuntimeManager(options = {}) {
     stop: async () => {},
   })
   const input = createNativeInput(sendNative)
-  const midi = createMidiStore(createNativeMidiBridge(sendNative), options.midiOptions)
+  const midiOptions = options.midiOptions ?? (globalThis.__nullPeratorNativePlatform === 'android'
+    ? { navigator: {} } // Android MIDI routing is not exposed by this host yet.
+    : undefined)
+  const midi = createMidiStore(createNativeMidiBridge(sendNative), midiOptions)
   let snapshot = Object.freeze({
     state: 'idle',
     error: null,
-    buildMetadata: { runtime: 'native-cpp', platform: 'ios', version: 1 },
+    buildMetadata: { runtime: 'native-cpp', platform: globalThis.__nullPeratorNativePlatform ?? 'ios', version: 1 },
     frameContent: 'native',
     input: null,
     audio: null,

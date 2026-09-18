@@ -79,6 +79,8 @@ public:
   // Application.cpp and its process-global forceLoadUntitledProject flag.
   [[nodiscard]] bool Init(Ui2StartupOptions options = {});
   void Shutdown();
+  // Host backgrounding preserves the project/editor while stopping live audio.
+  void SuspendHost();
   void DispatchTrackerAction(TrackerAction action, bool pressed) override;
   [[nodiscard]] PresentResult Present();
   void Tick(std::uint32_t nowMs);

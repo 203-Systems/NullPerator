@@ -301,7 +301,7 @@ bool Ui2TrackerApplication::Init(Ui2StartupOptions options) {
   // targets retain the guarded UPDATE FIRMWARE row.
   visibleDeviceFields &= ~(std::uint32_t{1} << static_cast<std::uint8_t>(
                                Ui2DeviceField::UpdateFirmware));
-#if defined(NULLPERATOR_IOS) || defined(__EMSCRIPTEN__)
+#if defined(NULLPERATOR_IOS) || defined(NULLPERATOR_ANDROID) || defined(__EMSCRIPTEN__)
   visibleDeviceFields &= ~(std::uint32_t{1} << static_cast<std::uint8_t>(
                                Ui2DeviceField::MidiDevice));
   visibleDeviceFields &=
@@ -313,6 +313,14 @@ bool Ui2TrackerApplication::Init(Ui2StartupOptions options) {
   ConfigureRecordController();
   ActivatePage(UiApplicationPage::Song);
   return true;
+}
+
+void Ui2TrackerApplication::SuspendHost() {
+  StopSamplePreview();
+  if (Player *player = Player::GetInstance()) player->StopAllAudio();
+  if (IsRecordingActive() || IsSavingRecording()) StopRecording();
+  StopMonitoring();
+  if (configSave_.Dirty()) (void)FlushConfig();
 }
 
 void Ui2TrackerApplication::Shutdown() {

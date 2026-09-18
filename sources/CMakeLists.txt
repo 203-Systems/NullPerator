@@ -24,14 +24,25 @@ if(NOT DEFINED IOS)
   set(IOS false)
 endif()
 
+if(NOT DEFINED Android)
+  set(Android false)
+endif()
+
 set(NULLPERATOR_PRODUCT_COUNT 0)
-foreach(NULLPERATOR_PRODUCT Node WASM IOS)
+foreach(NULLPERATOR_PRODUCT Node WASM IOS Android)
   if(${NULLPERATOR_PRODUCT})
     math(EXPR NULLPERATOR_PRODUCT_COUNT "${NULLPERATOR_PRODUCT_COUNT} + 1")
   endif()
 endforeach()
 if(NULLPERATOR_PRODUCT_COUNT GREATER 1)
-  message(FATAL_ERROR "Node, WASM and IOS are mutually exclusive build targets")
+  message(FATAL_ERROR "Node, WASM, IOS and Android are mutually exclusive build targets")
+endif()
+
+if(Android)
+  project(nullPeratorAndroid LANGUAGES C CXX)
+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+  add_subdirectory(Adapters/android)
+  return()
 endif()
 
 # ESP-IDF node build (vanilla style). Invoke with -DNode=true from sources/.
@@ -59,4 +70,5 @@ endif()
 
 message(FATAL_ERROR
   "No product selected. Configure the ESP32-S3 Node target with -DNode=true "
-  "the browser target with -DWASM=true, or the iOS core with -DIOS=true.")
+  "the browser target with -DWASM=true, the iOS core with -DIOS=true, "
+  "or Android with -DAndroid=true and the NDK toolchain.")
