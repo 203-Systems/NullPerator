@@ -1,0 +1,6 @@
+<devices>
+    <device manufacturer="NullPerator Tests" product="Loopback" name="NullPerator Test Loopback">
+        <input-port name="Echo in" />
+        <output-port name="Echo out" />
+    </device>
+</devices>

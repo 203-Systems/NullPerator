@@ -1,4 +1,5 @@
 import { createMidiStore } from './midi.js'
+import { createAndroidMidiStore } from './androidMidi.js'
 
 function postNative(command, payload = {}) {
   const handler = (globalThis.__nullPeratorNativeTransport ?? globalThis.webkit?.messageHandlers?.nullPeratorNative)
@@ -112,10 +113,9 @@ export function createNativeRuntimeManager(options = {}) {
     stop: async () => {},
   })
   const input = createNativeInput(sendNative)
-  const midiOptions = options.midiOptions ?? (globalThis.__nullPeratorNativePlatform === 'android'
-    ? { navigator: {} } // Android MIDI routing is not exposed by this host yet.
-    : undefined)
-  const midi = createMidiStore(createNativeMidiBridge(sendNative), midiOptions)
+  const android = globalThis.__nullPeratorNativePlatform === 'android'
+  const midi = android ? createAndroidMidiStore(sendNative, options.androidMidiOptions)
+    : createMidiStore(createNativeMidiBridge(sendNative), options.midiOptions)
   let snapshot = Object.freeze({
     state: 'idle',
     error: null,
@@ -148,6 +148,7 @@ export function createNativeRuntimeManager(options = {}) {
     publish({ state: 'booting', error: null })
     try {
       const metadata = await sendNative('nativeReady')
+      if (android) await midi.requestMidiAccess().catch(() => {})
       publish({
         state: 'ready',
         buildMetadata: metadata ?? snapshot.buildMetadata,

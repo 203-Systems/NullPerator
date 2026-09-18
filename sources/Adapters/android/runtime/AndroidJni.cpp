@@ -7,6 +7,7 @@
 #include "Application/Audio/RecordingPlatform.h"
 #include <jni.h>
 #include "ProductVersion.h"
+#include <cmath>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -111,4 +112,31 @@ JNI_METHOD(frame) jbyteArray JNICALL Java_org_nullperator_app_NativeCore_frame(J
 
 JNI_METHOD(productVersion) jstring JNICALL Java_org_nullperator_app_NativeCore_productVersion(JNIEnv *env, jclass) {
   return env->NewStringUTF(nullperator_product::Version);
+}
+JNI_METHOD(midiInput) jboolean JNICALL Java_org_nullperator_app_NativeCore_midiInput(JNIEnv *env, jclass, jbyteArray data, jdouble milliseconds) {
+  if (!runtime || !data || !std::isfinite(milliseconds) || milliseconds < 0) return false;
+  const auto size = env->GetArrayLength(data);
+  if (size <= 0 || size > 1024) return false;
+  std::array<std::uint8_t, 1024> bytes{};
+  env->GetByteArrayRegion(data, 0, size, reinterpret_cast<jbyte *>(bytes.data()));
+  return runtime->SubmitMidi(bytes.data(), size, milliseconds);
+}
+JNI_METHOD(midiDrain) jintArray JNICALL Java_org_nullperator_app_NativeCore_midiDrain(JNIEnv *env, jclass) {
+  if (!runtime) return nullptr;
+  const auto drained = runtime->DrainMidi();
+  if (drained.packets.empty() && !drained.droppedNormal && !drained.droppedRealtime) return nullptr;
+  std::vector<jint> values{static_cast<jint>(drained.droppedNormal), static_cast<jint>(drained.droppedRealtime)};
+  for (const auto &packet : drained.packets) {
+    values.push_back(packet.length);
+    for (auto byte : packet.bytes) values.push_back(byte);
+  }
+  auto result = env->NewIntArray(values.size());
+  env->SetIntArrayRegion(result, 0, values.size(), values.data());
+  return result;
+}
+JNI_METHOD(midiDisconnect) void JNICALL Java_org_nullperator_app_NativeCore_midiDisconnect(JNIEnv *, jclass, jint directions) {
+  if (runtime && directions >= 1 && directions <= 3) runtime->DisconnectMidi(directions);
+}
+JNI_METHOD(midiOutputConnected) void JNICALL Java_org_nullperator_app_NativeCore_midiOutputConnected(JNIEnv *, jclass, jboolean connected) {
+  if (runtime) runtime->SetMidiOutputConnected(connected);
 }

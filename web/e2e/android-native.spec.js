@@ -13,6 +13,7 @@ for (const viewport of [{ width: 412, height: 915 }, { width: 915, height: 412 }
         androidMessages.push(message)
         let result = true
         if (message.command === 'nativeReady') result = { runtime: 'native-cpp', platform: 'android', appVersion: '0.2', appBuild: 4 }
+        if (message.command.startsWith('midi')) result = { state: 'ready', inputs: [], outputs: [] }
         if (message.command === 'nativeFrame') result = message.after === 1
           ? { version: 1, changed: false, sequence: 1 }
           : { version: 1, changed: true, sequence: 1, width: 240, height: 240,

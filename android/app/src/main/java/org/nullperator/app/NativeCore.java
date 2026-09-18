@@ -13,6 +13,10 @@ final class NativeCore {
     static native void importResult(int status, String path);
     static native void battery(int percentage, boolean charging);
     static native byte[] frame(int after);
+    static native boolean midiInput(byte[] bytes, double milliseconds);
+    static native int[] midiDrain();
+    static native void midiDisconnect(int directions);
+    static native void midiOutputConnected(boolean connected);
     static native String productVersion();
     static native String buildHash();
     static native String buildTime();

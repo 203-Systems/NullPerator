@@ -1,0 +1,43 @@
+import { afterEach, expect, it, vi } from 'vitest'
+import { createAndroidMidiStore } from '../src/stores/androidMidi.js'
+afterEach(() => vi.useRealTimers())
+it('routes through the native host and refreshes hotplug metadata without draining MIDI bytes in JS', async () => {
+  vi.useFakeTimers()
+  const send = vi.fn(async name => ({ state: 'ready', inputs: name === 'midiRefresh' ? [{ id: 'usb:1' }] : [], outputs: [] }))
+  const store = createAndroidMidiStore(send)
+  await store.requestMidiAccess()
+  await store.selectMidiInput('usb:1')
+  await store.selectMidiOutput(null)
+  expect(send).toHaveBeenCalledWith('midiSelectInput', { port: 'usb:1' })
+  expect(send).toHaveBeenCalledWith('midiSelectOutput', { port: null })
+  await vi.advanceTimersByTimeAsync(500)
+  expect(store.snapshot().inputs).toEqual([{ id: 'usb:1' }])
+  await store.stop()
+  await vi.advanceTimersByTimeAsync(2000)
+  expect(vi.getTimerCount()).toBe(0)
+  expect(send.mock.calls.some(([name]) => name === 'nativeMidiDrain')).toBe(false)
+})
+it('does not republish stale route metadata when stopping an in-flight refresh', async () => {
+  vi.useFakeTimers()
+  let complete
+  const send = vi.fn(name => name === 'midiRefresh' ? new Promise(resolve => { complete = resolve }) : Promise.resolve({ state: name === 'midiStop' ? 'idle' : 'ready' }))
+  const store = createAndroidMidiStore(send)
+  await store.requestMidiAccess()
+  await vi.advanceTimersByTimeAsync(500)
+  const stop = store.stop()
+  complete({ state: 'ready', inputConnected: true })
+  await stop
+  expect(store.snapshot()).toMatchObject({ state: 'idle', inputConnected: false })
+  expect(vi.getTimerCount()).toBe(0)
+})
+it('reports native open failures and can retry without leaving duplicate polls', async () => {
+  vi.useFakeTimers()
+  const send = vi.fn().mockRejectedValueOnce(new Error('MIDI unavailable')).mockResolvedValue({ state: 'ready' })
+  const store = createAndroidMidiStore(send)
+  await expect(store.requestMidiAccess()).rejects.toThrow('MIDI unavailable')
+  expect(store.snapshot().state).toBe('failed')
+  await store.requestMidiAccess()
+  await store.requestMidiAccess()
+  expect(vi.getTimerCount()).toBe(1)
+  await store.stop()
+})

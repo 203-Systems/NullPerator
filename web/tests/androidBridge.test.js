@@ -34,6 +34,7 @@ describe('Android native bridge', () => {
     manager.getSnapshot().input.releaseAction(6)
     expect(postMessage).toHaveBeenCalledWith({ command: 'nativeAction', action: 6, pressed: true, repeat: false })
     expect(postMessage).toHaveBeenCalledWith({ command: 'nativeAction', action: 6, pressed: false, repeat: false })
+    await manager.stop()
   })
   it('keeps the iOS WebKit transport working', async () => {
     const postMessage = vi.fn(async () => ({ platform: 'ios' }))

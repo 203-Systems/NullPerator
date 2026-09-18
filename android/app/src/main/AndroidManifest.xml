@@ -1,5 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-feature android:name="android.software.midi" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <application android:theme="@style/AppTheme" android:label="NullPerator" android:icon="@drawable/app_icon" android:allowBackup="false" android:usesCleartextTraffic="false">
         <provider android:name=".TrackerDocumentsProvider" android:authorities="org.nullperator.app.documents"

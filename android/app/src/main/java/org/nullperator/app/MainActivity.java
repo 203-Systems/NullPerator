@@ -33,6 +33,7 @@ public final class MainActivity extends Activity {
     private boolean foreground, ready, focusGranted;
     private volatile boolean destroyed;
     private String importProject = "";
+    private MidiRouter midi;
     private AudioManager audioManager;
     private AudioFocusRequest audioFocus;
 
@@ -42,6 +43,7 @@ public final class MainActivity extends Activity {
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
                 android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::navigateBack);
         }
+        midi = new MidiRouter(this, CORE);
         if (state != null) importProject = state.getString("importProject", "");
         audioManager = (AudioManager)getSystemService(AUDIO_SERVICE);
         setVolumeControlStream(AudioManager.STREAM_MUSIC);
@@ -51,6 +53,7 @@ public final class MainActivity extends Activity {
             .setOnAudioFocusChangeListener(change -> CORE.post(() -> {
                 focusGranted = change == AudioManager.AUDIOFOCUS_GAIN;
                 if (ready) NativeCore.suspend(!foreground || !focusGranted);
+                midi.setActive(foreground && focusGranted);
             })).build();
         web = new WebView(this);
         web.setBackgroundColor(0xff111111);
@@ -96,6 +99,7 @@ public final class MainActivity extends Activity {
             if (!foreground || destroyed) return;
             if (ready) {
                 NativeCore.tick();
+                midi.send(NativeCore.midiDrain());
                 if (NativeCore.needsPermission()) ui.post(() -> requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, MICROPHONE));
                 String project = NativeCore.takeImport();
                 if (project != null) ui.post(() -> {
@@ -118,15 +122,18 @@ public final class MainActivity extends Activity {
         }
         boolean focus = audioManager.requestAudioFocus(audioFocus) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
         CORE.post(() -> { foreground = true; focusGranted = focus; NativeCore.permission(permission); if (ready) NativeCore.suspend(!focus); CORE.removeCallbacks(tick); CORE.post(tick); });
+        midi.setActive(focus);
         web.onResume();
     }
     @Override protected void onStop() {
         CORE.post(() -> { foreground = false; CORE.removeCallbacks(tick); if (ready) NativeCore.suspend(true); });
         audioManager.abandonAudioFocusRequest(audioFocus);
+        midi.setActive(false);
         web.onPause();
         super.onStop();
     }
     @Override protected void onDestroy() {
+        midi.close();
         destroyed = true; CORE.removeCallbacks(tick); web.removeJavascriptInterface("NullPeratorAndroid"); web.destroy(); super.onDestroy();
     }
     @Override protected void onSaveInstanceState(Bundle state) {
@@ -158,6 +165,11 @@ public final class MainActivity extends Activity {
                     JSONObject message = new JSONObject(text); id = message.getInt("id");
                     String command = message.getString("command");
                     final int requestId = id;
+                    if (command.startsWith("midi")) {
+                        midi.command(command, message.isNull("port") ? null : message.optString("port", null),
+                            (value, error) -> reply(requestId, value, error));
+                        return;
+                    }
                     if (command.equals("openFiles") || command.equals("exportFiles") || command.equals("openWiki")
                             || command.equals("openDiscord") || command.equals("openPrivacyPolicy") || command.equals("purchaseHardware")) {
                         ui.post(() -> { try { openExternal(command); reply(requestId, true, null); }
@@ -179,8 +191,6 @@ public final class MainActivity extends Activity {
             case "nativeAction": NativeCore.action(message.getInt("action"), message.getBoolean("pressed"), message.optBoolean("repeat")); return true;
             case "nativeReleaseAll": NativeCore.release(); return true;
             case "nativeFrame": return frame(message.optInt("after"));
-            case "nativeMidiDrain": return new JSONObject().put("packets", new JSONArray()).put("droppedNormal", 0).put("droppedRealtime", 0);
-            case "nativeMidiDisconnect": case "nativeMidiOutputConnected": return false;
             default: throw new IOException("Command is unavailable on Android: " + message.getString("command"));
         }
     }

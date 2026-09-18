@@ -179,6 +179,7 @@
               {midiSnapshot.state === 'requesting' ? 'CONNECTING…' : 'ENABLE MIDI'}
             </button>
           {/if}
+          {#if midiSnapshot.error}<p class="feedback" role="status">{midiSnapshot.error}</p>{/if}
           <p class="midi-status" class:online={midiSnapshot.inputConnected || midiSnapshot.outputConnected}>
             {midiLabel}
           </p>
@@ -226,7 +227,7 @@
         </button>
 
         <button class="setting-row tappable" type="button" onclick={openMidiPage}>
-          <span class="row-copy"><strong>MIDI</strong><small>{midiLabel} · Route Map & Bluetooth</small></span>
+          <span class="row-copy"><strong>MIDI</strong><small>{midiLabel} · {android ? 'USB & system MIDI' : 'Route Map & Bluetooth'}</small></span>
           <span class="chevron">›</span>
         </button>
 

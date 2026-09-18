@@ -33,7 +33,17 @@ Debug builds use the standard local Android debug key. A distribution build need
 - Settings → Export Backup saves a ZIP of persisted files through the system save dialog. Save your project before managing files or exporting. Choose a destination outside the NullPerator folder. Uninstalling the app removes its private files.
 - Touch and browser-supported keyboard/gamepad controls share the existing Web UI input path.
 
-USB/Bluetooth MIDI routing is not implemented in this first Android host. It is shown as unavailable. Audio devices must support the requested 44.1 kHz shared float streams; incompatible formats fail instead of changing playback pitch or WAV timing. Device-specific latency and microphone behavior still require physical-device testing.
+## MIDI
+
+Settings → MIDI lists USB and system MIDI 1.0 byte-stream ports. Select a **SOURCE** for incoming notes/clock and a **DESTINATION** for outgoing MIDI. Either route can be OFF. No Bluetooth MIDI discovery, permission or routing is included.
+
+Port choices are stored locally. The host closes ports on disconnect, backgrounding or audio-focus loss, resets incoming notes, and sends sustain-off/all-notes-off/all-sound-off before closing an available output. It restores a saved route when a matching device returns; if multiple indistinguishable devices are connected, select the desired port explicitly. Open failures and queue overflows appear on the MIDI page.
+
+MIDI bytes travel between Android ports and the C++ core on native threads. The WebView polls route metadata only. A shared device handle allows both directions to open together; bounded queues and route generations prevent stale messages crossing route changes.
+
+## Remaining platform differences
+
+Android pauses playback and recording in the background; this host does not implement the iOS background-audio behavior. Bluetooth MIDI is intentionally excluded. Audio devices must support the requested 44.1 kHz shared float streams; incompatible formats fail instead of changing playback pitch or WAV timing. Device-specific latency and microphone behavior still require physical-device testing.
 
 ## Tests
 
@@ -47,16 +57,18 @@ javac --release 17 -d android/build/java-tests android/app/src/main/java/org/nul
 java -ea -cp android/build/java-tests org.nullperator.app.SampleFilesTest
 java -ea -cp android/build/java-tests org.nullperator.app.DocumentFilesTest
 cd web
-pnpm exec vitest run tests/androidBridge.test.js tests/nativeRuntime.test.js tests/nativeAppSettings.test.js
+pnpm exec vitest run tests/androidBridge.test.js tests/androidMidi.test.js tests/nativeRuntime.test.js tests/nativeAppSettings.test.js
 pnpm exec playwright test android-native.spec.js native-layout.spec.js
 ```
 
-The device integration suite checks DocumentsProvider create/write/read/rename/delete and rejects traversal outside the library.
+The device integration suite uses a test-only Android MIDI service to check duplex port opening, byte loopback, OFF routes and background/resume cleanup. It also checks DocumentsProvider create/write/read/rename/delete and rejects traversal outside the library. Its MIDI preferences and native project are isolated from the user's saved routes and project.
 
 ```sh
 cd android
 ./gradlew :app:connectedDebugAndroidTest
 ```
+
+The loopback service is included only in the test APK, never in the app APK. Remove `org.nullperator.app.test` after manual test installation to remove the test MIDI endpoints. Virtual-device loopback does not establish physical USB compatibility; test with a USB MIDI keyboard/interface before release.
 
 Before shipping, test on a physical Android device: launch offline; play/stop each synth and a sample; import/cancel/duplicate a WAV; allow/deny mic permission; record and save; background during playback/recording; reconnect headphones; rotate the screen; verify Back warnings, project persistence and ZIP export.
 

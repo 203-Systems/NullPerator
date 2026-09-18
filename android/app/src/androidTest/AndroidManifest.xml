@@ -1,3 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <application />
+    <application>
+        <service android:name="org.nullperator.app.TestMidiService" android:permission="android.permission.BIND_MIDI_DEVICE_SERVICE" android:exported="true">
+            <intent-filter><action android:name="android.media.midi.MidiDeviceService" /></intent-filter>
+            <meta-data android:name="android.media.midi.MidiDeviceService" android:resource="@xml/test_midi_device" />
+        </service>
+    </application>
 </manifest>
