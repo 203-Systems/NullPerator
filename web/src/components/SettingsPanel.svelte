@@ -1,7 +1,6 @@
 <script>
   import { onDestroy, onMount } from 'svelte'
   import { GameConsole, Maximize, Minimize, TouchInteraction } from 'carbon-icons-svelte'
-  import { version as packageVersion } from '../../package.json'
   import { controllerStore } from '../stores/controller.js'
   import { AUDIO_BUFFER_OPTIONS, DISPLAY_SCALE_OPTIONS } from '../stores/settings.js'
   import { TRACE_CATEGORIES } from '../trace/registry.js'
@@ -25,7 +24,7 @@
   let controller = controllerStore.snapshot()
   let fullscreenActive = false
   let fullscreenSupported = false
-  const productVersion = packageVersion.replace(/\.0$/, '')
+  const productVersion = __NULLPERATOR_PRODUCT_VERSION__
   const metadataValue = (candidate) => candidate ?? 'unavailable'
   const unsubscribe = settings.subscribe((next) => { snapshot = next })
   const detachController = controllerStore.subscribe((next) => { controller = next })

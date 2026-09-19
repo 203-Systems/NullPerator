@@ -15,23 +15,7 @@ mkdir -p "$(dirname "$archive")"
 
 product_version_header="${NULLPERATOR_PRODUCT_VERSION_HEADER:-}"
 if [[ -n "$product_version_header" ]]; then
-  product_version="$(sed -nE \
-    's/.*inline constexpr char Version\[\] = "([^"]+)";.*/\1/p' \
-    "$repo_root/sources/ProductVersion.h" | head -n 1)"
-  if [[ ! "$product_version" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
-    echo "Invalid NullPerator product version: $product_version" >&2
-    exit 1
-  fi
-  mkdir -p "$(dirname "$product_version_header")"
-  product_version_temp="${product_version_header}.tmp"
-  printf '#define NULLPERATOR_IOS_PRODUCT_VERSION %s\n' \
-    "$product_version" > "$product_version_temp"
-  if [[ -f "$product_version_header" ]] && \
-      cmp -s "$product_version_temp" "$product_version_header"; then
-    rm "$product_version_temp"
-  else
-    mv "$product_version_temp" "$product_version_header"
-  fi
+  "$repo_root/ios/scripts/product-version.sh" "$product_version_header"
 fi
 
 if [[ "$platform_name" == *simulator* ]]; then

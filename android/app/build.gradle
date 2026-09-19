@@ -1,9 +1,10 @@
 plugins { id 'com.android.application' }
-// Share the product version and release build with the iOS target.
+// Both mobile hosts read their release identity from the shared core header.
 def productVersion = (rootProject.file('../sources/ProductVersion.h').text =~ /Version\[\] = "([^"]+)"/)
 if (!productVersion.find()) throw new GradleException('Missing product version')
-def releaseBuilds = (rootProject.file('../ios/NullPeratorIOS.xcodeproj/project.pbxproj').text =~ /CURRENT_PROJECT_VERSION = (\d+);/).collect { it[1] }.unique()
-if (releaseBuilds.size() != 1) throw new GradleException('iOS build numbers must agree')
+def productBuild = (rootProject.file('../sources/ProductVersion.h').text =~ /inline constexpr unsigned Build = (\d+);/)
+if (!productBuild.find() || productBuild.group(1).toLong() < 1 || productBuild.group(1).toLong() > 2100000000)
+    throw new GradleException('Product build must be a positive Android versionCode')
 android {
     namespace 'org.nullperator.app'
     compileSdk 35
@@ -13,7 +14,7 @@ android {
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
         minSdk 26
         targetSdk 35
-        versionCode releaseBuilds[0].toInteger()
+        versionCode productBuild.group(1).toInteger()
         versionName productVersion.group(1)
         ndk { abiFilters 'arm64-v8a', 'x86_64' }
         externalNativeBuild { cmake { cppFlags '-std=c++23'; arguments '-DAndroid=true', '-DANDROID_STL=c++_shared' } }
@@ -33,6 +34,7 @@ tasks.register('packageWeb', Exec) {
     commandLine 'bash', 'android/scripts/package-web.sh', layout.buildDirectory.dir('generated/webAssets').get().asFile.absolutePath
     inputs.dir rootProject.file('../web/src')
     inputs.dir rootProject.file('../web/public')
+    inputs.file rootProject.file('../sources/ProductVersion.h')
     inputs.file rootProject.file('../web/package.json')
     inputs.file rootProject.file('../web/pnpm-lock.yaml')
     inputs.file rootProject.file('../web/vite.config.js')

@@ -16,9 +16,10 @@ The Xcode build phase compiles the native C++ library for the active SDK and
 architecture before linking the application. The bundle identifier is
 `io.203systems.nullperator`.
 
-The release version is owned by `sources/ProductVersion.h`. The native-core
-build phase derives the iOS `CFBundleShortVersionString` from that value, so the
-C++ UI, native settings bridge and signed app bundle cannot drift apart.
+The release version (`Version`) and build number (`Build`) are owned by
+`sources/ProductVersion.h`. The native-core build phase generates the iOS
+`CFBundleShortVersionString` and `CFBundleVersion` from these values, matching
+Android and the C++ UI. Keep `Build` increasing across releases.
 
 ## Runtime architecture
 

@@ -1,19 +1,20 @@
 # Release process
 
 NullPerator shares one product version across the hardware firmware, WASM
-workbench, and iOS application. Release each target from a tested commit on
+workbench, iOS application, and Android application. Release each target from a tested commit on
 `nullperator-main`; do not change the project-file schema merely to publish a
 new product version.
 
 ## Version sources
 
-- `sources/ProductVersion.h` owns the user-visible product version.
+- `sources/ProductVersion.h` owns the user-visible `Version` and mobile `Build`.
 - `sources/Application/Model/ProjectVersion.h` owns the persisted project
   format and compatibility policy. Change it only when the file format changes.
-- The iOS build derives `CFBundleShortVersionString` from
-  `sources/ProductVersion.h`.
-- The iOS `CFBundleVersion` is an App Store build number. Increment it for every
-  upload of the same product version.
+- iOS derives `CFBundleShortVersionString` and `CFBundleVersion` from this header;
+  Android derives `versionName` and `versionCode` from it. The Web settings page
+  receives `Version` through Vite; `web/package.json` is not the release identity.
+- Increment `Build` for each mobile upload. Never reset it when `Version` changes,
+  because Android requires monotonically increasing version codes.
 
 ## Prepare the release
 
