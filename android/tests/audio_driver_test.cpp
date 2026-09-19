@@ -11,7 +11,7 @@ struct AAudioStream {
 };
 struct AAudioStreamBuilder : AAudioStream {};
 static AAudioStream *input=nullptr, *output=nullptr;
-static bool wrongRate=false;
+static bool wrongRate=false, failStart=false;
 aaudio_result_t AAudio_createStreamBuilder(AAudioStreamBuilder **b) { *b=new AAudioStreamBuilder; return 0; }
 void AAudioStreamBuilder_setDirection(AAudioStreamBuilder *b,int32_t v) { b->direction=v; }
 void AAudioStreamBuilder_setFormat(AAudioStreamBuilder *b,int32_t v) { b->format=v; }
@@ -26,7 +26,7 @@ aaudio_result_t AAudioStreamBuilder_openStream(AAudioStreamBuilder *b,AAudioStre
  (b->direction==AAUDIO_DIRECTION_INPUT?input:output)=*s; return 0;
 }
 aaudio_result_t AAudioStreamBuilder_delete(AAudioStreamBuilder *b) { delete b; return 0; }
-aaudio_result_t AAudioStream_requestStart(AAudioStream *s) { s->started=true;return 0; }
+aaudio_result_t AAudioStream_requestStart(AAudioStream *s) { if(failStart)return -1;s->started=true;return 0; }
 aaudio_result_t AAudioStream_requestStop(AAudioStream *s) { s->started=false;return 0; }
 aaudio_result_t AAudioStream_close(AAudioStream *s) { if(s==input)input=nullptr;if(s==output)output=nullptr;delete s;return 0; }
 int32_t AAudioStream_getSampleRate(AAudioStream *s) { return s->rate; }
@@ -52,6 +52,9 @@ int main() {
  driver.SetSuspended(true); assert(!input && !output);
  assert(!driver.BeginInputCapture(capture));
  driver.SetSuspended(false); assert(output && !input);
+ driver.SetSuspended(true); failStart=true;
+ driver.SetSuspended(false); assert(!output);
+ failStart=false; driver.PumpProducer(); assert(output && output->started);
  output->error(output,output->owner,-1); driver.PumpProducer(); assert(output);
  driver.StopDriver(); wrongRate=true;
  assert(!driver.StartDriver() && !output); assert(!driver.BeginInputCapture(capture) && !input);

@@ -61,7 +61,8 @@ void AndroidAudioDriver::SetSuspended(bool value) {
   if (value) { EndInputCapture(); CloseStream(output_); }
   else if (started_) {
     ring_.Reset();
-    if (OpenOutput()) AAudioStream_requestStart(output_);
+    if (OpenOutput() && AAudioStream_requestStart(output_) != AAUDIO_OK)
+      CloseStream(output_);
   }
 }
 int AndroidAudioDriver::GetPlayedBufferPercentage() { return ring_.FillFrames() * 100 / 16384; }
