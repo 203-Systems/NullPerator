@@ -26,7 +26,13 @@ public final class DocumentFilesTest {
             Files.delete(root.resolve("link"));
             File renamed = docs.rename("root/samples/kick.wav", "snare.wav");
             assert renamed.exists() && !sample.exists();
+            Files.writeString(root.resolve("samples/.capture-diagnostics.txt"), "frames=1");
+            Files.createDirectory(root.resolve("samples/.internal"));
+            Files.writeString(root.resolve("samples/.internal/state"), "hidden");
+            Path sentinel = Files.writeString(root.resolve("keep.txt"), "keep");
+            Files.createSymbolicLink(root.resolve("samples/link"), sentinel);
             docs.delete("root/samples");
+            assert Files.readString(sentinel).equals("keep");
             assert !root.resolve("samples").toFile().exists();
             System.out.println("DocumentFiles tests passed");
         } finally { try (var paths = Files.walk(root)) { for (Path p : paths.sorted(java.util.Comparator.reverseOrder()).toList()) Files.deleteIfExists(p); } }

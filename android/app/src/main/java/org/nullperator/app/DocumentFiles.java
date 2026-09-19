@@ -1,7 +1,8 @@
 package org.nullperator.app;
 
 import java.io.*;
-import java.nio.file.Files;
+import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
 
 /** Stable, relative document IDs. Never expose private staging files or symlinks. */
 final class DocumentFiles {
@@ -51,11 +52,18 @@ final class DocumentFiles {
     void delete(String id) throws IOException {
         if (ROOT.equals(id)) throw new IOException("Cannot delete the root folder");
         File file = resolve(id);
-        if (file.isDirectory()) {
-            File[] children = file.listFiles();
-            if (children == null) throw new IOException("Cannot read folder");
-            for (File child : children) delete(id(child));
-        }
-        Files.delete(file.toPath());
+        // The public ID was validated above. Descendants may include internal
+        // dotfiles; walk without FOLLOW_LINKS so links are removed, never followed.
+        Files.walkFileTree(file.toPath(), new SimpleFileVisitor<Path>() {
+            @Override public FileVisitResult visitFile(Path path, BasicFileAttributes attributes) throws IOException {
+                Files.delete(path);
+                return FileVisitResult.CONTINUE;
+            }
+            @Override public FileVisitResult postVisitDirectory(Path path, IOException error) throws IOException {
+                if (error != null) throw error;
+                Files.delete(path);
+                return FileVisitResult.CONTINUE;
+            }
+        });
     }
 }
